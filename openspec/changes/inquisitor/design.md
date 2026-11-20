@@ -124,7 +124,7 @@ concerns.
 - **About one repository, a lore repository included:** a file on that
   repository's questions branch. Repository questions need no lore
   repository and no igor.
-- **About an organization or project:** a file on the questions branch of
+- **About a collective:** a file on the questions branch of
   the team's lore repository. Keeping the files off the default branch
   leaves that branch holding only the reviewed lore entries Igor gives
   agents. The files hold no `conditions`, the key that marks a lore entry,
@@ -266,12 +266,12 @@ post with one of the four reserved prefixes, `User says: `, `User asks: `,
 `Recorded answer: ` and `Inquisitor: `. Anything holding the relay identity
 could post `User says: `, which marks a question answered on every machine.
 So the skill's
-instructions reserve the prefixes, and post hooks enforce them: on GitHub in
-every session (*The post hook blocks a reserved prefix on GitHub*), and on
-all three surfaces in the holder, the Claude Code session whose answer
-session holds the per-machine lock (*In the holder, the model posts only as the
-person's relays*). In any other session nothing
-enforces the prefixes on Linear and Discord.
+instructions reserve the prefixes, and the inquisitor's post hook enforces
+them on GitHub in every session (*The post hook blocks a reserved prefix on
+GitHub*). In the answer session's own Claude Code session the model has no
+tool that posts (*The session's model has no shell, no writing tool and no
+web fetch*). In any other session nothing enforces the prefixes on Linear
+and Discord.
 
 ### Local state, one writer per machine
 
@@ -325,17 +325,19 @@ risks, and the spec answers each:
 
 ### The session's model
 
-The model may ask the person in its reply in a discussion (*A discussion runs
-in the session's own conversation*). By its own tool calls it may
-post through the person's relays, with no reserved prefix; an answer in the
-person's name it only drafts into the prompt box
-(*In the holder, the model posts only as the person's
-relays*). The hooks guard only the posting commands and tools they recognise:
-the model's tools can still read the keychain holding the person's Linear key
-and post with it through a command no hook reads, such as `curl`, a gap the
-answer-session decision record's *Constraint: The session's model runs with
-the person's tools, …* accepts. The prototype has shown that a mod can fill
-the prompt box and register a tool the model calls by name.
+The person chats with the model in the session's conversation, about the
+question on screen and its answer; the answer session's panel sits at the
+bottom of the screen, above the prompt box, and the rest of the screen is
+that conversation. The model may ask the person
+in its reply (*A discussion runs in the session's own conversation*). It has
+only its conversation, read-only file tools that read and search files, and
+`propose_reply`, the answer session's tool that drafts a reply into the
+prompt box. It cannot
+post, run a command, write a file or fetch a URL. The answer session's own
+code does every post, `log` call and push, and every fetch from a surface.
+Coding, testing and committing happen in other Claude Code sessions. The
+prototype has shown that a mod can fill the prompt box and register a tool
+the model calls by name.
 
 ## Tracing scenarios to tests
 
@@ -564,7 +566,7 @@ category*).
 in every channel, Linear and Discord included.** Where the place would be
 wider, or the agent cannot tell, it asks through the picker. With no person
 in the session, where the place would be wider it posts in the repository the
-question concerns, or, for an organization's or project's question, in the
+question concerns, or, for a collective's question, in the
 repository holding the current work. Where it cannot tell, it posts nothing
 and says so.
 
@@ -925,8 +927,8 @@ text, whitespace is joined), then drops leading whitespace, so ` User says: `
 and `**User says:**` are blocked too.
 
 **Why:** only the answer session may start a post with a reserved prefix,
-and it posts through no tool call (*In the holder, the model posts only as
-the person's relays*).
+and it posts through no tool call (*A relay post is posted by a host
+command, unvetted*).
 
 #### No exemption for an Igor's handback
 
@@ -952,14 +954,14 @@ next agent finds the answer instead of asking again.** No question log is
 kept anywhere personal, beyond a file pending its push (*Where the logs
 live*). The skill's instructions tell
 the agent not to ask a question that concerns none of these: a repository,
-an organization or project, or one person's way of working; nothing enforces
+a collective, or one person's way of working; nothing enforces
 it. Such a
 question, if asked, is logged nowhere, and in a post it tags no one. The spec
 names the questions that get no log file.
 
-#### Organization questions go on lore's `questions` branch
+#### Collective questions go on lore's `questions` branch
 
-**An organization's or project's question goes on the team lore repository's
+**A collective's question goes on the team lore repository's
 orphan `questions` branch, not on igor's `igor-state` branch, which holds
 igor's runtime state.** The branch keeps questions not important enough to
 become lore, so nobody asks them again; nothing on it is given to agents as
@@ -981,7 +983,7 @@ answering confirms it; visibility is ranked private, internal (visible to a
 whole enterprise), then public, and an unreadable visibility counts the
 cautious way** (*Configuration* gives how visibility is read). A record's
 source is the thread its question was asked or its answer given in, a Linear
-or Discord thread counting as private, and for an organization's question
+or Discord thread counting as private, and for a collective's question
 also the repository it was asked from.
 
 **The person answering is shown where the question and its answer will be
@@ -1155,7 +1157,7 @@ the Igor refuses a worker's file that claims more than a worker may, and the
 
 **A questions-branch file holding `repository` is about that one
 repository, and counts as a decision only from a writer of it; a file
-holding no `repository` is about an organization or project, and counts
+holding no `repository` is about a collective, and counts
 from a writer of the lore repository.** `repository` always names the
 repository the question is about, and only a file about one repository
 holds it; `asked_from` names where the question was asked (*Every
@@ -1170,9 +1172,9 @@ permission that cannot be read counts as no authority.
 access to what its question concerns*, scenario *A file about a repository other than the one it was asked from needs write access to it*): checking the
 lore repository's writers for every file, which lets a lore writer decide for
 a repository they cannot change; and a design in which `repository` names
-where an organization's question was asked and a reader tells the cases apart
-by comparing it with `asked_from`: that design judges a file about the Igor's
-own item's repository by the lore repository's writers.
+where a collective's question was asked, so that equal `repository` and
+`asked_from` mark a collective's question: that design would judge a file
+about the Igor's own item's repository by the lore repository's writers.
 
 #### A logged answer is the person's own words
 
@@ -1445,10 +1447,9 @@ run, the writer of `asked_from`, the script or the answer session, already
 sets `repository`, so setting `asked_from` too gives it no new way to
 mislead.
 
-**Why** an organization's question names where it was asked: it concerns no
+**Why** a collective's question names where it was asked: it concerns no
 repository, but its visibility and its team's lore repository still come from
-the work that raised it (spec: *An organization's question is bounded by the
-repository it was asked from*).
+the work that raised it (spec: *A collective's question is bounded by the repository it was asked from*).
 
 **Why** a run's file can name another repository: the item's repository is
 only the default for a question the agent cannot place, and a question
@@ -1491,9 +1492,10 @@ from that file.
 #### The Igor pushes the questions-branch files its worker reports
 
 igor PR #216's requirement *An Igor publishes the questions-branch files its
-worker reports* holds these rules for both changes. The Igor pushes a file
-about a repository to that repository's questions branch, and one about an
-organization or project to the team's lore repository's. It pushes only an unanswered question file or a miss file, each
+worker reports* holds these rules for both changes, save one it must still
+adopt (*What igor must provide*): the Igor pushes a file about a repository
+to that repository's questions branch. It pushes one about a collective to
+the team's lore repository's. It pushes only an unanswered question file or a miss file, each
 only at a path not already on the branch (decision 21); every file
 passes igor PR #217's credential matcher, which matches known secrets'
 values such as the seat token (decision 28); and it reads the lore
@@ -1610,7 +1612,7 @@ with write access to a repository can rewrite or delete its unprotected
 `questions` branch*.
 
 **Setup can create a lore repository, as a step the person may skip, for a
-team that wants its organization or project questions recorded.** It creates
+team that wants its collective's questions recorded.** It creates
 only what the inquisitor owns: the repository, at the visibility the person
 picks, its clone and the person's configuration entry. It writes nothing in
 igor's entry format, so the step needs no igor. The `lore` command does copy
@@ -1675,13 +1677,11 @@ but `gh`, whose posts the post hooks see.** This change asks github-app for that
 without it.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
-person and the asker, so nothing should post through it unseen. `token`
-prints its token to any agent on the machine; `run`,
-`credential get` and `wire` hand it to a command, git or a clone's
-configuration.
+person and the asker, so nothing should post through it unseen.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The post
-hooks, on GitHub, Linear and Discord, and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a
+*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The
+inquisitor's GitHub post hook and the refusals asked of github-app for a relay
+identity guard against accidents, not against an agent set on forging a
 relayed answer, which can read a relay's credentials from the keychain and
 post with `curl`* and *Constraint: Until github-app refuses `token`, `run`,
 `credential get` and `wire` for a relay identity, any agent on the person's
@@ -1733,7 +1733,9 @@ leak private content or lose an answer is still raised for a decision.
 #### One answer session runs on each machine
 
 **The lock makes one session the sole writer of its machine's state**
-(*Local state, one writer per machine*). The lock holder checks the lock by
+(*Local state, one writer per machine*): one state folder holds the machine's
+owed pushes, pending answers and poll positions, and two answer sessions
+would poll, post and push twice. The session holding the lock checks it by
 its session id, not its name, because every session the `answer` command
 starts is named `Answers`.
 
@@ -1742,8 +1744,11 @@ starts is named `Answers`.
 **The answer session opens with `/answer` in any session, or with the
 `answer` terminal command that setup installs; no environment variable opens
 it,** because a session an app starts from its session list, with no
-terminal, cannot set one. `answer` opens the session fullscreen; `/answer`
-opens it on whichever screen the session is on.
+terminal, cannot set one. `answer` starts Claude Code in its fullscreen
+layout, with the tool restriction task 0.34 finds; `/answer` opens the
+answer session in whichever layout the session is in, and only where Claude
+Code restricts that session's tools (*The session's model has no shell, no
+writing tool and no web fetch*).
 
 *Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout*.
 
@@ -1752,99 +1757,37 @@ opens it on whichever screen the session is on.
 **Why:** the person opened the conversation to talk the question through, and
 the model reads before it replies, while a picker would hide the answer
 session's screen. So a question the model asks back is the one exception to
-the rule that an agent asks only through the picker. The model's reach to the
-person's Linear key is accepted (*The session's model*).
+the rule that an agent asks only through the picker.
 
-#### In the holder, the model posts only as the person's relays
+#### The session's model has no shell, no writing tool and no web fetch
 
-**In the holder, the model posts on GitHub, Linear and Discord only as the
-person's relay on each, never under the person's own account, and never with
-a reserved prefix. Each surface's post hook blocks any other tool-call post
-there. A `User says: ` answer goes out only from the answer session, once the
-person gave or confirmed it.** The model reads thread text and has the
-person's tools, so a crafted thread could otherwise have it post a plain
-answer such as `Use X` under the person's own `gh` login, which filter 1
-counts as the person's decision, or `User says: ` as the relay, which marks a
-question answered as the person's words. A post as the relay without a prefix
-speaks for no one: the answer session counts none as a relay post (*Relay
-posts start with a reserved prefix*), and filter 1 counts no relay post at
-all.
+**In the session where the answer session is open, the model has only its
+conversation, `propose_reply` and read-only file tools, and Claude Code, not
+a hook, enforces that.** The threat is a crafted message in a subscribed
+channel steering the model into posting, or recording a decision, as the
+person. The answer-session decision record's *Rationale: The session's model
+has no shell, no writing tool and no web fetch* gives why hooks cannot stop a
+model with a shell, and why web fetch is left out. Whatever the model is
+steered to do, the most it can do is draft a reply the person sees before
+anything is sent.
 
-**The hooks tell a confirmed answer from the model's by its path, not its
-text.** The answer session posts every confirmed answer as a host command,
-never as a tool call of the model (task 0.18), and a `PreToolUse` hook sees
-only tool calls. So any tool call carrying a reserved prefix is one the person
-did not confirm, and the hooks need no record of what the person confirmed.
+**The answer session's own code does every post, `log` call and push, and
+every fetch from a surface.** It posts each confirmed answer as a host
+command (*What the answer session posts, and what it logs*), so the person's
+confirmation, not a hook, is what lets an answer out.
 
-**For the same reason, the model's own `log` call that writes an answer is
-blocked in the holder.** A relay post counts for nothing, but an answer file
-counts, so a model steered by a crafted thread could otherwise push one
-naming the person as `answered_by`. The answer session runs `log` itself,
-outside the model's tool calls, so blocking the model's call costs no
-confirmed answer. It blocks a miss or handled file too, which could back a
-forged reply or close a question. A call that is not the whole command line
-is blocked unread, since an earlier command could rewrite the input file
-after the hook read it (answer-session spec: *In the holder, the model logs
-no answer*). Every holder check needs the hook to know which session it runs
-in, which task 0.32 measures.
-
-**How each hook tells the relay from the person:**
-- On GitHub, the shared post reader reports the identity a github-app script
-  call names with `--identity`; a post passes only as the person's GitHub
-  relay identity. A direct `gh` call, a GitHub MCP tool or a script call
-  naming no identity goes out as the person, or as no one the hook can name,
-  and is blocked. A call that sends no text, such as a delete, is not
-  blocked, since it puts no words under anyone's name.
-- On Discord, discord-bot names its identity with `--identity`. A post, edit
-  or thread passes only as the Discord relay identity with text the hook can
-  read, and a delete, which carries no text, only as that identity.
-- On Linear, linear-app has no post command, so the model posts through a
-  Linear MCP server. A writing tool passes only while Claude Code's MCP
-  configuration shows linear-app wired that server to the Linear relay
-  identity. linear-app's `token` and `headers` are blocked, since the token
-  they print posts where no hook reads the text, and so does `wire`, which
-  could point the server at another identity.
-- discord-bot's and linear-app's instructions set `D` and `L` to their
-  scripts' installed paths, so each hook judges `python3 $D` or `python3
-  $L` as its script at that path when the line assigns the variable
-  nowhere or assigns it that path.
-- Each of the two hooks blocks a line the shared splitter in
-  `.agents/lib/gh-shell/` cannot split exactly when the line names that
-  hook's script, `discord_bot.py` or `linear_app.py`, or runs a script
-  whose path the splitter cannot tell, as the post hooks block an
-  unreadable `gh` line.
+**Which tools, and how the thread reaches the model, are still open** (*Open
+Questions*). Task 0.34 measures how Claude Code restricts a session's tools.
+If it offers no control that Claude Code itself enforces, the design would
+fall back to hooks, and the change cannot be built as written.
 
 **No hook checks where a relay post goes, and the person is accountable for
-what is posted as their relay.** A post without a prefix does not count as the
-person's answer, but it still appears under an identity tied to them, and a
-crafted private thread could steer the model into reposting private text in
-a public place under that name. The inquisitor's visibility rules, such as
-*A question goes only where its audience is no wider than its subject*, still
-bind the model through its instructions. A hook cannot enforce them: it sees
-the post and where it goes, not which thread its text came from. So the gap is
-accepted, and the person, who chooses which relays to set up and what to let
-the model do, is accountable for what is posted (answer-session spec: *The
-person answers for what their relay posts*).
-
-**Only a session whose answer session is open is guarded.** Closing the answer
-session removes its lock, and a stale lock makes no session the holder, so a
-session where the person once typed `/answer` posts as before once it is
-closed. A lock that cannot be parsed makes every session the holder, so the
-hooks fail closed, like the other post hooks.
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, the *Constraint*
-that the post hooks guard against accidents, not a forging agent (quoted
-under *github-app refuses `token`, `run`, `credential get` and `wire` for a
-relay identity*).
-
-*Ruled out by a scenario* (answer-session spec: *In the holder, the model
-posts only as the person's relays*): letting the model post under the
-person's own `gh` login (scenario *The model's GitHub post under the person's
-login is blocked*); letting it post `User says: ` through a relay (scenario
-*The model's User says post is blocked*); and blocking every post in the
-holder, which would lose the model's relay posts for no gain, since an
-unprefixed relay post speaks for no one (scenario *The model's GitHub post
-through the relay goes out*).
+what any agent posts as their relay** (answer-session spec: *The person
+answers for what their relay posts*). An agent in another session may post
+as a relay without a prefix; such a post does not count as the person's
+answer, but it appears under an identity tied to them, and a hook sees the
+post and where it goes, but not which thread its text came from, so it
+cannot tell whether private text is leaking.
 
 #### Claude drafts a reply only into the prompt box
 
@@ -2122,7 +2065,10 @@ pushes the answer file with the post's link as its `answer_link`.** The file
 follows the post, its push retried at each poll and opening, so no thread is
 left answered with no file. Recording the owed push before the post means a
 crash between them does not lose the answer file. Checking the thread first
-lets the person see a new message before anything is pushed.
+lets the person see a new message before anything is pushed. An answer
+pushed at once, while its channel is off or not subscribed here, is recorded
+as an owed push too, with no post's link, so a push that fails for a passing
+reason is retried like any other.
 
 A retry stops when another answer file on the branch already counts as the
 person's answer and names the same questions-branch file, but only if this
@@ -2288,8 +2234,7 @@ changes in a message's text can break the lookup. A forged `Inquisitor: `
 post is another message with another id, so no file matches it. An earlier design named the file by the asking message
 and the filter; where one comment holds several questions, a forged reply
 about another of them, naming the same filter, would have matched. The agent
-looks on the questions branch of what its question concerns. For an
-organization's or project's question asked on Linear or Discord, it also
+looks on the questions branch of what its question concerns. For a collective's question asked on Linear or Discord, it also
 looks on every lore repository in its configuration. The asking agent picks
 a lore repository from the repository it works in, while the session picks
 by its model's judgement. A file on a branch the agent never checked would
@@ -2298,7 +2243,7 @@ reply's id names one file, so a match on any branch is that reply's miss.
 Finding none, the agent looks three more times, a minute apart, since the
 session pushes the file just after the reply. A hash-only miss file has empty frontmatter and no
 body, so it shows nothing but the time of its push and who pushed it. A hash-only file holds no `said_by`: being on the branch is its authority, since only an account
-with push access can put it there, and only an answer session writes one. For an organization's question that
+with push access can put it there, and only an answer session writes one. For a collective's question that
 branch is the lore repository's, whose writers are who decides such a
 question. A readable miss stays the form wherever privacy allows one, for
 its value as a log. Where the session has no questions branch to push a miss file of either form
@@ -2497,8 +2442,8 @@ most private `asked_from` among them, and their `repository` if they hold one, s
 as private as they are and about the same thing; files naming different
 repositories get no miss. A miss or answer file with no such file names its
 GitHub thread's repository in `asked_from`. A Linear or Discord thread has no
-repository, so there `asked_from` names the repository the question concerns, and for an
-organization's question the lore repository serving it. For any question
+repository, so there `asked_from` names the repository the question concerns, and for a
+collective's question the lore repository serving it. For any question
 asked there, the session's model judges from the question and its thread
 what it concerns and which configured lore repository serves it; when it
 cannot tell which lore repository, the only configured one serves it. A
@@ -2665,12 +2610,32 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-- **Which `project:` lore entries are in scope for an organization's or
-  project's question?** Such a question concerns no repository, and
-  filter 1's scope is `global` plus `project:<short name>`, the short name
-  being that of the repository a question concerns (inquisitor spec: *Filter 1 hides every
-  lore entry outside the question's scope*), so no rule says whether the
-  repository it was asked from, or the project it names, sets the scope.
+- **Which read-only tools exactly does the answer session's model get?**
+  Reading and searching files, such as Claude Code's Read, Grep and Glob, is
+  decided; whether any other read-only tool joins them is not (answer-session
+  spec: *The session's model has no shell, no writing tool and no web
+  fetch*).
+- **How does the session's code show a thread's contents to the model?** The
+  spec attaches the question and its thread's replies to each discussion
+  message as quoted data (*A discussion runs in the session's own
+  conversation*); whether the session also gives the model a read-only tool
+  of its own for the thread is open.
+- **Should a decline that posts nothing push a hash-only miss file?** Such
+  a miss, on a Linear or Discord question whose branch is more visible, is
+  named by a hash of the private message's URL, not of a reply's id, so
+  anyone who can guess that URL can confirm on the branch that the question
+  was declined, and when (inquisitor spec: *Every miss file is named by one
+  hash*). The answer-session record's Constraint on hash-only miss files
+  says the name does not identify the thread, which this case contradicts.
+  The file backs no reply. The choice is to push none, or to widen the
+  accepted cost.
+- **How does the script commit to a questions branch without an agent's
+  trailer checks seeing it?** *Questions-branch commits are machine
+  records* says prose's and bug-hunter's checks never see these commits,
+  but those checks read the HEAD reflog of the repository an agent runs
+  `log` in. That holds only if the script commits without moving any HEAD
+  there, such as with `git commit-tree` and `git update-ref` or in a
+  separate clone; no requirement says so yet.
 
 ### Facts measured before building
 
@@ -2732,7 +2697,7 @@ records a linked GitHub comment's own text*.
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21 and 0.23 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, instead
@@ -2761,11 +2726,17 @@ box*).
   run, on both surfaces; for a Linear comment, task 0.23 already found the
   words come back unchanged (the answer-session record's *Rationale: A
   question with a person-required line gets no filter 2 to 4 reply*).
-- **Do only reading Linear MCP tools have names starting `get_`, `list_` or
-  `search_`?** (task 0.27) linear-app's post hook lets those tools through in
-  the holder and blocks the rest, so a tool of another name fails closed. If
-  a writing tool has such a name, the hook lists the reading tools by name
-  instead.
+- **How does Claude Code restrict a session's tools?** (task 0.34) The
+  answer session needs its session's model limited to its conversation,
+  `propose_reply` and read-only file tools, enforced by Claude Code through
+  permission settings, a startup option such as `--allowedTools`, or a
+  mod's own control, never by a hook. If Claude Code offers no such
+  control, the design falls back to hooks and the change cannot be built as
+  written: the repository's owner decides what to build. *The session's
+  model has no shell, no writing tool and no web fetch*, the `answer`
+  command's line in *Two commands open an answer session*, and whether
+  `/answer` can open in a session started without the restriction all wait
+  on it.
 - **Does the `answer` command's line work?** (task 0.30) It relies on
   `CLAUDE_CODE_NO_FLICKER=1` giving the fullscreen layout, on `claude
   --name`, and on a prompt argument running a slash command. If one fails,
@@ -2843,7 +2814,8 @@ to its 149.
   unbidden, beside a search it may run* cites this change's rule (#216 calls
   this change #25, its pull request in shared-skills) that a file whose
   `repository` names a repository other than the item's is input; that needs
-  no rewording, since a file about an organization holds no `repository`.
+  no rewording, since a file about a collective holds no `repository` and so
+  never names another repository.
 - **#216 should say that no worker writes `asked_from`, not that only an
   Igor does.** Its decision 42's sentence "Under #25 only an Igor writes the
   key", and its lore-firing spec's "which only the Igor writes", should read:
@@ -2868,8 +2840,8 @@ to its 149.
   `igor-` prefix refuses to start. The answer session tells a handback by
   that prefix (*igor's handback marker*).
 - **igor must push a worker's repository questions to the questions branch
-  of the repository each concerns,** as it pushes a worker's organization
-  and project questions to the team's lore repository's. igor's own specs, #216's
+  of the repository each concerns,** as it pushes a worker's collective
+  questions to the team's lore repository's. igor's own specs, #216's
   lore-firing delta among them, must change to match.
 - **The Igor must push no file, unanswered or answered, to a questions
   branch more visible than the handback's item** (inquisitor spec: *An

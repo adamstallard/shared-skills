@@ -16,16 +16,17 @@ that sets its rule; a requirement may use a term a later one defines.
 *The current work* is what the agent was asked to do: an OpenSpec change, a
 pull request, or the task in hand. *A question within the current work* is
 one met while doing it that concerns the repository holding it, not another
-repository, an organization or project, or one person's way of working.
+repository, a collective, or one person's way of working.
 
 *What a question concerns* is, as the agent judges, one of three things. The
 first is the repository the question concerns, the git repository whose
 code, docs or decisions it is about. The second, for a question that applies
-beyond one repository, is the organization or project the question concerns,
-the GitHub owner or group of repositories it applies throughout. The third
-is one person's way of working. *Write access to what a question concerns*
-is write access to the repository the question concerns, or, for a question
-about an organization or project, to the team's lore repository.
+beyond one repository, is the team's lore repository: the question is about
+the **collective** that lore repository serves, which may be an
+organization, a project or any other group. Such a question is *a
+collective's question*. The third is one person's way of working. *Write access to what
+a question concerns* is write access to the repository the question
+concerns, or, for a collective's question, to the team's lore repository.
 
 *A lore repository* is a git repository of markdown entries whose YAML
 frontmatter holds `conditions`, searched through a local clone the
@@ -38,8 +39,8 @@ this spec *lore repository* always means the one holding the entries.
 
 *A questions branch* is a repository's orphan branch `questions`. It holds
 every question and miss file about that repository; a lore repository's
-also holds the files about the organizations and projects it serves, and
-its citation files. *A questions-branch file* is a file on one, and *an
+also holds the files about its collective's questions, and its citation
+files. *A questions-branch file* is a file on one, and *an
 answer file* is one holding an answer, whether or not it names, in
 `answers`, an earlier file there that logged the question unanswered.
 
@@ -49,14 +50,13 @@ login of the person running the session; its key `lore` lists the lore
 repositories, each an object holding `path`, the local clone, and `owners`
 or `repos`, the GitHub owners and repositories (`owner/repo`) it *serves*;
 its key `answer_session` holds what the `answer-session` spec defines. A
-lore repository serves a *project*, known by its repositories, when it
-serves one of them. *The team's lore repository* is the configured lore
-repository serving the repository the question concerns or, for an
-organization's or project's question, serving the repository it was asked
-from (*An organization's question is bounded by the repository it was asked
-from* defines that repository, and *The team's lore repository is the most
-specific one that serves* picks among several). For an organization's or project's question
-asked on Linear or Discord, where no repository was asked from, the
+lore repository serves a collective known by its repositories, such as a
+project, when it serves one of them. *The team's lore repository* is the configured lore repository serving the
+repository the question concerns or, for a collective's question, serving
+the repository it was asked from (*A collective's question is bounded by
+the repository it was asked from* defines that repository, and *The team's
+lore repository is the most specific one that serves* picks among
+several). For a collective's question asked on Linear or Discord, where no repository was asked from, the
 `answer-session` spec's *A Linear or Discord question is placed by what it
 concerns* picks the team's lore repository.
 
@@ -332,7 +332,7 @@ When the agent works in no git repository and the question is about none, no
 repository SHALL be the one it concerns: filter 1 SHALL search only the
 configured lore repositories and admit only `global` entries, and no
 citation SHALL be sent. If the agent asks anyway a question that concerns no
-organization, project or person's way of working either, which *A question
+collective or person's way of working either, which *A question
 is written at the privacy of what it concerns* forbids, nothing SHALL be
 logged and a post's question SHALL tag no one.
 
@@ -430,9 +430,9 @@ than its source*).
 - **THEN** it counts the first as public and the second as private, so
   nothing about the second is posted in the first
 
-### Requirement: An organization's question is bounded by the repository it was asked from
+### Requirement: A collective's question is bounded by the repository it was asked from
 
-A question about an organization or project SHALL be bounded by the
+A question about a collective SHALL be bounded by the
 visibility of **the repository it was asked from**: the one holding the
 current work or, for a logged question, the one its file's `asked_from`
 names; one asked in a Linear or Discord thread counts as asked from a
@@ -610,8 +610,8 @@ serving it, or of all if the agent works in no git repository.
 Filter 1 SHALL never show, count or mention a lore entry outside the
 question's scope. Outside an Igor, that scope is `global` and `project:`
 plus the short name of the repository the question concerns, the part of
-its name after its `/` (design.md: *Scope hides an entry; status only labels
-it*).
+its name after its `/`, and for a collective's question only `global`
+(design.md: *Scope hides an entry; status only labels it*).
 
 #### Scenario: Out-of-scope lore entries are hidden
 
@@ -621,6 +621,15 @@ it*).
   name of `o/api`
 - **AND** it never shows, counts or mentions the `project:web` entry, even
   as input
+
+#### Scenario: A collective's question sees only global entries
+
+- **WHEN** outside an Igor's run, a question about the organization `o`
+  is asked from `o/api`, and its lore repository holds matching entries
+  scoped `global` and `project:api`
+- **THEN** the search shows only the `global` entry, since `project:api`
+  belongs to the repository named `api`, which the question does not
+  concern
 
 #### Scenario: A role entry is hidden outside that role
 
@@ -2034,7 +2043,7 @@ its hash, with leading whitespace dropped.
 A posted question SHALL tag the first of these with write access to what it
 concerns: the approver of the pull request adding the related earlier
 decision; a login in `.inquisitor/reviewers` of the repository it concerns,
-or of the lore repository for an organization or project; its files' last
+or of the lore repository for a collective; its files' last
 committer. A `deferred` question SHALL NOT be tagged. A subagent's question
 goes back to the agent that started it, as *Where the host has a picker, an
 agent asks through it, never in its reply* says.
@@ -2053,7 +2062,7 @@ agent asks through it, never in its reply* says.
 
 #### Scenario: An organization's question tags a reviewer from lore
 
-- **WHEN** a question about an organization or project has no related
+- **WHEN** a question about a collective has no related
   earlier decision
 - **THEN** the script reads `.inquisitor/reviewers` from the team's lore
   repository, not from the repository holding the current work
@@ -2155,8 +2164,7 @@ answer whose author has one is input.
 
 ### Requirement: A question is written at the privacy of what it concerns
 
-An agent SHALL ask only a question about a repository, an organization or
-project, or one person's way of working, and word it for everyone who can
+An agent SHALL ask only a question about a repository, a collective, or one person's way of working, and word it for everyone who can
 read the repository it concerns or the team's lore repository, or, for a
 way-of-working question, for that person. Context from anything more private
 SHALL be generalised or left out, and a question that cannot be understood
@@ -2180,7 +2188,7 @@ read what it concerns can read it.
 
 #### Scenario: A question about nothing it can be filed with is not asked
 
-- **WHEN** a question concerns no repository, organization or project, and
+- **WHEN** a question concerns no repository or collective, and
   is not about the person's way of working
 - **THEN** the agent does not ask it
 
@@ -2191,7 +2199,7 @@ concerns, by *Nothing about a repository goes somewhere more visible* for a
 post or issue. If it is wider or unknown, with a person in session, the
 agent SHALL ask through the picker, or in its reply on a host with none.
 With no person in the session: if wider, it SHALL post in the
-repository the question concerns, or, for an organization's, the one it
+repository the question concerns, or, for a collective's, the one it
 was asked from, when it can; if unknown, it SHALL post
 nothing and say so.
 
@@ -2311,7 +2319,7 @@ by a person without write access leaves its question unanswered.
 ### Requirement: A question is pushed to the questions branch of what it concerns
 
 A question about one repository SHALL be pushed straight to that
-repository's questions branch, and one about an organization or project to
+repository's questions branch, and one about a collective to
 the team's lore repository's, with no pull request, creating the branch as
 an orphan when it is missing. No other branch SHALL hold a question or miss
 file. Every commit the script makes to a questions branch SHALL have the
@@ -2392,7 +2400,7 @@ owed push is its only retry*).
 
 A record's **source** SHALL be the thread its question was asked or its
 answer given in, a Linear or Discord thread counting as a private
-repository, and, for an organization's or project's question, also the
+repository, and, for a collective's question, also the
 repository it was asked from. The script SHALL refuse to push a log file
 or a miss file with keys to a questions branch more visible than its
 source, save as *The answerer's confirmation can send a record somewhere
@@ -2533,8 +2541,7 @@ the record.
 
 ### Requirement: A question with no team's lore repository is not logged
 
-When the agent finds no team's lore repository for an organization's or
-project's question, because none configured serves the repository it was
+When the agent finds no team's lore repository for a collective's question, because none configured serves the repository it was
 asked from or it works in no git repository, it SHALL log nothing and tell
 the person the question was not logged.
 
@@ -2576,7 +2583,7 @@ person's agent memory or user-level `CLAUDE.md`, never a committed one.
 When filter 1 stops a question with a lore entry, the agent SHALL push a
 citation file to the entry's lore repository's questions branch, unless:
 the question has a category; the lore repository is more visible than the
-question's repository or, for an organization's, the one it was asked from;
+question's repository or, for a collective's, the one it was asked from;
 or *With no repository, a question concerns none*, *No worker or
 Igor-started run pushes to a questions branch* or *An answer session's
 automatic reply is a verdict, not a person's answer* bars it.
@@ -3292,7 +3299,7 @@ file.
   file is on the team's lore repository's questions branch
 - **THEN** it backs an `Inquisitor: ` reply to that question, since pushing
   there takes write access to
-  the lore repository, which is what an organization's question concerns
+  the lore repository, which is what a collective's question concerns
 
 ### Requirement: A log file is read by its frontmatter and its body's end
 
@@ -3389,8 +3396,7 @@ by no reader or `log` command, nor passed to GitHub, a Linear or Discord link in
   `repository: "o/api"` and no `asked_from`
 - **THEN** filter 1 shows it as input, labelled unreadable
 - **AND** a questions-branch log file holding `asked_from` and no
-  `repository` passes the check, as a file about an organization or
-  project
+  `repository` passes the check, as a file about a collective
 
 ### Requirement: A citation file has one format
 
@@ -3428,13 +3434,13 @@ id that igor PR #216 defines; and a commit by
 
 ### Requirement: Some questions are recorded by hash only
 
-A question with a category SHALL get no log or miss file, nor any readable
-record of the skill's: the agent SHALL pass it, its verdict and the rest of
-its picker call only on standard input; the first call SHALL refuse a
-category but `vulnerability`, `secret` and `personal`, defined in its
-scenarios, and search nothing off the machine for it; the calls SHALL
-record only its hash, verdict, time and category. The post hook SHALL block
-a post with a question whose latest record has one.
+A question with a category SHALL get no log or miss file, beyond a handled
+file closing one already logged, nor any other readable record: the agent
+SHALL pass it, its verdict and its picker call only on standard input; the
+first call SHALL refuse a category but `vulnerability`, `secret` and
+`personal`, and search nothing off the machine for it; the calls SHALL
+record only its hash, verdict, time and category. The post hook SHALL
+block a post with a question whose latest record has a category.
 
 #### Scenario: A question with a category given in a file is refused
 
@@ -3854,6 +3860,7 @@ else as input, and push no citation for a lore entry it names (design.md:
   default branch
 - **THEN** the agent reads that file through filter 1, acts on the decision
   it holds, and logs no answer from the person
+- **AND** it logs no miss for the reply
 
 #### Scenario: A recorded answer the asker cannot count is input
 
@@ -3923,8 +3930,7 @@ question. Otherwise it is input.
 ### Requirement: A reply's miss file is looked for wherever the session may have put it
 
 The agent SHALL look for a reply's miss file on the questions branch of
-what its question concerns, and, for an organization's or project's
-question it asked on Linear or Discord, on that of every lore repository
+what its question concerns, and, for a collective's question it asked on Linear or Discord, on that of every lore repository
 in its configuration, since the answer session picks the lore repository
 by its own judgement. Finding none, it SHALL look again three times, a
 minute apart, before taking the reply as input.
@@ -3953,9 +3959,7 @@ minute apart, before taking the reply as input.
 An `Inquisitor: ` reply holding `question <n>: ` after its prefix SHALL be
 about item `<n>`, counted from 1, among the open-questions items of the post
 it replies to or names in its `Re: ` line. The agent SHALL treat such a
-reply as input when that post was edited after the reply was posted. It
-SHALL also treat as input an unnumbered reply to a post holding more than
-one question, and every question in that post stays open.
+reply as input when that post was edited after the reply was posted.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -3971,11 +3975,29 @@ one question, and every question in that post stays open.
   question 2: filter 4` was posted
 - **THEN** the reply is input, since the number may point at another item
 
-#### Scenario: An unnumbered reply to a post of several questions is input
+### Requirement: An unnumbered Inquisitor reply covers its whole post
 
-- **WHEN** an agent's post asks two questions, and a reply starting
-  `Inquisitor: filter 4`, with no `question <n>: `, has its miss file
+An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
+question in the post it replies to or names, and the agent SHALL act on
+it for each, since the answer session shows such a post as one question.
+When that post holds an open-questions section of more than one item,
+which the answer session answers by number, the agent SHALL instead treat
+the reply as input, and every question in the post stays open.
+
+#### Scenario: An unnumbered reply to a post of several listed questions is input
+
+- **WHEN** an agent's post lists two questions in one open-questions
+  section, and a reply starting `Inquisitor: filter 4`, with no
+  `question <n>: `, has its miss file
 - **THEN** the reply is input, and both questions stand
+
+#### Scenario: An unnumbered reply to a post asking two things unlisted covers both
+
+- **WHEN** an agent's post asks two things in two sentences ending in
+  `?`, with no open-questions section, and a reply starting
+  `Inquisitor: filter 4`, with no `question <n>: `, has its miss file
+- **THEN** the agent acts on the reply for both questions, choosing one
+  option for each and recording what it chose and why
 
 ### Requirement: A question that should not have been asked is logged as a miss
 
@@ -4035,7 +4057,7 @@ answer session's misses go as the `answer-session` spec says.
 Nothing SHALL draft or send a lesson until a person asks to review the
 misses. The agent SHALL then draft one per pattern it finds and send each
 by scope: one for anyone using the skill to shared-skills, in general
-terms, quoting no logged question or miss; one for a team or organization
+terms, quoting no logged question or miss; one for a collective
 to its lore repository, unless that is more visible than a miss file it
 draws on; one for a person to their agent memory or `CLAUDE.md`. The first
 two go by pull request.

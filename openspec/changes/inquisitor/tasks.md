@@ -15,7 +15,7 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25 to 0.28 and 0.30 to 0.32, *Facts measured before building* for 0.33, and *What igor must provide* for 0.29. Record a result
+for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34, *Facts measured before building* for 0.33, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -115,7 +115,7 @@ that contradicts what design.md assumed too.
       refreshing the lock every 30 seconds while its session is idle or
       runs as a Claude Code background session, and how a session tells
       that it is one, so the lock can record it. If they stop, record it
-      and stop for the repository's owner: a live holder's lock would go stale and another
+      and stop for the repository's owner: a live session's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App
@@ -200,11 +200,6 @@ that contradicts what design.md assumed too.
       and design.md's *Claude drafts a reply only into the prompt box*
       accepts that case as it accepts a fork's: the draft reaches only the
       prompt box, where the person sees it before anything is sent
-- [ ] 0.27 List the tools of the Linear MCP servers an agent may have
-      wired, such as Linear's own, and check that every tool named `get_…`,
-      `list_…` or `search_…` only reads. If one writes, linear-app's post
-      hook lists the reading tools by name instead (answer-session spec:
-      *The Linear and Discord post hooks pass only the relay's readable posts*)
 - [ ] 0.28 Post the line `Inquisitor: a person must decide this
       (required by spec-trace).` in a Linear comment and a Discord message,
       read each back as the answer session would, and record whether its
@@ -221,7 +216,8 @@ that contradicts what design.md assumed too.
       not searched; without the second, every hit is `input`
 - [ ] 0.30 That `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`
       starts Claude Code named `Answers`, in its fullscreen layout, and
-      runs `/answer` (answer-session spec: *Two commands open an answer
+      runs `/answer`, with the tool restriction task 0.34 finds added
+      (answer-session spec: *Two commands open an answer
       session*). If a part fails, the requirement's command line is
       changed to what works before it is built
 - [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
@@ -232,21 +228,23 @@ that contradicts what design.md assumed too.
       If not, the GitHub id that names a miss file is changed to one the
       measurement shows passes these three checks, before miss files are
       named on GitHub
-- [ ] 0.32 That a mod can learn the Claude Code session id a `PreToolUse`
-      hook receives as `session_id`, so the lock names the session by it
-      and a hook can tell the holder (answer-session spec: *One answer
-      session runs on each machine*). These are not built until it is
-      measured: the holder that *The holder is the session whose answer
-      session holds the lock* defines, and every check that depends on it, in
-      *In the holder, the model posts only as the person's relays*, *The
-      Linear and Discord post hooks pass only the relay's readable posts*
-      and *In the holder, the model logs no answer*. If a mod cannot
-      learn it, the repository's owner decides what to build
 - [ ] 0.33 That the Discord bot token shape in *The credential patterns are
       a closed list of token shapes* matches the relay's real token: run
       the pattern against the token discord-bot holds, printing only
       whether it matched and each part's length, never the token. If it
       does not match, the pattern is changed to the shape measured
+- [ ] 0.34 How Claude Code restricts a session's tools so that its model
+      has only its conversation, `propose_reply` and read-only file tools,
+      which read and search files: permission settings, a startup option
+      such as `--allowedTools`, or a mod's own control. Record whether
+      Claude Code itself enforces it, not a hook, whether a mod can apply
+      it to a session already running, and the exact option the `answer`
+      command needs. Until then, *The session's model has no shell, no
+      writing tool and no web fetch* and the `answer` command's line in
+      *Two commands open an answer session* are not built (answer-session
+      spec). If no control Claude Code enforces exists, the design falls
+      back to hooks and the change cannot be built as written: record it
+      and stop for the repository's owner
 
 ## 1. Shared post reader
 
@@ -436,7 +434,7 @@ that contradicts what design.md assumed too.
           person's own words*).
       - A file is pushed to the `questions` branch of the repository the
         question is about, or of the team's lore repository for a
-        question about the organization or project. The command
+        question about a collective. The command
         fetches and pushes again when rejected because the branch moved,
         and keeps the file pending, pushing it with the next file for
         that branch, when it cannot push otherwise; called with its
@@ -525,14 +523,7 @@ that contradicts what design.md assumed too.
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
       section or a new issue; and vets every post it sees, igor's handback
-      included (design.md: *No exemption for an Igor's handback*). In
-      the holder, it also blocks a post the reader does not report as
-      sent through the github-app skill's script as the person's GitHub
-      relay identity, named with `--identity` (answer-session spec:
-      *In the holder, the model posts only as the person's relays*), and
-      the model's `log` call that writes an answer, a miss or a handled
-      file, or whose input it cannot read
-      (answer-session spec: *In the holder, the model logs no answer*)
+      included (design.md: *No exemption for an Igor's handback*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -749,6 +740,11 @@ that contradicts what design.md assumed too.
       decline), and the rephrased answer's post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
+- [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
+      model gets only its conversation, `propose_reply` and read-only
+      file tools, and the answer session opens in no other session
+      (answer-session spec: *The session's model has no shell, no writing
+      tool and no web fetch*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed (design.md: *A relay post gets no
@@ -914,29 +910,6 @@ that contradicts what design.md assumed too.
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person cites a lore entry by naming it as an answer or a record*)
-- [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
-      holder, judges `python3 $D`, with `D` assigned nowhere on the line
-      or assigned that path, as discord-bot's script at its installed
-      path, blocks any line `.agents/lib/gh-shell/` cannot split that
-      names `discord_bot.py` or runs a script of unknown path, and passes
-      `post`, `edit` and `thread` only as the Discord relay identity with
-      readable text and no reserved prefix, and `delete` only as that
-      identity. Registered in
-      discord-bot's `hook.json`, with tests (answer-session spec: *In the
-      holder, the model posts only as the person's relays*)
-- [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
-      tools, which, in the holder, blocks `token`, `headers`, `wire` and
-      any line `.agents/lib/gh-shell/` cannot split that names
-      `linear_app.py` or runs a script of unknown path, judging `python3
-      $L`, with `L` assigned nowhere on the line or assigned that path, as
-      linear-app's script at its installed path, and passes a
-      Linear MCP tool not named `get_…`, `list_…` or `search_…` only
-      while Claude Code's MCP configuration shows linear-app wired that
-      server to the Linear relay identity, and the tool's text starts
-      with no reserved prefix. Registered in linear-app's `hook.json`,
-      with tests (answer-session spec: *In the holder, the model posts
-      only as the person's relays*)
-
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's

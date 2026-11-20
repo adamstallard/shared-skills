@@ -42,7 +42,7 @@
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
   igor's lore-firing spec treats scope as visibility and status as review state: an out-of-scope entry is one the asker may not see, while only an `active` entry, one a person reviewed, reaches a worker unasked. So scope hides an entry from the search, and status only labels it, since a search's results are asked for and reach no worker unasked.
-  igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
+  igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides. A collective's question concerns no repository, so no short name picks a `project:` entry for it, and it sees only `global` entries.
   Evidence: igor PR #216's lore-firing spec at 59e7561, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L3-L29
   Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
 
@@ -67,7 +67,7 @@
   Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md; the worker runs as `claude -p`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L960-L970; the worker starts in the item's worktree with lore only in its system prompt, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1595-L1609; and lore is injected whole or not at all under a 4,000-token budget, https://github.com/adamstallard/igor/blob/8478aec/src/firing.ts#L104-L130
 
 - **Rationale: The log command records a linked GitHub comment's own text.**
-  The `log` command fetches a linked comment's text itself, in place of taking the agent's word for it, so the logged answer is what the comment says, whatever the agent copied. GitHub's API returns a comment's text as `body`, which GitHub documents on every kind of comment through GraphQL's `Comment` interface; task 0.11 read it for an issue comment on 2026-11-04, and reviews and review comments are not yet queried.
+  The `log` command fetches a linked comment's text itself, in place of taking the agent's word for it, so the logged answer is what the comment says, whatever the agent copied. GitHub's API returns a comment's text as `body`, which GitHub documents on every kind of comment through GraphQL's `Comment` interface.
   Evidence: GitHub's GraphQL reference documents `body` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
 
 - **Rationale: A lore decision record counts.**

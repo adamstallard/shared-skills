@@ -77,12 +77,14 @@ None.
   discord-bot skills, discord-bot as merged in shared-skills PR #1, with
   its `read` changed (task 6.0) to return whether a message's author is a
   bot and which message it replies to.
-  In the session running the answer session, the model posts only as the
-  person's relays: the inquisitor's post hook, and a new post hook in each
-  of linear-app and discord-bot, block its posts under the person's own
-  account and any carrying a reserved prefix, so only answers the person
-  confirmed go out as theirs. The
-  answer session's setup writes `~/.local/bin/answer`.
+- In the Claude Code session where the answer session runs, the model has
+  only its conversation, a tool that drafts a reply into the prompt box,
+  and read-only file tools. Claude Code, not a hook, is to enforce that;
+  task 0.34 measures how, and whether it can. The answer session's own
+  code makes every post, push and fetch, so only answers the person
+  confirmed go out as theirs.
+- The answer session's setup writes `~/.local/bin/answer`, a command that
+  starts Claude Code with the answer session open.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter and gh flag tables already there, so the
   inquisitor's post hook reads posts the same way. The reader also

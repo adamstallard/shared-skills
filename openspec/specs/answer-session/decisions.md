@@ -2,23 +2,17 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, on GitHub, Linear and Discord, and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
-  Because: the hooks stop an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
+- **Constraint: The inquisitor's GitHub post hook and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
+  Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
-  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/, .agents/skills/discord-bot/
+  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/
 
 - **Constraint: Until github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity, any agent on the person's machine can print a relay App's token and post `User says: ` with a plain HTTP call no post hook sees, and the README says so.**
   Because: the inquisitor asks github-app for those refusals and ships without them.
   Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md)
   Holds while: github-app hands a relay identity's token to a command.
   Paths: .agents/skills/github-app/, .agents/skills/inquisitor/README.md
-
-- **Constraint: The session's model runs with the person's tools, so it can reach the keychain entry holding the person's own Linear key, and the answer session adds no guard against that.**
-  Because: it is the same exposure as the person's `gh` login in any session, and the same exposure reaches the relay's credentials, as the constraint on forging a relayed answer says.
-  Evidence: a Claude Code session's tools reach whatever the person's own commands can, https://docs.anthropic.com/en/docs/claude-code/security
-  Holds while: the session's model runs with the person's tools.
-  Paths: .agents/skills/inquisitor/
 
 - **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
   Because: the only layout the answer session's prototype has been built and used in is the fullscreen one, so no other layout has a design to build from, and `/answer` typed in another layout shows the session there as it comes, untried.
@@ -62,6 +56,11 @@
   Evidence: Linear's webhooks need a publicly reachable HTTPS URL, https://linear.app/developers/webhooks
   Evidence: Discord's gateway is a persistent WebSocket connection, https://discord.com/developers/docs/events/gateway
   Evidence: none of GitHub's notification reasons is a push to a branch, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
+
+- **Rationale: The session's model has no shell, no writing tool and no web fetch.**
+  The threat is a crafted message in a subscribed channel steering the model into posting, or recording a decision, as the person. A hook that reads a tool call's command line cannot stop a model that has a shell: `eval`, an encoded string, a script it writes, `python3 -c` or `curl` with a token from the keychain each runs what the hook never reads, which is why the post hooks guard only against accidents (*Constraint: The inquisitor's GitHub post hook …*). A model with no shell and no tool that posts or writes can do none of it, so the worst an injection can do is propose a reply the person sees and confirms. General web fetch is left out too, since a crafted message could have the model fetch an attacker's URL carrying private text from another thread. Claude Code must enforce the restriction itself, since a hook would bring back the same gap; task 0.34 measures how.
+  Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
+  Evidence: OWASP lists disclosure of sensitive information and exfiltration among prompt injection's impacts, and as mitigations restricting the model's privileges to the minimum and running privileged functions in the application's own code, https://genai.owasp.org/llmrisk/llm01-prompt-injection/
 
 - **Rationale: Claude's draft goes to the prompt box, never to a post.**
   The model reads untrusted thread text, which can steer it to write what the person would not say, so its draft goes where the person reads it before anything is sent, never straight to a post. `propose_reply` also refuses a call carrying an `agentId`, keeping out a subagent's draft wherever Claude Code marks the call as a subagent's; a subagent's call without one still lands only in the prompt box. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.

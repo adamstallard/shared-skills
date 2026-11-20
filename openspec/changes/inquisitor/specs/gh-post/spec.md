@@ -596,20 +596,6 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 - **THEN** the reader returns `hi` as the first's body, and reports that
   the second sends no post
 
-### Requirement: The reader reports the identity a github-app call names
-
-For a call of the github-app skill's script it reads, the reader SHALL
-report, as the identity the post goes out as, the name the call gives with
-`--identity`, or no name when it gives none.
-
-#### Scenario: The reader reports a github-app call's identity
-
-- **WHEN** a hook asks about `python3 /abs/github_app.py --identity
-  alice-relay gh issue comment 5 -b 'x'`, and about the same call with no
-  `--identity`
-- **THEN** the reader reports `alice-relay` as the first post's identity,
-  and no identity for the second
-
 ### Requirement: A gh api call is a read only as a plain gh command
 
 A `gh api` call SHALL count as a **read** only when it is a simple
