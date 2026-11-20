@@ -148,11 +148,13 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions* and the
         automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
-        incoming question*, which also waits on task 0.31, since its miss
-        file is named by the reply's `node_id`.
+        incoming question*.
 
-      If
-      GitHub reports it, they are built as the spec states them; if not,
+      The three GitHub replies task 0.31 names wait on task 0.31 as well,
+      since their miss files are named by the reply's `node_id`.
+
+      If GitHub reports which App wrote a comment, the rules above are
+      built as the spec states them; if not,
       the repository's owner decides what to build
 - [ ] 0.23 That the URL an asking agent records as `asked_in` (design.md:
       *A log file follows its thread message by exact link*), and the

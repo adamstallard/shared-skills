@@ -1225,8 +1225,10 @@ answer given through the answer session counts by its answer file*).
 
 **A lore entry that stops a question gets a citation file on that lore
 repository's `questions` branch, holding nothing about the question,**
-unless the lore repository is more visible than the question's repository,
-since a citation there would show the question exists. A question with a
+and none when the lore repository is more visible than the question's
+repository, for the reason `openspec/specs/inquisitor/decisions.md` gives
+under *Rationale: A lore entry that stops a question gets a citation file*.
+A question with a
 category gets none, since the cited entry would show what it was about. A stopped question is not asked, so
 it gets no log file, and its citation is its only record. No log file names a
 lore entry by its id either: an answered log file's `recorded_in`, which says
@@ -2736,9 +2738,10 @@ box*).
   0.28) The answer session finds a person-required line by its fixed wording
   after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
   session matches the form task 0.28 records instead. Task 0.28 is still to
-  run, on both surfaces; for a Linear comment, task 0.23 already found the
-  words come back unchanged (the answer-session record's *Rationale: A
-  question with a person-required line gets no filter 2 to 4 reply*).
+  run, on both surfaces: task 0.23 measured a Linear comment's text, not
+  this line, and `openspec/specs/answer-session/decisions.md` gives its
+  result under *Rationale: A question with a person-required line gets no
+  filter 2 to 4 reply*.
 - **How does Claude Code restrict a session's tools?** (task 0.34) The
   answer session needs its session's model limited to its conversation,
   `propose_reply`, `record_verdict` and Read, Grep and Glob, enforced by

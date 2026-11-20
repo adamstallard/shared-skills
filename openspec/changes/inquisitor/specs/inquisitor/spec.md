@@ -2399,10 +2399,8 @@ alone.
 When a push to a questions branch is rejected because the branch moved, the
 script SHALL fetch and push again. When it cannot push for any other
 reason, it SHALL keep the file pending beside its verdict records, with
-mode 0600, and push it with the next file it pushes to that branch. No
-picker question whose record line read `Not recorded: ` SHALL be kept
-pending, nor, by its own requirement, an answer-session file. The agent's
-report SHALL say the question is not yet logged, and why.
+mode 0600, and push it with the next file it pushes to that branch. The
+agent's report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2590,6 +2588,19 @@ printed, last in the question; answering it confirms the record.
 - **THEN** that line is no record line, so it stays in the question's text,
   whose hash then differs from the one the second call vetted, and the
   picker hook finds no verdict for the question
+
+### Requirement: A picker question shown as not recorded is never logged
+
+The agent SHALL run no `log` for a picker question whose record line read
+`Not recorded: `, since the person answered it told it would not be
+recorded.
+
+#### Scenario: A picker question shown as not recorded is never logged later
+
+- **WHEN** the person answers a picker question whose record line read
+  `Not recorded: no push access to its questions branch`
+- **THEN** the agent runs no `log` for it, so no file for it is kept
+  pending or pushed later
 
 ### Requirement: A question with no team's lore repository is not logged
 
@@ -3055,8 +3066,9 @@ the branch matches, the Igor SHALL write no `answers` for that run
 
 ### Requirement: A log file holds its question and day, and an answer's file its keys
 
-A log file for an asked question SHALL hold the question as asked and the
-day it was asked. A file pushed with an answer SHALL also hold
+A log file for an asked question SHALL hold the question as asked, any
+tag line (*A tag line names the person a posted question tags*) included,
+and the day it was asked. A file pushed with an answer SHALL also hold
 `answered_by`, `authority`, the answer and where the answer is recorded, as
 *A log file and a miss file have one format* states.
 
@@ -3067,6 +3079,14 @@ day it was asked. A file pushed with an answer SHALL also hold
 - **THEN** the agent records the answer in that spec, and pushes an answer
   file naming the unanswered file; the answer file's `recorded_in` points to
   the spec
+
+#### Scenario: A logged question keeps its tag line
+
+- **WHEN** an agent logs a question asked in a post with the tag line
+  `@alice`
+- **THEN** the log file's `## Question` holds that line, so the file's
+  question tags `alice`, and its hash, which drops tag lines, is the one
+  the second call vetted
 
 ### Requirement: An agent's own choice is written at the question's privacy
 
@@ -3497,8 +3517,8 @@ Filter 1 SHALL show as input labelled unreadable a file whose `repository`
 or `asked_from` is not `<owner>/<repo>` as the scenarios give, whose
 `asked_in` takes no form *A log file and a miss file have one format*
 gives, or that is an unhandled questions-branch log file with no
-`asked_from`; and as input one whose `answer_link` takes no github.com form
-the scenarios give. No reader or `log` command SHALL fetch, or pass to
+`asked_from`; and as input, unlabelled, one whose `answer_link` takes no
+form the scenarios give. No reader or `log` command SHALL fetch, or pass to
 GitHub, any such value.
 
 #### Scenario: The forms a repository key and an answer_link must take
@@ -3514,7 +3534,8 @@ GitHub, any such value.
   `https://github.com/<owner>/<repo>/pull/<n>`, with that `<owner>` and
   `<repo>` syntax and a decimal `<n>`, followed by `#issuecomment-<id>`,
   `#pullrequestreview-<id>` or `#discussion_r<id>` with a decimal `<id>`,
-  and nothing else
+  or in the form *Where an answer_link may be written* gives for an
+  answer relayed on Linear or Discord, and nothing else
 
 #### Scenario: A malformed repository key is never sent to GitHub
 
@@ -4046,7 +4067,7 @@ question. Otherwise it is input.
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
   2`, and the miss file for that reply holds `filter: "2"` and a `said_by`
-  with write access to what the question concerns
+  with write access to the repository whose questions branch holds it
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
@@ -4054,7 +4075,8 @@ question. Otherwise it is input.
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
   4`, and the miss file's `said` is `answer session: clearly filter 4` and
-  its `said_by` has write access to what the question concerns
+  its `said_by` has write access to the repository whose questions branch
+  holds it
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says
 
@@ -4163,7 +4185,9 @@ number, so the agent SHALL instead treat the reply as input, and every question 
 When a person says, in any words, a question did not need asking, the agent
 SHALL log a **miss**, in the format *A log file and a miss file have one
 format* states, recording at the question's privacy the question, the filter
-that should have stopped it, and what the person said.
+that should have stopped it, and what the person said. A question about the
+person's own way of working, or with the category `personal`, gets no miss:
+like its answer, it leaves no readable record on a questions branch.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -4182,7 +4206,7 @@ that should have stopped it, and what the person said.
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file
 
-#### Scenario: A question with no log file gets no miss file
+#### Scenario: A way-of-working or personal question gets no miss file
 
 - **WHEN** a person says a question about their own way of working, or one
   recorded with the category `personal`, did not need asking

@@ -65,7 +65,8 @@ identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
 On GitHub, this requirement and every one that posts through the relay
 wait on task 0.21 (tasks.md), which measures whether GitHub shows which App
-wrote a comment.
+wrote a comment, and the three GitHub replies task 0.31 names wait on
+task 0.31 as well.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -88,12 +89,12 @@ wrote a comment.
 ### Requirement: An automatic post's text is fixed by the answer session
 
 An **automatic post** is a relay post starting `Recorded answer: ` or
-`Inquisitor: `, whose text the answer session, never the person, SHALL
-fix. It SHALL make one by itself only as *Filter 1 posts a recorded
-answer by itself in the question's thread* or *Filters 2 to 4 judge
-every incoming question* allows. When the person declines a question for
-the inquisitor, or agrees to a shown recorded answer, it SHALL post one
-only once the person confirms.
+`Inquisitor: `, whose text the answer session SHALL fix, never the
+person, except the `Recorded in: ` URL the person gives in a filter 1
+reply. The answer session SHALL post an automatic post by itself only as
+*Filter 1 posts a recorded answer by itself in the question's thread* or
+*Filters 2 to 4 judge every incoming question* allows, and otherwise only
+once the person confirms.
 
 #### Scenario: An automatic post holds no words the person wrote
 
@@ -1589,10 +1590,11 @@ counts.
 
 #### Scenario: Editing a logged answer pushes a new log file
 
-- **WHEN** the person edits a `User says: ` answer to a question an
-  unanswered questions-branch log file holds, whose answer file the
-  answer session had pushed
-- **THEN** the script pushes a new log file naming the unanswered file,
+- **WHEN** the person edits a relayed `User says: ` answer to a
+  questions-branch log file's question, and the log file's only answer is
+  the answer file the answer session pushed for that answer's earlier
+  text
+- **THEN** the script pushes a new log file naming that log file,
   holding the earlier answer file's question and the edited answer, with
   the relay post's URL as `answer_link`, and leaves both earlier files
   unchanged
