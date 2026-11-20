@@ -1416,8 +1416,10 @@ text, as they do a related-decision line, so the hash stays the one vetted.
 
 ### Requirement: A question another skill requires carries a person-required line
 
-A posted question whose `ask` names the skill that requires it (*A question
-another skill requires skips filters 2 and 4*) SHALL carry its
+When the second call's `ask` for a question names the skill that
+requires it (*A question another skill requires skips filters 2 and 4*),
+the question, asked in a post or in a Linear or Discord message, SHALL
+carry its
 **person-required line**,
 `Inquisitor: a person must decide this (required by <skill>).`, exactly as
 the second call prints it, `<skill>` being the requiring skill's name. The
@@ -1440,6 +1442,14 @@ line goes where a related-decision line would, after any such line.
   that requires it
 - **THEN** its related-decision line comes directly after the line it ends
   on, and its person-required line next
+
+#### Scenario: A Linear question carries its line with no hook checking it
+
+- **WHEN** an agent asks on Linear whether to adopt spec-trace
+- **THEN** it puts spec-trace's person-required line directly after the
+  question, held to it only by the skill's instructions, since only a
+  GitHub post meets the post hook (*The second call checks a requiring
+  skill, and the post hook its line*)
 
 ### Requirement: The second call checks a requiring skill, and the post hook its line
 
@@ -4214,9 +4224,7 @@ number, so the agent SHALL instead treat the reply as input, and every question 
 When a person says, in any words, a question did not need asking, the agent
 SHALL log a **miss**, in the format *A log file and a miss file have one
 format* states, recording at the question's privacy the question, the filter
-that should have stopped it, and what the person said. A question about the
-person's own way of working, which goes to the person's memory, or one
-with a category, which is recorded only by its hash, gets no miss file.
+that should have stopped it, and what the person said.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -4234,6 +4242,14 @@ with a category, which is recorded only by its hash, gets no miss file.
 - **THEN** the miss file's `said` gives the reason as an earlier decision
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file
+
+### Requirement: Some misses get no miss file
+
+No miss file SHALL be written for a question about the person's own way
+of working, which goes to the person's memory, one with a category,
+which leaves no readable record, or one with nothing to name its file
+by, having no reply id, log file or asking message's URL (*Every miss
+file is named by one hash*), such as a picker question never logged.
 
 #### Scenario: A way-of-working question or one with a category gets no miss file
 

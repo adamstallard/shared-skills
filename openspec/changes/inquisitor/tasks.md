@@ -224,8 +224,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 - [ ] 0.30 That `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`
       starts Claude Code named `Answers`, in its fullscreen layout, and
       runs `/answer`, with the tool restriction task 0.34 finds added
-      (answer-session spec: *Two commands open an answer
-      session*). If a part fails, the requirement's command line is
+      (answer-session spec: *Setup installs the answer
+      command*). If a part fails, the requirement's command line is
       changed to what works before it is built
 - [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
@@ -253,7 +253,7 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       it to a session already running, and the exact option the `answer`
       command needs. Until then, *The session's model has no shell, no
       writing tool and no web fetch* and the `answer` command's line in
-      *Two commands open an answer session* are not built (answer-session
+      *Setup installs the answer command* are not built (answer-session
       spec). If no control Claude Code enforces exists, the design falls
       back to hooks and the change cannot be built as written: record it
       and stop for the repository's owner

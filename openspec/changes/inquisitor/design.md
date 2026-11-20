@@ -2637,6 +2637,30 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
+### Decisions for the repository's owner
+
+- **Where does an asking agent look for a miss file, and whose write
+  access backs it?** The answer session's model judges for itself what a
+  question concerns, and pushes the miss file backing its automatic
+  `Inquisitor: ` reply to that repository's questions branch. The asking
+  agent looks for that file on these questions branches and no others:
+  the one of what the agent itself judged the question concerns, the one
+  of its GitHub thread's repository and, for a collective's Linear or
+  Discord question, those of every configured lore repository. This leaves two gaps. First, when the
+  agent and the session judge different repositories, the agent finds no
+  file and does not act on the reply, while the session lists the
+  question as handled, so nobody answers it (inquisitor spec: *A reply's
+  miss file is looked for wherever the session may have put it*).
+  Second, the agent accepts a miss on its thread's repository from a
+  writer there, who may lack write access to what the question concerns,
+  while a logged decision needs that access (*A logged decision needs
+  write access to what its question concerns*). Options: accept both
+  gaps; close both by having the
+  asking agent name what its question concerns on a line beside it, which
+  the session uses for the miss and the agent checks write access
+  against; or close the second and widen the first by limiting the agent
+  to its own judgement's branch, dropping the thread fallback.
+
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built (tasks 0.1 to
@@ -2694,12 +2718,16 @@ gives its result, and a review and a review comment are still to measure.
   The credential patterns' Discord shape has no measurement behind it. If
   the relay's real token does not match, the pattern is changed to the
   shape measured.
-- **Does an unset `$G` post nothing in Claude Code?** (task 0.35) The
-  shared post reader takes a `gh` read through `$G`, with `G` not assigned
-  in the same command, as no post, because each Claude Code tool call
-  starts a fresh shell, so `$G` is empty and the call fails. If a shell
-  keeps `G` between calls, the reader reports such a read as unreadable, as
-  it already reports a post through such a `$G`.
+- **Does an unset `$G` run nothing in Claude Code?** (task 0.35) `$G`
+  conventionally holds the path of the github-app skill's script. The
+  shared post reader counts a `gh` read other than `gh api`, run through
+  `$G` in a command that never assigns `G`, as no post: each Claude Code
+  tool call starts a fresh shell, so `$G` is empty and the call fails. A
+  `gh api` call through such a `$G` is already unreadable, since only a
+  `gh api` call in a plain or github-app form counts as a read (gh-post spec: *A gh api call is
+  a read only as a plain gh command*). If a shell kept `G` between calls,
+  the read could run any script `G` named, so the reader would report it
+  as unreadable too, and the post hook would block it.
 - **Can a session an app starts with no terminal set an environment
   variable?** (task 0.36) No environment variable opens the answer session,
   because such a session could not set one. If it can, the repository's
@@ -2748,14 +2776,14 @@ box*).
   control, the design falls back to hooks and the change cannot be built as
   written: the repository's owner decides what to build. *The session's
   model has no shell, no writing tool and no web fetch*, the `answer`
-  command's line in *Two commands open an answer session*, and whether
+  command's line in *Setup installs the answer command*, and whether
   `/answer` can open in a session started without the restriction all wait
   on it.
 - **Does the `answer` command's line work?** (task 0.30) It relies on
   `CLAUDE_CODE_NO_FLICKER=1` giving the fullscreen layout, on `claude
   --name`, and on a prompt argument running a slash command. If one fails,
-  the command line in the answer-session spec's *Two commands open an answer
-  session* is changed to what the measurement shows works, before the
+  the command line in the answer-session spec's *Setup installs the answer
+  command* is changed to what the measurement shows works, before the
   command is built.
 - **Does a GitHub comment's `node_id` identify it wherever it is read?**
   (task 0.31) A miss file backing a GitHub reply is named by the reply's
@@ -2869,10 +2897,12 @@ to its 149.
   branch, and only an answer the person confirmed there; nobody confirms an
   answer typed in a comment.
 - **For a worker's question about a repository more private than its
-  item's, the Igor must push the question file without waiting for an
-  answer, with no `asked_in`, since no handback asks it, to that
-  repository's questions branch, and post a handback
-  that says only that the work waits on a question recorded elsewhere**
+  item's, the Igor must push the question file to that repository's
+  questions branch at once, without waiting for an answer. The file has
+  no `asked_in`, since the handback does not ask the question, and tags
+  whoever a posted copy of the question would tag. The Igor must also post a
+  handback that says only that the work waits on a question recorded
+  elsewhere**
   (inquisitor spec: *A worker's question about a more private repository
   is asked on that repository's questions branch*). It must record the
   file's name, and on each later run on the item run the script's

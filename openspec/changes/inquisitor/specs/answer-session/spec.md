@@ -657,12 +657,10 @@ Repository questions SHALL need no lore repository and no igor.
 ### Requirement: Two commands open an answer session
 
 The answer session SHALL open when the person types `/answer` in a
-Claude Code session with the skill and its tools restricted. Setup SHALL
-install `answer`, an executable `~/.local/bin/answer` marked as setup's
-by a second-line comment, running `CLAUDE_CODE_NO_FLICKER=1 claude --name
-Answers '/answer'` with the tool restriction task 0.34 finds; leave alone,
-saying so, an unmarked `answer` file; and say when `~/.local/bin` is not
-on `PATH`. No environment variable SHALL open the answer session.
+Claude Code session that has the skill and whose tools are restricted,
+or runs `answer`. No environment variable SHALL open it, since a session
+an app starts could not set one (task 0.36), so a variable would open it
+in only some sessions.
 
 #### Scenario: The answer command starts an answer session
 
@@ -670,6 +668,21 @@ on `PATH`. No environment variable SHALL open the answer session.
   second line is `# written by inquisitor answer-session setup`
 - **THEN** Claude Code starts named `Answers`, in its fullscreen layout,
   and opens the answer session
+
+#### Scenario: No environment variable opens the answer session
+
+- **WHEN** Claude Code starts with `CLAUDE_CODE_NO_FLICKER=1`, or any other
+  environment variable, set and `/answer` is not typed
+- **THEN** no answer session opens
+
+### Requirement: Setup installs the answer command
+
+Setup SHALL install `answer`, an executable `~/.local/bin/answer` whose
+second line is `# written by inquisitor answer-session setup`, running
+`CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'` with the
+startup option that restricts the session's tools, which task 0.34 is to
+find. It SHALL leave alone, saying so, an `answer` file without that
+line, and say when `~/.local/bin` is not on `PATH`.
 
 #### Scenario: Setup leaves another answer command alone
 
@@ -682,12 +695,6 @@ on `PATH`. No environment variable SHALL open the answer session.
 - **WHEN** setup installs `~/.local/bin/answer` and `~/.local/bin` is not
   on the person's `PATH`
 - **THEN** setup says so
-
-#### Scenario: No environment variable opens the answer session
-
-- **WHEN** Claude Code starts with `CLAUDE_CODE_NO_FLICKER=1`, or any other
-  environment variable, set and `/answer` is not typed
-- **THEN** no answer session opens
 
 ### Requirement: A question asked of the person comes from one of four sources
 
@@ -807,9 +814,10 @@ mentions*). On GitHub, this rule is built only once task 0.21 is measured.
 
 ### Requirement: A mention names a user outside code, quotes and links
 
-A **mention** SHALL be of a user, as `@login` on GitHub, outside code
-spans, code blocks, quoted lines and links; a team mention counts as
-none.
+A **mention** SHALL be of a user, as `@login` on GitHub, on Linear as task
+0.16 records and on Discord as task 0.17 records, outside code spans, code blocks, quoted lines and links; a team mention counts as
+none. Until its task records that form, Linear or Discord stays off, as
+the task says.
 
 #### Scenario: A team mention or a mention in code is no mention
 
@@ -1707,12 +1715,12 @@ that reply and keeping a held-back answer pending.
 ### Requirement: Local state is per machine, in the state folder
 
 The answer session SHALL keep its working state per machine in the state
-folder, and nowhere else, as its scenario lists. Filter 1 SHALL never
-search it. A discussion record SHALL be deleted once its question is
-answered, answered or handled for the person, or closed; a pending answer
-outlives it. On opening, the answer session SHALL show the question last
-on screen, even after Claude Code restarted, unless it has since been
-answered.
+folder, as *The state folder holds all working state* lists, except each
+lore repository's questions branch, which it fetches into that
+repository's configured clone. Filter 1 SHALL never search the state
+folder. A discussion record SHALL be deleted once its question is
+answered by the person, answered or handled for them, or closed; a pending answer
+outlives it.
 
 #### Scenario: A discussion record goes once its question is settled
 
@@ -1740,18 +1748,23 @@ answered.
   answers a later question
 - **THEN** filter 1's search for that question shows no hit from it
 
+#### Scenario: A question set aside on one machine is new on another
+
+- **WHEN** a question the person set aside on one machine reaches the
+  answer session on another
+- **THEN** the other machine shows it as new
+
+### Requirement: Reopening shows the question last on screen
+
+On opening, the answer session SHALL show the question last on screen,
+even after Claude Code restarted, unless it has since been answered.
+
 #### Scenario: Reopening lands on the same question unless it was answered
 
 - **WHEN** the person closes Claude Code with a question on screen, starts
   it again, and opens the answer session
 - **THEN** the answer session shows that question, or, if it was since
   answered from another machine, the next in the queue
-
-#### Scenario: A question set aside on one machine is new on another
-
-- **WHEN** a question the person set aside on one machine reaches the
-  answer session on another
-- **THEN** the other machine shows it as new
 
 ### Requirement: A question with a category leaves no readable record on disk
 
@@ -1986,13 +1999,13 @@ from choosing what the code does beyond a closed set.
 
 ### Requirement: The session's model has no shell, no writing tool and no web fetch
 
-In a session with an answer session open, the model SHALL have only its
-conversation, `propose_reply`, `record_verdict` and Claude Code's Read,
-Grep and Glob, enforced by Claude Code, not a hook (task 0.34); an answer
-session SHALL open only in a session so restricted. Its own code SHALL
+With an answer session open, the model SHALL have only its
+conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
+enforced by Claude Code, not a hook, since a model with a shell gets
+around any hook reading its commands (task 0.34); an answer session
+SHALL open only in a session so restricted. The session's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
-because a thread's text can steer the model, and a model with a shell
-gets around any hook that reads its commands.
+since a thread's text can steer the model.
 
 #### Scenario: A thread's text cannot make the model post or record
 
@@ -2014,12 +2027,22 @@ gets around any hook that reads its commands.
 - **WHEN** the person asks the model what `src/retry.go` does
 - **THEN** the model reads and searches the code with Read, Grep and Glob
 
+### Requirement: An unrestricted session's /answer installs the answer command
+
+When the person types `/answer` in a session whose tools are not
+restricted and that Claude Code cannot restrict while it runs (task
+0.34), no answer session SHALL open. The session SHALL install
+`answer` as setup does and, once setup's `answer` is in place, tell the
+person to run it; otherwise it SHALL say why `answer` is not installed.
+
 #### Scenario: An unrestricted session opens no answer session
 
 - **WHEN** the person types `/answer` in a session whose model has a
   shell, and Claude Code cannot restrict that session's tools
-- **THEN** no answer session opens, and the person is told to run
-  `answer`
+- **THEN** no answer session opens, `answer` is installed as setup
+  installs it, and the person is told to run it
+- **AND** with an `answer` file setup did not write in its place, the
+  person is told why `answer` was not installed, not to run it
 
 ### Requirement: A rephrased question is answered with its rephrasing
 
