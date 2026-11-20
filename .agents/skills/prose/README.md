@@ -90,6 +90,27 @@ docs/api.md: call the API correctly
 
 [SKILL.md](SKILL.md) has the details.
 
+## Text you keep exactly as written
+
+Saved chats, sent messages and raw notes should stay as written, yet the cold
+read, where a fresh agent reads the text for gaps, still flags lines in them,
+and your agent then asks you whether to keep each one. Declare such text
+verbatim and prose skips it, so nothing is asked:
+
+- a whole file, by a `prose-verbatim` line in `.gitattributes`:
+  `chats/** prose-verbatim`;
+- part of a doc, between lines holding `prose:verbatim begin` and
+  `prose:verbatim end`, in any comment syntax, such as an HTML comment.
+
+Both the `.gitattributes` line and the markers are committed, so a reviewer
+sees them in the diff, and the commit's
+`Prose:` trailer says how many files and blocks it skipped, for example
+`verbatim: 2 files, 1 block`. Everything not declared gets the full pass. Your
+agent marks text verbatim when you ask, and offers to when you seem annoyed
+that the pass would change some text. It never marks text it is writing, since
+that text needs the pass, and never without your yes. Nothing enforces either
+rule, but the declaration shows in the commit, and anyone can undo it.
+
 ## Docs agents read before working stay compact
 
 Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
