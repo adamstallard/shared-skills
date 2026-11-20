@@ -1233,10 +1233,6 @@ run's row of its execution ledger on its `igor-state` branch, not with the
 transcript, and igor's review shows each citation's run and item (igor
 PR #216's decision 10).
 
-**Why:** igor's review, which prunes and promotes lore entries, counts each
-entry's citations in one place beside its fire count, and needs nothing about
-the question.
-
 *Ruled out by a scenario:* a `cites` field in the log file, which a stopped
 question lacks (inquisitor spec: *A lore entry that stops a question gets a
 citation file*, scenario *Only the citation file names the lore entry*);

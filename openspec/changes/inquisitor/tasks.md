@@ -639,9 +639,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       can set; that without it anyone with write access can rewrite or
       delete the branch; and that with it a writer can still push a handled
       file that hides a question from the person (the inquisitor decision record's constraint on guarding a
-      `questions` branch); and that a CI workflow run on push should skip
-      the `questions` branch, where a check of the project's files, such
-      as spec-trace's, fails, as shared-skills' spec-trace workflow does
+      `questions` branch); and that spec-trace's workflow skips pushes to
+      the `questions` branch, which holds none of the project's files; a
+      repository owner must make any other workflow that checks those
+      files on push skip that branch too, or it fails there
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
@@ -961,7 +962,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
           file never shown again (design.md: *Only an item's newest
           handback is open*);
         - a bot's message reaching only the first person it mentions,
-          and a person's message reaching each (design.md: *A bot's
+          a mention of a relay identity in a bot's message counting as
+          one of the relay's person, and a bot's reply
+          to a relay post that mentions no one reaching that relay's
+          person, and a person's message reaching each (design.md: *A bot's
           question reaches only the first person it mentions*);
         - a handback that mentions no one reaching the assignee, shown to
           no one on an unassigned item and never to this person on an

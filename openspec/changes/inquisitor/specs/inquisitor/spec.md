@@ -3133,6 +3133,14 @@ for each key (design.md: *An answer file names every file it answers*).
   on a questions branch twice, knowing both files' names
 - **THEN** it pushes one answer file listing both in `answers`
 
+#### Scenario: Files with different repository keys get an answer file each
+
+- **WHEN** an agent records the answer to a question that two unanswered
+  files on one questions branch hold, one with `repository: "o/api"` and
+  one with no `repository`
+- **THEN** it pushes two answer files, one naming each file in `answers`
+  and copying its `repository` key or its lack of one
+
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
 A later Igor run SHALL know the answered file only from the Igor's handback

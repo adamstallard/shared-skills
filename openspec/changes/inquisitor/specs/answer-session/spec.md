@@ -894,7 +894,8 @@ account or a log file* defines it, SHALL reach only the first person it
 mentions; any other message, a relayed question and an agent's posted
 under a person's own account included, SHALL reach each person it
 mentions (design.md: *A bot's question reaches only the first person it
-mentions*). On GitHub, this rule is built only once task 0.21 is measured.
+mentions*). On GitHub, this rule is built only once task 0.21 measures
+whether a comment's App can be told, which telling a bot account needs.
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -907,6 +908,34 @@ mentions*). On GitHub, this rule is built only once task 0.21 is measured.
 
 - **WHEN** a person's comment mentions `@maya` and then the person
 - **THEN** the person's answer session shows it as a question
+
+### Requirement: A bot's message to a relay reaches the relay's person
+
+In a bot account's message, a mention of a person's relay identity, the
+bot account that posts for them, SHALL count as a mention of that person,
+in the first-mention rule of *Whom a message reaches is set by its
+mentions*. A bot account's message that mentions no person and replies to
+a relay post SHALL reach that relay's person, since an agent's reply to a
+relay post usually mentions no one.
+
+#### Scenario: A bot's reply to a relay post that mentions no one reaches that relay's person
+
+- **WHEN** an agent's bot account replies to the person's relay post with
+  a question that mentions no one
+- **THEN** the person's answer session shows it as a question
+
+#### Scenario: A bot's reply to a relay post mentioning Maya first reaches Maya
+
+- **WHEN** an agent's bot account replies to the person's relay post with
+  a question that mentions `@maya` first
+- **THEN** the person's answer session does not show it, and Maya's does,
+  if she subscribes to that repository
+
+#### Scenario: A bot's message mentioning the relay first reaches the relay's person
+
+- **WHEN** an agent's bot account posts a question mentioning the
+  person's relay identity first and then `@maya`
+- **THEN** the person's answer session shows it, and Maya's does not
 
 ### Requirement: A mention names a user outside code, quotes and links
 
@@ -2207,6 +2236,13 @@ shown from its branch with no thread SHALL get no ask-back or edit.
 - **THEN** the `log` command pushes one answer file listing both files in
   `answers`
 
+#### Scenario: An answer file copies the most private asked_from
+
+- **WHEN** the person answers a question that two unanswered files about
+  the organization hold, with `asked_from: "o/public-item"`, a public
+  repository, and `asked_from: "o/private-item"`, a private one
+- **THEN** the answer file's `asked_from` is `o/private-item`
+
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
 - **WHEN** the person answers, from its GitHub thread, a thread copy an
@@ -2538,6 +2574,7 @@ giving one of two reasons:
 - **WHEN** the person declines a GitHub question under the first reason
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
+- **AND** another open question in the same thread stays in the queue
 
 #### Scenario: A reply to a relay post after a decline is a new question
 
@@ -2782,9 +2819,10 @@ shown with the question, and stops nothing.
 ### Requirement: The answer session's filter 1 reads decision documents only from its clones
 
 When the answer session runs filter 1, the script SHALL search decision
-documents only in the clones the session holds, on each subscribed
-repository's default branch as last fetched there, and SHALL name every
-other repository's decision documents as a source not searched.
+documents only in the clones the session holds, as last fetched: each
+subscribed repository's on its default branch, and each configured lore
+repository's. It SHALL name every other repository's decision documents
+as a source not searched.
 
 #### Scenario: A repository with no clone has its decision documents named as not searched
 
@@ -2794,6 +2832,8 @@ other repository's decision documents as a source not searched.
   output names them as not searched
 - **AND** a question about `o/web` has the decision documents on its
   clone's default branch searched
+- **AND** a question about the organization has the decision documents
+  in the clone of the organization's configured lore repository searched
 
 ### Requirement: A question with a category reaches filter 1 on standard input
 
