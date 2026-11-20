@@ -15,7 +15,7 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34, *Facts measured before building* for 0.33, 0.35 and 0.36, and *What igor must provide* for 0.29. Record a result
+for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, *Facts measured before building* for 0.33, 0.35 and 0.36, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 0.32 are unused.
 
@@ -115,7 +115,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
       runs as a Claude Code background session, and how a session tells
-      that it is one, so the lock can record it. If they stop, record it
+      that it is one, so the lock can record it; a session that cannot
+      tell counts as a foreground one (answer-session spec: *A Claude
+      Code background session has no terminal attached*). If they stop,
+      record it
       and stop for the repository's owner: a live session's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
@@ -235,7 +238,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       whether it matched and each part's length, never the token. If it
       does not match, the pattern is changed to the shape measured
 - [ ] 0.34 How Claude Code restricts a session's tools so that its model
-      has only its conversation, `propose_reply` and Read, Grep and Glob:
+      has only its conversation, `propose_reply`, `record_verdict` and
+      Read, Grep and Glob:
       permission settings, a startup option
       such as `--allowedTools`, or a mod's own control. Record whether
       Claude Code itself enforces it, not a hook, whether a mod can apply
@@ -258,6 +262,12 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       *No environment variable opens the answer session* is not built. If
       it can set one, record it and stop for the repository's owner to
       decide whether a variable may open the answer session
+- [ ] 0.37 That a mod can submit a prompt of its own into its session's
+      conversation while the person is not typing, and have the model
+      answer it with a tool call, unattended (design.md: *The model hands
+      its judgements to the code through record_verdict*). If it cannot,
+      record it: no message is judged by itself, so every incoming
+      question goes to the person and nothing is posted by itself
 
 ## 1. Shared post reader
 
@@ -338,7 +348,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       person-required line printed for an `ask` naming the skill that
       requires it (inquisitor spec: *A question another skill requires
       carries a person-required line*), the record line printed for a
-      picker `ask` (inquisitor spec: *A picker question shows where its
+      picker `ask`, a `Not recorded: ` line holding only a reason from its
+      closed list (inquisitor spec: *A picker question shows where its
       answer will be recorded*), the
       three categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
@@ -352,7 +363,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor
-        lore-search` (design.md: *Filter 1 in an Igor's run searches
+        lore-search`, passing the question on standard input, or the
+        other way igor PR #216 gives the command if its task 4.5 finds a
+        worker cannot (design.md: *Filter 1 in an Igor's run searches
         through `igor lore-search`*).
       - It applies the authority rules:
         - scope by the short name outside an Igor, and inside one as
@@ -410,9 +423,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
         writes no `asked_in`, because each Igor log file follows its own
         handback comment (design.md: *Each Igor log file follows its own
         handback comment*).
-      - An answer file names the file it answers in `answers`, refused
-        when the named file is not on the branch or already holds an
-        answer (design.md: *An answer file names the file it answers*).
+      - An answer file lists every file it answers in `answers`, refused
+        when a named file is not on the branch or already holds an
+        answer (design.md: *An answer file names every file it answers*).
       - Built by igor, not this task: the Igor writes `answers` for a
         later run only for a file it finds by its own record's suffix
         and date (design.md: *A later run names the answered file from
@@ -758,12 +771,16 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       which a second session reports and offers to take over
 - [ ] 6.6 The discussion's context, `propose_reply` (refusing a call as
       *Claude's draft goes to the prompt box, never to a post* says, and filling the record's URL for a filter 1
-      decline), and the rephrased answer's post. SKILL.md tells an agent
+      decline), `record_verdict` and the code's checks of each call
+      (answer-session spec: *The model's judgements reach the session's
+      code only through record_verdict*), and the rephrased answer's
+      post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
-      model gets only its conversation, `propose_reply` and Read, Grep
-      and Glob, and the answer session opens in no other session
+      model gets only its conversation, `propose_reply`, `record_verdict`
+      and Read, Grep and Glob, and the answer session opens in no other
+      session
       (answer-session spec: *The session's model has no shell, no writing
       tool and no web fetch*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
@@ -889,10 +906,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
           confirmed the warning, and a miss the person has not confirmed
           pushed as a hash-only miss file after a posted reply and, with
           no reply posted, not pushed;
-        - the `log` command refusing an `answers` that names no file on
-          the branch;
-        - an answer file holding the question the person saw and naming
-          the file it answers (design.md: *An answer file records the
+        - the `log` command refusing an `answers` that names a file not
+          on the branch;
+        - an answer file holding the question the person saw and listing
+          every file it answers (design.md: *An answer file records the
           question the person saw*);
         - a second machine's miss not pushed when its name is on the
           branch;

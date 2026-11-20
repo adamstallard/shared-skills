@@ -74,15 +74,11 @@ on a developer's own machine, the worker's HOME may hold the developer's `gh`
 login, which would post as the person. Task 0.14 measures whether a worker
 can reach it.
 
-From that measurement, the Igor-worker rules assume a worker with no
-inquisitor configuration, no GitHub credential (that one gap aside), no
-picker and no hooks, that reads only its working tree,
-its outbox and what its Igor passes it. It reports to its Igor through its
-output or an outbox; igor PR #175 chooses which channel each kind of report,
-such as its citations, takes. Once igor lets a worker run the skill's script
-(*What igor must provide*), the worker searches lore through `igor
-lore-search`, and the script knows it is in a run by `IGOR_RUN` (*Igor
-workers and Igor runs*).
+A worker reports to its Igor through its output or an outbox; igor PR #175
+chooses which channel each kind of report, such as its citations, takes.
+Once igor lets a worker run the skill's script (*What igor must provide*),
+the script knows by `IGOR_RUN` that it runs in a worker, and searches lore
+only through `igor lore-search` (*Igor workers and Igor runs*).
 
 ## Questions in posts
 
@@ -330,9 +326,10 @@ question on screen and its answer; the answer session's panel sits at the
 bottom of the screen, above the prompt box, and the rest of the screen is
 that conversation. The model may ask the person
 in its reply (*A discussion runs in the session's own conversation*). It has
-only its conversation, Claude Code's Read, Grep and Glob, and
-`propose_reply`, the answer session's tool that drafts a reply into the
-prompt box. It cannot
+only its conversation, Claude Code's Read, Grep and Glob, and two tools of
+the answer session's: `propose_reply`, which drafts a reply into the prompt
+box, and `record_verdict`, which hands the code its judgement of a message
+in fixed fields. It cannot
 post, run a command, write a file or fetch a URL. The answer session's own
 code does every post, `log` call and push, and every fetch from a surface.
 Coding, testing and committing happen in other Claude Code sessions. The
@@ -812,18 +809,16 @@ heredoc, *Input to a no-post line reaches only data commands*.
 script runs would mean reading the interpreter's options, so any input
 reaching one makes the line unreadable.
 Looking for the code flag anywhere means an option with a value, such as
-`-W ignore`, cannot hide it. A list of commands that run text as code is
-never complete, and git alone has many (`git config alias.p '!…' && git p`,
-`git difftool -x`, `git filter-branch --tree-filter`); a list of git
-subcommands that take no code on the command line is complete, since git's
-subcommands are a fixed set whose options can be checked by hand. What a repository's configuration makes an
-allowlisted subcommand run is an accepted gap, recorded below. prose's hook
+`-W ignore`, cannot hide it. Through the shared reader, prose's hook
 blocks these forms too, `python3 - <<'EOF'`, `node -e` and git aliases
 included.
 
-*Recorded:* `openspec/specs/gh-post/decisions.md`, *Constraint: An
+*Recorded:* `openspec/specs/gh-post/decisions.md`: *Rationale: Only
+allowlisted git is a data command beside a gh post verb*, why git is
+allowlisted rather than its code-running forms denied; and *Constraint: An
 allowlisted git subcommand can run any program the repository's
-configuration names, and the reader does not read that configuration*.
+configuration names, and the reader does not read that configuration*, the
+gap that leaves.
 
 #### Posts sent through the github-app skill's script
 
@@ -1762,9 +1757,9 @@ the rule that an agent asks only through the picker.
 #### The session's model has no shell, no writing tool and no web fetch
 
 **In the session where the answer session is open, the model has only its
-conversation, `propose_reply` and Claude Code's Read, Grep and Glob, and
-Claude Code, not a hook, enforces that.** The answer-session decision
-record's *Rationale: The session's model has no shell, no writing tool and no
+conversation, `propose_reply`, `record_verdict` and Claude Code's Read, Grep
+and Glob, and Claude Code, not a hook, enforces that.** The answer-session
+decision record's *Rationale: The session's model has no shell, no writing tool and no
 web fetch* gives the threat, why hooks cannot stop a model with a shell, and
 why web fetch is left out. Task 0.34 measures how Claude Code restricts a
 session's tools. If it offers no control that Claude Code itself enforces,
@@ -1817,6 +1812,23 @@ command, unvetted*). For a filter 1 decline, the preview also warns when the
 record the draft links to is more private than the thread (answer-session
 spec: *The preview warns when a filter 1 record is more private than the
 thread*).
+
+#### The model hands its judgements to the code through record_verdict
+
+**Every judgement the code acts on by itself reaches it through
+`record_verdict`, in fixed fields** (answer-session spec: *The model's judgements reach
+the session's code only through record_verdict*; the answer-session decision
+record's Rationale entry of that title gives why). The fields cover whether a
+message is a question, its category, a filter that clearly stops it, and
+where a Linear or Discord question belongs.
+
+**The code puts each message to judge into the session's conversation as a
+prompt of its own, holding the message as quoted data, while the model is
+not answering the person.** The model answers it with two `record_verdict`
+calls: first `question` and `category`, since filter 1 searches a question
+with a category on the machine only; then, shown filter 1's hits, `filter`,
+`hit` and, for Linear or Discord, `place` and `place_sure`.
+The code acts on the accepted fields.
 
 #### The UI is built from prototype build v0.1-33
 
@@ -1954,13 +1966,13 @@ answer recorded, as a decision, against words they never saw. The preview
 shows the person where that question will be recorded before they confirm
 (*Nothing goes somewhere more visible than its source*).
 
-#### An answer file names the file it answers
+#### An answer file names every file it answers
 
-**An answer file names the one file it answers in `answers`, because
-answering every file with the same question is matching on words, which
-exact identity replaces.** igor PR #216 is asked to refuse a worker's file
-holding `answers`, so that the Igor adds the key itself and #216 pushes only
-what the Igor writes; *Open Questions* carries that request.
+**An answer file lists in `answers` every file it answers, by exact name,
+because answering whichever files hold the same words would be matching on
+words, and naming files is exact.** igor PR #216 is asked to refuse a
+worker's file holding `answers`, so that the Igor adds the key itself and
+igor, as #216 specifies it, pushes only what the Igor writes; *Open Questions* carries that request.
 
 *Ruled out by a scenario:* keeping hash matching beside `answers`, which
 gives machines different answers (inquisitor spec: *A named file's answer is the newest answer file naming it*, scenario *An answer naming one file
@@ -2447,9 +2459,11 @@ filtered is what a reader of misses wants first, and the key reveals nothing
 new, since the account already shows on the question in its thread. A hash-only miss file holds no such key. Where
 questions-branch files hold the question, its miss or answer file copies the
 most private `asked_from` among them, and their `repository` if they hold one, so it is
-as private as they are and about the same thing; files naming different
-repositories get no miss. A miss or answer file with no such file names its
-GitHub thread's repository in `asked_from`. A Linear or Discord thread has no
+as private as they are and about the same thing. Files naming different
+repositories leave no one `repository` to copy, so they get no miss; an
+answer to them is still recorded, in one answer file for each `repository`.
+Where no questions-branch file holds the question, a miss or answer file
+names its GitHub thread's repository in `asked_from`. A Linear or Discord thread has no
 repository, so there `asked_from` names the repository the question concerns, and for a
 collective's question the lore repository serving it. For any question
 asked there, the session's model judges from the question and its thread
@@ -2618,15 +2632,10 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-- **How do the model's judgements reach the session's code?** The code acts
-  by itself on what the model judges: whether a question has a category,
-  whether a filter clearly stops it, whether a message is a question, and
-  what a Linear or Discord question concerns. The model's only tool beyond
-  reading files, `propose_reply`, drafts into the prompt box, so no rule
-  says how a judgement reaches the code, or how judging at each poll fits
-  into the person's conversation. A tool that records one verdict from a
-  fixed set would add to the model's fixed list of tools, which only the
-  repository's owner can change.
+- **Are `record_verdict`'s name, its fields and the prompt it answers the
+  right ones?** (*The model hands its judgements to the code through
+  record_verdict*.) A tool of fixed fields is settled; these particulars
+  are not.
 
 ### Facts measured before building
 
@@ -2698,7 +2707,7 @@ records a linked GitHub comment's own text*.
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, instead
@@ -2729,8 +2738,8 @@ box*).
   question with a person-required line gets no filter 2 to 4 reply*).
 - **How does Claude Code restrict a session's tools?** (task 0.34) The
   answer session needs its session's model limited to its conversation,
-  `propose_reply` and Read, Grep and Glob, enforced by Claude Code through
-  permission settings, a startup option such as `--allowedTools`, or a
+  `propose_reply`, `record_verdict` and Read, Grep and Glob, enforced by
+  Claude Code through permission settings, a startup option such as `--allowedTools`, or a
   mod's own control, never by a hook. If Claude Code offers no such
   control, the design falls back to hooks and the change cannot be built as
   written: the repository's owner decides what to build. *The session's
@@ -2751,6 +2760,11 @@ box*).
   lacks it, a kind of comment has none, or an edit changes it, the GitHub id
   that names a miss file is changed, before miss files are named on GitHub,
   to one the measurement shows works.
+- **Can a mod submit a prompt of its own and have the model answer it
+  unattended?** (task 0.37) The prototype has shown only that a mod can
+  fill the prompt box and register a tool. If it cannot, no message gets a
+  `record_verdict` call, so every incoming question goes to the person and
+  nothing is posted by itself, as for a message with no accepted verdict.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
@@ -2765,9 +2779,12 @@ to its 149.
   can't run this skill (*What task 0.12 measured*), so filter 1 in a worker
   calls igor's read-only `igor lore-search`, which igor PR #216 specifies and
   igor has not built. #216's task 4.5 measures whether a worker can give the
-  command its standard input; if not, #216 gives it another way to take the
-  text, and this change adopts it. igor must also let a worker run the skill's
-  script, which today means a role's `commands` lists it. The spec's rule that
+  command its standard input; if not, #216's gate two gives the command
+  another way to take the text (#216's task 4.5, and its proposal's open
+  item on standard input), and the script passes the question that way
+  (inquisitor spec: *In an Igor's run, filter 1 searches through igor*).
+  igor must also let a worker run the skill's script itself, which today
+  means a role's `commands` lists the script. The spec's rule that
   a failed command searches no lore stays as a guard.
 - **Task 4.3 and the archive wait for igor to build `igor lore-search` and
   let a worker run the script** (*The change is archived

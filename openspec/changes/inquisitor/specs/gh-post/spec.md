@@ -197,13 +197,23 @@ issue.
 - **THEN** the reader returns the file's text as the body, and says that
   the post creates an issue
 
+### Requirement: A literal word is one the shell does not expand
+
+The reader SHALL count a word as a **literal word** only when it holds no
+`$`, backtick or backslash outside single quotes, and no `*`, `?`, `[`,
+`{` or `~` outside quotes.
+
+#### Scenario: Only a word the shell leaves alone is literal
+
+- **WHEN** the reader judges the words `'a $b'`, `"a b"`, `hi`, `"$X"`,
+  `hi*` and `~/notes`
+- **THEN** the first three are literal words and the last three are not
+
 ### Requirement: A gh pr or gh issue body comes from a plain option value or an existing file
 
 The body of a command that *The reader reads a gh pr or gh issue post only
 as a whole command line* reads SHALL come from `--body` or `-b`, or for
-`close` and `reopen` `--comment` or `-c`, in single quotes, in double
-quotes with no `$`, backtick or backslash, or as one unquoted word
-holding none of `$`, backtick, `*`, `?`, `[`, `{`, `~` or `\`; or from
+`close` and `reopen` `--comment` or `-c`, as a literal word; or from
 `--body-file` or `-F` naming a file that exists. Any other body source,
 such as `--template`, SHALL make the command unreadable.
 
@@ -239,12 +249,10 @@ such as `--template`, SHALL make the command unreadable.
 
 ### Requirement: A gh pr or gh issue title is read only as a literal word
 
-A **literal word** is one the shell does not expand: it holds no `$`,
-backtick or backslash outside single quotes, and no `*`, `?`, `[`, `{` or
-`~` outside quotes. In a command that *The reader reads a gh pr or gh
-issue post only as a whole command line* reads, the reader SHALL read a
-title, given by `--title` or `-t`, only when its whole word is a literal
-word. `--fill` and its variants SHALL make the command unreadable.
+In a command that *The reader reads a gh pr or gh issue post only as a
+whole command line* reads, the reader SHALL read a title, given by
+`--title` or `-t`, only when its whole word is a literal word. `--fill`
+and its variants SHALL make the command unreadable.
 
 #### Scenario: A post's title holding a question is read
 

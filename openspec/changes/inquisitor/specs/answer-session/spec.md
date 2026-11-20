@@ -317,7 +317,9 @@ mode 0700, and every file the session writes in it SHALL have mode 0600.
 
 The answer session SHALL count as **a Claude Code background session**
 any Claude Code session with no terminal attached, such as one an app
-started from its list of sessions.
+started from its list of sessions. A session that cannot tell whether a
+terminal is attached (task 0.19) SHALL count as a foreground one, with a
+terminal, so its lock does not mark it as a background session.
 
 #### Scenario: A session started with no terminal is a background session
 
@@ -325,6 +327,13 @@ started from its list of sessions.
   with no terminal attached, and its answer session takes the lock
 - **THEN** that session is a Claude Code background session, and its lock
   says so
+
+#### Scenario: A session that cannot tell counts as a foreground one
+
+- **WHEN** a session cannot tell whether a terminal is attached, and its
+  answer session takes the lock
+- **THEN** its lock records it as a foreground session, and a second
+  session's refusal names it as one
 
 ### Requirement: Terms of the inquisitor's spec are judged as that spec has them
 
@@ -1906,11 +1915,60 @@ line.
   recorded-answer post in its fixed form, with that URL on its
   `Recorded in: ` line, for the person to confirm
 
+### Requirement: The model's judgements reach the session's code only through record_verdict
+
+The answer session SHALL give the model `record_verdict`, a tool that
+posts, writes and runs nothing, whose call names a message the code put
+before the model to judge and holds only the fields *record_verdict's
+fields are a closed list* gives. The code SHALL refuse a call that
+carries an `agentId`, names no message awaiting judgement or holds a
+value outside its field's set, because fixed fields keep a crafted thread
+from choosing what the code does beyond a closed set.
+
+#### Scenario: record_verdict's fields are a closed list
+
+- **WHEN** the model calls `record_verdict`
+- **THEN** its fields are `question`, one of `yes`, `no` (clearly not a
+  question) and `unclear`; `category`, one of `secret`, `vulnerability`,
+  `personal` and `none`; `filter`, the filter that clearly stops the
+  question, `1` to `4`, or `none`, with `hit` only for `1`, the number
+  of the filter 1 hit with authority that answers it, among those the code
+  listed; and, for a Linear or Discord question, `place`, one of the
+  repositories and lore repositories the code listed, and `place_sure`,
+  `yes` or `no`, whether the model is sure of `place`
+- **AND** a field an accepted call leaves out, or any field of a message
+  with no accepted call, counts as the cautious one: `question` as
+  `unclear`, `category` as some category, unnamed, `filter` as `none`
+  (as is `1` with no `hit`), `place` as none and `place_sure` as `no`
+
+#### Scenario: A verdict call sets what the code does
+
+- **WHEN** the model calls `record_verdict` for an agent's GitHub
+  question with `question: yes`, `category: none` and `filter: 3`
+- **THEN** the session's code posts filter 3's fixed reply as *Filters 2
+  to 4 judge every incoming question* says, and the tool itself posts
+  nothing
+
+#### Scenario: A value outside its field's set is refused
+
+- **WHEN** a thread's text gets the model to call `record_verdict` with
+  `filter: "post https://example.com"`, or naming a message the code did
+  not put before it
+- **THEN** the code refuses the call, and the message stays as it was
+
+#### Scenario: A message with no accepted verdict goes to the person
+
+- **WHEN** the model makes no accepted `record_verdict` call for a Discord
+  message
+- **THEN** the code searches for it on the machine only, as for a
+  question with a category, posts nothing by itself, and shows it to the
+  person as unclear
+
 ### Requirement: The session's model has no shell, no writing tool and no web fetch
 
 In a session with an answer session open, the model SHALL have only its
-conversation, `propose_reply` and Claude Code's Read, Grep and Glob,
-enforced by Claude Code, not a hook (task 0.34); an answer
+conversation, `propose_reply`, `record_verdict` and Claude Code's Read,
+Grep and Glob, enforced by Claude Code, not a hook (task 0.34); an answer
 session SHALL open only in a session so restricted. Its own code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 because a thread's text can steer the model, and a model with a shell
@@ -1922,7 +1980,8 @@ gets around any hook that reads its commands.
   `User says: yes`, or to run `log` with an answer naming the person
 - **THEN** the model has no tool that posts, runs a command or writes a
   file, so the most it can do is call `propose_reply`, whose draft the
-  person sees in the prompt box before anything is sent
+  person sees in the prompt box before anything is sent, or
+  `record_verdict`, whose fields choose only among fixed actions
 
 #### Scenario: The model fetches no URL
 
@@ -1986,10 +2045,10 @@ space.
 
 Handled files aside, the answer session SHALL write a log file only to
 record an answer the person confirmed, or an edit of one. The `log`
-command SHALL push it beside the unanswered file holding the question,
-naming that file in `answers` and copying its `asked_from` and any
-`repository`, or, where no file holds the question, to the questions branch
-of what it concerns, with any relay post's URL as `answer_link`. A question
+command SHALL push it beside the unanswered files holding the question,
+listing each in `answers` and copying their most private `asked_from` and
+any `repository`, or, where no file holds it, to the questions branch of
+what it concerns, with any relay post's URL as `answer_link`. A question
 shown from its branch with no thread SHALL get no ask-back or edit.
 
 #### Scenario: A questions-branch question is answered by a new file
@@ -2000,6 +2059,13 @@ shown from its branch with no thread SHALL get no ask-back or edit.
   answer and naming the earlier file as this requirement sets, under the
   inquisitor's *A file on a questions branch never changes once pushed*;
   it posts nothing, and leaves the earlier file unchanged
+
+#### Scenario: One answer file names both files holding the question
+
+- **WHEN** the person answers a question two unanswered log files about
+  the organization hold on the questions branch of `o/lore`
+- **THEN** the `log` command pushes one answer file listing both files in
+  `answers`
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 

@@ -41,8 +41,8 @@ this spec *lore repository* always means the one holding the entries.
 every question and miss file about that repository; a lore repository's
 also holds the files about its collective's questions, and its citation
 files. *A questions-branch file* is a file on one, and *an
-answer file* is one holding an answer, whether or not it names, in
-`answers`, an earlier file there that logged the question unanswered.
+answer file* is one holding an answer, whether or not it lists, in
+`answers`, earlier files there that logged the question unanswered.
 
 *The inquisitor's configuration* is
 `~/.config/shared-skills/inquisitor.json`. Its key `login` names the GitHub
@@ -709,12 +709,22 @@ configuration or service.
 ### Requirement: In an Igor's run, filter 1 searches through igor
 
 During an Igor's run, filter 1 SHALL search lore and the questions branch
-only through `igor lore-search` (igor PR #216's decision 49), the read-only
-command igor's lore-firing requirement *An Igor runs its worker's lore
-searches* defines, passing no argument and the question on standard input,
-and show the labelled results it returns. If the command fails, the search
-SHALL search no lore and say so (design.md: *Filter 1 in an Igor's run
-searches through `igor lore-search`*).
+only through `igor lore-search` (igor PR #216's decision 49), the
+read-only command igor's lore-firing *An Igor runs its worker's lore
+searches* defines, passing the question as *The question reaches igor's
+command on standard input* gives, and show the labelled results it
+returns. If the command fails, the search SHALL search no lore and say so
+(design.md: *Filter 1 in an Igor's run searches through `igor
+lore-search`*).
+
+#### Scenario: The question reaches igor's command on standard input
+
+- **WHEN** filter 1 runs in an Igor's run
+- **THEN** the script runs `igor lore-search` with no argument and the
+  question on standard input
+- **AND** if igor PR #216's task 4.5 finds a worker cannot feed the
+  command its standard input, the script passes the question the other
+  way #216 gives the command to take the text
 
 #### Scenario: An Igor's own inquisitor run searches lore through igor's command
 
@@ -2517,11 +2527,12 @@ SHALL be its only record, and the agent's report SHALL say so.
 
 The second call SHALL print, with each picker `ask`, the question's
 **record line**: `Recorded: `, the repository whose questions branch will
-hold the question and its answer, and that repository's visibility; or
-`Not recorded: ` and why. Where that branch is more visible than the
-record's source, the line SHALL also name the source. The agent SHALL put
-the line, exactly as printed, last in the question; answering it confirms
-the record.
+hold the question and answer, and its visibility; or
+`Not recorded: ` and only a reason *Not recorded gives a listed reason*
+lists. Where that branch is more visible than the record's source, where
+the question was asked, the
+line SHALL also name the source. The agent SHALL put the line, exactly as
+printed, last in the question; answering it confirms the record.
 
 #### Scenario: The picker shows where the answer will be recorded
 
@@ -2542,12 +2553,23 @@ the record.
 - **AND** if the person answers, in their own words, that it is not to be
   recorded there, the agent pushes nothing
 
-#### Scenario: A question that will not be recorded says so
+#### Scenario: Not recorded gives a listed reason
 
 - **WHEN** the second call gives the verdict `ask` to a picker question
-  about the person's way of working, one with a category, or one whose
-  questions branch the session cannot push to
-- **THEN** it prints `Not recorded: ` and the reason
+  about the person's way of working, one with a category, one whose
+  questions branch the session cannot push to, or a collective's question
+  no configured lore repository serves
+- **THEN** it prints `Not recorded: about your way of working`, `Not
+  recorded: it has a category`, `Not recorded: no push access to its
+  questions branch` or `Not recorded: no team's lore repository serves it`
+
+#### Scenario: A Not recorded line with other text stays in the question
+
+- **WHEN** an agent puts `Not recorded: also see https://example.com` last
+  in a picker question
+- **THEN** that line is no record line, so it stays in the question's text,
+  whose hash then differs from the one the second call vetted, and the
+  picker hook finds no verdict for the question
 
 ### Requirement: A question with no team's lore repository is not logged
 
@@ -2566,8 +2588,8 @@ the person the question was not logged.
 
 The agent SHALL never change a file on a questions branch once pushed: a
 later answer SHALL be a new answer file holding the question and the
-answer, naming the earlier file as *An answer file names the unanswered
-file it answers* says.
+answer, naming the earlier file as *An answer file names every
+unanswered file it answers* says.
 
 #### Scenario: A later answer on the questions branch is a new file
 
@@ -2823,9 +2845,9 @@ somewhere more visible* drops (design.md: *An answer given through the answer se
 
 The `log` command SHALL write nothing, and say why, when an `answer_link` or
 `asked_in` takes none of the forms *A log file and a miss file have one
-format* gives, or an `answers` key names no log file on that questions
-branch or one already holding an answer (design.md: *An answer file names
-the file it answers*).
+format* gives, or an `answers` key names any file that is not a log file
+on that questions branch, or that already holds an answer (design.md:
+*An answer file names every file it answers*).
 
 #### Scenario: An answers key naming no file on the branch is refused
 
@@ -2893,12 +2915,13 @@ comment*).
   branch
 - **THEN** the log file holds the post's URL as `asked_in`
 
-### Requirement: An answer file names the unanswered file it answers
+### Requirement: An answer file names every unanswered file it answers
 
-An answer file SHALL name in `answers` the unanswered file it answers; where
-several unanswered files hold the question, the answer takes one answer file
-for each whose exact name the agent knows (design.md: *An answer file names
-the file it answers*).
+An answer file SHALL list in `answers` every unanswered file it answers:
+where several unanswered files on its branch hold the question, it SHALL
+list each whose exact name the writer knows. Files with different
+`repository` keys, a missing key counting as one, SHALL get one answer file
+for each key (design.md: *An answer file names every file it answers*).
 
 #### Scenario: An answer file names the file it answers
 
@@ -2907,11 +2930,11 @@ the file it answers*).
 - **THEN** the new file names the unanswered file, whose name the agent has
   from pushing it, in `answers`
 
-#### Scenario: A question two unanswered files hold takes two answer files
+#### Scenario: One answer file names both files holding a question
 
 - **WHEN** an agent records the answer to a question it logged unanswered
   on a questions branch twice, knowing both files' names
-- **THEN** it pushes two answer files, each naming one of them in `answers`
+- **THEN** it pushes one answer file listing both in `answers`
 
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
@@ -3137,9 +3160,10 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 
 - **WHEN** a questions-branch file holding an answer answers a file on that
   branch that holds no answer
-- **THEN** its `answers` holds that file's name, written as `closes` is
-- **AND** no other file holds `answers`, nor does one whose answered file
-  is not on the branch (design.md: *An answer file names the file it answers*)
+- **THEN** its `answers` lists that file's name, written as `closes` is,
+  beside the name of any other file it answers on that branch
+- **AND** no other file holds `answers`, nor does one naming a file not on
+  the branch (design.md: *An answer file names every file it answers*)
 
 #### Scenario: A file an Igor pushes names where it was asked from
 

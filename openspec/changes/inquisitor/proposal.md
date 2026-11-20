@@ -75,13 +75,15 @@ None.
 - New: `.agents/skills/inquisitor/` with its scripts, hooks and tests, and
   the answer session's mod, built from the prototype tagged
   `answer-session-ui-approved-v0.1-33`.
-- The answer session posts through the github-app, linear-app and
-  discord-bot skills, discord-bot as merged in shared-skills PR #1, with its
+- The answer session posts through the github-app and discord-bot skills,
+  and on Linear by its own request with linear-app's token; discord-bot as
+  merged in shared-skills PR #1, with its
   `read` changed (task 6.0) to return whether a message's author is a bot
   and which message it replies to.
 - In the answer session's Claude Code session, the model has only its
-  conversation, a tool that drafts a reply into the prompt box, and
-  read-only file tools. Claude Code, not a hook, is to enforce that; task
+  conversation, a tool that drafts a reply into the prompt box, a tool
+  that hands its judgement of a message to the session's code in fixed
+  fields, and read-only file tools. Claude Code, not a hook, is to enforce that; task
   0.34 measures how, and whether it can. The answer session's own code makes
   every post, push and fetch, so only answers the person confirmed go out as
   theirs.
