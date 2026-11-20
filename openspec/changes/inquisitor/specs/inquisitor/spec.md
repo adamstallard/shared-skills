@@ -42,7 +42,10 @@ every question and miss file about that repository; a lore repository's
 also holds the files about its collective's questions, and its citation
 files. *A questions-branch file* is a file on one, and *an
 answer file* is one holding an answer, whether or not it lists, in
-`answers`, earlier files there that logged the question unanswered.
+`answers`, earlier files there that logged the question unanswered. A log
+file is *unanswered* when it holds no answer and no answer file is its
+answer, as *A named file's answer is the newest answer file naming it*
+decides.
 
 *The inquisitor's configuration* is
 `~/.config/shared-skills/inquisitor.json`. Its key `login` names the GitHub
@@ -505,12 +508,11 @@ it and is reading it.
 - **THEN** the session counts as one with no person in it, and the agent
   does not call the picker
 
-### Requirement: An agent logs a bot's comment or a message off GitHub only as input
+### Requirement: An agent logs a bot's comment only as input
 
 An answer the agent reads in a comment by a bot account, an answer
-session's relay bot's `User says: ` post and an Igor's included, or in a message off
-GitHub, such as on Discord, Slack or Linear, SHALL be logged, if at all,
-as `input`. An answer a person gave in an answer session SHALL count
+session's relay bot's `User says: ` post and an Igor's included, SHALL be
+logged, if at all, as `input`. An answer a person gave in an answer session SHALL count
 through the answer file that session pushed.
 
 #### Scenario: A relayed answer counts through its answer file
@@ -1581,7 +1583,7 @@ SHALL hand back surviving questions, prepared.
 ### Requirement: A session with no person in it asks in a post, a handback or nowhere
 
 A session with no person in it SHALL NOT use the picker. An Igor worker
-SHALL ask only in its handback comment, save in a flagged run. Any other
+SHALL ask only through its Igor, and in a flagged run asks no one. Any other
 such session SHALL ask in a post if the script finds its `gh` can comment
 where the question goes (task 0.9), tagged as *A question in a post tags
 one person who can decide, if there is one* and *A question no candidate
@@ -2688,6 +2690,33 @@ which of them the Igor pushes, and when.
 - **AND** its Igor pushes the first to the questions branch of the item's
   repository, and the others to the lore repository's
 
+### Requirement: A worker's question about a more private repository is asked on that repository's questions branch
+
+When an Igor worker's question concerns a repository more private than its
+item's, the Igor SHALL push the question file without waiting for an
+answer, with no `asked_in` and tagging whom a post would tag, to that repository's questions branch,
+and the handback SHALL say only that
+the work waits on a question recorded elsewhere, naming neither that
+repository nor the question's words, since its readers may not read that
+repository. If the push fails, the question SHALL stay in the run's report.
+
+#### Scenario: A public item's question about a private repository goes to its branch
+
+- **WHEN** an Igor worker on an issue of the public `o/web` has a question
+  about the private `o/api`
+- **THEN** its handback comment says only that the work waits on a question
+  recorded elsewhere, and its Igor pushes the question file, with no
+  `asked_in`, to the questions branch of `o/api`
+- **AND** the file's question tags the person a post of it would tag, so
+  that person's answer session shows it
+
+#### Scenario: A question the Igor cannot push stays in the report
+
+- **WHEN** the Igor cannot push to the questions branch of `o/api`
+- **THEN** the handback comment says only that the work waits on a question
+  recorded elsewhere, and the question stays in the run's report, pushed
+  nowhere
+
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
 A worker re-working an item after a person answered its handback question
@@ -2904,10 +2933,10 @@ leak*; *A log file without `asked_in` is never merged*).
 A log file for a question also asked in a GitHub post SHALL hold that
 post's URL as `asked_in`, so the agent SHALL post the question first
 (design.md: *A log file follows its thread message by exact link*). An Igor
-worker's file holds its handback comment's URL, which the Igor writes after
-posting the comment and before pushing the file, leaving it out where *The log command withholds a link where it would leak*
-would (design.md: *Each Igor log file follows its own handback
-comment*).
+worker's file holds the URL of any handback comment asking its question,
+which the Igor writes after posting the comment, leaving it out where *The
+log command withholds a link where it would leak* would (design.md: *Each
+Igor log file follows its own handback comment*).
 
 #### Scenario: A question logged and asked in a post links the post
 
@@ -3127,7 +3156,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 #### Scenario: Where an asked_in may be written
 
 - **WHEN** a log file is for a question asked in a post or in a Linear or
-  Discord message, or for an Igor worker's question
+  Discord message, or for an Igor worker's question its handback comment
+  asks
 - **THEN** its `asked_in` is that post's or message's URL, or the URL of the
   handback comment asking the question, written only where an `answer_link`
   of the same kind may be (design.md: *A log file follows its thread message
@@ -3152,6 +3182,10 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   `yyyy-mm-dd`, on which the session closed the question, even when the push
   succeeds on a later poll, and `closes`, that file's name
   `<date>-<slug>-<6 hex digits>.md` without its directory, and has no body
+- **AND** for a question the session's model judges has a category,
+  `closes` is instead the SHA-256 of that name, as 64 lowercase hex digits,
+  so neither the handled file nor its owed push holds the question's words,
+  and a reader takes it to close the file whose name has that hash
 - **AND** no other file holds either key (design.md: *The answer session
   writes a handled file on every close of a questions-branch file*; *Closing
   works by exact identity, never by matching*)
@@ -3160,7 +3194,7 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 
 - **WHEN** a questions-branch file holding an answer answers a file on that
   branch that holds no answer
-- **THEN** its `answers` lists that file's name, written as `closes` is,
+- **THEN** its `answers` lists that file's name, without its directory,
   beside the name of any other file it answers on that branch
 - **AND** no other file holds `answers`, nor does one naming a file not on
   the branch (design.md: *An answer file names every file it answers*)
@@ -3992,7 +4026,8 @@ minute apart, before taking the reply as input.
 
 An `Inquisitor: ` reply holding `question <n>: ` after its prefix SHALL be
 about item `<n>`, counted from 1, among the open-questions items of the post
-it replies to or names in its `Re: ` line. The agent SHALL treat such a
+it replies to or names in its `Re: ` line, or, one past the last item,
+about the post's sentences ending in `?` outside that section. The agent SHALL treat such a
 reply as input when that post was edited after the reply was posted.
 
 #### Scenario: A numbered reply settles only its item
@@ -4009,14 +4044,22 @@ reply as input when that post was edited after the reply was posted.
   question 2: filter 4` was posted
 - **THEN** the reply is input, since the number may point at another item
 
+#### Scenario: A reply one past the last item settles the sentences outside the list
+
+- **WHEN** an agent's post lists two questions in its open-questions
+  section and asks another in a sentence ending in `?` outside it, and a
+  reply starting `Inquisitor: question 3: filter 4` has its miss file
+- **THEN** the agent acts on it for that sentence only, and both items
+  stand
+
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
 question in the post it replies to or names, and the agent SHALL act on
 it for each, since the answer session shows such a post as one question.
-When that post holds an open-questions section of more than one item,
-which the answer session answers by number, the agent SHALL instead treat
-the reply as input, and every question in the post stays open.
+When that post's open-questions section holds more than one item, or one
+item and a question sentence outside it, the answer session answers it by
+number, so the agent SHALL instead treat the reply as input, and every question in the post stays open.
 
 #### Scenario: An unnumbered reply to a post of several listed questions is input
 

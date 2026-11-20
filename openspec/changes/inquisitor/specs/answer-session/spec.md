@@ -215,9 +215,10 @@ pending answer whose channel was off returns to the queue* says.
 
 ### Requirement: An unanswered log file holds no answer the person gave
 
-On a questions branch, the answer session SHALL count
-as **an unanswered log file** one that holds no answer and that no answer
-file counting as the person's answer names in `answers`.
+On a questions branch, the answer session SHALL count a log file as
+unanswered as the inquisitor's Purpose defines the word: one that holds no
+answer and that no answer file counting as the person's answer names in
+`answers`.
 
 #### Scenario: A log file named only by an input answer file is unanswered
 
@@ -421,9 +422,9 @@ The answer session SHALL treat each item of a post's open-questions
 section, as the inquisitor's *A question in a post is a listed item or a
 sentence ending in a question mark* defines one, as its own question,
 numbered from 1 by its position among the post's such items. Where a post
-holds several, a relay post about one SHALL hold `question <n>: ` right
-after its reserved prefix, and never the item's words. A post with one
-item, or none, SHALL be one question, with no number.
+is shown as several questions, a relay post about one SHALL hold
+`question <n>: ` right after its reserved prefix, and never its words.
+Any other post SHALL be one question, with no number.
 
 #### Scenario: Each listed question is shown and answered by itself
 
@@ -443,6 +444,19 @@ item, or none, SHALL be one question, with no number.
 - **THEN** the answer session shows it as one question, though the
   asking agent's first call of the inquisitor script counts each sentence, and a relay post about it
   holds no number
+
+### Requirement: Question sentences outside a post's list are one more question
+
+In a post with an open-questions section, the sentences ending in `?`
+outside it SHALL together be one more question, numbered after the
+section's items, so none is dropped.
+
+#### Scenario: A question sentence outside the list is one more question
+
+- **WHEN** an agent's comment lists two questions in its open-questions
+  section and asks a third in a sentence ending in `?` above it
+- **THEN** the answer session shows three questions, the sentence as
+  question 3, and a relay post answering it holds `question 3: `
 
 ### Requirement: The answer session's configuration is a section of the inquisitor's configuration
 
@@ -622,6 +636,13 @@ ask for no protection of the branch.
 - **WHEN** a subscribed repository's `questions` branch has no protection,
   or does not exist yet, and the person can push to the repository
 - **THEN** the check passes, and setup asks for no protection
+
+#### Scenario: Unreadable branch rules leave the check not checked
+
+- **WHEN** the person's login cannot read a subscribed repository's branch
+  rules
+- **THEN** setup shows that repository's direct-push check as not checked,
+  never as passed or failed
 
 ### Requirement: Setup can create a lore repository
 
@@ -1741,11 +1762,10 @@ answered.
 For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer session SHALL write no
 discussion record or log file, keep its question on screen and pending
-answer only in memory, so neither outlives the session, and name it in
-the state folder only by its hash and the surface's ids for its thread
-and message. Its decline
-SHALL still push a questions-branch file's handled file, owed and
-retried as any handled file's push is.
+answer only in memory, and name it in the state folder only by its hash
+and the surface's ids for its thread and message. When a questions-branch
+file holds the question, a decline SHALL still push that file's handled
+file, owed and retried as any is, naming that file by its name's hash.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -1768,8 +1788,9 @@ retried as any handled file's push is.
 - **WHEN** the person declines a questions-branch question the session's
   model judges has a category, and the handled file's push fails
 - **THEN** nothing is posted, and the push stays owed in the state folder,
-  holding only the handled file, and is retried at each poll and opening
-  until it succeeds
+  holding only the handled file, whose `closes` is the SHA-256 of the
+  closed file's name, and is retried at each poll and opening until it
+  succeeds
 
 ### Requirement: One answer session runs on each machine
 
@@ -1779,8 +1800,8 @@ refresh it at least every 30 seconds, stale after 2 minutes
 unrefreshed; and write it atomically, taking it only when absent, stale,
 unparsable or taken over. A session SHALL open none while another holds
 a fresh lock, but say which holds it and how to reach it, offering a
-takeover. Before each poll and post, it SHALL close if the lock names
-another session.
+takeover. Before each poll, post and push, it SHALL close if the lock
+names another.
 
 #### Scenario: A second session is offered the choice
 
@@ -1794,8 +1815,9 @@ another session.
 
 - **WHEN** the person takes over from another session's answer session
 - **THEN** the new session replaces the lock, and the old session, finding
-  before its next poll or post that the lock names another, closes its
-  answer session and polls and posts nothing more
+  before its next poll, post or push that the lock names another, closes
+  its answer session and polls, posts and pushes nothing more, leaving its
+  owed pushes to the new session
 
 #### Scenario: A crashed session's lock goes stale
 

@@ -76,7 +76,7 @@
   Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202
 
 - **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
-  An Igor worker asks only in its handback comment because igor gives it no credential that can post: its environment holds only its seat's token, a credential for its model provider.
+  An Igor worker asks only through its Igor, in its handback comment or a file its Igor pushes, because igor gives it no credential that can post: its environment holds only its seat's token, the model-provider credential its work is charged to.
   Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
 
 - **Rationale: A weakness is not described in public text before its advisory is published.**
@@ -84,6 +84,11 @@
   Evidence: prose's rule 14, "Commit subject says what changed; the body says why", https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/prose/rules.md#L228
 
 - **Rationale: A lore entry that stops a question gets a citation file.**
-  Citation files feed igor's review count of each entry's uses, which is inexact: it misses a use whose question is more private than the lore repository, since a citation pushed there would show that the question exists, counts once for each machine that declines one question under filter 1, and shows "not checked" when every Igor push of its workers' citations failed, as igor PR #216's decision 32 accepts.
-  Evidence: GitHub's events API shows each push's pusher and time to anyone who can see the repository, https://docs.github.com/en/rest/activity/events
-  Evidence: igor PR #216, https://github.com/adamstallard/igor/pull/216
+  igor's review never proposes as unused an entry an agent cited as the answer to a question, and reads those citations only from the lore repository's questions branch (igor PR #216's decisions 5 and 8), so without a citation file a use the inquisitor finds never holds the entry back. The count is inexact, at little cost: it misses a use whose question is more private than the lore repository, since a citation pushed there would show that the question exists, and it counts one question once for each machine that declines it under filter 1. That overcount can only keep an entry that might otherwise be proposed as unused.
+  Evidence: igor PR #216's proposal, decisions 5 and 8, https://github.com/adamstallard/igor/blob/59e7561/openspec/changes/lore-search/proposal.md
+  Evidence: that a citation shows its question exists: GitHub's events API shows each push's pusher and time to anyone who can see the repository, https://docs.github.com/en/rest/activity/events
+
+- **Rationale: An Igor's handback comment is no post, but the post hook vets what it sees.**
+  Exempting a post that carries igor's handback marker would let any agent that adds the marker skip vetting, and would help no real handback: the Igor posts each handback, which igor's specs call a handoff, through its own code, which no tool hook sees, and the worker holds no credential that could post one.
+  Evidence: igor's graceful-handoff spec has the Igor post each handoff, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/graceful-handoff/spec.md
+  Evidence: igor's task-execution spec keeps the surface credential out of the worker's environment, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md

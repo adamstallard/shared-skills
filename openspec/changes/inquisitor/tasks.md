@@ -68,8 +68,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       only on the word of the person who will publish the advisory
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment;
-      design.md's *An Igor worker asks only in its handback comment*
-      assumes it can't
+      if it can, the login is a breach to report to igor (design.md:
+      *An Igor worker asks only through its Igor*)
 - [ ] 0.15 Which reasons GitHub's notifications endpoint gives, read with
       the person's `gh` login, for a mention, a review request, an
       assignment and a later comment in a thread the person was mentioned
@@ -229,7 +229,11 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       comment the answer session replies to (an issue comment, a pull
       request comment and a review comment), and that an edit leaves it
       unchanged (inquisitor spec: *Every miss file is named by one hash*).
-      If not, the GitHub id that names a miss file is changed to one the
+      Until it is measured, no miss file is named by a GitHub reply's
+      `node_id`. So three GitHub replies are not built: the person's
+      decline that posts a reply, the automatic `Inquisitor: ` reply, and
+      filter 1's `Recorded answer: ` reply to an agent's question. If a check fails,
+      the GitHub id that names a miss file is changed to one the
       measurement shows passes these three checks, before miss files are
       named on GitHub
 - [ ] 0.33 That the Discord bot token shape in *The credential patterns are
@@ -266,8 +270,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       conversation while the person is not typing, and have the model
       answer it with a tool call, unattended (design.md: *The model hands
       its judgements to the code through record_verdict*). If it cannot,
-      record it: no message is judged by itself, so every incoming
-      question goes to the person and nothing is posted by itself
+      record it and stop building the mod: the answer session is then
+      designed as a standalone UI, not a Claude Code mod, and prototyped
+      for the owner's approval
 
 ## 1. Shared post reader
 
@@ -445,7 +450,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
         answer-session spec: *A miss records who judged it and where it
         was asked from*).
       - A handled file holds only `handled` and `closes`, the closed
-        file's name, with no body (design.md: *The answer session writes
+        file's name, or for a question with a category its SHA-256, with
+        no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
         written only through the command's session option, which only the
         answer session passes; a `handled` or `closes` key, or a hash-only
@@ -567,13 +573,16 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 - [ ] 4.2 Every scenario but the expected gaps has a tagged test:
       `spec_trace.py report --include-changes` marks only the expected
       gaps `none`. A scenario about what the agent does is tagged on a
-      test that checks SKILL.md states the rule. An expected gap, a scenario only
-      igor's unbuilt work can make pass, gets no test, not even a skipped
+      test that checks SKILL.md states the rule. An expected gap is a
+      scenario only igor's unbuilt work can make pass, or one whose rule
+      waits on a measuring task such as 0.21 or 0.31. It gets no test, not even a skipped
       one, and is listed by name in design.md's *Expected gaps* under
       *Tracing scenarios to tests*
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
-      test for each expected gap, and remove it from design.md's list.
+      test for each expected gap, and remove it from design.md's list;
+      do the same for a gap whose rule waited on a measuring task, once
+      that task is measured and the rule built.
       The archive waits for this, because archiving moves the scenarios
       under `openspec/specs/`, where spec-trace's CI fails on an untagged
       scenario (task 7.0)

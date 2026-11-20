@@ -346,6 +346,8 @@ rule, and its name says so.
 
 **Expected gaps.** A scenario that only igor's unbuilt work, such as `igor
 lore-search`, can make pass gets no tagged test until igor builds it. A
+scenario whose rule waits on a measuring task, such as task 0.21 or 0.31,
+gets none until that task is measured and the rule built. A
 skipped test would not do, since spec-trace counts a skipped test's tag as
 coverage. Task 4.2, which writes the tests, lists each expected gap here by
 name, and task 4.3 tags it once igor provides what it needs. The change is
@@ -931,7 +933,9 @@ command, unvetted*).
 
 **Why:** a marker any agent can add would let a post bypass vetting, and an
 exemption would help no real handback: an Igor posts its handbacks through
-its own code, which the hook never sees.
+its own code, which the hook never sees (the inquisitor decision record's
+*Rationale: An Igor's handback comment is no post, but the post hook vets
+what it sees* gives the evidence).
 
 *Ruled out by a scenario:* recognising a handback by the marker and an `igor-`
 App author together, since no real handback reaches the hook (inquisitor spec:
@@ -1367,9 +1371,12 @@ repository, and without the message the person could not tell why.
 possibly in an Igor's run (inquisitor spec: *The script tells an Igor's run by
 IGOR_RUN*).
 
-#### An Igor worker asks only in its handback comment
+#### An Igor worker asks only through its Igor
 
-The Igor posts the handback comment (igor #211). The worker opens no post and
+The Igor posts the handback comment holding the worker's question (igor
+#211). When the question concerns a repository more private than the item,
+the Igor instead pushes the question's file to that repository's questions
+branch. The worker opens no post and
 calls no picker, even if task 0.14 finds a `gh` login in its reach.
 
 **Why:** igor gives a worker no credential that can post (the inquisitor's
@@ -1618,7 +1625,9 @@ commit checks that copy (task 2.8).
 
 **Discord is in the first version, through the `discord-bot` skill of
 shared-skills PR #1, merged,** because it gives each role a named bot
-identity with no service to run.
+identity with no service to run (the answer-session decision record's
+*Rationale: The person runs the session, and a relay identity posts for
+them*).
 
 #### On Discord one identity both reads and relays
 
@@ -1658,7 +1667,7 @@ learn which App wrote a comment. The relay post's URL is the file's
 `answer_link`, which off GitHub is never fetched.
 
 *Ruled out by a scenario:* counting a `User says: ` comment by its author
-(inquisitor spec: *An agent logs a bot's comment or a message off GitHub only as input*,
+(inquisitor spec: *An agent logs a bot's comment only as input*,
 scenario *A User says comment with no answer file is input*); and counting
 every answer relayed off GitHub as input (answer-session spec: *A
 questions-branch answer file records the answer as given*, scenario *A log
@@ -2346,9 +2355,10 @@ could not tell who wrote the closing post.
 A handled file adds no question text: the closed file's name, which it
 repeats, is already on the same branch. So it never carries a private item's
 question into igor's lore search, and shows nothing the closed file does not.
-A question with a category leaves no readable record on disk, and a handled
-file's owed push holds only that file, so such a question's handled file is
-owed and retried like any other.
+For a question with a category, the handled file names the closed file by its
+name's SHA-256 instead. On the branch the hash hides nothing, since the closed
+file sits beside it under its readable name; it keeps the question's words out
+of the handled file's owed push in the state folder.
 An Igor worker could still forge a handled file and report it for its Igor to
 push; igor refusing to push one is asked of igor PR #216, and is open on its
 side.
@@ -2576,8 +2586,8 @@ states both the assignee rule and the first-mention rule.
 
 #### Each Igor log file follows its own handback comment
 
-**Each Igor worker's log file links, in `asked_in`, the handback comment that
-asks its question, so one answer never closes two handbacks' files and the
+**When a handback asks an Igor worker's question, the question's log file
+links that handback comment in `asked_in`, so one answer never closes two handbacks' files and the
 newest-handback rule needs no other mechanism.** The Igor writes `asked_in`, not the worker, because
 the comment exists only once the Igor posts it. A later Igor question on an
 item whose earlier question is answered follows the new handback comment,
@@ -2606,24 +2616,6 @@ skill with no spec, as this one edits github-app and bug-hunter (tasks 5.5,
 check is in the decision records of `inquisitor`, `answer-session` and
 `gh-post`; there is no `.agents/skills/inquisitor/DECISIONS.md`.
 
-#### How the three specs are laid out
-
-**Each spec opens with a `## Purpose`, and each requirement states one rule,
-or two that only make sense together, in under 500 characters; its scenarios
-hold the examples and cases, and this file the reasons.** The inquisitor's
-Purpose defines the terms its spec uses throughout; any other term is
-defined once, in the requirement that sets its rule, and earlier
-requirements may use it. A Purpose is not normative, so a definition that
-carries a rule, such as a default, a "never", a closed list or a condition,
-also has that rule stated in a requirement.
-
-**Why:** `openspec archive` takes a new spec's Purpose only from the delta's
-`## Purpose` (spec-check, PR #50), and `openspec validate --strict` fails any
-requirement over 500 characters. Splitting a requirement is the last resort:
-detail moves first to scenarios, then reasons move here, then the text is
-compacted, and only a requirement still too long is split, along its own
-rule boundaries.
-
 #### The change is archived only after every expected gap is tagged
 
 **Archiving waits for task 4.3 to tag every expected gap, beside task 7.0's
@@ -2632,10 +2624,12 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-- **Are `record_verdict`'s name, its fields and the prompt it answers the
-  right ones?** (*The model hands its judgements to the code through
-  record_verdict*.) A tool of fixed fields is settled; these particulars
-  are not.
+- **How does a run on a public item receive an answer recorded on a more
+  private repository's questions branch?** (inquisitor spec: *A worker's
+  question about a more private repository is asked on that repository's
+  questions branch*.) A run searches only its item's repository's and its
+  lore repository's questions branches, and hides any file more private
+  than the item, so the answer never reaches the worker.
 
 ### Facts measured before building
 
@@ -2687,8 +2681,8 @@ records a linked GitHub comment's own text*.
 - **Can an Igor worker post?** (task 0.14) igor's task-execution requirement
   keeps every credential but its seat's out of the worker's environment, but a
   `gh` login in the worker's home directory is in neither its environment nor
-  its working tree. If a worker can post, it still asks only in its handback
-  comment, and the credential in its reach is reported to igor as a breach of
+  its working tree. If a worker can post, it still asks only through its
+  Igor, and the credential in its reach is reported to igor as a breach of
   that requirement.
 - **Does the Discord bot token pattern match a real token?** (task 0.33)
   The credential patterns' Discord shape has no measurement behind it. If
@@ -2710,8 +2704,12 @@ records a linked GitHub comment's own text*.
 **Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
-hook and that a mod keeps polling while idle or in the background, instead
-stop building until the repository's owner decides. The rules that wait on
+hook and that a mod keeps polling while idle or in the background, stop
+building if they fail, until the repository's owner decides; so does task
+0.34 if Claude Code cannot restrict the session's tools. If task 0.37 finds
+a mod cannot prompt its own model unattended, work on the mod stops, and the
+answer session is designed in its place as a standalone UI, prototyped for
+the owner's approval. The rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and what to build for them is decided then.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
@@ -2762,9 +2760,9 @@ box*).
   to one the measurement shows works.
 - **Can a mod submit a prompt of its own and have the model answer it
   unattended?** (task 0.37) The prototype has shown only that a mod can
-  fill the prompt box and register a tool. If it cannot, no message gets a
-  `record_verdict` call, so every incoming question goes to the person and
-  nothing is posted by itself, as for a message with no accepted verdict.
+  fill the prompt box and register a tool. If it cannot, the answer session
+  is designed as a standalone UI instead of a Claude Code mod, and
+  prototyped for the owner's approval like any UI.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
@@ -2869,6 +2867,14 @@ to its 149.
   question's only record. Only the answer session pushes a file to that
   branch, and only an answer the person confirmed there; nobody confirms an
   answer typed in a comment.
+- **For a worker's question about a repository more private than its
+  item's, the Igor must push the question file without waiting for an
+  answer, with no `asked_in`, since no handback asks it, to that
+  repository's questions branch, and post a handback
+  that says only that the work waits on a question recorded elsewhere**
+  (inquisitor spec: *A worker's question about a more private repository
+  is asked on that repository's questions branch*). How a later run on the
+  item receives the answer is open (*Open Questions*).
 - **The Igor must run the script's `branch-search` on the item's
   repository's questions branch and its lore repository's, and return the
   JSON to the worker over the channel `igor lore-search` uses** (*The Igor

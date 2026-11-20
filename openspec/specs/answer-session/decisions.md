@@ -26,6 +26,12 @@
   Holds while: the answer session pushes a hash-only miss file with the person's own credentials.
   Paths: .agents/skills/inquisitor/
 
+- **Constraint: The session's Read, Grep and Glob have no path limit, so a crafted thread could steer the model into a draft that quotes a file on disk, such as a credential.**
+  Because: the cost is accepted: the person reviews every draft before confirming it, and that review is the guard, beside the relay post's scan for token shapes.
+  Evidence: Claude Code's Read, Grep and Glob reach any path unless a permission rule denies it, https://code.claude.com/docs/en/settings#permission-settings
+  Holds while: the session's Read, Grep and Glob have no path limit, and nothing the model drafts is posted before the person confirms it.
+  Paths: .agents/skills/inquisitor/
+
 ## Rejected
 
 - **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
@@ -94,3 +100,7 @@
 - **Rationale: A question with a person-required line gets no filter 2 to 4 reply.**
   The session finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text as sent, parentheses included, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
+
+- **Rationale: The person runs the session, and a relay identity posts for them.**
+  A relay identity is the bot of a skill the person already uses, so posting for them needs no service running beside the session: on Discord, discord-bot's script makes its API calls on each run and exits.
+  Evidence: [discord-bot's SKILL.md](../../../.agents/skills/discord-bot/SKILL.md)
