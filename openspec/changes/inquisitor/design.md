@@ -142,10 +142,12 @@ concerns.
 
 **A question asked in a GitHub post is logged when asked; one asked only in
 the picker, or in a Linear or Discord thread, is logged once answered, with
-its answer.** The person answering first sees where the record will go
-(*Nothing goes somewhere more visible than its source*), and an unanswered
-picker question is not logged at all: the agent's report says so. A
-Linear or Discord thread is its own record until the answer comes.
+its answer. So is a post's question whose questions branch is more
+visible than its thread or the repository it was asked from, once a person
+answers it and confirms the record there.** The person answering first sees where the record
+will go (*Nothing goes somewhere more visible than its source*), and an
+unanswered picker question is not logged at all: the agent's report says so.
+A thread is its question's own record until the answer comes.
 
 A file is taken at its word for who it names (*A file is trusted for who it
 names*).
@@ -998,7 +1000,10 @@ decline's reply (*What an asking agent does with an automatic reply*). The file 
 link into the source and names its own branch's repository as `asked_from`,
 so it is exactly as visible as its branch. A miss sent there leaves out
 `asked_by`, which would publish the asker's account from the private thread. A session with no person in it has
-nobody to confirm, so there the ranking stands.
+nobody to confirm, so there the ranking stands. Nor can anyone confirm the
+record of a question nobody has answered, so a post's question whose
+questions branch is more visible than its source is pushed only once a
+person answers it and confirms.
 
 The script also opens no lore pull request to a lore repository more visible
 than the question's repository, which covers promoting an answer from a
@@ -2540,8 +2545,7 @@ message this machine does not read is shown on its own*).
 
 #### A log file without `asked_in` is never merged
 
-**A log file with no `asked_in`, withheld for privacy or never written, is
-always its own question, never paired with a thread message by matching
+**A log file with no `asked_in` is always its own question, never paired with a thread message by matching
 text.** Merging only avoids a duplicate, which is low priority, while any
 merge rule can pair a message with another asker's file in the same words,
 so that a decline or an answer lands on that asker's question.
@@ -2549,8 +2553,8 @@ so that a decline or an answer lands on that asker's question.
 *Ruled out by a scenario:* merging such a file with a thread message asking
 the same question, whatever extra conditions the merge rule adds
 (answer-session spec: *A log file with no followed link is
-judged on its own*, scenario *A log file whose link was withheld is shown on
-its own*).
+judged on its own*, scenario *A log file with no asked_in is shown on its
+own*).
 
 #### A bot's question reaches only the first person it mentions
 
@@ -2771,12 +2775,6 @@ box*).
   lacks it, a kind of comment has none, or an edit changes it, the GitHub id
   that names a miss file is changed, before miss files are named on GitHub,
   to one the measurement shows works.
-- **Are three more looks, a minute apart, enough to find a reply's miss
-  file?** (inquisitor spec: *A reply's miss file is looked for wherever the
-  session may have put it*) No task measures this; the count and spacing
-  are a first choice, which use of the answer session tests. If
-  the session's pushes often land later, an asking agent leaves backed
-  replies as input, and the numbers are raised.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
@@ -2867,9 +2865,16 @@ to its 149.
   that prefix (*igor's handback marker*).
 - **igor must push a worker's repository questions to the questions branch
   of the repository each concerns,** as it pushes a worker's organization
-  and project questions to the team's lore repository's, each file with its
-  handback comment's URL as `asked_in` where it is not withheld. igor's own specs, #216's
+  and project questions to the team's lore repository's. igor's own specs, #216's
   lore-firing delta among them, must change to match.
+- **The Igor must push no file, unanswered or answered, to a questions
+  branch more visible than the handback's item** (inquisitor spec: *An
+  unanswered question goes nowhere more visible than its source*). A
+  worker can ask an organization question from a private repository's item
+  while the lore repository is public. The handback comment is then the
+  question's only record. Only the answer session pushes a file to that
+  branch, and only an answer the person confirmed there; nobody confirms an
+  answer typed in a comment.
 - **The Igor must run the script's `branch-search` on the item's
   repository's questions branch and its lore repository's, and return the
   JSON to the worker over the channel `igor lore-search` uses** (*The Igor
@@ -2909,10 +2914,9 @@ to its 149.
   later run names the answered file from the Igor's record*). Without
   the record, a later run writes no `answers`.
 - **#216's Igor should write `asked_in`** in a worker's log file as the URL of
-  the handback comment that asks it, once it has posted that comment,
-  withholding it when the item's repository is more private than the
-  repository whose questions branch holds the file. It names in `answers` the file an answer file answers, adding
-  `answers` itself and refusing a worker's file that holds it. Without
+  the handback comment that asks it, once it has posted that comment. In
+  each answer file it writes, it adds `answers`, naming the log file that
+  file answers, and it refuses a worker's file holding `answers`. Without
   `answers`, the answer session keeps showing the answered file as unanswered.
 - **#216 should give every handback comment a fixed marker** (*igor's
   handback marker*).

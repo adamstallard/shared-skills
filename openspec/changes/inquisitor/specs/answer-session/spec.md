@@ -925,14 +925,12 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 - **THEN** the log file is shown on its own, as a question of the fourth
   source
 
-#### Scenario: A log file whose link was withheld is shown on its own
+#### Scenario: A log file with no asked_in is shown on its own
 
-- **WHEN** a public lore repository holds a log file whose question tags
-  `@adamstallard`, this session's person, asked in an issue of the private
-  `o/api` and sent there when a person confirmed sending it somewhere more
-  visible, so it holds no `asked_in`, and a comment in that
-  issue, which this machine polled, asks the same question in the same
-  words
+- **WHEN** a lore repository holds an unanswered log file with no
+  `asked_in`, whose question tags `@adamstallard`, this session's person,
+  and a comment in an issue this machine polled asks the same question in
+  the same words
 - **THEN** the log file and the message are shown as two questions, and
   neither is paired with the other
 
@@ -2152,10 +2150,10 @@ nothing; a reworded answer needs the same confirmation.
 
 #### Scenario: An answer is not posted without its record
 
-- **WHEN** the person answers a question asked in a private repository's
-  thread, which a questions-branch file on a public lore repository holds,
-  sent there when a person confirmed sending it somewhere more visible,
-  and does not confirm the preview's warning
+- **WHEN** an organization question asked in an issue of the private
+  `o/api` has no file, its record would go to a public lore repository's
+  questions branch, and the person answers it from that issue without
+  confirming the preview's warning
 - **THEN** nothing is posted and no file is pushed, the question stays in
   the queue, and the person may reword the answer and confirm it
 
@@ -3120,9 +3118,18 @@ A miss the answer session logs by itself SHALL say
 `answer session: clearly filter <n>` in `said`. A miss on questions-branch
 files SHALL copy their most private `asked_from` and any `repository`,
 with no miss if their `repository` keys differ. Any other miss SHALL hold
-as `repository` the repository the question concerns, if any, and as
-`asked_from` its GitHub thread's repository, or on Linear or Discord
-the repository it concerns, else the lore repository serving it.
+as `repository` any repository the question concerns, and as
+`asked_from` its branch's repository once confirmed more visible, else its GitHub thread's, or off GitHub the repository it concerns, else
+its lore repository.
+
+#### Scenario: A confirmed record names its own branch's repository
+
+- **WHEN** the person confirms sending a miss or an answer file, for an
+  organization question asked in an issue of the private `o/api`, to the
+  questions branch of the public lore repository `o/lore`
+- **THEN** the file's `asked_from` is `o/lore`, not `o/api`, as the
+  inquisitor's *The answerer's confirmation can send a record somewhere
+  more visible* sets
 
 #### Scenario: An automatic miss is marked as the answer session's
 

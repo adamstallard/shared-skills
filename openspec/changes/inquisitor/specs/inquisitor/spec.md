@@ -2224,13 +2224,13 @@ nothing and say so.
 
 ### Requirement: Every answer is recorded and every asked question logged
 
-When a person answers a question, the agent SHALL record the answer where
-the question's answer is recorded. Each asked question SHALL be logged as
-one file on a questions branch, never elsewhere: when asked, if asked in a
-GitHub post; once answered, with its answer, if asked only in the picker or
-in a Linear or Discord thread, where the thread is its record until then.
-Some questions are exempt by their own requirements, such as a
-way-of-working question or a flagged run's.
+The agent SHALL record each answer where its log file's `recorded_in`
+names. Each asked question SHALL be logged as one file on a
+questions branch, never elsewhere. One asked in a GitHub post SHALL be
+logged when asked, except as *An unanswered question goes nowhere more
+visible than its source* says; any other SHALL be logged once answered,
+with its answer, any thread being its record until then. Some questions
+are exempt by their own requirements, such as a way-of-working question.
 
 #### Scenario: A question waiting for its answer is already logged
 
@@ -2438,6 +2438,54 @@ Only that person confirms it.
 - **WHEN** a session with no person in it holds an answer, read in a
   private repository's thread, to a question about a public repository
 - **THEN** it pushes nothing to the public repository's questions branch
+
+### Requirement: An unanswered question goes nowhere more visible than its source
+
+When a post's question would be logged on a questions branch more
+visible than its source, its thread or the repository it was asked from,
+the script SHALL push, keep pending and report for an Igor no file for it
+until a person answers and confirms the record, as *The answerer's
+confirmation can send a record somewhere more visible* allows, since
+nobody can confirm an unanswered question's record. Until then its thread
+SHALL be its only record, and the agent's report SHALL say so.
+
+#### Scenario: A private repository's organization question is not logged when asked
+
+- **WHEN** an agent working in the private `o/api` asks, in an issue of
+  `o/api`, a question about the organization `o`, and the team's lore
+  repository `o/lore` is public
+- **THEN** the script pushes no log file and keeps none pending, and the
+  agent's report says the question is not yet logged
+
+#### Scenario: The question is found in its thread and logged once confirmed
+
+- **WHEN** the person's answer session, which reads `o/api`, shows that
+  question from its issue, and the person answers it and confirms the
+  preview's warning that the record is more visible than `o/api`
+- **THEN** the answer is relayed in the issue, and a log file holding the
+  question and the answer, with no `answers`, `asked_in` or
+  `answer_link`, is pushed to the questions branch of `o/lore`
+
+#### Scenario: An answer given only in the thread is not logged there
+
+- **WHEN** a person answers that question in a comment on the issue,
+  outside any answer session
+- **THEN** no log file is pushed to the questions branch of `o/lore`,
+  since nobody confirmed sending the record there
+
+#### Scenario: Filter 1 finds no file for the unanswered question
+
+- **WHEN**, before anyone answers, another agent's filter 1 searches the
+  questions branch of `o/lore` for the same question
+- **THEN** the search shows no file for it
+
+#### Scenario: An Igor pushes no file for such a handback question
+
+- **WHEN** an Igor worker asks, in its handback comment on an issue of the
+  private `o/api`, a question about the organization `o`, and `o/lore` is
+  public
+- **THEN** the worker's report holds no file for that question, and its
+  Igor pushes none
 
 ### Requirement: A picker question shows where its answer will be recorded
 
@@ -2797,10 +2845,11 @@ leak*; *A log file without `asked_in` is never merged*).
 #### Scenario: A GitHub link into a more private repository is left out
 
 - **WHEN** an agent working in the public `o/web` asks a question about
-  the organization `o` in an issue of the private `o/api`, and logs it on
-  the questions branch of a public lore repository serving `o`, the person
-  answering it having confirmed sending it somewhere more visible
-- **THEN** the log file holds no `asked_in`
+  the organization `o` in an issue of the private `o/api`, and the person
+  answering it confirms sending its record to the questions branch of a
+  public lore repository serving `o`
+- **THEN** the log file pushed there, holding the question and the
+  answer, holds no `asked_in`
 
 ### Requirement: A questions-branch log file links where its question was asked
 
@@ -3933,8 +3982,10 @@ that should have stopped it, and what the person said.
 
 ### Requirement: A miss file goes where its question's file went
 
-A miss file SHALL go to `misses/` on the questions branch its question's
-file went to, pushed directly, by its Igor when an Igor worker logs it. An
+A miss file SHALL be pushed directly to `misses/` on the questions branch
+its question's file went to, or, for a question no file holds, the one
+that file would go to, unless *No record goes somewhere more visible than
+its source* bars it, an Igor pushing its worker's miss file. An
 answer session's misses go as the `answer-session` spec says.
 
 #### Scenario: A miss goes to the questions branch its question's file is on
