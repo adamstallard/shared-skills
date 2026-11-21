@@ -2631,6 +2631,27 @@ to its 149.
   must change. Until it does, *The README warns that a relay's token can be
   printed* keeps the README's warning.
 
+### Decisions for a person
+
+- **Where does an answer go when its question has a category and no
+  thread?** Take a questions-branch file with no thread whose question the
+  session's model judges `vulnerability`, `secret` or `personal`. One case
+  is a file an Igor pushed for its worker, about a repository more private
+  than the worker's item. Answering it pushes a handled file that closes
+  it. No answer file is pushed, since the answer-session spec records no
+  answer to a question with a category, and with no thread nothing is
+  posted or kept on the pending list. So the asker never gets the answer,
+  and the preview says only that the answer will not be recorded. The
+  options:
+  1. Keep this, and have the preview also say the asker will not receive
+     the answer, so the person can answer on the asker's issue or pull
+     request instead.
+  2. Push no handled file for such a question. It stays in the queue until
+     the person declines it.
+
+  Recommended: option 1, the smallest change. With no thread, the session
+  has nowhere to send an answer that must not be recorded.
+
 ### Outside this change
 
 - **Proving an answer by a link to a message on another surface,** such as

@@ -179,20 +179,13 @@ machine only*) and those on the pending list (*A question with a pending
 answer is out of the queue*). The answer session SHALL
 order the questions not set aside by their asked times (*A question is
 asked when its message was posted or a poll first found it*), oldest
-first, and questions asked at the same time in the order this machine
-found them.
+first.
 
 #### Scenario: The question asked first comes first
 
 - **WHEN** the queue holds questions with the asked times 09:20, 09:05
   and 09:10, found in that order, none set aside
 - **THEN** the queue orders them 09:05, 09:10, 09:20
-
-#### Scenario: Questions asked at the same time keep the order they were found in
-
-- **WHEN** the queue holds two questions asked at 09:05, the one from
-  `o/web` found before the one from `o/api`
-- **THEN** the queue orders the `o/web` question first
 
 ### Requirement: The queue puts questions set aside after the rest
 
@@ -1779,11 +1772,10 @@ new post is.
 When an edit leaves a `User says: ` answer to a questions-branch log
 file's question, the answer session SHALL push a new log file if that
 file is unanswered or answered only by answer files it pushed for this
-relayed answer's earlier texts. The new file names the log file in
-`answers`, as *An answer is recorded by a new log file* does, holding the
-earlier answer file's question or, if none, the
-question the person saw. Earlier files SHALL stay unchanged; the newest
-counts.
+relayed answer's earlier texts. The new file holds the earlier answer
+file's question, or the question the person saw if there is none, and
+names the log file in `answers` unless that log file is itself the
+earlier answer, pushed with no `answers`. The newest file counts.
 
 #### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
 
@@ -1804,6 +1796,9 @@ counts.
   holding the earlier answer file's question and the edited answer, with
   the relay post's URL as `answer_link`, and leaves both earlier files
   unchanged
+- **AND** when the earlier text's file was pushed with no `answers`, for a
+  question no file held, the new file has no `answers` and holds that
+  file's question
 - **AND** the new file is the one that counts
 
 ### Requirement: The person can ask the asker
@@ -2370,14 +2365,6 @@ nothing; a reworded answer needs the same confirmation.
 - **THEN** nothing is posted and no file is pushed, the question stays in
   the queue, and the person may reword the answer and confirm it
 
-#### Scenario: An answer typed in a Linear thread is recorded publicly once confirmed
-
-- **WHEN** the person answers, from its Linear thread, a question about
-  the public `o/web`, and confirms the preview's warning that the record
-  is more visible than that thread
-- **THEN** the answer is relayed in the thread, and the answer file is
-  pushed to the questions branch of `o/web`, holding no link to the thread
-
 ### Requirement: The preview shows where an answer will be recorded
 
 Before the person confirms an answer, or a decline that logs a miss, the
@@ -2469,10 +2456,11 @@ private than its item, since a question asked in a thread has an
 ### Requirement: A questions-branch answer file records the answer as given
 
 The answer file SHALL hold the question the person saw; the `authority`
-the inquisitor's spec sets for an answer given in the session; and, as quote lines, the relay post's text, as the inquisitor's
+the inquisitor sets for an answer the session's person gives; and,
+as quote lines, the relay post's text, as the inquisitor's
 *An answer logged from a comment is the comment's whole text* sets, or the
 confirmed answer if unrelayed, with any rephrasing and discussion summary
-also in their own sections. The `log` command SHALL read a GitHub relay post
+in their own sections. The `log` command SHALL read a GitHub relay post
 itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 #### Scenario: A relayed answer's file records the relay post as where it is recorded
@@ -2581,11 +2569,10 @@ it or its `asked_in` links the question's message.
 The answer session SHALL push a handled file once the post leading to it
 is out; with nothing posted, once the person confirms the decline;
 and for a question with a category, whose answer may never be posted,
-once the person confirms the answer. It SHALL record the owed push in
-the state folder before that post, or with none before the push, drop it
-if a post it waits on fails, and retry it at each poll and opening
-until it succeeds or its `log` or `cite` command refuses it for
-good.
+once the person confirms the answer. It SHALL record the owed push before
+the post or, with nothing posted, before the push; drop it if the post
+fails or the thread shows it never went out; and retry it at each poll
+and opening until it succeeds or is refused for good.
 
 #### Scenario: A failed post pushes no handled file
 
@@ -3165,14 +3152,6 @@ own filter 1 should have found the record, as *The answer session logs
 its misses on the questions branch of what the question concerns* says; a
 person's question it answers by itself logs none.
 
-#### Scenario: A person's question is answered by itself too
-
-- **WHEN** a public repository's decision document answers a person's
-  Linear question
-- **THEN** the Linear relay posts the recorded answer in its comment
-  thread, starting with `Recorded answer: `, never `User says: `, and no
-  miss is logged
-
 #### Scenario: An agent's question answered by itself logs a miss
 
 - **WHEN** the answer session answers an agent's GitHub question by
@@ -3238,8 +3217,6 @@ handled file closes a questions-branch question*).
   Take the option that has merit, and record what you chose and why.` on
   the first, and `Inquisitor: filter 4, cheap to reverse. Pick one, and
   record what you chose and why.` on the second
-- **AND** when an unanswered questions-branch log file holds either
-  question, a handled file closes it
 
 #### Scenario: An unclear case goes to the person
 

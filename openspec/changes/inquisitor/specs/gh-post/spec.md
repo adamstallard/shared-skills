@@ -115,7 +115,8 @@ The body of a command that *The reader reads a gh pr or gh issue post only
 as a whole command line* reads SHALL come from `--body` or `-b`, or for
 `close` and `reopen` `--comment` or `-c`, as a literal word; or from
 `--body-file` or `-F` naming a file that exists. Any other body source,
-such as `--template`, SHALL make the command unreadable.
+such as `--template`, `--fill`, `--fill-first`, `--fill-verbose`,
+`--recover`, `--editor` or `--web`, SHALL make the command unreadable.
 
 #### Scenario: A whole-command post with a body file is read
 
@@ -216,8 +217,8 @@ its scenarios list as unreadable SHALL be unreadable.
 
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
-command in it names no `gh`; is a `gh pr` or `gh issue` command, or the
-github-app skill's form of one, given no body; is a `gh api` call that
+command in it names no `gh`; is a `gh pr` or `gh issue` command with no
+body source, run directly or through the github-app skill; is a `gh api` call that
 sends no post; or is a **data command** (its scenarios list them) with
 no word that is `gh` or a path ending in `/gh`.
 

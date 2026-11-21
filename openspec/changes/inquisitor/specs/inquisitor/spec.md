@@ -195,13 +195,6 @@ it, since the second call refuses a question left without a verdict.
 - **THEN** it states it as a statement instead, with no verdict, log file or
   picker for it
 
-#### Scenario: A rhetorical question the first call took is dropped by running it again
-
-- **WHEN** the first call took two questions, and the agent then finds one
-  of them rhetorical
-- **THEN** it runs the first call again with only the other question, and
-  records a verdict for that one alone
-
 ### Requirement: An agent's own choice goes in the work's decision document or its report
 
 Under filters 3 and 4, a rhetorical question excepted, the agent SHALL
@@ -918,8 +911,8 @@ the id of an `Inquisitor: ` reply on it, and print one JSON object whose
 `backed` is `true` only when that repository's questions branch holds the
 miss file that reply's id names, hash-only or naming a `said_by`, as *An
 Inquisitor reply is acted on only with its miss file* requires of
-the file. It SHALL make no permission call, since only a writer can push to
-that branch, and print nothing else about the file.
+the file. It SHALL make no permission call, since a file there was pushed with
+write access, and print nothing else about the file.
 
 #### Scenario: The miss check says only whether the reply is backed
 
@@ -3487,10 +3480,9 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 
 #### Scenario: Where an asked_in may be written
 
-- **WHEN** a log file is for a question asked in a post or in a Linear or
-  Discord message, or for an Igor worker's question its handback comment
-  asks
-- **THEN** its `asked_in` is that post's or message's URL, or the URL of the
+- **WHEN** a log file is for a question asked in a post, or for an Igor
+  worker's question that its Igor's handback comment asks
+- **THEN** its `asked_in` is that post's URL, or the URL of the
   handback comment asking the question, written only where an `answer_link`
   of the same kind may be (design.md: *A log file follows its thread message
   by exact link*; *Each Igor log file follows its own handback comment*;
@@ -3548,7 +3540,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   answers* sets; and a citation file never holds `asked_from`
 - **AND** of the files that the Igor's worker or the Igor's own inquisitor
   run reports, the Igor pushes none holding a key such a run may not write
-  (`asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`),
+  (`asked_from`, `asked_in`, an answer, `answers`, `handled`, `closes` or
+  `said_by`),
   and no hash-only miss file
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
@@ -3584,10 +3577,9 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   no note from the person, is the fixed text the `answer-session` spec
   gives for that case, and `asked` is the day the question was asked
 - **AND** a questions-branch miss file for a question asked in a Linear or
-  Discord thread holds that thread's URL as `asked_in`, copied from the
-  question's log file or, for an answer session's miss, the thread the
-  question was asked in, read only for the file's visibility, so the file
-  counts as private
+  Discord thread holds that thread's URL as `asked_in`, which nothing
+  fetches; it makes the file private, as *A log or miss file is as
+  private as its more private repository* sets
 
 #### Scenario: What a log file's body holds
 
