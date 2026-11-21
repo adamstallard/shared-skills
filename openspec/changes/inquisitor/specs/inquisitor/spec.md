@@ -3642,7 +3642,11 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   script, run in the worker, wrote none (design.md: *Every questions-branch
   file names where it was asked from*)
 - **AND** the Igor sets `asked_from`, the item's repository as `owner/repo`,
-  on every log and miss file it pushes; it pushes no worker file holding
+  on every log and miss file it pushes, except on a log file into which it
+  writes an answer: that file's `asked_from` names the most private
+  repository among the `asked_from` of the files it answers, as this
+  spec's requirement *An answer file names every unanswered file it
+  answers* sets; it pushes no worker file holding
   `asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`,
   keys a worker never writes, nor a hash-only miss file from a worker;
   and a citation file never holds `asked_from`
