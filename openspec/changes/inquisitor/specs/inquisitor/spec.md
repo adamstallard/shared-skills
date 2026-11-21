@@ -3757,6 +3757,11 @@ block a post with a question whose latest record has a category.
   answer
 - **AND** no log file is written for the question
 
+#### Scenario: A question with a category gets no miss file
+
+- **WHEN** a person says a question with a category did not need asking
+- **THEN** no miss file, and no other record of the miss, is written
+
 #### Scenario: The three categories and their records
 
 - **WHEN** a question concerns a security vulnerability not yet fixed, such
@@ -4351,16 +4356,24 @@ that should have stopped it, and what the person said.
 
 ### Requirement: Some misses get no miss file
 
-No miss file SHALL be written for a question about the person's own way
-of working, which goes to the person's memory, one with a category,
-which leaves no readable record, or one with nothing to name its file
+No miss file SHALL be written for a way-of-working question, whose answer
+goes to the person's memory (*A way-of-working answer goes to the
+person's memory, not a log*), or for one with nothing to name its file
 by, having no reply id, log file or asking message's URL (*Every miss
-file is named by one hash*), such as a picker question never logged.
+file is named by one hash*), such as a picker question never logged. A
+question with a category gets no miss file either, by *Some questions are
+recorded by hash only*.
 
-#### Scenario: A way-of-working question or one with a category gets no miss file
+#### Scenario: A way-of-working question gets no miss file
 
-- **WHEN** a person says a question about their own way of working, or one
-  with a category, did not need asking
+- **WHEN** a person says a question about their own way of working did
+  not need asking
+- **THEN** no miss file is written
+
+#### Scenario: A picker question never logged gets no miss file
+
+- **WHEN** a person says a question asked in the picker, which no log file
+  holds, did not need asking
 - **THEN** no miss file is written
 
 ### Requirement: A miss file goes where its question's file went

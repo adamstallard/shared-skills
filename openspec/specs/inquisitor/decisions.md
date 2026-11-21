@@ -41,6 +41,10 @@
   This entry explains one of the requirement's conditions: the branch must be in the repository itself, not a fork. Pushing a branch to the repository itself needs write access, and a fork's branch does not, so without that condition an outside contributor could commit a decision that stops the agent's questions.
   Evidence: GitHub's repository roles give the push permission only from the Write role up, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization
 
+- **Rationale: An answer recorded on a work branch counts for other work once it lands.**
+  This entry explains the requirement's merged-pull-request condition. A log file pins its decision document to a commit on the work branch, and a squash or rebase merge puts new commits on the default branch in place of the branch's own, so that commit never becomes an ancestor of the default branch even once the work has landed.
+  Evidence: GitHub's docs on pull request merges say a squash merge creates one new commit and a rebase merge rewrites each commit, https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges
+
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
   igor's lore-firing spec treats scope as visibility and status as review state: an out-of-scope entry is one the asker may not see, while only an `active` entry, one a person reviewed, reaches a worker unasked. So scope hides an entry from the search, and status only labels it, since a search's results are asked for and reach no worker unasked.
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides. A collective's question concerns no repository, so no short name picks a `project:` entry for it, and it sees only `global` entries.

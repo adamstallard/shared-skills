@@ -48,8 +48,8 @@
 
 ## Rationale
 
-- **Rationale: The answer session polls GitHub's notifications and comments.**
-  Notifications are what the answer session polls first, and polling them costs little while nothing changes: a conditional request that finds nothing new does not count against the rate limit, and GitHub's `X-Poll-Interval` header sets how long to wait. Task 0.15 checks that the endpoint behaves as documented.
+- **Rationale: The answer session polls GitHub's notifications.**
+  Polling notifications costs little while nothing changes: a conditional request that finds nothing new does not count against the rate limit, and GitHub's `X-Poll-Interval` header sets how long to wait. Task 0.15 checks that the endpoint behaves as documented; if it does not, this reason fails.
   Evidence: GitHub's notifications API documents conditional requests and `X-Poll-Interval`, https://docs.github.com/en/rest/activity/notifications
 
 - **Rationale: The answer session reads with the person's credentials, except on Discord.**

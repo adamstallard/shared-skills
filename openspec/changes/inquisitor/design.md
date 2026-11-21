@@ -861,10 +861,11 @@ entries below give the reasons for its conditions.
 #### An answer recorded on a work branch counts for other work once it lands
 
 **Rule:** inquisitor spec, *An answer recorded on a work branch counts for
-other work once it lands*. The log file is on the questions branch at once,
-where every agent finds it, but the work it belongs to may never merge. A
-merged pull request counts as landed because a squash or rebase merge never
-makes the pinned commit an ancestor of the default branch.
+other work once it lands*.
+
+**Why:** the log file recording the answer is on the questions branch at
+once, where every agent finds it, but the decision document it pins sits
+on work that may never merge.
 
 #### An agent's own choice is not logged
 
@@ -1399,7 +1400,7 @@ section.
 #### The answer session polls, only while it is open
 
 **Rule:** answer-session spec, *The answer session polls only while it is
-open*; *The answer session polls GitHub's notifications and comments*; *The
+open*; *The answer session polls GitHub's notifications*; *The
 answer session reads with the person's credentials, except on Discord*;
 *Local state is per machine, in the state folder*; *The answer session's
 filter 1 reads decision documents only from its clones*; *Until
@@ -1474,13 +1475,6 @@ confirmation, not a hook, is what lets an answer out. Coding, testing and
 committing happen in other Claude Code sessions. The prototype has shown
 that a mod can fill the prompt box and register a tool the model calls by
 name.
-
-No hook judges whether a relay post's destination is right for its text.
-An agent in another session may post as a relay without a prefix; such a
-post does not count as the person's answer, but it appears under an
-identity tied to them. A hook sees the post and where it goes, but not
-which thread its text came from, so it cannot tell whether private text is
-leaking.
 
 #### Claude drafts a reply only into the prompt box
 

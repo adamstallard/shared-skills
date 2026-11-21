@@ -1184,11 +1184,12 @@ repository, and each subscribed repository's default branch.
   its answer session open
 - **THEN** no channel or questions branch is polled
 
-### Requirement: The answer session polls GitHub's notifications and comments
+### Requirement: The answer session polls GitHub's notifications
 
 On GitHub the answer session SHALL read notifications conditionally,
-sending the previous response's `Last-Modified` time, no sooner than the
-`X-Poll-Interval` of GitHub's last response.
+sending the last notifications response's `Last-Modified` time as
+`If-Modified-Since`, and SHALL skip that read at any poll sooner than that
+response's `X-Poll-Interval`.
 
 #### Scenario: GitHub's poll interval is honoured
 
@@ -1654,8 +1655,9 @@ kept pending. No other answer SHALL push a file before its relay post.
 
 #### Scenario: An answer held back by a new message pushes no file
 
-- **WHEN** the fetch before posting such an answer finds a new message in
-  the thread
+- **WHEN** the person confirms an answer whose thread's channel is on, and
+  the thread, fetched just before the relay post as *A questions-branch
+  answer's file is pushed after its post* says, holds a new message
 - **THEN** nothing is posted or pushed, and the answer stays pending
   until the person posts or drops it
 
