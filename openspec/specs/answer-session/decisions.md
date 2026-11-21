@@ -20,9 +20,9 @@
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: GitHub's events API shows each hash-only miss file's pusher and push time to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
-  Because: the cost is accepted: the file's name, a hash of the surface and the reply's id, does not identify the thread, so the pusher and time show only that the person judged some question then.
-  Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
+- **Constraint: GitHub's events API shows the pusher and push time of each hash-only miss file, one with no keys named by a hash, to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
+  Because: the cost is accepted: anyone who recovers the reply's id from the file's name, a hash of the surface (GitHub, Linear or Discord) and that id, finds a reply only its thread's readers can see, so others learn only that the person judged some question then.
+  Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events; GitHub answers 404 for a private repository's resource to someone without access, https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#404-not-found-for-an-existing-resource; Discord gives a message only to someone who can view its channel and read its history, https://discord.com/developers/docs/resources/message#get-channel-message; and Linear's API reads only with a member's credentials, https://linear.app/developers/graphql#authentication
   Holds while: the answer session pushes a hash-only miss file with the person's own credentials.
   Paths: .agents/skills/inquisitor/
 

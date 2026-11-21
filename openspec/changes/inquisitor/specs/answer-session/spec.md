@@ -180,24 +180,18 @@ as new.
   posted, and its channel is polled again
 - **THEN** this machine shows it neither in the queue nor as new
 
-### Requirement: The queue shows unanswered questions one at a time
+### Requirement: The queue puts questions set aside after the rest
 
-The answer session SHALL show the person **the queue**, the list of
-unanswered questions, one at a time. **A question set aside for later**
-is one the person moved to the end of the queue on this machine; the
-answer session SHALL show it after the new ones.
-
-#### Scenario: The queue shows one question at a time
-
-- **WHEN** three questions asked of the person are unanswered
-- **THEN** the person is shown one, and the next only once they have dealt
-  with it or set it aside for later
+**The queue** is the list of unanswered questions. **A question set aside
+for later** is one the person moved to the end of the queue on this
+machine; the answer session SHALL order it after every question not set
+aside.
 
 #### Scenario: A question set aside comes after the new ones
 
 - **WHEN** the person sets a question aside for later, and a new question
   then reaches the queue
-- **THEN** the new question is shown first
+- **THEN** the queue orders the new question before the one set aside
 
 ### Requirement: A question with a pending answer is out of the queue
 
@@ -2312,8 +2306,9 @@ concerns.
 - **THEN** the relay posts the answer in the thread, and the `log` command
   pushes to the questions branch of `o/api` a log file holding the
   question the person saw and the answer, with no `answers`, and with
-  `repository` and `asked_from` set as *A miss records who judged it and
-  where it was asked from* sets a miss's
+  `repository` and `asked_from` set as for a miss, by *A miss holds the
+  repository its question concerns* and *A miss records who judged it and
+  where it was asked from*
 
 #### Scenario: An answer the session cannot place is relayed, not recorded
 
@@ -3389,12 +3384,13 @@ branch of what it concerns*.
 ### Requirement: A miss records who judged it and where it was asked from
 
 A miss the answer session logs by itself SHALL say
-`answer session: clearly filter <n>` in `said`. A miss on questions-branch
-files SHALL copy their most private `asked_from` and any `repository`,
-with no miss if their `repository` keys differ. Any other miss SHALL hold
-as `repository` any repository the question concerns, and as
-`asked_from` its branch's repository once confirmed more visible, else its GitHub thread's, or off GitHub the repository it concerns, else
-its lore repository.
+`answer session: clearly filter <n>` in `said`. A miss's `asked_from`
+SHALL be the first of these that applies: the repository of the branch it
+is pushed to, once the person confirms sending it somewhere more visible;
+the most private `asked_from` of the questions-branch files holding its
+question; its GitHub thread's repository; off GitHub, the repository the
+question concerns or, for a group's question, the lore repository
+serving it.
 
 #### Scenario: A confirmed record names its own branch's repository
 
@@ -3420,9 +3416,6 @@ its lore repository.
 - **THEN** the answer session passes `asked_from: "o/private-item"` to
   the `log` command with the miss's other keys, and the miss file holds
   it and no `repository`
-- **AND** had one of the two files held `repository: "o/api"` and the
-  other `repository: "o/web"`, no miss file would be written, since a
-  miss holds one `repository`
 
 #### Scenario: A miss on a thread question names the thread's repository
 
@@ -3447,6 +3440,28 @@ its lore repository.
   inquisitor's *A log file and a miss file have one format* allows, so it
   counts as private by the inquisitor's *A log or miss file is as private
   as its more private repository*
+
+### Requirement: A miss holds the repository its question concerns
+
+A miss on questions-branch files SHALL hold the `repository` they all
+hold, or none when none of them holds one; when their `repository` keys
+differ, one file lacking the key included, the answer session SHALL write
+no miss file and SHALL tell the person why. Any other miss SHALL hold as
+`repository` the repository the question concerns, or none for a group's
+question, such as an organization's.
+
+#### Scenario: A miss on files sharing a repository holds it
+
+- **WHEN** two questions-branch files hold a question, each with
+  `repository: "o/api"`, and the person declines it for the inquisitor
+- **THEN** the miss file holds `repository: "o/api"`
+
+#### Scenario: Files naming different repositories get no miss
+
+- **WHEN** two questions-branch files hold a question, one with
+  `repository: "o/api"` and the other with `repository: "o/web"`, and the
+  person declines it for the inquisitor
+- **THEN** no miss file is written, and the person is told why
 
 ### Requirement: The answer session writes no miss it cannot place privately
 

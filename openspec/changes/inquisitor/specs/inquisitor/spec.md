@@ -3564,10 +3564,11 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   nor `said_by`, a worker being no person with write access; and the body is the question
   under `## Question`
 - **AND** for a miss an answer session logs, `repository` and `asked_from`
-  are as the `answer-session` spec's *A miss records who judged it and where
-  it was asked from* gives, `said`, when it logs the miss by itself or with
+  are instead as the `answer-session` spec's *A miss holds the repository its
+  question concerns* and *A miss records who judged it and where it was
+  asked from* give, `said`, when it logs the miss by itself or with
   no note from the person, is the fixed text the `answer-session` spec
-  gives, and `asked` is the day the question was asked
+  gives for that case, and `asked` is the day the question was asked
 - **AND** a questions-branch miss file for a question asked in a Linear or
   Discord thread holds that thread's URL as `asked_in`, copied from the
   question's log file or, for an answer session's miss, the thread the

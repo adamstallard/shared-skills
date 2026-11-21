@@ -2117,7 +2117,8 @@ no thread is a filter 1 decline*); and no miss on an agent's question
 
 **Rule:** answer-session spec, *The answer session logs its misses on the
 questions branch of what the question concerns*; *A miss records who judged
-it and where it was asked from*; *A Linear or Discord question is placed by
+it and where it was asked from*; *A miss holds the repository its question
+concerns*; *A Linear or Discord question is placed by
 what it concerns*; *A miss or citation file's push is owed and retried as a
 handled file's is*; inquisitor spec, *A log file and a miss file have one
 format*.
@@ -2127,10 +2128,10 @@ session's judgement from a person's word. Where a miss file names in
 `asked_by` the account that posted the question, a review of misses can
 show which asker keeps asking what it should have filtered.
 `asked_by` reveals nothing new: the account already shows on the question
-in its thread. A miss on questions-branch files copies their `asked_from` and
-`repository` so it is as private as they are and about the same thing;
-files naming different repositories get no miss, since they leave no one
-`repository` to copy.
+in its thread. A miss on questions-branch files takes their most private
+`asked_from` and the `repository` they share, so it is as private as they
+are and about the same thing; files naming different repositories get no
+miss, since they leave no one `repository` to take.
 
 A miss's push is recorded as owed before its post since once the post is
 out the thread shows the question handled and nothing else would bring a
@@ -2243,8 +2244,9 @@ passes over an older unanswered one*).
 
 **Rule:** answer-session spec, *A handback that mentions no one goes to the
 item's assignee*; *Whom a message reaches is set by its mentions*. The
-answer-session decision record's *Rationale* entries of both titles give
-the evidence.
+assignee is the person who handed the item to the Igor; the evidence is in
+the answer-session decision record's *Rationale: A handback that mentions
+no one goes to the item's assignee*.
 
 #### Each Igor log file follows its own handback comment
 
@@ -2306,9 +2308,12 @@ the directory where spec-trace's CI fails on an untagged one.**
 The task each bullet names measures its fact before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11, whether GitHub's API gives a comment's or
-review's text and author, is measured for an issue comment only; tasks.md
-gives its result, and a review and a review comment are still to measure.
+0.12 measured*). Task 0.11 asks whether GitHub's API gives a comment's or
+review's text and author, which *The log command takes answered_by from the
+linked comment* relies on. Only an issue comment's author is measured, and
+tasks.md records how. For a review and a review comment, GitHub documents
+the same `author` field, so the spec states no fallback; if a measurement
+finds the field missing, that requirement needs one before it is built.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2670,17 +2675,6 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
-
-### Undecided
-
-- **Whether two answer-session requirements describe the screen,** which
-  `AGENTS.md` leaves to the approved prototype: *The queue shows unanswered
-  questions one at a time* and *Reopening shows the question last on
-  screen*, which shows the question that was on screen at closing. Both set
-  state a test checks without a screen: the queue's order, and the question
-  kept across a restart. But "one at a time" also says how the queue is
-  shown. The repository's owner decides; a requirement that describes the
-  screen would leave the spec, and the prototype would govern it.
 
 ### Left to implementation
 
