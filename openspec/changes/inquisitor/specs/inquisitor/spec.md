@@ -61,8 +61,8 @@ the repository it was asked from* defines that repository, and *The team's
 lore repository is the most specific one that serves* picks among
 several). For a collective's question asked on Linear or Discord, where no repository was asked from, the
 `answer-session` spec's *A channel's repositories place its questions*
-or, outside a mapped channel, *A Linear or Discord question is placed by
-what it concerns* picks the team's lore repository.
+and *A Linear or Discord question is placed by what it concerns* pick the
+team's lore repository.
 
 *A session with a person in it* is one a person started and is reading, such
 as an interactive Claude Code session. Any other, such as an Igor worker or

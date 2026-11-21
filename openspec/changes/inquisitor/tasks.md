@@ -805,9 +805,12 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       held only in memory and never in a command's arguments, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the preview showing where
-      the answer will be recorded and, for an Igor's question on a more private repository,
-      that the answer also reaches the run on its item (answer-session spec: *The preview
-      says when an answer also reaches a more visible item's run*), an answer whose last line
+      the answer will be recorded; the person's pick of another place in
+      it (answer-session spec: *The person can pick another place in the
+      preview*); for an Igor's question on a more private repository, the
+      preview's line saying the answer also reaches the run on its item
+      (answer-session spec: *The preview says when an answer also reaches
+      a more visible item's run*); an answer whose last line
       starts `Re: `, which a reader would take for the post's own `Re: ` line, sent back for rewording,
       and each confirmed answer pushed as a new log file, and again as a new one when its relayed answer
       is edited (design.md: *Editing a relay post*);
