@@ -3188,19 +3188,24 @@ Agreeing takes no note, so its miss's `said` is
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
 
-When the answer session posts a recorded answer by itself and the record
-is a lore entry, it SHALL push a citation file, as the inquisitor's *A
-lore entry that stops a question gets a citation file* says.
+When the answer session posts a recorded answer by itself, with no
+confirmation from the person, and the record is a lore entry, it SHALL push
+a citation file unless the inquisitor's *A lore entry that stops a question
+gets a citation file* bars one, as it does when the lore repository is more
+visible than the question's repository.
 
 #### Scenario: A lore entry's recorded answer sends a citation
 
-- **WHEN** an active lore entry answers an incoming question with a thread,
-  and the entry's lore repository is no more private than the thread, so
-  *A recorded answer is posted by itself only when no more private than
-  its thread* lets the session post it by itself
+- **WHEN** an active lore entry in the public `o/lore` answers a
+  question about the public `o/web` in an `o/web` thread, so *A recorded
+  answer is posted by itself only when no more private than its thread*
+  lets the session post it by itself
 - **THEN** the session posts the recorded answer through the relay, and
-  pushes, through the script, a citation file to that entry's lore
-  repository's questions branch
+  pushes, through the inquisitor's script, a citation file to `o/lore`'s
+  questions branch
+- **AND** where the same entry answers a question about the private
+  `o/api` in an `o/api` thread, the session posts the recorded answer but
+  pushes no citation file, since `o/lore` is more visible than `o/api`
 
 ### Requirement: A person cites a lore entry by naming it as an answer or a record
 

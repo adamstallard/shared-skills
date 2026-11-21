@@ -1399,10 +1399,17 @@ file of a Discord-relayed answer is a decision*).
 #### github-app hands a relay's token to no command that can print it
 
 **github-app is to hand a relay identity's token to no command that can
-print it, so the token is used only for posts the post hooks read.** Which
-commands print it today is in the Evidence of the second Constraint under
-*Recorded*. This change ships before github-app makes that refusal, which
-it asks for in shared-skills #96; until then, that Constraint holds.
+print it.** Short of reading the relay's key from the keychain (the first
+Constraint under *Recorded*), an agent can then post as the relay only
+through a github-app command whose posts the post hooks vet. github-app must
+still give the answer session a command to post as the relay: the answer
+session runs it as a host command, outside any hook (answer-session spec:
+*A relay post is posted by a host command, unvetted*), while an agent that
+runs it is vetted like any other post. Which github-app commands print the
+token today, its `gh` command among them, is in the Evidence of the second
+Constraint under *Recorded*. This change ships first and asks github-app
+for the refusal in shared-skills #96; until github-app makes it, that
+Constraint holds.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
 person and the asker, so nothing should post through it unseen.
@@ -2690,7 +2697,9 @@ to its 149.
 ### What other changes must provide
 
 - **The github-app skill must hand a relay identity's token to no command
-  that can print it,** its `gh` command included. Issue
+  that can print it,** its `gh` command included, while leaving the answer
+  session a command to post as the relay whose posts the post hooks vet
+  when an agent runs it. Issue
   adamstallard/shared-skills#96 tracks it. Its spec, in a pull request
   stacked on this one, starts once this change's spec is approved, and its
   implementation follows this change's. This change does not wait for it:

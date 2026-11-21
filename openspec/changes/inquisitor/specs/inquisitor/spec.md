@@ -127,7 +127,8 @@ Linear issue, the repository igor runs the item's work in.
 - **WHEN** an Igor works a Linear issue, and igor runs that work in
   `o/web`
 - **THEN** the item's repository is `o/web`, which the Igor writes as
-  `asked_from` on the files it pushes for that run
+  `asked_from` on the files it pushes for that run, except an answer
+  file, which takes the most private `asked_from` of the files it answers
 
 ### Requirement: Every question passes four filters before a person sees it
 
@@ -504,9 +505,9 @@ about the person's own way of working SHALL never be posted.
 ### Requirement: A log or miss file is as private as its more private repository
 
 Wherever this spec or the `answer-session` spec compares a log or miss
-file's visibility, it SHALL be that of the more private of the repositories
-that its `repository` and `asked_from` keys name and that a GitHub
-`asked_in` URL points into. A file whose `asked_in` is a Linear or Discord URL SHALL
+file's visibility, it SHALL be that of the most private of the repository
+holding the file, the repositories its `repository` and `asked_from` keys
+name, and the one a GitHub `asked_in` URL points into. A file whose `asked_in` is a Linear or Discord URL SHALL
 count as private, and so SHALL a file whose
 `repository`, `asked_from` or `asked_in` fails the check of *A log file's
 repository keys and links are checked before use*.
@@ -523,6 +524,8 @@ repository keys and links are checked before use*.
   input labelled unreadable
 - **AND** so is a questions-branch file about the organization, holding no
   `repository` and `asked_from` the private `o/api`
+- **AND** so is a file on the questions branch of the private `o/lore`
+  whose `asked_from` is the public `o/web`
 
 ### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
 
@@ -2808,12 +2811,14 @@ confirms it.
 #### Scenario: Not recorded gives a listed reason
 
 - **WHEN** the second call gives the verdict `ask` to a picker question
-  about the person's way of working, one with a category, one whose
+  about the person's way of working, one with the category
+  `vulnerability`, one with another category, one whose
   questions branch the session cannot push to, a collective's question
   no configured lore repository serves, or any picker question in a session
   with no login configured
 - **THEN** it prints `Not recorded: about your way of working`, `Not
-  recorded: it has a category`, `Not recorded: no push access to its
+  recorded: kept in its security advisory`, `Not recorded: it has a
+  category`, `Not recorded: no push access to its
   questions branch`, `Not recorded: no team's lore repository serves it`
   or `Not recorded: no GitHub login configured`, the first of these that
   applies
@@ -3585,7 +3590,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   is that relay comment's or message's URL, which nothing fetches, written
   only on the questions branch of a repository whose visibility its writer
   reads as private: `https://discord.com/channels/<id>/<id>/<id>` with
-  decimal ids, or a URL starting `https://linear.app/`
+  decimal ids, or a Linear comment's slugless URL in the form *Where an
+  asked_in may be written* gives
 
 #### Scenario: Where an asked_in may be written
 
