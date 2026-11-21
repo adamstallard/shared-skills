@@ -117,12 +117,6 @@ work such as an issue or pull request that the Igor holds. **The item's
 repository** SHALL be the GitHub repository holding the item or, for a
 Linear issue, the repository igor runs the item's work in.
 
-#### Scenario: An agent an Igor starts for an item is its worker
-
-- **WHEN** an Igor starts an agent to work an item it holds
-- **THEN** that agent is its worker, and this spec's rules for an Igor
-  worker apply to it
-
 #### Scenario: A Linear item's repository is the one its work runs in
 
 - **WHEN** an Igor works a Linear issue, and igor runs that work in
@@ -828,11 +822,9 @@ lore-search`*).
   [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md)
   defines it, and reads no lore clone itself
 
-#### Scenario: An Igor worker without igor's search command searches no lore
+#### Scenario: An Igor worker whose igor search fails searches no lore
 
-- **WHEN** an Igor worker runs filter 1, and `igor lore-search` is missing,
-  fails, or exits with an error because it got no question on standard
-  input
+- **WHEN** an Igor worker runs filter 1, and `igor lore-search` fails
 - **THEN** the search covers no lore, and its output says lore was not
   searched
 
@@ -1495,8 +1487,7 @@ the question, asked in a post or in a Linear or Discord message, SHALL
 carry its
 **person-required line**,
 `Inquisitor: a person must decide this (required by <skill>).`, exactly as
-the second call prints it, `<skill>` being the requiring skill's name. The
-line goes where a related-decision line would, after any such line.
+the second call prints it, `<skill>` being the requiring skill's name.
 
 #### Scenario: A question spec-trace requires is posted with its line
 
@@ -1552,8 +1543,7 @@ A question asked in a post or in a Linear or Discord message that
 concerns a repository or a collective SHALL carry its **concerns line**:
 `Concerns: ` and that repository as `owner/repo`, or, for a collective's
 question, `Concerns: lore ` and the team's lore repository, and nothing
-else, placed as a related-decision line is, after any related-decision
-and person-required lines and before any tag line. It SHALL be left out where it would name a
+else. It SHALL be left out where it would name a
 repository more private than the question's thread.
 
 #### Scenario: A question about another repository names it
@@ -2253,9 +2243,8 @@ A posted question SHALL tag the first of these with write access to what it
 concerns: the approver of the pull request adding the related earlier
 decision; a login in `.inquisitor/reviewers` of the repository it concerns,
 or of the lore repository for a collective; its files' last
-committer. A `deferred` question SHALL NOT be tagged. A subagent's question
-goes back to the agent that started it, as *Where the host has a picker, an
-agent asks through it, never in its reply* says.
+committer. A question deferred to a later list (verdict `deferred`) SHALL
+NOT be tagged.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -2540,10 +2529,9 @@ A question about one repository SHALL be pushed straight to that
 repository's questions branch, and one about a collective to the team's
 lore repository's, with no pull request, the branch created as an orphan
 if missing. No other branch SHALL hold a question or miss file. The
-script SHALL write each commit to a questions branch with git's plumbing,
-pushing it without checking the branch out, so no HEAD moves and no
-commit-watching hook sees it, with the message `inquisitor: log <file>`
-alone.
+script SHALL push each commit to a questions branch without checking the
+branch out, with the message only `inquisitor: log ` and the paths from
+the branch's root of the files it adds.
 
 #### Scenario: A question about a repository goes to its questions branch
 
@@ -2571,8 +2559,8 @@ alone.
 
 - **WHEN** the script pushes a log file and, separately, a miss file to a
   questions branch
-- **THEN** each commit's message is `inquisitor: log <file>` and nothing
-  else, with no `Prose:` or `Bug-hunter:` trailer
+- **THEN** each commit's message is `inquisitor: log ` and its file's path,
+  with no `Prose:` or `Bug-hunter:` trailer
 
 #### Scenario: A questions-branch commit moves no HEAD
 
@@ -3935,10 +3923,10 @@ id that igor PR #216 defines; and a commit by
 
 #### Scenario: A citation's commit names no person
 
-- **WHEN** the agent or an Igor pushes a citation file
-- **THEN** the commit's message is `inquisitor: log <that file's path>`
-  from the branch's root, such as `inquisitor: log
-  citations/2026-10-20-3f9a1c`, and nothing else, with no trailer, its
+- **WHEN** the agent or an Igor pushes the citation file
+  `citations/2026-10-20-3f9a1c`
+- **THEN** the commit's message is `inquisitor: log
+  citations/2026-10-20-3f9a1c` and nothing else, with no trailer, its
   author and committer are `inquisitor <noreply>`, and its date is midnight
   UTC on the file's day
 
@@ -4538,10 +4526,8 @@ that should have stopped it, and what the person said.
 No miss file SHALL be written for a way-of-working question, whose answer
 goes to the person's memory (*A way-of-working answer goes to the
 person's memory, not a log*), nor, with no login configured, for a miss
-the person states in the session, since nothing would confirm that its
-`said_by` is the person's login. *A miss file's name is pushed once* and
-*Some questions are recorded by hash only* name the other misses that get
-none.
+the person states in the session, which would have no login to give as
+its `said_by`.
 
 #### Scenario: A way-of-working question gets no miss file
 

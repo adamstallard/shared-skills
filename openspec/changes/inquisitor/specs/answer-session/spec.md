@@ -372,9 +372,7 @@ holding the question's thread.
 For a Linear or Discord question no concerns line settles, the session's
 model SHALL judge from the question and its thread what it concerns and,
 for a collective's question, which configured lore repository serves it.
-When it cannot tell which and only one is configured, it SHALL set
-`place` to that one, with `place_sure` `yes`. A question unplaced, or
-placed outside `record_verdict`'s places, has **no place**: the
+A question the model can judge no configured place for has **no place**: the
 session SHALL post nothing by itself and relay the person's answer
 unrecorded.
 
@@ -385,14 +383,6 @@ unrecorded.
   configured lore repositories one serves `o/web`
 - **THEN** the question concerns that project, and the lore repository
   serving `o/web` serves it
-
-#### Scenario: The only configured lore repository serves a question the model cannot place
-
-- **WHEN** a question on Linear is about how the team names releases, the
-  session's model can match it to no configured lore repository's `owners`
-  or `repos`, and one lore repository is configured
-- **THEN** that lore repository serves the question, whatever its `owners`
-  and `repos`, and the model sets `place` to it and `place_sure` to `yes`
 
 #### Scenario: A question with no place gets no automatic reply and no record
 
@@ -410,16 +400,6 @@ filter 1's recorded answer, only when the session's model is sure of the
 place it judged. When the model judged a place and is not sure of it,
 the session SHALL show the person the question, and the preview of
 their answer shows that place.
-
-#### Scenario: A recorded answer goes out by itself from the only configured lore repository
-
-- **WHEN** an agent's question on Linear about an organization carries no
-  concerns line, the session's model can tell no lore repository for it,
-  the only configured lore repository is public, as *A recorded answer is
-  posted by itself only when no more private than its thread* requires on
-  Linear, and an active lore entry there in the question's scope answers
-  it
-- **THEN** the session posts filter 1's recorded answer by itself
 
 #### Scenario: A doubtful placement is shown to the person
 
@@ -1965,7 +1945,7 @@ discussion record or log file, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
 and the surface's ids for its thread and message. A questions-branch
 file holding the question SHALL still be closed by a handled file, which
-names it by the hash of its file name.
+names it only by a hash (inquisitor spec: *A handled file's keys*).
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -1989,9 +1969,8 @@ names it by the hash of its file name.
 
 - **WHEN** the person declines a questions-branch question the session's
   model judges has a category, and the handled file's push fails
-- **THEN** nothing is posted, and the push stays owed in the state folder,
-  holding only the handled file, whose `closes` is the SHA-256 of the
-  closed file's name, and is retried at each poll and opening until it
+- **THEN** nothing is posted, and the owed push, which holds only the
+  handled file, stays in the state folder and is retried at each poll and opening until it
   succeeds
 
 ### Requirement: One answer session runs on each machine
@@ -2307,9 +2286,9 @@ concerns.
 
 - **WHEN** the person answers a question shown from its questions-branch
   file, which has no `asked_in`
-- **THEN** the `log` command pushes to the branch holding that file, in a commit
-  `inquisitor: log <file>`, a new log file holding the question and the
-  answer and naming the earlier file as this requirement sets, under the
+- **THEN** the `log` command pushes a new log file, holding the question
+  and the answer and naming the earlier file as this requirement sets, to
+  the branch holding that file, under the
   inquisitor's *A file on a questions branch never changes once pushed*;
   it posts nothing, and leaves the earlier file unchanged
 

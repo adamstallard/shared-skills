@@ -540,7 +540,7 @@ In each of the thirteen mutations that post text, which its scenarios
 list, the reader SHALL read every `body` argument, at any depth, as a body;
 `createIssue` creates an issue. It SHALL report as unreadable a query it
 cannot read or parse, and a `gh api` write to an endpoint or mutation it reads
-whose `body` it cannot read. Any other `gh api` call whose words are all
+that is given a `body` it cannot read. Any other `gh api` call whose words are all
 literal SHALL send no post (*A gh api call holding a word the shell builds
 is unreadable*).
 
@@ -572,10 +572,11 @@ is unreadable*).
 - **THEN** the reader returns `b` as the body and says that the post
   creates an issue
 
-#### Scenario: A GraphQL mutation with no body sends no post
+#### Scenario: A write with no body sends no post
 
-- **WHEN** a hook asks about `gh api graphql` with an `addLabelsToLabelable`
-  mutation, or a listed mutation with no `body`
+- **WHEN** a hook asks about `gh api --method=patch repos/o/r/issues/5 -f
+  state=closed`, or `gh api graphql` with an `addLabelsToLabelable`
+  mutation or a listed mutation with no `body` argument at all
 - **THEN** the reader reports that each command sends no post
 
 #### Scenario: A GraphQL mutation that can't be read is unreadable

@@ -14,8 +14,8 @@
   Holds while: a citation is pushed with a person's own credentials, and never to a lore repository more visible than that.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
-- **Constraint: An agent in the person's session can log words the person never said as their decision, by passing their login as `answered_by` to the `log` command with no `answer_link`.**
-  Because: that agent already holds the person's push access, so it could as well commit a decision document that filter 1 counts, and closing this one path would protect nothing.
+- **Constraint: An agent in the person's session can have the `log` command write, as the person's, files the person never asked for: a decision, by passing their login as `answered_by` with no `answer_link`, or, through the session option meant only for the answer session, which the command does not check, a handled file closing a question, a hash-only miss file (an empty file whose presence alone lets an agent act on an automatic `Inquisitor: ` reply), or a log file recording a Linear or Discord message as the person's answer.**
+  Because: that agent already holds the person's push access, so it could as well push any of these files itself, or commit a decision document that filter 1 counts, and closing these paths would protect nothing.
   Evidence: git pushes with the credentials its configured helper holds for the host, whichever program runs `git push`, https://git-scm.com/docs/gitcredentials, and `gh auth setup-git` makes gh that helper with the person's own login, https://cli.github.com/manual/gh_auth_setup-git
   Holds while: an agent in the person's session runs with the person's push access.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
