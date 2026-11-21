@@ -95,34 +95,19 @@ None.
   inquisitor's post hook reads posts the same way. The reader, and so
   prose's hook:
   - reads posts sent through the github-app skill, its `gh api` calls
-    included, and comments posted with plain `gh api`. It reads a post's title too, and a
-    title it can't read makes the call unreadable.
+    included, and comments posted with plain `gh api`.
   - counts a `gh api` call as a possible post only when it can write, by its
     method, fields, input or a GraphQL mutation; prose's hook ignores
     `gh api` today.
   - reads a `gh api` write that takes a field from a file only when it is
     the whole command line, because an earlier command in the line could
     rewrite the file.
-  - blocks as unreadable a `gh` alias or extension wherever it appears,
-    since an alias can send a post the reader takes for none. This blocks
-    read-only ones for every prose user too, such as gh's default `gh co` and
-    the extension `gh dash`.
-  - on a line that mentions a gh post verb, blocks as unreadable an
-    interpreter with a code flag anywhere among its words, such as
-    `python3 -c` or `node -e`, and a `git` command that has an option giving
-    code to run, such as `-c`, or whose first word after `git` is not on a
-    fixed subcommand allowlist (so `git -C . status` is blocked). Each can
-    run a post the reader never sees. A `gh api` read mentions no gh post
-    verb, so these blocks pass it even piped into a script.
-  - blocks as unreadable `gh discussion` posts and the agent-written notes
-    of `gh release create` and `edit`, as the reader blocks the same text
-    sent through `gh api`; prose's hook lets both through today.
-  - reads a project draft issue's body and title from `gh project
-    item-create` or `item-edit`, and an agent task's description from `gh
-    agent-task create`, which prose's hook lets through unread today; it
-    then checks their footer as for any post.
   - keeps reading an unquoted `--body` or `-b` of one plain word, such as
     `--body hi`.
+  - reads `gh pr` and `gh issue` posts as prose's hook does today, and lets
+    through unread, as today, a line that mentions no gh post verb, such as
+    a gh alias, release notes or code given to `python3 -c`: the hooks catch accidents in
+    common post forms, not an agent set on posting unread.
 - The `questions` branch is an orphan branch, pushed with no pull request.
   A repository may also hold `.inquisitor/reviewers`, the logins a
   posted question may tag. The answer session's setup can create a lore
@@ -132,10 +117,8 @@ None.
   since the shared post reader reads `$G` only when the same command sets
   it.
 - github-app, in a separate change (shared-skills issue #96): it hands a
-  relay identity's token to no command that can print it, its `gh` command
-  included, so no agent can post through a person's relay App unseen by the
-  inquisitor's post hook. Until that lands, any agent on the person's
-  machine can, and the inquisitor's README says so.
+  relay identity's token to no command that can print it. Until that lands, any agent on the person's machine can print
+  it, and the inquisitor's README says so.
 - bug-hunter: its Step 9 runs each recommendation through the inquisitor's
   filters before asking the person about it (task 5.7). Its regression test
   for a security weakness stays out of public places until the weakness's

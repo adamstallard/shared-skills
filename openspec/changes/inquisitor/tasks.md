@@ -310,27 +310,20 @@ have no task, so that the other tasks keep their numbers.
       post's body, into `.agents/lib/gh-shell/`, beside the command
       splitter and gh flag tables already there, and build the `gh-post` rules on it. Each
       skill calls it from a thin script, and its behaviour changes only
-      as tasks 1.3 and 2.9 list
+      as task 1.3 lists
 - [ ] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the
       library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following, with tests for each in
       prose's and the library's tests. prose's existing tests pass
-      unchanged, except any existing test that expects a case blocked
-      below or by task 2.9 to pass: change that test to expect the case
-      blocked.
-      - It reads a post's title, as a literal word, from `--title` or
-        `-t`, a `gh api` `title` field under `issues` or `pulls`, the
-        `title` argument of the GraphQL mutations that create or update
-        an issue or pull request, and a GitHub MCP `title` key. A title it
-        can't read, one built by the shell, and a title edit chained to
-        another command are unreadable (design.md: *A post's title is read
-        and vetted*).
+      unchanged, except any test expecting a case of the first two items
+      below to be blocked: change it to expect the case let through.
       - It reads `python3 <github-app script> gh pr|issue|api …` posts,
         including `python3 $G …` only when the same command assigns `G`,
         and judges a line holding such a call exactly as the same line
-        with the `gh` call made directly and no `G` assignment.
+        with the `gh` call made directly and no `G` assignment; prose's
+        reader blocks such posts today.
       - It counts a `gh api` call as mentioning a gh post verb only when
         the call can write, as the `gh-post` spec's *A gh api call writes
         by its method, fields, input or a mutation* says: `-X` or
@@ -360,28 +353,17 @@ have no task, so that the other tasks keep their numbers.
         `gh-post` spec's *A gh api call writes by its method, fields,
         input or a mutation* says, whose body it can't read, a GraphQL query it can't parse,
         and a review whose comments it can't read.
-      - It applies the closed list of gh post verbs, blocking as
-        unreadable `gh discussion` posts and `gh release` posts given
-        notes, reading a `gh project` draft issue's body and title as
-        literal words, and reading a `gh agent-task create` description only as
-        the whole command line.
       - It keeps prose's reader's block, as unreadable, on a command
-        that names `gh`, followed by another word, in another command's
-        arguments, such as `sh -c`, unless that command is a data command
-        given no code (gh-post spec: *The reader reads only gh's own
-        top-level commands*), and on input piped into a command other
-        than a data command on a line that is otherwise no post (gh-post
-        spec: *Input to a no-post line reaches only data commands*).
-      - On a line that mentions a gh post verb, it blocks as unreadable
-        an interpreter with a code flag anywhere among its words, such as
-        `python3 -W ignore -c`, `node -pe` or `perl -e`, and input from a
-        pipe or heredoc reaching `python`, `python3` or `node` (design.md:
-        *Code given on the command line beside a gh post verb*).
+        other than a data command that names `gh` in its arguments, such
+        as `sh -c`, on a line that mentions a gh post verb (gh-post spec:
+        *A line whose simple commands send no text is no post*), and on
+        piped input as *Input to a no-post line reaches only data
+        commands* says.
 
 ## 2. The script
 
 - [ ] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first
-      call): `--questions`, and `--post` taking a post's body and title;
+      call): `--questions`, and `--post` taking a post's body;
       prints the filters and filter 1's search results, and issues a token
 - [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
       verdicts and their fields, an `ask`'s related earlier decision, the
@@ -564,7 +546,7 @@ have no task, so that the other tasks keep their numbers.
       session's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
 - [ ] 2.5 The question finder for posts, one function the post hook also
-      calls, finding questions in a post's title and body, with an
+      calls, finding questions in a post's body, with an
       open-questions section begun only by a label that names questions
       or a deferral label (design.md: *What counts as a question in a
       post*)
@@ -594,17 +576,9 @@ have no task, so that the other tasks keep their numbers.
       format `lore` copies: the `entries/<id>.md` path, the id pattern and
       the frontmatter fields igor's lore store requires (inquisitor spec:
       *A proposed lore entry's path, fields and id follow igor's rules*)
-- [ ] 2.9 Two refusals not built in tasks 1.3 and 2.4:
-      - the `log` command's input file, refused unless it has mode 0600
-        in a private directory;
-      - in the post reader, on a line that mentions a gh post verb, `git`
-        read as a data command only when its first word after `git` is an
-        allowlisted subcommand and none of its words gives code to run, any
-        other use, such as `git -C . status`, unreadable; and a `gh`
-        alias or extension, such as `gh co`, unreadable on every line
-        (design.md: *Which commands the reader judges, and which are
-        unreadable*). Add tests for each to prose's and the library's
-        tests
+- [ ] 2.9 The `log` command's input file, kept and refused as the two
+      calls' files are (inquisitor spec: *The log command takes its input
+      in a private file*)
 
 ## 3. Hooks
 
@@ -621,9 +595,7 @@ have no task, so that the other tasks keep their numbers.
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
-      section or a new issue; blocks a draft issue or an agent task's
-      description holding any question (inquisitor spec: *The post hook
-      blocks a question in a draft issue or an agent task*); and vets
+      section or a new issue; and vets
       every post it sees, igor's handback included (design.md: *No exemption for an Igor's handback*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 

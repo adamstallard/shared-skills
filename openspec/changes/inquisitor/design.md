@@ -606,8 +606,9 @@ allow-list*. Every rule the reader gains therefore applies to prose's hook
 too. spec-check's hand-back hook uses the same library's splitter and flag
 tables (shared-skills PR #55), but none of the post reader's rules. The
 reader is an allow-list because a general command parser reads some commands
-differently from bash, and each difference can let a post through unread; an
-allow-list blocks every form outside it, so a difference fails closed. A
+differently from bash, and each difference can let a post through unread; on
+a line that mentions a gh post verb, an allow-list blocks every form outside
+it, so a difference fails closed. A
 second copy of the reader would add a second set of differences.
 
 *Ruled out by a scenario:* calling prose's copy from the inquisitor, which
@@ -618,54 +619,26 @@ through the shared reader*).
 #### Which commands the reader judges, and which are unreadable
 
 **Rule:** gh-post spec, *A command that mentions no gh post verb sends no
-post*; *The reader reads only gh's own top-level commands*; *A command that
-only runs prose's script sends no post*; *A line whose simple commands send
-no text is no post*; *Any other line that mentions a gh post verb is
-unreadable*; *The reader reads a gh pr or gh issue post only as a whole
+post*; *A command that only runs prose's script sends no post*; *A line
+whose simple commands send no text is no post*; *Input to a no-post line
+reaches only data commands*; *Any other line that mentions a gh post verb
+is unreadable*; *The reader reads a gh pr or gh issue post only as a whole
 command line*; *A gh pr or gh issue body comes from a plain option value or
-an existing file*; *The reader reads a gh project draft issue's body and
-title as literal words*; *The reader reads a gh agent-task description
-only as a whole command line*.
-A `gh pr`, `gh issue` or `gh agent-task` command can take its body from a
+an existing file*. A `gh pr` or `gh issue` command can take its body from a
 file, which an earlier command in the line could rewrite, so it is read only
-as the whole command line. A `gh project` draft issue takes its text only
-from the command, so it is read in a longer line too.
+as the whole command line.
 
-**Why:** prose's reader already keeps most of these rules. Three of them
-are new for prose's hook too, each with its reasons elsewhere: blocking a gh
-alias or extension (the gh-post decision record's *Rationale: The reader
-reads only gh's own top-level commands*), counting a `gh api` call only when
-it can write (*A gh api call counts only when it can write*, below), and
-the closed list's `gh discussion`, `gh release`, `gh project` and `gh
-agent-task` verbs, which block discussion posts and release notes and read
-project draft issues and agent tasks (the record's *Rationale: A command that
-mentions no gh post verb sends no post*).
+**Why:** prose's reader on main already keeps these rules. The reader adds
+two for both hooks, each below: it reads posts sent through the github-app
+script, which prose's hook blocks today, and it reads `gh api` writes,
+which prose's hook ignores today, counting a call only when it can write.
+A line that mentions no gh post verb passes unread: the gh-post decision
+record's *Rationale: A command that mentions no gh post verb sends no post*
+gives the hooks' scope and its evidence.
 
 *Ruled out by a scenario:* letting a command through when `gh` appears only
 inside quotes (gh-post spec: *Any other line that mentions a gh post verb is
 unreadable*, scenario *A gh post run through another shell is unreadable*).
-
-#### Code given on the command line beside a gh post verb
-
-**Rule:** gh-post spec, *An interpreter given a code flag makes a post-verb
-line unreadable*; *Only allowlisted git is a data command beside a gh post
-verb*; *Input to a no-post line reaches only data commands*.
-
-**Why:** an interpreter's code, a git command outside the allowlist, and
-input piped to a no-post line can each run a post the reader never sees. A program piped into
-`python`, `python3` or `node` is read from that input, and telling which
-script runs would mean reading the interpreter's options.
-Looking for the code flag anywhere means an option with a value, such as
-`-W ignore`, cannot hide it. Through the shared reader, prose's hook
-blocks these forms too, `python3 - <<'EOF'`, `node -e` and git aliases
-included.
-
-*Recorded:* `openspec/specs/gh-post/decisions.md`: *Rationale: Only
-allowlisted git is a data command beside a gh post verb*, why git is
-allowlisted rather than its code-running forms denied; and *Constraint: An
-allowlisted git subcommand can run any program the repository's
-configuration names, and the reader does not read that configuration*, the
-gap that leaves.
 
 #### Posts sent through the github-app skill's script
 
@@ -724,14 +697,6 @@ does not expand*).
 *Ruled out by a scenario:* counting every `gh api` call as a possible post
 (gh-post spec: *A command that mentions no gh post verb sends no post*,
 scenario *A gh api read piped into a script is no post*).
-
-#### A post's title is read and vetted
-
-**Rule:** inquisitor spec, *The post hook vets what the shared post reader
-returns*; gh-post spec, *prose's posting hook checks a body's footer and a
-title's readability*; *A gh pr or gh issue title is read only as a literal
-word*. prose's hook checks only that a title is readable, since a one-line
-title can't carry a footer.
 
 #### A hook payload that is not JSON passes the post hook
 
@@ -1348,11 +1313,11 @@ channels are used*.
 person's direct pushes*; *Setup suggests a rule guarding each questions
 branch*; *Setup can create a lore repository*.
 
-*Recorded:* in both the inquisitor and the answer-session decision
-records, since a later change reads only the records of the capabilities
-it touches,
-*Constraint: A `questions` branch is guarded against rewriting and deletion
-only where an admin of its repository sets the rule setup suggests*.
+*Recorded:* the answer-session decision record's *Rationale: Setup
+suggests a rule guarding each questions branch*, and the inquisitor
+record's *Constraint: A `questions` branch is guarded against rewriting
+and deletion only where an admin of its repository sets the rule setup
+suggests*.
 
 The `lore` command copies igor's entry format when it proposes an entry,
 and a test pinned to an igor commit checks that copy (task 2.8).
@@ -1407,7 +1372,8 @@ file of a Discord-relayed answer is a decision*).
 **github-app is to hand a relay identity's token to no command that can
 print it.** Short of reading the relay's key from the keychain (the first
 Constraint under *Recorded*), an agent can then post as the relay only
-through a github-app command whose posts the post hooks vet. github-app must
+through a github-app command, which the post hooks read as they read the
+same `gh` call made directly. github-app must
 still give the answer session a command to post as the relay: the answer
 session runs it as a host command, outside any hook (answer-session spec:
 *A relay post is posted by a host command, unvetted*), while an agent that
@@ -1418,7 +1384,8 @@ for the refusal in shared-skills #96; until github-app makes it, that
 Constraint holds.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
-person and the asker, so nothing should post through it unseen.
+person and the asker, so an agent's post through it should not go unseen
+by accident.
 
 *Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The
 inquisitor's GitHub post hook and the refusals asked of github-app for a relay
@@ -2335,6 +2302,18 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
+
+### For a person to decide
+
+- **Should a `gh api` write whose body goes to an endpoint or mutation the
+  reader does not read stay unreadable?** The gh-post spec blocks it
+  (scenario *A gh api write with a body it does not read is unreadable*),
+  so release notes and discussion comments sent through `gh api` are
+  blocked while `gh release` and `gh discussion` pass unread. Options: (a)
+  keep the block, failing closed on a `gh api` body the reader cannot
+  place, since `gh api` is a common way agents post; (b) let such a call
+  through unread, as `gh release` and `gh discussion` are. Recommended:
+  (a).
 
 ### Facts measured before building
 

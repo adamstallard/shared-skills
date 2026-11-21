@@ -81,11 +81,8 @@ picker* is the host's interactive question tool, `AskUserQuestion` in Claude
 Code.
 
 *A post* is a pull request description, review or comment, or an issue or
-issue comment, sent through `gh` or a GitHub MCP tool. A project draft
-issue and an agent task's description are not posts in this spec, though
-the shared post reader returns them as posts; the post hook blocks any
-question in either (*The post hook blocks a question in a draft issue or
-an agent task*). *A question tags* a
+issue comment, sent through `gh` or a GitHub MCP tool, and its questions
+are those in its body. *A question tags* a
 person when its tag line (*A tag line names the person a posted question
 tags*), list item or sentence mentions their login as `@login`.
 
@@ -2178,7 +2175,7 @@ credential patterns (design.md: *The secret scan is only a backstop*).
 
 The first call and post hook SHALL find a post's questions alike: each list
 item in an **open-questions section**, and each other sentence ending in
-`?` in its body or title. A section SHALL start at a heading, a **bold label**
+`?` in its body. A section SHALL start at a heading, a **bold label**
 (a line all bold but for a final colon) or a plain line ending in `:`,
 any of which begins with a question or deferral label the scenarios list,
 and run to the next heading or bold label. No question SHALL be found in
@@ -2225,7 +2222,7 @@ code, `>` lines or prose's footer.
 
 ### Requirement: The post hook vets what the shared post reader returns
 
-The post hook SHALL vet the body and title that the shared post reader (the
+The post hook SHALL vet the body that the shared post reader (the
 *gh-post* capability) returns for a post, let through a call the reader
 reports as sending no post or a payload that is not JSON, and block one the
 reader reports as unreadable. It SHALL block a post when any body the
@@ -2244,12 +2241,13 @@ its hash, with leading whitespace dropped.
 - **WHEN** the post hook's input is not JSON
 - **THEN** it lets the call through
 
-#### Scenario: A question in a post's title is vetted
+#### Scenario: A question in a post's title passes unvetted
 
 - **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
-  --body-file body.md`, and no second call recorded `Retry with backoff?`
-  as `ask`
-- **THEN** the hook blocks the command and names the title's question
+  --body-file body.md`, where `body.md` exists and holds no question,
+  and no second call recorded `Retry with backoff?`
+- **THEN** the post hook lets the command through, since the shared post
+  reader returns no title
 
 #### Scenario: A GitHub MCP post is checked
 
@@ -2274,22 +2272,6 @@ its hash, with leading whitespace dropped.
 - **WHEN** an agent runs `gh issue comment 7 --body "**User says:** yes"`,
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
-
-### Requirement: The post hook blocks a question in a draft issue or an agent task
-
-The post hook SHALL block a project draft issue or an agent task's
-description, as the shared post reader reports one, when its body or
-title holds a question, whatever that question's verdict, because neither
-is a place where a person is asked or an asked question is logged.
-
-#### Scenario: A vetted question in a draft issue or an agent task is blocked
-
-- **WHEN** an agent runs `gh project item-create 1 --owner o --title t
-  --body 'Should retries back off?'`, or `gh agent-task create 'Should
-  retries back off?'`, and a second call recorded that question as `ask`
-  an hour ago
-- **THEN** the post hook blocks each command, saying to ask in the picker
-  or in an issue or pull request post instead
 
 ### Requirement: A question in a post tags one person who can decide, if there is one
 

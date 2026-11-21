@@ -2689,9 +2689,10 @@ the person's words.
 
 - **WHEN** an agent's post outside the answer session starts with a
   reserved prefix
-- **THEN** on GitHub the inquisitor's post hook blocks it, as the
-  inquisitor's *The post hook vets what the shared post reader returns*
-  says, and on Linear or Discord nothing checks it
+- **THEN** on GitHub the inquisitor's post hook blocks it unless the shared
+  post reader reports that the call sends no post, as the inquisitor's *The post hook vets what
+  the shared post reader returns* says, and on Linear or Discord nothing
+  checks it
 
 #### Scenario: An automatic post is never shown as the person's words
 

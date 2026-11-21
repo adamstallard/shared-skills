@@ -32,12 +32,6 @@
   Holds while: the session's Read, Grep and Glob have no path limit, and nothing the model drafts is posted before the person confirms it.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: A `questions` branch is guarded against rewriting and deletion only where an admin of its repository sets the rule setup suggests.**
-  Because: setting a branch rule takes admin access, which a person subscribing to the repository may lack, and the rule must allow the direct pushes every record needs, so the cost is accepted that a writer can delete or rewrite a branch without the rule, dropping a newer answer so that an older one counts again, and can push a handled file to any branch, closing a question so that the person never sees it.
-  Evidence: a ruleset can "Restrict deletions" and "Block force pushes", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#restrict-deletions; of GitHub's repository roles, only Admin can "Manage branch protection rules and repository rulesets", https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role; and `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
-  Holds while: setup suggests the rule and does not set it, and the rule allows direct pushes.
-  Paths: .agents/skills/inquisitor/
-
 - **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
   Because: igor has published no release, so no igor before that change is supported for such a clause to serve.
   Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
@@ -114,6 +108,10 @@
 - **Rationale: A handback is an Igor's comment holding igor's marker.**
   An Igor claims Linear items as well as GitHub ones, so it hands back on Linear too. Without a Linear handback, its comment there is an ordinary bot message, which reaches only the first person it mentions, so one that mentions no one reaches no one and its question waits unseen.
   Evidence: igor's work-claiming requirement *An item someone else holds is not claimed*, under which an Igor claims a Linear item once Linear's delegate field names it, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/openspec/specs/work-claiming/spec.md#L465
+
+- **Rationale: Setup suggests a rule guarding each questions branch.**
+  Without a rule blocking force pushes and deletion, a writer can rewrite or delete a `questions` branch, dropping a newer answer so that an older one counts again. Two gaps are accepted. Where no admin has set the rule, that stays possible, since only an admin can set it. Even with it, a writer can push a handled file, which closes a logged question so the answer session stops showing it, to any questions branch of a repository they can write to, since the rule must allow the direct pushes every record needs.
+  Evidence: a ruleset can "Restrict deletions" and "Block force pushes", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#restrict-deletions; of GitHub's repository roles, only Admin can "Manage branch protection rules and repository rulesets", https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role; and `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
 
 - **Rationale: Setup checks each relay identity before its channels are used.**
   The Discord relay reads messages that do not mention the bot, which needs Discord's privileged Message Content intent, so setup checks that `messageContent` is `true`. discord-bot's setup has the person turn the intent on, and its `check` reports `messageContent` from the bot's application flags.
