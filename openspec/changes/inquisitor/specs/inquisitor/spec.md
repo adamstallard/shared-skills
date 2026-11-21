@@ -2518,6 +2518,23 @@ SHALL never be `decision`.
   concerns
 - **THEN** the log file records the answer with `authority: decision`
 
+### Requirement: The log command makes an unlinked answer a decision only for the session's person
+
+Called without its session option, the `log` command SHALL write
+`authority: decision` for an answer with no `answer_link` only when its
+`answered_by` is the login of the person running the session (*A configured
+login counts only when gh is logged in as it*), and `input` otherwise,
+because a crafted thread can steer what an agent passes; *An answer is a
+decision only from a person with write access* still applies.
+
+#### Scenario: An unlinked answer by someone other than the session's person is input
+
+- **WHEN** an agent calls the `log` command, without its session option,
+  for an answer with no `answer_link`, passing `answered_by: bob` and
+  `authority: decision`, and the person running the session's login is
+  `alice`
+- **THEN** the file records the answer with `authority: input`
+
 ### Requirement: Any other answer is input, kept only in its log file
 
 Any answer that *An answer is a decision only from a person with write access* does not make `decision`, such as one read in a file, an
@@ -3158,9 +3175,18 @@ answer, and writes no `asked_in`.
 ### Requirement: The log command fetches no Linear or Discord answer link
 
 For a Linear or Discord `answer_link`, which only an answer session passes,
-the `log` command SHALL fetch nothing and record the given answer word for
-word, save a `Re: ` line *The answerer's confirmation can send a record
-somewhere more visible* drops (design.md: *An answer given through the answer session counts by its answer file*).
+the `log` command SHALL refuse a call without its session option, since a
+link only the answer session makes would otherwise record words nothing
+checked. With the option it SHALL fetch nothing, since the answer session
+passes the text it relayed itself, and record that answer word for word,
+save a `Re: ` line, which *The answerer's confirmation can send a record
+somewhere more visible* drops.
+
+#### Scenario: A Discord answer link without the session option is refused
+
+- **WHEN** an agent calls the `log` command, without its session option,
+  with a Discord message's URL as an answer's `answer_link`
+- **THEN** the command refuses, and writes nothing
 
 #### Scenario: A Discord answer link is recorded and never fetched
 
@@ -3287,10 +3313,9 @@ A later Igor run SHALL know the answered file only from the Igor's handback
 record, one per handback, never from the comment. That record SHALL hold
 each posted question's hash and concerns line, the repository its file
 went to, and that file name's 6-hex-digit suffix and date, and no
-question text. If no record
-holds them, or not exactly one file on the branch matches, the Igor SHALL
-write no `answers` (design.md: *A later run names the answered file from
-the Igor's record*).
+question text. If it holds no suffix and date, or not exactly one file on
+the branch matches, the Igor SHALL write no `answers` (design.md: *A later
+run names the answered file from the Igor's record*).
 
 #### Scenario: The Igor's handback record holds no question text
 
@@ -3321,6 +3346,20 @@ the Igor's record*).
   question whose record holds a suffix and date, and two files on the
   questions branch carry that suffix and date
 - **THEN** the answer file holds no `answers`
+
+### Requirement: An Igor pushes a handback answer only for a question its record holds
+
+For the log file a worker reports for a person's comment answering a
+handback, the Igor SHALL push it only when its question's hash is in the
+Igor's handback record, never matching by the comment's text (design.md:
+*A person's answer to a handback*).
+
+#### Scenario: An answer to a question not in the handback record is not pushed
+
+- **WHEN** a worker reports a log file whose `answer_link` names a person's
+  comment on the item, for a question whose hash the Igor's handback record
+  does not hold
+- **THEN** the Igor pushes nothing for it
 
 ### Requirement: A log file holds its question and day, and an answer's file its keys
 

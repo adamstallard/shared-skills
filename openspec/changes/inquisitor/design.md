@@ -236,12 +236,17 @@ untrusted text reach it.
 A relay post counts for nothing in filter 1 (*An answer given through the
 answer session counts by its answer file*).
 The thread's state is still read from relay posts, so a post with a reserved
-prefix that the answer session did not make would mislead it about that
-thread. Any agent holding a printed relay token could make such a post, and
-the answer-session decision record accepts that risk, in *Constraint: Until
-github-app hands a relay identity's token to no command that can print it,
-any agent on the person's machine can print a relay App's token and post
-`User says: ` with a plain HTTP call no post hook sees*.
+prefix that the answer session did not make would mislead the answer
+session about that thread. Any agent on the person's machine can make such
+a post: on Linear or Discord through the relay's own skill, which nothing
+checks (answer-session spec: *A reserved prefix outside the answer session
+is checked only on GitHub*), and on GitHub with a printed relay token. The
+person is accountable for every such post (*The person answers for what
+their relay posts*). The answer-session decision record accepts the GitHub
+path in *Constraint: Until github-app hands a relay identity's token to no
+command that can print it, any agent on the person's machine can print a
+relay App's token and post `User says: ` with a plain HTTP call no post hook
+sees*.
 
 ### What the answer session does by itself
 
@@ -1098,11 +1103,10 @@ sets the variable (at 59e7561). A question with a category raises igor's
 flag on the whole execution on the item, not one worker's part of it (igor
 PR #216's decision 22).
 
-**Why** the script says so whenever it acts on the variable: a repository
-can set `IGOR_RUN` in a person's session, through the `env` key of committed
-Claude Code settings or a direnv `.envrc`; lore would then be searched only
-through `igor lore-search`, which a person's session lacks, and nothing logged to a lore
-repository, and without the message the person could not tell why.
+*Recorded:* why the script prints that it runs as in an Igor's run
+whenever it acts on the variable, in
+`openspec/specs/inquisitor/decisions.md`, *Rationale: The script tells an
+Igor's run by IGOR_RUN*.
 
 *Ruled out by a scenario:* treating every session with no person in it as
 possibly in an Igor's run (inquisitor spec: *The script tells an Igor's run by
@@ -1240,12 +1244,14 @@ change has it (*What igor must provide*).
 
 #### A person's answer to a handback
 
-**The Igor pushes a handback answer's log file only when its question matches
-a question the Igor posted in the handback comment that the person's comment
-answers.** A question matches when its hash, after this change's reduction,
-is in the Igor's record of the handback (*A later run names the answered file
-from the Igor's record*; #216's decision 41), never by the comment's current
-text.
+**Rule:** inquisitor spec, *An Igor pushes a handback answer only for a
+question its record holds*; *A later Igor run names the answered file only
+from the Igor's record*. The Igor picks the question a person's comment
+answers by the question's hash, built as the inquisitor spec's *A
+question's text and hash are built one way* says, in its record of the
+handback, never by matching the comment's current text. #216's decision 41
+takes the questions from that record, and its decision 59 keeps the
+record.
 
 **Why:** a worker steered by its item could otherwise pair a real comment
 with another question, and anyone who can edit the comment could change its
@@ -1301,7 +1307,7 @@ the *Recorded:* line below. What igor must provide is listed under *Open
 Questions*. Clauses for igor before the change a rule needs are left out,
 but a clause guarding against misuse in igor's end state is written, such
 as:
-- a log file with no matching record of the handback writes no `answers`;
+- an answer to a question the handback record does not hold is not pushed;
 - an `igor lore-search` call that fails searches no lore;
 - a handback-marked post is vetted like any other (*No exemption for an
   Igor's handback*).
@@ -1396,12 +1402,10 @@ file of a Discord-relayed answer is a decision*).
 #### github-app hands a relay's token to no command that can print it
 
 **github-app is to hand a relay identity's token to no command that can
-print it, so the token is used only for posts the post hooks read.** Its
-`token`, `run`, `credential get` and `wire` commands give the token out,
-and so does its `gh` command: gh prints the token it runs with when an
-agent runs `gh auth token` through it, and hands the token to any shell
-alias an agent defines. This change asks github-app for that refusal, in
-shared-skills #96, and ships before it.
+print it, so the token is used only for posts the post hooks read.** Which
+commands print it today is in the Evidence of the second Constraint under
+*Recorded*. This change ships before github-app makes that refusal, which
+it asks for in shared-skills #96; until then, that Constraint holds.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
 person and the asker, so nothing should post through it unseen.
@@ -2191,7 +2195,7 @@ reads the issue.
 *Ruled out by a scenario:* showing the file nowhere on that machine, so the
 person would never see the question there (answer-session spec: *A log file
 with no followed link is judged on its own*, scenario *A log file linking a
-message this machine does not read is shown on its own*).
+message this machine has not read is shown on its own*).
 
 #### A log file without `asked_in` is never merged
 

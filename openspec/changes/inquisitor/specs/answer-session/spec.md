@@ -1103,8 +1103,8 @@ set by its mentions* says (igor #229).
 
 ### Requirement: A log file follows the thread message its asked_in links
 
-A log file whose `asked_in` links a thread message this machine reads
-SHALL follow that message by exact link, taking whatever the answer
+A log file whose `asked_in` links a thread message this machine's polls
+have read SHALL follow that message by exact link, taking whatever the answer
 session decides about it, and is never shown on its own.
 
 #### Scenario: A questions-branch file follows the message it links
@@ -1121,17 +1121,20 @@ session decides about it, and is never shown on its own.
 
 ### Requirement: A log file with no followed link is judged on its own
 
-A log file with no `asked_in`, or linking a message this machine does not
-read, SHALL be judged on its own, as of the fourth source, save as *An
-Igor's log file follows its own handback comment* says. The answer
+A log file with no `asked_in`, or linking a message this machine's polls
+have not read, SHALL be judged on its own, as a question of the fourth
+source, a questions-branch log file, save that an Igor worker's log file
+follows its handback comment whenever this machine reads the comment's item
+(*An Igor's log file follows its own handback comment*). The answer
 session SHALL NOT pair a file with a message by matching text (design.md:
 *A log file without `asked_in` is never merged*).
 
-#### Scenario: A log file linking a message this machine does not read is shown on its own
+#### Scenario: A log file linking a message this machine has not read is shown on its own
 
 - **WHEN** a log file's `asked_in` links a message in a channel this
-  machine does not subscribe to or has off, or on a surface it has off or
-  cannot read
+  machine does not subscribe to or has off, on a surface it has off or
+  cannot read, or posted more than 14 days before this machine's first
+  poll of the channel
 - **THEN** the log file is shown on its own, as a question of the fourth
   source
 
@@ -2338,12 +2341,12 @@ space.
 ### Requirement: An answer is recorded by a new log file
 
 Besides handled files, the answer session SHALL write a log file only
-for an answer the person confirmed or a later edit of it. Where
-unanswered files hold the question, the `log` command SHALL push it
-beside them, naming them as the inquisitor's *An answer file names every
-unanswered file it answers* sets and giving it the most private of their
-`asked_from`; elsewhere, to the questions branch of what the question
-concerns.
+for an answer the person confirmed or a later edit of it. The `log` command
+SHALL push it beside the unanswered files holding the question, naming
+them as the inquisitor's *An answer file names every unanswered file it
+answers* sets and giving it their most private `asked_from`, or once the
+person confirmed a more visible record, the branch's own repository; with
+none, to the questions branch of what the question concerns.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -3473,7 +3476,7 @@ repository.
 
 #### Scenario: A confirmed record names its own branch's repository
 
-- **WHEN** the person confirms sending a miss or an answer file, for an
+- **WHEN** the person confirms sending a miss, for an
   organization question asked in an issue of the private `o/api`, to the
   questions branch of the public lore repository `o/lore`
 - **THEN** the file's `asked_from` is `o/lore`, not `o/api`, as the

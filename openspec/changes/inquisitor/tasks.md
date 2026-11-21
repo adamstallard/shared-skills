@@ -397,8 +397,9 @@ have no task, so that the other tasks keep their numbers.
         repository's `questions` branch, and configured lore clones'
         entries and `questions` branch. It fetches each `questions`
         branch before searching it, and reads every branch it searches
-        with `git show`, checking none out. Task 7.0 adds the scribe's
-        records.
+        with `git show`, checking none out. Task 7.0 adds igor's scribe's
+        decision records; until then the output names them as not
+        searched.
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor
@@ -506,13 +507,17 @@ have no task, so that the other tasks keep their numbers.
         answer is written as quote lines*):
         - with a github.com `answer_link`, read from the linked comment
           and recorded word for word;
-        - with a Linear or Discord `answer_link`, recorded as given, its
-          link never fetched, and only where the questions branch's
-          repository is private; elsewhere the file is written without
-          the link (design.md: *An answer given through the answer session counts by its answer file*);
+        - with a Linear or Discord `answer_link`, refused without the
+          session option; with it, the answer recorded as given and the
+          link never fetched, the link written only where the questions
+          branch's repository is private and left out elsewhere (design.md: *An answer given through the answer session counts by its answer file*);
         - any other answer a person gave, without an `answer_link`, in
           their own words as given (design.md: *A logged answer is the
-          person's own words*).
+          person's own words*); without the session option, as `input`
+          unless its `answered_by` is the login of the person running the
+          session, which for `decision` also needs write access (inquisitor spec: *The log
+          command makes an unlinked answer a decision only for the
+          session's person*).
       - A file is pushed to the `questions` branch of the repository the
         question is about, or of the team's lore repository for a
         question about a collective. Every commit to a questions branch,
@@ -929,7 +934,7 @@ have no task, so that the other tasks keep their numbers.
           under reason 2 with filter 3's "the agent shouldn't have
           asked", posting nothing, with a filter 3 miss against the
           asking agent;
-        - a log file whose link this machine does not read shown on its
+        - a log file whose `asked_in` links a message this machine has not read, shown on its
           own (design.md: *A link this machine never reads is not
           followed*);
         - a log file with no `asked_in` always shown as its own question,
