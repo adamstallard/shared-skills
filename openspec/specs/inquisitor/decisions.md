@@ -30,7 +30,7 @@
 
 - **Rationale: The Igor reads questions branches with the script.**
   A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
-  Evidence: igor spawns its helper programs as child processes, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/src/gh.ts
+  Evidence: igor runs `gh`, https://github.com/adamstallard/igor/blob/8478aec/src/gh.ts#L74, `claude`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L961-L965, and `git`, https://github.com/adamstallard/igor/blob/8478aec/src/github.ts#L13
 
 - **Rationale: A questions-branch decision counts only unchanged and by write access.**
   Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit: an edit can change the answer while `answered_by` still names the person who gave the first one. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Checking authorship further is left to each repository's admin, who can run their own checks on the files' `answered_by` and `said_by` keys, or require signed commits on the branch, so that a file the named person disowns can be traced to the session that pushed it.

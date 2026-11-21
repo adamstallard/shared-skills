@@ -815,7 +815,7 @@ lore-search`*).
 - **WHEN** an Igor starts an inquisitor run itself, with no worker, and the
   question's filter 1 runs
 - **THEN** the search reads lore only through `igor lore-search`, as
-  [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md)
+  [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md)
   defines it, and reads no lore clone itself
 
 #### Scenario: An Igor worker without igor's search command searches no lore
@@ -2864,7 +2864,7 @@ automatic reply is a verdict, not a person's answer* bars it.
 During an Igor's run the agent SHALL push no citation itself, and no Igor
 worker, nor inquisitor run the Igor starts itself, SHALL push to a
 questions branch. igor PR #216's [lore-firing
-spec](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md)
+spec](https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md)
 sets every rule for a run's citations in *An Igor publishes the citations
 its worker reports*.
 
@@ -2872,8 +2872,9 @@ its worker reports*.
 
 - **WHEN** during an Igor's run, filter 1 stops a question with no category
   with an `active` lore entry
-- **THEN** the agent pushes no citation itself, and igor's rule governs how
-  a worker reports it, and which the Igor pushes, and when
+- **THEN** the agent pushes no citation itself; igor's rule sets how a
+  worker reports the citation, which reported citations the Igor pushes,
+  and when
 
 ### Requirement: An Igor's run reports the questions-branch files it would push
 
@@ -3962,12 +3963,13 @@ stopped the worker, and nothing else.
 - **AND** an Igor's run is the whole execution on the item, and each model
   step igor PR #153 runs after the worker, such as writing the pull request
   body, counts as a worker (igor PR #216's decisions 60 and 64)
-- **AND** what the Igor does with the flag, and the same rules when it runs
-  the skill itself with no worker, are igor PR #216's task-execution
-  requirement [*Transcripts and outcomes are captured to the state
-  branch*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/task-execution/spec.md),
-  which counts a word as a category only when it is exactly one of the three
-  (its decisions 92 and 97)
+- **AND** igor PR #216's task-execution requirement [*Transcripts and
+  outcomes are captured to the state
+  branch*](https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/task-execution/spec.md),
+  which records the flag with the run's outcome, sets what the Igor does
+  with the flag, and the same rules when it runs the skill itself with no
+  worker; it counts a word as a category only when it is exactly one of
+  the three categories (its decisions 92 and 97)
 
 #### Scenario: The flag lists each category once and marks the stopped questions'
 

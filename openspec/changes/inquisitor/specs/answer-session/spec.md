@@ -1223,7 +1223,8 @@ and the review requests and assignments naming the person.
 ### Requirement: The answer session reads with the person's credentials, except on Discord
 
 The answer session SHALL read GitHub with the person's `gh` login and
-Linear with the person's Linear API key, and SHALL use the GitHub and
+Linear with the person's Linear API key, keeping that key only in memory
+and never in a command's arguments, and SHALL use the GitHub and
 Linear relay identities only to check them, to post, and to edit their
 own relay posts. On Discord, the Discord relay identity SHALL both read
 and post, in the channels it has been added to.
@@ -1234,6 +1235,13 @@ and post, in the channels it has been added to.
   notifications, then relays an answer there
 - **THEN** it reads through the person's `gh` login, and posts as the
   GitHub relay identity
+
+#### Scenario: The person's Linear key appears in no command's arguments
+
+- **WHEN** the answer session reads a subscribed Linear team
+- **THEN** the answer session's own code makes the HTTP request with the
+  person's Linear API key, and no command it runs holds the key in its
+  arguments
 
 #### Scenario: Discord is read by its relay
 
@@ -3031,11 +3039,11 @@ Agreeing takes no note, so its miss's `said` is
 - **THEN** nothing is posted, a handled file naming the questions-branch
   file is pushed, and a miss against filter 1 is logged
 
-#### Scenario: Agreeing in a thread on a questions-branch question pushes only a handled file
+#### Scenario: Agreeing in a thread on a questions-branch question pushes no answer file
 
-- **WHEN** the person agrees, after the warning, to a recorded answer
-  more private than the GitHub thread of a thread copy that an
-  unanswered log file holds
+- **WHEN** an unanswered log file holds a thread copy from a GitHub
+  thread, and the person agrees, after the warning, to a recorded answer
+  more private than that thread
 - **THEN** the relay posts the recorded answer in the thread, and the
   answer session pushes a handled file naming that log file and no
   answer file, besides the decline's miss

@@ -92,8 +92,11 @@ reader*.
 
 **The order with prose:** prose's pass, then vet the rewritten body, then
 sign with prose (scenario *Signing after vetting keeps the post vetted*).
-Any edit after vetting means vetting again, and, if the body was already
-signed, signing again too.
+An edit to a vetted question means vetting it again. A hook finds a
+question's verdict by the question's hash, which leaves out some lines, such
+as the tag and concerns lines (inquisitor spec: *A question's text and hash
+are built one way*). Those lines need no vetting, but go in before prose
+signs, since any edit after signing means signing again.
 
 A rhetorical question in a post is vetted like any other (inquisitor spec:
 *Filters 3 and 4 have the agent decide the question itself*; *A rhetorical
@@ -2629,6 +2632,14 @@ to its 149.
   implementation follows this change's. This change does not wait for it:
   the entry *github-app refuses `token`, `run`, `credential get` and `wire`
   for a relay identity*, above, says why and what stays open meanwhile.
+
+- **spec-trace's workflow template must skip pushes to a `questions`
+  branch.** That branch holds none of the project's files, so a workflow
+  that checks those files on push fails there. shared-skills PR #101 makes
+  the template skip it. Its text names the inquisitor skill, so it merges
+  with this change's implementation or right after it; until it merges,
+  task 5.6's README says the template skips a branch it does not yet
+  skip.
 
 ### Outside this change
 

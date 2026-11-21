@@ -15,9 +15,9 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, 0.33, 0.35 and 0.36, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, and *What igor must provide* for 0.29. Record a result
-that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27, 0.32 and
-0.38 have no task, so that the other tasks keep their numbers.
+for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, and *What igor must provide* for 0.29. Also record
+any result that contradicts what design.md assumed. Numbers 0.22, 0.24, 0.27 and 0.32
+have no task, so that the other tasks keep their numbers.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens
@@ -750,7 +750,7 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27, 0.32 and
           local state deciding only what the spec leaves to it, such as a
           question declined with nothing posted;
         - agreeing to a recorded answer as a reason 2 decline with filter
-          1, writing no answer file, only the handled file, where the
+          1, writing no answer file, where the
           prototype treats it as its own path and logs the recorded answer
           in a new file (design.md:
           *Agreeing to a recorded answer is a filter 1 decline*);
