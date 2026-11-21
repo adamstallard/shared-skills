@@ -301,6 +301,138 @@ class SweepTests(unittest.TestCase):
         self.git(review, "merge", "-q", "--ff-only", "origin/pr")
         self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
 
+    def pushed_pr(self):
+        """Pushes a branch pr, then a second commit to it from an author's
+        clone, and fetches; returns the commit before the author's."""
+        self.git(self.repo, "push", "-q", "origin", "HEAD:pr")
+        self.git(self.repo, "fetch", "-q", "origin")
+        before = self.git(self.repo, "rev-parse", "origin/pr")
+        author = self.tmp / "author"
+        self.git(self.tmp, "clone", "-q", "-b", "pr", str(self.origin), str(author))
+        self.commit(author, "more")
+        self.git(author, "push", "-q", "origin", "pr")
+        self.git(self.repo, "fetch", "-q", "origin")
+        return before
+
+    def test_skips_a_detached_review_checkout_updated_by_rebase(self):
+        review = self.detached("pr", self.pushed_pr())
+        self.git(review, "rebase", "-q", "origin/pr")
+        self.assertIn("rebase (start)", self.git(review, "reflog", "--format=%gs"))
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_branch_review_checkout_updated_by_rebase(self):
+        review = self.worktree("pr", self.pushed_pr())
+        self.git(review, "rebase", "-q", "origin/pr")
+        self.assertIn("rebase (finish)", self.git(review, "reflog", "--format=%gs"))
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_review_checkout_stepped_through_by_rebase_i(self):
+        self.pushed_pr()
+        review = self.detached("pr", "origin/pr")
+        env = dict(self.env, GIT_SEQUENCE_EDITOR="sed -i.bak s/^pick/edit/")
+        for args in (["rebase", "-q", "-i", "HEAD~1"], ["rebase", "--continue"]):
+            r = subprocess.run(["git", *args], cwd=review, env=env, capture_output=True,
+                               text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("rebase in progress", self.git(review, "status"))
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_review_checkout_whose_rebase_was_aborted(self):
+        self.pushed_pr()
+        review = self.worktree("pr", "origin/pr")
+        (self.repo / "more.txt").write_text("clash")
+        self.git(self.repo, "add", ".")
+        self.git(self.repo, "commit", "-q", "-m", "clash")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.git(review, "fetch", "-q", "origin")
+        r = subprocess.run(["git", "rebase", "origin/main"], cwd=review, env=self.env,
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the rebase should conflict")
+        self.git(review, "rebase", "--abort")
+        self.assertIn("rebase (abort)", self.git(review, "reflog", "--format=%gs"))
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_review_checkout_of_a_merge_stepped_through_by_rebase_r(self):
+        self.git(self.repo, "switch", "-q", "-c", "side")
+        self.commit(self.repo, "side")
+        self.git(self.repo, "switch", "-q", "-c", "pr", "main")
+        self.commit(self.repo, "p1")
+        self.git(self.repo, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:pr")
+        self.git(self.repo, "fetch", "-q", "origin")
+        review = self.detached("pr", "origin/pr")
+        env = dict(self.env, GIT_SEQUENCE_EDITOR="true")
+        r = subprocess.run(["git", "rebase", "-q", "-i", "-r", "HEAD~2"], cwd=review, env=env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("rebase (reset)", self.git(review, "reflog", "--format=%gs"))
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
+
+    def test_lists_a_worktree_whose_only_work_is_a_rebase_it_pushed(self):
+        self.pushed_pr()
+        path = self.detached("pr", "origin/pr")
+        self.commit(self.repo, "main moves")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.git(path, "fetch", "-q", "origin")
+        self.git(path, "rebase", "-q", "origin/main")
+        self.git(path, "push", "-q", "-f", "origin", "HEAD:refs/heads/pr")
+        self.assertIn(f"  {path}  (detached HEAD, on origin/pr)",
+                      self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_worktree_paused_in_a_notes_merge(self):
+        path = self.detached("feature")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        self.git(path, "notes", "add", "-m", "one", "HEAD")
+        self.git(path, "notes", "--ref=other", "add", "-m", "two", "HEAD")
+        r = subprocess.run(["git", "notes", "merge", "refs/notes/other"], cwd=path,
+                           env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the notes merge should conflict")
+        self.assertEqual(self.git(path, "status", "--porcelain"), "")
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_reftable_worktree_paused_in_a_notes_merge(self):
+        # Under reftable the pause leaves no NOTES_MERGE_PARTIAL or NOTES_MERGE_REF
+        # file, so the notes in NOTES_MERGE_WORKTREE are the only sign of it.
+        repo = self.tmp / "reftable"
+        self.git(self.tmp, "clone", "-q", "--ref-format=reftable", str(self.origin), str(repo))
+        path = repo / ".claude" / "worktrees" / "feature"
+        self.git(repo, "worktree", "add", "-q", "--detach", str(path), "origin/main")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        self.git(path, "notes", "add", "-m", "one", "HEAD")
+        self.git(path, "notes", "--ref=other", "add", "-m", "two", "HEAD")
+        r = subprocess.run(["git", "notes", "merge", "refs/notes/other"], cwd=path,
+                           env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the notes merge should conflict")
+        own = pathlib.Path(self.git(path, "rev-parse", "--absolute-git-dir"))
+        self.assertFalse((own / "NOTES_MERGE_PARTIAL").exists())
+        payload = {"hook_event_name": "Stop", "cwd": str(path)}
+        self.assertNotIn(str(path), self.listed(self.run_hook(payload)))
+        self.git(path, "notes", "merge", "--abort")
+        self.assertIn(str(path), self.listed(self.run_hook(payload)))
+
+    def test_skips_a_worktree_whose_notes_merge_directory_cannot_be_read(self):
+        odd, other = self.landed("odd"), self.landed("other")
+        own = pathlib.Path(self.git(odd, "rev-parse", "--absolute-git-dir"))
+        (own / "NOTES_MERGE_WORKTREE").write_text("not a directory")
+        r = self.listed(self.run_hook(self.stop()))
+        self.assertNotIn(str(odd), r)
+        self.assertIn(str(other), r)
+
+    def test_lists_a_worktree_whose_notes_merge_was_aborted(self):
+        path = self.detached("feature")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        self.git(path, "notes", "add", "-m", "one", "HEAD")
+        self.git(path, "notes", "--ref=other", "add", "-m", "two", "HEAD")
+        r = subprocess.run(["git", "notes", "merge", "refs/notes/other"], cwd=path,
+                           env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the notes merge should conflict")
+        self.git(path, "notes", "merge", "--abort")
+        self.assertIn(f"  {path}  (detached HEAD, on origin/feature)",
+                      self.listed(self.run_hook(self.stop())))
+
     def test_skips_a_worktree_a_process_is_running_in(self):
         path = self.landed()
         proc = subprocess.Popen(["sleep", "30"], cwd=path)
