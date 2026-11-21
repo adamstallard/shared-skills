@@ -454,12 +454,13 @@ their answer shows that place.
 
 ### Requirement: A concerns line settles what an agent's question concerns
 
-An agent's question SHALL concern what the concerns line following it
-names, found with markup reduced, not what the session's model judges,
-when that line names a subscribed repository, or after `lore` a
-configured lore repository, and the person has write access to it. A post shown as one question SHALL be settled so only when
-every question in it carries such a line and all name the same place. Any
-other line SHALL settle nothing.
+An agent's question SHALL concern the place its concerns line names, not
+what the session's model judges, when the line, read with its markup
+removed, names a subscribed repository, or after `lore` a configured lore
+repository, where the person has write access. A question the session
+shows from several sentences ending in `?` SHALL be settled by its lines
+only when each sentence has such a line and all name the same place. A
+line that fails either condition SHALL settle nothing.
 
 #### Scenario: The line, not the model, places the miss
 
@@ -488,13 +489,13 @@ other line SHALL settle nothing.
   posts no `Inquisitor: ` reply by itself, since the asking agent looks for
   a reply's miss file only on the branch a concerns line names
 
-#### Scenario: A post of two sentence questions naming different repositories settles nothing
+#### Scenario: Two sentence questions naming different repositories settle nothing
 
 - **WHEN** an agent's comment asks two things in sentences ending in `?`,
-  with no open-questions section, one followed by `Concerns: o/web` and
-  the other by `Concerns: o/api`
-- **THEN** no concerns line settles the post, and the session posts no
-  `Inquisitor: ` reply to it by itself
+  both outside any open-questions section, one followed by
+  `Concerns: o/web` and the other by `Concerns: o/api`
+- **THEN** no concerns line settles the question the two sentences make,
+  and the session posts no `Inquisitor: ` reply to it by itself
 
 ### Requirement: A decline's preview says when the asking agent takes its reply as input
 
@@ -1636,7 +1637,9 @@ The answer session SHALL settle an owed push recorded with no post's URL,
 other than an answer logged at once, from the thread at the next poll or
 opening: it takes the URL of a relay
 post there naming the question and holding this answer, or else drops
-the record and keeps the answer pending.
+the record and keeps the answer pending. A Discord post holds the answer
+even with whitespace at its end dropped and an `@name` sent as `<@id>`,
+as Discord and discord-bot send it (task 0.23).
 
 #### Scenario: An owed push whose post never went out is dropped
 
@@ -1648,8 +1651,9 @@ the record and keeps the answer pending.
 
 #### Scenario: An owed push whose post went out takes its URL from the thread
 
-- **WHEN** an owed push has no post's URL, and the thread holds a relay
-  post naming the question whose text is this answer
+- **WHEN** an owed push has no post's URL, and the Discord thread holds
+  a relay post naming the question whose text is this answer with its
+  `@ana` sent as `<@1234>`
 - **THEN** the retry pushes the answer file with that post's URL as its
   `answer_link`
 
@@ -3609,9 +3613,7 @@ Where the questions branch is more visible than the question's thread
 and the miss is unconfirmed, the answer session SHALL push, after each
 reply it posts, by itself or for the person, a hash-only miss file backing
 that reply, as the inquisitor's *A hash-only miss file shows nothing but
-that it exists* defines one. It SHALL post an `Inquisitor: ` reply by itself only where the
-person can push that reply's miss file to a questions branch, and
-otherwise SHALL show the person the question.
+that it exists* defines one.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed
 
@@ -3624,9 +3626,17 @@ otherwise SHALL show the person the question.
   session pushes a hash-only miss file to the public repository's
   questions branch
 
+### Requirement: An automatic Inquisitor reply goes out only with a miss file
+
+The answer session SHALL post an `Inquisitor: ` reply by itself only
+where it writes that reply's miss file, readable or hash-only, to a
+questions branch the person can push to, and otherwise SHALL show the
+person the question.
+
 #### Scenario: With no place for any miss file, no reply goes out by itself
 
 - **WHEN** an agent's question about an organization no configured lore
-  repository serves clearly fails filter 4
+  repository serves, or a question found in two questions-branch files
+  that name different repositories, clearly fails filter 4
 - **THEN** the session posts no reply by itself, and shows the person the
   question
