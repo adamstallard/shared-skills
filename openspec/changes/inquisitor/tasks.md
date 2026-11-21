@@ -818,7 +818,8 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       question is answered or closed, the question on screen, and the lock,
       which a second session reports and offers to take over
 - [ ] 6.6 The discussion's context, `propose_reply` (refusing a call as
-      *Claude's draft goes to the prompt box, never to a post* says, and filling the record's URL for a filter 1
+      *Claude's draft goes to the prompt box, never to a post* and
+      *propose_reply refuses a draft the prompt box would run* say, and filling the record's URL for a filter 1
       decline), `record_verdict` and the code's checks of each call
       (answer-session spec: *The model's judgements reach the session's
       code only through record_verdict*), and the rephrased answer's

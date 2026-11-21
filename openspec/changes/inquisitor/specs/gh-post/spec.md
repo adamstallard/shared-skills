@@ -186,10 +186,12 @@ its scenarios list as unreadable SHALL be unreadable.
   has no letter, digit or `_` just before it and no letter, digit, `_` or
   `-` just after it
 
-#### Scenario: A subshell's commands are read
+#### Scenario: A subshell's and an unquoted substitution's commands are read
 
-- **WHEN** a hook asks about `(cd sub && gh pr edit 3 --add-assignee @me)`
-- **THEN** the reader reports that the line sends no post
+- **WHEN** a hook asks about `(cd sub && gh pr comment 3 --body hi)` and
+  about `echo $(gh pr comment 5 --body yo)`
+- **THEN** the reader reads each as a post, and returns `hi` and `yo` as
+  their bodies
 
 #### Scenario: A backslash-newline and a comment are read as nothing
 

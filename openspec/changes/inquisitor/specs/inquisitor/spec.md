@@ -1033,9 +1033,9 @@ status counts only if `accepted`.
 
 #### Scenario: Inside an Igor, a project entry matches any repository the role works
 
-- **WHEN** an Igor worker whose role works `o/api` and `o/web` has a
-  question about `o/web`, and an `active` entry scoped `project:api`
-  matches it
+- **WHEN** an Igor worker whose role works `o/api` and `o/web`, running
+  on an item in `o/web`, has a question about `o/web`, and an `active`
+  entry scoped `project:api` matches that question
 - **AND** `o/web` is no more visible than `o/api`
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
 
@@ -1319,13 +1319,6 @@ search*).
 - **THEN** the search shows the file as input, labelled unconfirmed
 - **AND** a file about the organization, holding no `repository`, is not
   about another repository, so this rule leaves it to the other checks
-
-#### Scenario: Inside an Igor, a question file about a more private repository is hidden
-
-- **WHEN** during an Igor's run on an item in a public repository, a
-  question file whose `repository` key names a private repository matches
-  the question
-- **THEN** the search does not show it
 
 ### Requirement: An answer typed on another surface is input until a decision document records it
 
