@@ -127,9 +127,7 @@ Linear issue, the repository igor runs the item's work in.
 
 - **WHEN** an Igor works a Linear issue, and igor runs that work in
   `o/web`
-- **THEN** the item's repository is `o/web`, which the Igor writes as
-  `asked_from` on the files it pushes for that run, except an answer
-  file, which takes the most private `asked_from` of the files it answers
+- **THEN** the item's repository is `o/web`
 
 ### Requirement: Every question passes four filters before a person sees it
 
@@ -361,10 +359,7 @@ branch as the clone's remote-tracking branch has it. Its `status` SHALL be
 When the agent works in no git repository and the question is about none, no
 repository SHALL be the one it concerns: filter 1 SHALL search only the
 configured lore repositories and admit only `global` entries, and no
-citation SHALL be sent. If the agent asks anyway a question that concerns no
-collective or person's way of working either, which *A question
-is written at the privacy of what it concerns* forbids, nothing SHALL be
-logged and a post's question SHALL tag no one.
+citation SHALL be sent.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
@@ -373,8 +368,6 @@ logged and a post's question SHALL tag no one.
   scoped `global` and one `project:api`
 - **THEN** filter 1 shows only the `global` entry, and when it stops the
   question with that entry, the agent pushes no citation file
-- **AND** such a question asked instead is logged nowhere, and in a post
-  tags no one
 
 ### Requirement: The team's lore repository is the most specific one that serves
 
@@ -2379,8 +2372,7 @@ An agent SHALL ask only a question about a repository, a collective, or one pers
 read the repository it concerns or the team's lore repository, or, for a
 way-of-working question, for that person. Context from anything more private
 SHALL be generalised or left out, and a question that cannot be understood
-without it SHALL NOT be asked. Its log file SHALL go where everyone who can
-read what it concerns can read it.
+without it SHALL NOT be asked.
 
 #### Scenario: Private context is generalised
 
@@ -3021,9 +3013,8 @@ it* decides it, or `null` when it has none.
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
 A worker re-working an item after a person answered its handback question
-SHALL report a new questions-branch log file for that answer, and SHALL
-write no answer, nor `answers`, into any log file (design.md: *A worker logs
-no answer*). The Igor writes the answer from the linked comment, decides its
+SHALL report a new questions-branch log file whose `answer_link` names that
+answer (design.md: *A worker logs no answer*). The Igor writes the answer from the linked comment, decides its
 `authority` under *An answer is a decision only from a person with write
 access* and its `answered_by` as the `log` command would, a bot account's
 comment being input, and adds
@@ -3149,8 +3140,8 @@ the comment.
 Where the `log` command reads a linked comment, it SHALL record as
 `answered_by` the comment's author as GitHub returns it, ignoring any login
 the agent passed, because a crafted thread can steer the login an agent
-passes; with its session option, it records instead the person whose answer
-session runs it.
+passes. With its session option, it SHALL record as `answered_by`, whether
+or not it reads a comment, the person whose answer session runs it.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 

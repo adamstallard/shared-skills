@@ -824,10 +824,7 @@ Repository questions SHALL need no lore repository and no igor.
 
 The answer session SHALL open when the person types `/answer` in a
 Claude Code session that has the skill and whose tools are restricted,
-or runs `answer`. No environment variable SHALL open it, since a session
-the Claude app starts from its list of sessions, with no terminal, may be
-unable to set one (task 0.36 measures whether it can), so a variable
-would open it in only some sessions.
+or runs `answer`.
 
 #### Scenario: The answer command starts an answer session
 
@@ -841,12 +838,6 @@ would open it in only some sessions.
 - **WHEN** the person types `/answer` in a Claude Code session that has the
   inquisitor skill and was started with the option that restricts its tools
 - **THEN** the answer session opens in that session
-
-#### Scenario: No environment variable opens the answer session
-
-- **WHEN** Claude Code starts with `CLAUDE_CODE_NO_FLICKER=1`, or any other
-  environment variable, set and `/answer` is not typed
-- **THEN** no answer session opens
 
 ### Requirement: Setup installs the answer command
 
@@ -1867,9 +1858,9 @@ The answer session SHALL take a question's state from the latest relay
 post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply requeues
-it; otherwise unanswered. To the thread's state, this machine adds only
-its pending answers and closed questions; a question closed here counts as
-closed whatever its thread shows.
+it; otherwise unanswered. This machine adds only its pending answers and
+closed questions, and a question closed here stays closed whatever its
+thread shows. On GitHub it is built only once task 0.21 is measured.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -2641,10 +2632,9 @@ the person's words.
 
 - **WHEN** an agent's post outside the answer session starts with a
   reserved prefix
-- **THEN** on GitHub the inquisitor's post hook blocks it unless the shared
-  post reader reports that the call sends no post, as the inquisitor's *The post hook vets what
-  the shared post reader returns* says, and on Linear or Discord nothing
-  checks it
+- **THEN** on GitHub the inquisitor's post hook blocks it, as *The post
+  hook vets what the shared post reader returns* says, and on Linear or
+  Discord nothing checks it
 
 #### Scenario: An automatic post is never shown as the person's words
 
@@ -3137,9 +3127,9 @@ Agreeing takes no note, so its miss's `said` is
 
 When the answer session posts a recorded answer by itself, with no
 confirmation from the person, and the record is a lore entry, it SHALL push
-a citation file unless the inquisitor's *A lore entry that stops a question
-gets a citation file* bars one, as it does when the lore repository is more
-visible than the question's repository.
+a citation file unless a bar in the inquisitor's *A lore entry that stops a
+question gets a citation file* applies. Its bar on an answer session's
+automatic reply does not apply here: it binds the agent the reply reaches.
 
 #### Scenario: A lore entry's recorded answer sends a citation
 

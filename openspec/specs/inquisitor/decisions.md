@@ -9,7 +9,7 @@
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
-  Because: the inquisitor pushes no citation to a lore repository more visible than the question's repository or, for a question about an organization or other group, the repository it was asked from, and the citation file holds only the entry's id and a date, so the lore repository's readers learn only who cited which entry and when.
+  Because: the inquisitor pushes no citation to a lore repository more visible than the question's repository or, for a question about an organization or other group, the repository it was asked from, and a citation file pushed with a person's credentials holds only the entry's id and a date, so the lore repository's readers learn only who cited which entry and when.
   Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
   Holds while: a citation is pushed with a person's own credentials, and never to a lore repository more visible than that.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py

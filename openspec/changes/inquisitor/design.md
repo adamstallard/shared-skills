@@ -2380,10 +2380,6 @@ documents the same `author` field for both (the inquisitor record's
   a read only as a plain gh command*). If a shell kept `G` between calls,
   the read could run any script `G` named, so the reader would report it
   as unreadable too, and the post hook would block it.
-- **Can a session an app starts with no terminal set an environment
-  variable?** (task 0.36) No environment variable opens the answer session,
-  because such a session could not set one. If it can, the repository's
-  owner decides whether one may.
 
 ### Facts the answer session relies on
 
@@ -2404,13 +2400,7 @@ is the one the answer session reads.
 
 Task 0.25 records how each surface reports two kinds of refusal of a relay
 post: one for its text, such as its length, and one for lack of permission.
-A refusal the session cannot sort into either kind waits for the person (the
-answer-session spec's *A pending answer no check returns waits for the
-person*). Task 0.26 records whether a forked conversation's or a subagent's
-`propose_reply` call can arrive without an `agentId`. Either way the rule
-stands: such a call's draft only lands in the prompt box, where the person
-sees it before anything is sent (*Claude drafts a reply only into the prompt
-box*).
+A refusal the session cannot sort into either kind waits for the person.
 
 - **Do Linear and Discord return a posted line's words unchanged?** (task
   0.28) The answer session finds a person-required line and a concerns line
@@ -2701,22 +2691,3 @@ to its 149.
   requirement with a scenario, or a decision-record entry with evidence,
   when it is made. *Some answer-session details are decided at
   implementation* lists them and what is decided around them.
-
-
-### Rules the owner decides whether to cut
-
-Each entry would shorten the spec by removing a rule that no evidence
-settles, so the repository's owner decides.
-
-- **Keep the rule for a question that concerns nothing?** *A question is
-  written at the privacy of what it concerns* forbids asking a question
-  that concerns no repository, collective or person's way of working. The
-  inquisitor's *With no repository, a question concerns none* adds what
-  happens when an agent asks one regardless: it is logged nowhere and
-  tags no one in a post. Cutting that rule shortens the spec; keeping it
-  fixes what happens when the first rule is broken.
-- **Keep "No environment variable opens the answer session"?** The
-  answer-session's *Two commands open an answer session* holds it. Cutting
-  it also drops task 0.36 and its Open Question; keeping it rules out a
-  variable, which a session the Claude app starts with no terminal may be
-  unable to set.

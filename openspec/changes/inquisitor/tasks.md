@@ -16,7 +16,7 @@ for its task:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7 to 0.14, 0.33, 0.35 and 0.36;
+- *Facts measured before building*: 0.5, 0.7 to 0.14, 0.33 and 0.35;
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
   0.28, 0.30, 0.31, 0.34 and 0.37;
@@ -27,8 +27,8 @@ the same commit, rewrite each requirement and scenario that waits on that
 task to its result: drop its wait, and drop or restate a scenario written
 for before the result, such as *Nothing is relayed on GitHub before task
 0.21*. spec-trace fails CI on a scenario no test tags, and no test can
-check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27 and 0.32
-have no task, so that the other tasks keep their numbers.
+check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
+0.36 have no task, so that the other tasks keep their numbers.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens
@@ -280,12 +280,6 @@ have no task, so that the other tasks keep their numbers.
       gh-post spec's scenario *A gh read through an unset G is no post* is
       not built. If `G` carries over, the reader reports that read as
       unreadable instead
-- [ ] 0.36 That a Claude Code session an app starts from its list of
-      sessions, with no terminal attached, cannot set an environment
-      variable for itself. Until then, the answer-session spec's scenario
-      *No environment variable opens the answer session* is not built. If
-      it can set one, record it and stop for the repository's owner to
-      decide whether a variable may open the answer session
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, and have the model
       answer it with a tool call, unattended (design.md: *The model hands
@@ -300,9 +294,7 @@ have no task, so that the other tasks keep their numbers.
       with, or by a name igor requires of its Linear app. Task 0.16
       measured that Linear marks an app user's comment, with `user.app`
       `true`; which app user is an Igor's is not measured. On Linear, *A handback is an Igor's comment holding igor's
-      marker* is built only once this is measured; until then no Linear
-      comment is a handback, and an Igor's Linear comment reaches only the
-      first person it mentions, as any bot account's message does. If
+      marker* is built only once this is measured. If
       no such form exists, no Linear comment is a handback for good
 
 ## 1. Shared post reader
@@ -1022,12 +1014,8 @@ have no task, so that the other tasks keep their numbers.
       and in the lore repository (design.md: *Filter 1 searches igor's
       scribe's records where #202 puts them*; *An answer typed on another
       surface counts only through a decision document*). Point the spec's
-      links to *An Igor publishes the citations its worker reports*, *An
-      Igor publishes the questions-branch files its worker reports* and
-      *An Igor runs its worker's lore searches* at igor's
-      `openspec/specs/lore-firing/spec.md` on main, and its link to
-      *Transcripts and outcomes are captured to the state branch* at
-      igor's `openspec/specs/task-execution/spec.md` on main
+      links to igor PR #216's lore-firing spec at igor's
+      `openspec/specs/lore-firing/spec.md` on main
 - [ ] 7.1 Archive with `openspec archive` and no flags. This pull request already
       edits the decision records, `openspec/specs/inquisitor/decisions.md`,
       `openspec/specs/answer-session/decisions.md` and

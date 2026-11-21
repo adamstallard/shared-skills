@@ -68,17 +68,14 @@ is not a read (*A gh api call is a read only as a plain gh command*).
 
 ### Requirement: A command that only runs prose's script sends no post
 
-A command that only runs prose's script, in the forms its scenario lists,
-SHALL send no post, whatever its arguments.
+A line that is one simple command, whose command is `prose.py` or a path
+ending in `/prose.py`, SHALL send no post, whatever its arguments.
 
 #### Scenario: A command that only runs prose is no post
 
 - **WHEN** a hook asks about `/abs/prose.py sign --goals 'approve the gh
-  pr create body'`, or the same run as `python prose.py sign …`
-- **THEN** the reader reports that each command sends no post
-- **AND** the forms are a line that is one simple command whose command
-  is `prose.py` or a path ending in `/prose.py`, or is `python` or
-  `python3` followed directly, with no option between, by such a path
+  pr create body'`
+- **THEN** the reader reports that the command sends no post
 
 ### Requirement: The reader reads a gh pr or gh issue post only as a whole command line
 
