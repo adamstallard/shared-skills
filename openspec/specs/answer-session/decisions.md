@@ -97,13 +97,17 @@
   The rule gives an Igor's question to the person who should answer it, because an Igor is to mention that person first. Igor issue #229, open, decides the order, which no igor spec states and igor does not yet build: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
   Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229
 
+- **Rationale: A handback that mentions no one goes to the item's assignee.**
+  An Igor claims an item assigned to a person only when that person hands it over, so the assignee gave the Igor the work and is the right reader for its question.
+  Evidence: igor issue #229's first point, that a handoff mentioning no one on an issue assigned to a person reaches the assignee, https://github.com/adamstallard/igor/issues/229
+
 - **Rationale: Setup checks each relay identity before its channels are used.**
   The Discord relay reads messages that do not mention the bot, which needs Discord's privileged Message Content intent, so setup checks that `messageContent` is `true`. discord-bot's setup has the person turn the intent on, and its `check` reports `messageContent` from the bot's application flags.
   Evidence: Discord documents Message Content as a privileged intent, https://discord.com/developers/docs/events/gateway#message-content-intent
   Evidence: discord-bot's setup turns it on, https://github.com/adamstallard/shared-skills/commit/369ae16d02898cd68ba98241a7ee685b6492002c; its `check` reads it from the application's flags, https://github.com/adamstallard/shared-skills/commit/f83b167e6b52f8ad7f607bed6133b2d0e19fea6c
 
 - **Rationale: A question with a person-required line gets no filter 2 to 4 reply.**
-  The session finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text as sent, parentheses included, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
+  The session finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text unchanged, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: The person runs the session, and a relay identity posts for them.**

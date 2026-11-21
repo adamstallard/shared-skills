@@ -146,7 +146,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
         handback is an igor- App's comment holding igor's marker* and *An
         agent's question comes from a bot account or a log file*;
       - on GitHub, the rules that need to tell an agent's question:
-        *Whom a message reaches is set by its mentions* and the
+        *Whom a message reaches is set by its mentions*, *A bot's message
+        to a relay reaches the relay's person* and the
         automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
         incoming question*.
 
@@ -511,8 +512,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       decline with filter 1 naming one included (design.md: *A person's
       cite pushes a citation file*). Its commit names no person (design.md: *A citation's commit
       names no person*). It sends none for a question with a category,
-      none to a lore repository more visible than the repository the
-      question concerns, and none for a cited entry not `active` or out
+      none where *A lore entry that stops a question gets a citation
+      file* bars it by visibility, and none for a cited entry not `active` or out
       of scope. During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
 - [ ] 2.5 The question finder for posts, one function the post hook also

@@ -287,7 +287,8 @@ the file's `asked_in` links that thread message.
 
 The answer session's **state folder** SHALL be
 `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/answer-session/`, with
-mode 0700, and every file the session writes in it SHALL have mode 0600.
+mode 0700, and every file the session writes in it, outside its git
+clones, SHALL have mode 0600.
 
 #### Scenario: The state folder follows XDG_STATE_HOME
 
@@ -916,7 +917,8 @@ bot account that posts for them, SHALL count as a mention of that person,
 in the first-mention rule of *Whom a message reaches is set by its
 mentions*. A bot account's message that mentions no person and replies to
 a relay post SHALL reach that relay's person, since an agent's reply to a
-relay post usually mentions no one.
+relay post usually mentions no one. On GitHub, this rule waits on task 0.21
+as *Whom a message reaches is set by its mentions* does.
 
 #### Scenario: A bot's reply to a relay post that mentions no one reaches that relay's person
 
@@ -1890,7 +1892,8 @@ outlives it.
 ### Requirement: Reopening shows the question last on screen
 
 On opening, the answer session SHALL show the question last on screen,
-even after Claude Code restarted, unless it has since been answered.
+even after Claude Code restarted, unless it has since been answered or has
+a category; then it SHALL show the next in the queue.
 
 #### Scenario: Reopening lands on the same question unless it was answered
 
@@ -2894,7 +2897,9 @@ its question in a Re line* requires one.
 ### Requirement: A recorded answer posted by itself links filter 1's hit and quotes no answer
 
 In a recorded answer the answer session posts by itself, the URL SHALL
-be filter 1's hit's, and a hit whose URL holds a space or line break,
+be filter 1's hit's: for a questions-branch file, the file's own URL on
+that branch, never a URL the file holds. A hit whose URL holds a space or
+line break,
 which could break the `Recorded in: ` line or plant a `Re: ` line, SHALL
 be shown beside its question instead. Whatever the hit is, a log file
 included, the post SHALL quote no answer, and the session's model SHALL
@@ -2908,6 +2913,14 @@ write none of the post.
 - **THEN** the relay posts the fixed recorded answer, that file's URL on
   its `Recorded in: ` line and no answer quoted, and a miss is logged as
   *Filter 1's answer by itself to an agent's question logs a miss* says
+
+#### Scenario: A log file hit links the file, not its recorded_in
+
+- **WHEN** filter 1's hit for an agent's question is an answer file the
+  answer session pushed to `o/api`'s questions branch, whose `recorded_in`
+  is a relay post
+- **THEN** the `Recorded in: ` line holds the answer file's URL on
+  `o/api`'s questions branch, not the relay post's
 
 #### Scenario: A hit whose URL holds a line break is shown, not posted
 

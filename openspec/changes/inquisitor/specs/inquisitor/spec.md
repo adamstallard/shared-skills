@@ -1826,14 +1826,13 @@ only what *Some questions are recorded by hash only* allows.
 
 ### Requirement: The two calls' files and records stay private
 
-The two calls' files and verdict records SHALL have mode 0600, outside any
-repository, in a directory only the agent's user can read. Either call SHALL
+The two calls' files and verdict records SHALL have mode 0600, in a
+directory only the agent's user can read, the records in
+`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`. Either call SHALL
 refuse a file inside a git working tree, one its group or others can read,
-or one whose directory they can read, then recording nothing and keeping
-any token. A picker `ask`'s record SHALL keep
-its field without any option's label. The next call or hook reading the
-records SHALL delete each over 2 hours old, whatever its verdict or
-category.
+or one whose directory they can read. A picker `ask`'s record SHALL keep the
+verdict's field without any option's label. The next call or hook reading
+the records SHALL delete each over 2 hours old.
 
 #### Scenario: A questions file others can read is refused
 
@@ -1849,8 +1848,10 @@ category.
 
 #### Scenario: The records have mode 0600
 
-- **WHEN** the second call records a verdict
-- **THEN** the record file has mode 0600, in a private directory
+- **WHEN** the second call records a verdict, with `XDG_STATE_HOME` set to
+  `/x/state` or not set
+- **THEN** the record file has mode 0600, in `/x/state/inquisitor/` or
+  `$HOME/.local/state/inquisitor/`, a private directory
 
 #### Scenario: A record holds no option's label
 
@@ -1995,6 +1996,17 @@ hook does when it can't read*).
   under the same HOME then asks the question through the picker from
   another repository, or from another clone of the same one
 - **THEN** the hook finds the record and lets the call through
+
+### Requirement: The hooks are on once the skill is installed, and spend no record
+
+Installing the skill SHALL turn the picker hook and the post hook on, with
+no further setting, and neither hook SHALL spend a verdict record.
+
+#### Scenario: The hooks are on once installed, and spend no record
+
+- **WHEN** the skill is installed with no further setting, and an agent
+  asks a vetted question through the picker twice within 2 hours
+- **THEN** the picker hook runs on both calls and lets both through
 
 ### Requirement: Questions in posts pass the same filters
 
