@@ -15,7 +15,7 @@
   Evidence: an alias whose expansion starts with an exclamation point "will be treated as a shell command", https://git-scm.com/docs/git-config#Documentation/git-config.txt-alias; `git difftool -x <command>` runs that command, https://git-scm.com/docs/git-difftool; and `git filter-branch --tree-filter <command>` runs a command on each commit, https://git-scm.com/docs/git-filter-branch
 
 - **Rationale: The reader reads only gh's own top-level commands.**
-  The reader cannot see what an alias or extension runs: with `c` aliased to `pr comment`, `gh c 5 -b 'User says: yes'` names no gh post verb, so letting it through would let an agent forge a relayed answer past both post hooks. The block costs every prose user gh's default alias `gh co` and read-only extensions such as `gh dash`.
+  The reader cannot see what an alias or extension runs: with `c` aliased to `pr comment`, `gh c 5 -b 'User says: yes'` names no gh post verb, so letting it through would let an agent post a relayed answer unread past both post hooks, prose's and the inquisitor's. Like the reader's other rules, the block covers only what the command line shows: no reader of the command line can see a gh call in a script file, or one `xargs` builds from its input. The block costs every prose user gh's default alias `gh co` and read-only extensions such as `gh dash`.
   Evidence: `gh alias set` maps a name to any gh command, https://cli.github.com/manual/gh_alias_set
 
 - **Rationale: A gh api call writes by its method, fields, input or a mutation.**

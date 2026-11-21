@@ -127,11 +127,11 @@ None.
   `G` in the same command as each use, or write the script's full path,
   since the shared post reader reads `$G` only when the same command sets
   it.
-- github-app, in a separate change (shared-skills issue #96): its `token`, `run`,
-  `credential get` and `wire` commands refuse an identity marked as a relay,
-  so no agent posts through a person's relay App by mistake. Until that lands,
-  any agent on the person's machine can post through a relay App unseen by
-  the post hook; the inquisitor's README says so.
+- github-app, in a separate change (shared-skills issue #96): it hands a
+  relay identity's token to no command that can print it, its `gh` command
+  included, so no agent can post through a person's relay App unseen by the
+  inquisitor's post hook. Until that lands, any agent on the person's
+  machine can, and the inquisitor's README says so.
 - bug-hunter: its Step 9 runs each recommendation through the inquisitor's
   filters before asking the person about it (task 5.7). Its regression test
   for a security weakness stays out of public places until the weakness's

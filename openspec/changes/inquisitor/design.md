@@ -237,11 +237,11 @@ A relay post counts for nothing in filter 1 (*An answer given through the
 answer session counts by its answer file*).
 The thread's state is still read from relay posts, so a post with a reserved
 prefix that the answer session did not make would mislead it about that
-thread. The answer-session decision record accepts that risk, in
-*Constraint: Until github-app refuses `token`, `run`, `credential get` and
-`wire` for a relay identity, any agent on the person's machine can print a
-relay App's token and post `User says: ` with a plain HTTP call no post hook
-sees*.
+thread. Any agent holding a printed relay token could make such a post, and
+the answer-session decision record accepts that risk, in *Constraint: Until
+github-app hands a relay identity's token to no command that can print it,
+any agent on the person's machine can print a relay App's token and post
+`User says: ` with a plain HTTP call no post hook sees*.
 
 ### What the answer session does by itself
 
@@ -1393,12 +1393,15 @@ every answer relayed off GitHub as input (answer-session spec: *A
 questions-branch answer file records the answer as given*, scenario *A log
 file of a Discord-relayed answer is a decision*).
 
-#### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
+#### github-app hands a relay's token to no command that can print it
 
-**github-app's `token`, `run`, `credential get` and `wire` commands are to
-refuse an identity marked as a relay, so a relay's token reaches no program
-but `gh`, whose posts the post hooks see.** This change asks github-app for that and ships
-without it.
+**github-app is to hand a relay identity's token to no command that can
+print it, so the token is used only for posts the post hooks read.** Its
+`token`, `run`, `credential get` and `wire` commands give the token out,
+and so does its `gh` command: gh prints the token it runs with when an
+agent runs `gh auth token` through it, and hands the token to any shell
+alias an agent defines. This change asks github-app for that refusal, in
+shared-skills #96, and ships before it.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
 person and the asker, so nothing should post through it unseen.
@@ -1407,9 +1410,9 @@ person and the asker, so nothing should post through it unseen.
 inquisitor's GitHub post hook and the refusals asked of github-app for a relay
 identity guard against accidents, not against an agent set on forging a
 relayed answer, which can read a relay's credentials from the keychain and
-post with `curl`* and *Constraint: Until github-app refuses `token`, `run`,
-`credential get` and `wire` for a relay identity, any agent on the person's
-machine can print a relay App's token and post `User says: ` with a plain HTTP
+post with `curl`* and *Constraint: Until github-app hands a relay identity's
+token to no command that can print it, any agent on the person's machine can
+print a relay App's token and post `User says: ` with a plain HTTP
 call no post hook sees*. Task 5.2's README states the second (answer-session
 spec: *The README warns that a relay's token can be printed*).
 
@@ -2684,13 +2687,13 @@ to its 149.
 
 ### What other changes must provide
 
-- **The github-app skill's `token`, `run`, `credential get` and `wire`
-  commands must refuse an identity marked as a relay.** Issue
+- **The github-app skill must hand a relay identity's token to no command
+  that can print it,** its `gh` command included. Issue
   adamstallard/shared-skills#96 tracks it. Its spec, in a pull request
   stacked on this one, starts once this change's spec is approved, and its
   implementation follows this change's. This change does not wait for it:
-  the entry *github-app refuses `token`, `run`, `credential get` and `wire`
-  for a relay identity*, above, says why and what stays open meanwhile.
+  the entry *github-app hands a relay's token to no command that can print
+  it*, above, says what stays open meanwhile.
 
 ### Outside this change
 

@@ -2695,20 +2695,21 @@ instructions.
 
 ### Requirement: The README warns that a relay's token can be printed
 
-While any of github-app's `token`, `run`, `credential get` and `wire`
-gives out a relay identity's token, the inquisitor's README SHALL say
-that any agent on the person's machine can print that token and post
-`User says: ` unseen by the post hook; once all four refuse, it SHALL
-not.
+While github-app hands a relay identity's token to a command that can
+print it, the inquisitor's README SHALL say that any agent on the person's
+machine can print that token and post `User says: ` unseen by the post
+hook; once github-app hands the token to no such command, the README SHALL
+not say so.
 
 #### Scenario: The README warns that a relay's token can be printed
 
-- **WHEN** the README is checked while github-app's `token`, `run`,
-  `credential get` or `wire` gives out a relay identity's token
+- **WHEN** the README is checked while a github-app command can print a
+  relay identity's token, as its `token` command does, or its `gh` command
+  does when an agent runs `gh auth token` through it
 - **THEN** it says any agent on the person's machine can print that token
   and post `User says: ` unseen by the post hook
-- **AND** once all four refuse a relay identity, the README holds no such
-  warning
+- **AND** once github-app hands a relay identity's token to no command that
+  can print it, the README holds no such warning
 
 ### Requirement: The person can decline to answer
 
