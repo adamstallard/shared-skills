@@ -5677,6 +5677,41 @@ class HandbackAfterTests(HandbackBase):
         self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
 
 
+class HandbackAppTests(HandbackBase):
+    """The hook blocks a hand-back through github-app's script before the
+    call, and takes it back after the call, as it does the gh call the
+    script runs."""
+
+    def test_a_named_hand_back_through_the_script_is_blocked(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("G=/s/github_app.py; python3 $G gh pr ready 7 -R o/r",
+                        f"python3 /s/github_app.py gh pr ready {pr['url']}",
+                        "G=/s/github_app.py && GH_REPO=o/r python3 \"$G\" gh pr ready 7"):
+            with self.subTest(command=command):
+                self.blocked(self.hook(command, pr=pr), "github_app.py gh pr ready", pr["url"])
+
+    def test_a_hand_back_through_the_script_is_taken_back_as_gh_s(self):
+        app = "/s/github-app/scripts/github_app.py"
+        self.deferred()
+        pr = self.pr()
+        prs = {"FAKE_PRS": json.dumps({"7": pr, pr["url"]: pr})}
+        for command, undone in (
+                (f"G={app}; python3 $G gh pr create -t x -r adam", [
+                    ["pr", "ready", pr["url"], "--undo"],
+                    ["pr", "edit", pr["url"], "--remove-reviewer", "adam"]]),
+                (f"G={app}; python3 $G run -- git push && python3 $G gh pr create -t x",
+                 [["pr", "ready", pr["url"], "--undo"]]),
+                (f"python3 {app} --identity bot gh pr edit 7 --add-reviewer adam",
+                 [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])):
+            with self.subTest(command=command):
+                if self.log.exists():
+                    self.log.unlink()
+                r = self.hook(command, pr=pr, output=pr["url"] + "\n", extra_env=prs)
+                self.taken_back(r, pr["url"], "good")
+                self.assertEqual(self.undos(), undone)
+
+
 class CiTests(unittest.TestCase):
     """The GitHub workflow's check (spec_check.py ci) and setup-ci."""
 

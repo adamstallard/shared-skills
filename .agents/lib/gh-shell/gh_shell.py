@@ -397,6 +397,81 @@ def _commands(command):
     return [(words, reads) for words, reads in zip(commands, fed) if words], grouped
 
 
+# github-app's script runs a command as a GitHub App:
+# `python3 <path>/github_app.py gh <gh's arguments>`, or `run [--] <command>`
+# in place of `gh`, with any `--identity <name>` before either. Its SKILL.md
+# names the script in a variable first, `G=<path>/github_app.py`, and then
+# runs `python3 $G gh …`. The functions below find either form in a command
+# and give the command the script runs.
+APP_SCRIPT = "github_app.py"
+PYTHONS = {"python", "python3"}
+VARIABLE = re.compile(r'"?\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})"?')
+ASSIGNED = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=")
+
+
+def _names_app_script(text, source):
+    """Whether a word names github-app's script.
+
+    Its text, the word after quote removal, must be the script's file name
+    or a path ending in `/github_app.py`. Its source, the word as written,
+    must end with that name too, apart from closing quotes. So
+    `/s/github_app.py$X` names another file and is refused, while
+    `$D/github_app.py` still names the script."""
+    return (text == APP_SCRIPT or text.endswith("/" + APP_SCRIPT)) \
+        and source.rstrip("'\"").endswith(APP_SCRIPT)
+
+
+def app_assignments(words, scripts):
+    """Whether a simple command, as [(text, source)], only assigns
+    github-app's script path to variables.
+
+    A command made only of assignments also updates scripts, the set of
+    names holding that path: a name assigned the path is added, and a name
+    assigned anything else is taken out."""
+    if not words or not all(ASSIGNED.match(source) for _, source in words):
+        return False
+    every = True
+    for text, source in words:
+        name, _, value = text.partition("=")
+        if _names_app_script(value, source.partition("=")[2]):
+            scripts.add(name)
+        else:
+            scripts.discard(name)
+            every = False
+    return every
+
+
+def app_command(words, scripts):
+    """The command github-app's script runs, as [(text, source)]: `gh` and
+    gh's arguments, or the command after `run`.
+
+    The simple command must start with python or python3, then the script,
+    named by its path or by a variable in scripts (see app_assignments). A
+    variable's word has empty text, since _word leaves expansions out. Any
+    `--identity` options come next, and one `--` after `gh` or `run` is
+    dropped, as the script drops it. None for any other command."""
+    if len(words) < 3 or words[0][0].rsplit("/", 1)[-1] not in PYTHONS:
+        return None
+    text, source = words[1]
+    variable = VARIABLE.fullmatch(source)
+    if not (_names_app_script(text, source)
+            or (variable and not text and (variable.group(1) or variable.group(2)) in scripts)):
+        return None
+    i = 2
+    while i < len(words) and (words[i][0] == "--identity"
+                              or words[i][0].startswith("--identity=")):
+        i += 2 if words[i][0] == "--identity" else 1
+    if i >= len(words) or words[i][0] not in ("gh", "run"):
+        return None
+    rest = words[i + 1:]
+    rest = rest[1:] if rest[:1] and rest[0][0] == "--" else rest
+    if words[i][0] == "gh":
+        return [words[i], *rest]
+    # run executes its first word with no shell. In `run -- X=1 gh …` it
+    # takes `X=1` as the program to run, so no gh runs.
+    return rest if rest and not ASSIGNED.match(rest[0][1]) else None
+
+
 def _gh_args(words):
     """words[1:] for a gh command given as plain words, without a leading
     -R/--repo and its value."""
