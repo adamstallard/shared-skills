@@ -1307,13 +1307,6 @@ in the repository the question concerns and in the lore repository
 - **THEN** any log file it pushes for the answer holds `authority: input`,
   and it does not treat the question as answered
 
-#### Scenario: The scribe's accepted record of a Discord answer is an answer
-
-- **WHEN** igor's scribe has recorded a maintainer's Discord answer as an
-  `accepted` decision record at the path igor PR #202 sets, on the default
-  branch of the repository the question concerns
-- **THEN** filter 1 treats the record as an answer, and the agent cites it
-
 ### Requirement: A hit that is not an answer is shown as labelled, quoted input
 
 Every hit the search shows that is not an answer SHALL be shown to the
@@ -2474,12 +2467,6 @@ issue, or a chat or tracker message, SHALL be `input`, recorded only in the
 question's log file and never in a decision document. An answer in a post
 by a person without write access leaves its question unanswered.
 
-#### Scenario: An answer read outside the session is input
-
-- **WHEN** the agent finds a maintainer's answer in a Linear message, with
-  no GitHub comment to link
-- **THEN** it logs the answer with `authority: input`
-
 #### Scenario: An answer without authority leaves the question open
 
 - **WHEN** a person without write access answers, in a post, a question
@@ -2560,14 +2547,13 @@ with the next file it pushes to that branch. The agent's report SHALL say the qu
 
 ### Requirement: The answer session's files are never kept pending
 
-The answer session SHALL pass the session option on every `log` or `cite`
-push, and no other caller SHALL pass it. Called with it, the command,
-which does not check its caller, SHALL
-still fetch and push again when the branch moved, but SHALL keep no
-pending copy of a file it cannot push,
-and SHALL tell the answer session why the push failed, leaving the
-file's retry to the session (answer-session spec: *A
-questions-branch answer's file is pushed after its post*).
+The answer session SHALL pass the `log` and `cite` commands' session
+option on every push. With it, the command, which accepts the option
+from any caller, SHALL fetch and push again when the branch moved, keep
+no pending copy of a file it cannot push, and tell the session why the
+push failed, leaving the file's retry to the session's owed push (answer-session spec: *A
+questions-branch answer's file is pushed after its post*; *A handled file
+is pushed once its close takes effect*).
 
 #### Scenario: A file the answer session cannot push leaves no pending copy
 
@@ -2575,8 +2561,8 @@ questions-branch answer's file is pushed after its post*).
   session option, and the push fails for want of network or of write access
 - **THEN** the command keeps no pending copy and reports why the push
   failed
-- **AND** the next `log` or `cite` call that pushes to that branch pushes
-  only its own file
+- **AND** the next `log` or `cite` call that pushes to that branch finds
+  no copy of the failed file to push
 
 ### Requirement: No record goes somewhere more visible than its source
 

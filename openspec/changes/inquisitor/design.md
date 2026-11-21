@@ -2396,6 +2396,15 @@ A refusal the session cannot sort into either kind waits for the person.
   lacks it, a kind of comment has none, or an edit changes it, the GitHub id
   that names a miss file is changed, before miss files are named on GitHub,
   to one the measurement shows works.
+- **What marks an Igor's handback?** (tasks 0.6 and 0.38) igor PR #216
+  has not yet given the form of the marker on igor's handback comments;
+  task 0.6 records it once #216 does. Task 0.38 finds what tells an Igor's
+  Linear app user from every other Linear app user, as the `igor-` slug
+  prefix tells an Igor's App on GitHub; if nothing does, no Linear comment
+  is a handback. *A handback is an Igor's comment holding igor's marker*
+  waits on task 0.6 on both surfaces, on task 0.21 on GitHub, since the
+  prefix needs the comment's App (next bullet), and on task 0.38 on
+  Linear.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.

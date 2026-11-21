@@ -224,26 +224,16 @@ or Linear's times for requests and assignments.
 
 ### Requirement: The person's answer to a named file is their own
 
-An answer file SHALL count as **the person's answer** only when the
-inquisitor's *A named file's answer is the newest answer file naming it*,
-which turns on its `answered_by`, makes it the answer of the log file it
-names in `answers`. The answer session
-SHALL show a named file's answer even where the newest answer file with
-the same question hash is another file.
+An answer file SHALL count as **the person's answer** only when it is the
+answer of the log file it names in `answers`, by the inquisitor's *A
+named file's answer is the newest answer file naming it*, which checks
+the file's `answered_by` against whom that log file's question tags.
 
 #### Scenario: An answer file naming the asked person counts
 
 - **WHEN** an answer file holds the person as `answered_by` and names, in
   `answers`, a log file that tags the person
 - **THEN** it counts as the person's answer
-
-#### Scenario: A named file's answer is shown though its hash group's newest differs
-
-- **WHEN** an answer file that would count names a log file in
-  `answers`, and a newer answer file with the same question text names no
-  file
-- **THEN** the answer session shows the first as the log file's answer,
-  though the newer file is its hash group's newest
 
 ### Requirement: A poll position marks the newest message a poll read
 
@@ -344,8 +334,8 @@ For a Linear or Discord question that no concerns line settles and no
 mapped channel's default places, the session's model SHALL judge which
 subscribed repository it concerns or,
 for a collective's question, which configured lore repository serves it.
-A question placed in none of them, such as one whose `place` is `other`
-or `none`, has **no place**: the session SHALL post nothing by itself
+Any question, on GitHub too, that `record_verdict`'s `place` puts in
+none of them, as `other` does, has **no place**: the session SHALL post nothing by itself
 and, unless the person picks a place in the preview, relay their answer
 unrecorded.
 
@@ -859,10 +849,10 @@ unanswered one of these, and nothing else:
 - **AND** a file whose question holds the person's `@login` only in a
   code span, a quoted line or a link is not
 
-### Requirement: Handled and answer files set how a questions-branch file shows
+### Requirement: A log file named only by input answers shows the newest beside it
 
-A handled file SHALL NOT be shown as a question. A log file named only by
-answer files that do not count SHALL be shown with the newest of those
+A log file named only by
+answer files that do not count as decisions SHALL be shown with the newest of those
 answer files beside it, as input.
 
 #### Scenario: A log file named only by input answers is shown with the newest
@@ -2567,9 +2557,8 @@ and opening until it succeeds or is refused for good.
   handled file's push fails
 - **THEN** the push stays owed in the state folder and is retried at
   each poll and opening until it succeeds
-- **AND** a handled, miss or citation push the `log` or `cite` command
-  refuses for good, such as for lack of access, is not retried, and the
-  person is told so
+- **AND** a push the `log` or `cite` command refuses for good, such as
+  for lack of access, is dropped, and the person is told so
 
 ### Requirement: A miss or citation file's push is owed and retried as a handled file's is
 
@@ -2587,10 +2576,7 @@ its close takes effect* does a handled file's.
 
 ### Requirement: Four reserved prefixes mark the answer session's posts
 
-The answer session SHALL start a post with `User says: ` or
-`User asks: ` only once the person confirms it whole, and an automatic
-post only as *An automatic post's text is fixed by the answer session*
-says. No agent SHALL start any other post with a reserved prefix. An
+Only the answer session's own posts SHALL start with a reserved prefix. An
 automatic post SHALL be posted as a relay post is, and never shown as
 the person's words.
 
@@ -3233,14 +3219,6 @@ shown to the person. The answer session SHALL trust any such line.
 - **AND** if the person declines it for the inquisitor, the only filter
   offered is filter 1
 
-#### Scenario: A marked question that seems to fail filter 3 reaches the person
-
-- **WHEN** an agent's question whether to keep a passage prose's cold read
-  flagged, where only keeping it seems to have merit, is followed by the
-  line `Inquisitor: a person must decide this (required by prose).`
-- **THEN** no filter 3 reply is posted and no miss is logged; the person
-  is shown it as an ordinary unanswered question
-
 #### Scenario: A marked question posted with the person's own login gets no filter 2 to 4 reply
 
 - **WHEN** an agent posts, with the person's own `gh` login, a question
@@ -3255,13 +3233,6 @@ shown to the person. The answer session SHALL trust any such line.
 - **WHEN** such a question has an answer with authority recorded
 - **THEN** the recorded answer is posted by itself, as for any agent's
   question
-
-#### Scenario: A forged person-required line only reaches the person
-
-- **WHEN** an agent's question no skill requires carries a
-  person-required line naming `prose`
-- **THEN** the question goes to the person, like any question carrying
-  the line
 
 #### Scenario: A line is matched on its fixed wording, markup aside
 

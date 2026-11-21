@@ -72,7 +72,7 @@
 
 - **Rationale: The script tells an Igor's run by IGOR_RUN.**
   The script matches the variable's exact name and value, since a prefix match would take a seat's token variable, `IGOR_RUN_TOKEN`, for a run marker.
-  It prints that it runs as in an Igor's run each time it acts on the variable, because a repository can set `IGOR_RUN` in a person's session, through the `env` key of committed Claude Code settings or a direnv `.envrc`; lore would then be searched only through `igor lore-search`, which a person's session lacks, and nothing logged to a lore repository, and without the message the person could not tell why.
+  It prints that it runs as in an Igor's run every time it finds `IGOR_RUN` set to a run's value. A repository can set `IGOR_RUN` in a person's session, through the `env` key of committed Claude Code settings or a direnv `.envrc`. The script would then search lore only through `igor lore-search`, which a person's session lacks, and push to no questions branch, since in a run only the Igor pushes. Without the message, the person could not tell why.
   Evidence: igor PR #171 adds `IGOR_RUN_TOKEN`, https://github.com/adamstallard/igor/pull/171
   Evidence: Claude Code's project settings file, `.claude/settings.json`, is checked into source control and sets environment variables for each session through its `env` key, https://docs.anthropic.com/en/docs/claude-code/settings
   Evidence: direnv loads a directory's `.envrc` into the shell's environment on entering it, https://direnv.net/
