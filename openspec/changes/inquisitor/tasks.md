@@ -11,7 +11,8 @@ spec.
 ## 0. Measure before building
 
 Record each result that a requirement rests on as Evidence in its
-capability's decision record, and the rest in this design.md section:
+capability's decision record, and the rest in the design.md section listed
+for its task:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
@@ -205,8 +206,8 @@ have no task, so that the other tasks keep their numbers.
       Not measured: every GitHub comparison, and an Igor's handback URL
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
-      permission. This is the mapping the answer-session spec's *A refusal
-      the session cannot place waits for the person* uses
+      permission. This is the mapping the answer-session spec's *A pending
+      answer that no check returns waits for the person* uses
 - [ ] 0.26 With a mod logging the `agentId` of every call to a tool it
       registers, such as `propose_reply`, let Claude Code's forked side
       conversations, such as the one that guesses the next prompt, run,
@@ -689,11 +690,10 @@ have no task, so that the other tasks keep their numbers.
       GitHub can merge the advisory's private-fork pull request before
       publication. When it shows the merge waits, or the advisory's
       publisher says it does, the regression test lands in the private
-      fork, and fork commit messages may describe
-      the weakness (*A commit in an advisory's private fork is described as
-      task 0.13 allows*). Without either, the test lands nowhere until
-      publication, and then on a public branch (*A weakness's regression
-      test lands nowhere public before publication*). Commit messages on a
+      fork, and fork commit messages may describe the weakness. Without
+      either, the test lands nowhere until publication, and then on a
+      public branch (*Before publication, a weakness's test and
+      description reach only the private fork*). Commit messages on a
       public branch never describe the weakness before publication (*A
       weakness is not described in public text before its advisory is
       published*)

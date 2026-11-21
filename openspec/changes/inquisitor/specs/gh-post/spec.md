@@ -56,11 +56,6 @@ is not a read (*A gh api call is a read only as a plain gh command*).
 - **THEN** the reader reports that each command sends no post, so both
   hooks let it through unread
 
-#### Scenario: A command naming no gh post verb is no post
-
-- **WHEN** a hook asks about `gh pr view 5`, or about `git log`
-- **THEN** the reader reports that each command sends no post
-
 #### Scenario: A gh api read piped into a script is no post
 
 - **WHEN** a hook asks about `gh api repos/o/r/pulls/5 | python3 -c
@@ -156,7 +151,9 @@ such as `--template`, SHALL make the command unreadable.
 
 ### Requirement: The reader reads a GitHub MCP tool's body and comment keys
 
-For a GitHub MCP tool, the reader SHALL return every string under a key
+A **GitHub MCP tool** is one whose name starts `mcp__github__` or
+`mcp__plugin_<name>_github__`, the tools prose's posting hook matches.
+For one, the reader SHALL return every string under a key
 named `body` or `comment`, at any depth, as a body, and say that the post
 creates an issue for `create_issue`, and for `issue_write` with the
 `method` `create`.
@@ -217,10 +214,10 @@ its scenarios list as unreadable SHALL be unreadable.
 
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
-command in it names no `gh`, is a `gh pr` or `gh issue` command given no
-body or a `gh api` call that sends no post, or is a **data command** (its
-scenarios list them) whose words include no `gh` and no path ending in
-`/gh`.
+command in it names no `gh`; is a `gh pr` or `gh issue` command, or the
+github-app skill's form of one, given no body; is a `gh api` call that
+sends no post; or is a **data command** (its scenarios list them) with
+no word that is `gh` or a path ending in `/gh`.
 
 #### Scenario: A command that sends no body is no post
 
@@ -398,8 +395,8 @@ verb.
 
 #### Scenario: A read with placeholders or a query string is a read
 
-- **WHEN** a hook asks about `gh api repos/{owner}/{repo}/pulls/5 |
-  python3 -c 'print(1)'`, and about `gh api search/issues?q=x`
+- **WHEN** a hook asks about `gh api repos/{owner}/{repo}/pulls/5`, and
+  about `gh api search/issues?q=x`
 - **THEN** the reader reports that each line sends no post
 
 ### Requirement: A gh api call holding a word the shell builds is unreadable
@@ -487,14 +484,11 @@ the reader SHALL read each `body` field, and each `body` key of the
 - **THEN** the reader returns `b` as the body, and says that the post
   creates an issue
 
-#### Scenario: A gh api body held in a shell variable is unreadable
+#### Scenario: A quoted gh api body is read after quote removal
 
 - **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments -f
-  body=$B`, about the same call with `-f "body=$B"`, and about it with
-  `-f body='a b'`
-- **THEN** the reader reports the first two as unreadable, and returns
-  `a b` as the body of the third
-- **AND** `gh api repos/o/r/issues -f title=$T` is unreadable too
+  body='a b'`
+- **THEN** the reader returns `a b` as the body
 
 #### Scenario: gh api placeholders count as an owner and a repository
 
@@ -596,12 +590,12 @@ is unreadable*).
 
 #### Scenario: A gh api write to an endpoint the reader does not read passes unread
 
-- **WHEN** a hook asks about `gh api -X POST repos/o/r/releases -f
-  body=notes`, `gh api -X POST repos/o/r/releases -F body=@missing.md`,
-  and a `gh api graphql` call with an `addDiscussionComment` mutation
+- **WHEN** a hook asks about `gh api -X POST repos/o/r/releases -F
+  body=@missing.md`, and a `gh api graphql` call with an `addDiscussionComment` mutation
   whose `body` is the literal `"x"`
-- **THEN** the reader reports that each command sends no post, so both
-  hooks let it through unread, as they do `gh release` and `gh discussion`
+- **THEN** the reader reports that each command sends no post, so
+  neither post hook reads it, as neither reads `gh release` or
+  `gh discussion`
 - **AND** `gh api -X POST repos/o/r/releases -f body=$B` is unreadable,
   since the shell could split `$B` into more words, one of them another
   endpoint

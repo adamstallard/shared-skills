@@ -809,8 +809,7 @@ the record: the agent must name why the question is not logged.
 
 **Rule:** inquisitor spec, *No credential goes into a log file or a
 question*; *The credential patterns are a closed list of token shapes*; *The
-credential scan reads raw markdown*; *The post hook scans each question's raw
-markdown*. The scan catches known token shapes only: a `DB_PASSWORD=…`
+credential scan reads raw markdown*. The scan catches known token shapes only: a `DB_PASSWORD=…`
 passes it. The patterns include the two kinds of credential this change puts
 within the session model's reach: a Linear key and a Discord relay's bot
 token.
@@ -1752,7 +1751,7 @@ scenario *A GitHub link into a more private repository is left out*).
 
 **Rule:** answer-session spec, *An answer that cannot reach its thread is
 kept pending*; *A pending answer whose channel was off returns to the
-queue*; *A pending answer no check returns waits for the person*; *Only the
+queue*; *A pending answer that no check returns waits for the person*; *Only the
 person is told an answer is pending*. A failed post keeps its answer
 pending rather than leaving the question as it was, which would drop the
 answer the person typed.
@@ -1773,8 +1772,8 @@ pending*).
 
 **Rule:** answer-session spec, *A questions-branch answer's file is pushed
 after its post*; *An answer whose thread is unreachable here is logged at
-once*; *An owed push's retry stops when answered or refused for good*; *The
-answer session's owed push is its only retry*. The file follows the post so
+once* and the requirements beside them; inquisitor spec, *The answer
+session's files are never kept pending*. The file follows the post so
 that no thread is left answered with no file. Recording the owed push
 before the post means a crash between them does not lose the answer file.
 Checking the thread first lets the person see a new message before
@@ -1800,10 +1799,9 @@ anything is pushed.
   handled file closes a questions-branch question*, scenario *Dropping a
   pending answer pushes no handled file*);
 - the `log` command keeping a pending copy of a file the answer session
-  pushes, beside the session's own retry (answer-session spec: *The answer
-  session's owed push is its only retry*, scenarios *A push that failed for
-  a moment leaves one answer file* and *A push refused for lack of access
-  is never pushed later*).
+  pushes, beside the session's own retry (inquisitor spec: *The answer
+  session's files are never kept pending*, scenario *A file the answer
+  session cannot push leaves no pending copy*).
 
 Were the `log` command to keep a pending copy too, a passing failure would
 give two answer files: the session's retry would push one, and the next
@@ -2407,7 +2405,7 @@ is the one the answer session reads.
 Task 0.25 records how each surface reports two kinds of refusal of a relay
 post: one for its text, such as its length, and one for lack of permission.
 A refusal the session cannot sort into either kind waits for the person (the
-answer-session spec's *A refusal the session cannot place waits for the
+answer-session spec's *A pending answer no check returns waits for the
 person*). Task 0.26 records whether a forked conversation's or a subagent's
 `propose_reply` call can arrive without an `agentId`. Either way the rule
 stands: such a call's draft only lands in the prompt box, where the person
@@ -2704,3 +2702,21 @@ to its 149.
   when it is made. *Some answer-session details are decided at
   implementation* lists them and what is decided around them.
 
+
+### Rules the owner decides whether to cut
+
+Each entry would shorten the spec by removing a rule that no evidence
+settles, so the repository's owner decides.
+
+- **Keep the rule for a question that concerns nothing?** *A question is
+  written at the privacy of what it concerns* forbids asking a question
+  that concerns no repository, collective or person's way of working. The
+  inquisitor's *With no repository, a question concerns none* adds what
+  happens when an agent asks one regardless: it is logged nowhere and
+  tags no one in a post. Cutting that rule shortens the spec; keeping it
+  fixes what happens when the first rule is broken.
+- **Keep "No environment variable opens the answer session"?** The
+  answer-session's *Two commands open an answer session* holds it. Cutting
+  it also drops task 0.36 and its Open Question; keeping it rules out a
+  variable, which a session the Claude app starts with no terminal may be
+  unable to set.

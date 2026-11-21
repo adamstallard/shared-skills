@@ -848,8 +848,8 @@ lore-search`*).
 During an Igor's run, igor's search, which igor builds, SHALL cover only the
 lore repository the Igor injects lore from, its checkout and questions branch, and the item's
 repository's questions branch, read as *The Igor reads questions branches
-with the script* says. igor identifies a worker's run and role by the channel its request arrives
-on. It SHALL keep to the role's scope and the item's visibility.
+with the script* says. It SHALL keep to the role's scope, the `project:`
+entries of each repository the role works, and the item's visibility.
 
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
 
@@ -858,15 +858,10 @@ on. It SHALL keep to the role's scope and the item's visibility.
   `project:api` and `project:web` entries, a question file naming the public
   `o/doc` and a miss file naming the private `o/api`
 - **THEN** `igor lore-search` returns the `project:web` entry and, as
-  input, the `o/doc` file. The scope rule of igor PR #216's lore-firing spec covers
-  the `project:` entries of each repository the role works,
-  `project:api` among them, but the item's visibility hides that entry
-  and the `o/api` file
+  input, the `o/doc` file. The role's scope covers `project:api`, but the
+  item's visibility hides that entry and the `o/api` file
 - **AND** it returns nothing from any lore repository but the one the Igor
   injects lore from
-- **AND** it does so under igor PR #216's requirements *Lore reaches the
-  worker unbidden, beside a search it may run* and *An Igor runs its
-  worker's lore searches* and its decisions 53, 54 and 55
 
 ### Requirement: The script searches a questions branch and prints labelled hits as JSON
 
@@ -1800,10 +1795,10 @@ stop only work needing the answer, and report it.
 
 ### Requirement: A flagged run's handback comment asks no question
 
-A **flagged run** SHALL be an Igor's run that igor counts as flagged, as
-igor PR #216 defines it: its worker reported the flag of *A session with no
-person in it holds back a question with a category*, or the run ended
-without the worker's completed report. Its Igor's handback comment SHALL
+A **flagged run** SHALL be an Igor's run that igor PR #216 counts as
+flagged: one whose worker met a question with a category, whether or not
+that question stopped it, or that ended without the worker's completed
+report. Its Igor's handback comment SHALL
 ask no question; what the Igor does with the question is igor PR #216's.
 
 #### Scenario: A run that ends without its worker's report is flagged
@@ -2158,19 +2153,6 @@ shared post reader reports it; anywhere else it needs an `ask` verdict.
 - **THEN** the hook blocks the post and names the question, and the agent
   runs the two calls on it again
 
-### Requirement: The post hook scans each question's raw markdown
-
-Just before a post goes out, the post hook SHALL block it when any of its
-questions, read as raw markdown with link targets included, matches the
-credential patterns (design.md: *The secret scan is only a backstop*).
-
-#### Scenario: A token added to a link target after vetting is blocked
-
-- **WHEN** a question in a post was vetted `ask`, and its link target is
-  then changed to `https://x/?token=ghp_…`, which leaves its reduced text
-  and hash unchanged
-- **THEN** the post hook blocks the post
-
 ### Requirement: A question in a post is a listed item or a sentence ending in a question mark
 
 The first call and post hook SHALL find a post's questions alike: each list
@@ -2308,12 +2290,6 @@ agent asks through it, never in its reply* says.
   has no `.inquisitor/reviewers`
 - **THEN** the question tags the last person to commit to the files it
   concerns, when that person has write access
-
-#### Scenario: A deferred question in a list or a new issue is not tagged
-
-- **WHEN** a question with a `deferred` verdict is listed in an
-  open-questions section, or is in a post that creates an issue
-- **THEN** it tags no one, not even the session's login
 
 ### Requirement: A question no candidate can decide turns to the session's login
 
@@ -2514,8 +2490,7 @@ being its record until then.
 The agent SHALL write `authority: decision` only for an answer by a person
 whose login has write access to what the question concerns, given in the
 session by its person, in the picker or their own message, or in a GitHub
-comment or review it links. The agent's own filter-3 or filter-4 choice
-SHALL never be `decision`.
+comment or review the agent links.
 
 #### Scenario: A picker answer from a person without write access is input
 
@@ -2642,13 +2617,14 @@ with the next file it pushes to that branch. The agent's report SHALL say the qu
 
 ### Requirement: The answer session's files are never kept pending
 
-Called with its session option, which only the answer session passes,
-the `log` or `cite` command, which does not check its caller, SHALL
+The answer session SHALL pass the session option on every `log` or `cite`
+push, and no other caller SHALL pass it. Called with it, the command,
+which does not check its caller, SHALL
 still fetch and push again when the branch moved, but SHALL keep no
 pending copy of a file it cannot push,
 and SHALL tell the answer session why the push failed, leaving the
-file's retry to the session (answer-session spec: *The answer session's
-owed push is its only retry*).
+file's retry to the session (answer-session spec: *A
+questions-branch answer's file is pushed after its post*).
 
 #### Scenario: A file the answer session cannot push leaves no pending copy
 
@@ -2812,16 +2788,6 @@ confirms it.
   questions branch`, `Not recorded: no team's lore repository serves it`
   or `Not recorded: no GitHub login configured`, the first of these that
   applies
-
-#### Scenario: A picker question with no login configured is not recorded
-
-- **WHEN** the second call gives the verdict `ask` to a picker question,
-  and `inquisitor.json` names no login, or names `alice` while `gh` is
-  logged in as `bob`, so no login counts (*A configured login counts only
-  when gh is logged in as it*)
-- **THEN** the record line reads `Not recorded: no GitHub login
-  configured`, so the person sees before answering that nothing will be
-  logged, and the agent logs nothing
 
 #### Scenario: A Not recorded line with other text stays in the question
 
@@ -3058,8 +3024,9 @@ A worker re-working an item after a person answered its handback question
 SHALL report a new questions-branch log file for that answer, and SHALL
 write no answer, nor `answers`, into any log file (design.md: *A worker logs
 no answer*). The Igor writes the answer from the linked comment, decides its
-`authority` and `answered_by` under the checks of *Only an answer with
-authority stops a question*, a bot account's comment being input, and adds
+`authority` under *An answer is a decision only from a person with write
+access* and its `answered_by` as the `log` command would, a bot account's
+comment being input, and adds
 `answers` itself.
 
 #### Scenario: A worker re-working an answered handback reports the answer
@@ -3201,7 +3168,7 @@ session runs it.
 ### Requirement: The log command in Igor-worker mode writes no answer
 
 In Igor-worker mode the `log` command SHALL read no comment and write no
-answer, and writes no `asked_in`.
+answer, `authority` or `asked_in`; its Igor writes them.
 
 #### Scenario: In Igor-worker mode the log command reads no comment
 
@@ -3501,18 +3468,24 @@ gets the `secret` category.
 
 #### Scenario: A log file holding a secret is not written
 
-- **WHEN** a log file the script would write, or a question in a post the
-  first call takes, holds a private key, a GitHub token starting `ghu_` or
-  `ghr_`, a string starting `sk-ant-`, `lin_api_` or `lin_oauth_`, or a
-  Discord bot token
-- **THEN** the script refuses to write the file, or the first call refuses
-  the post
+- **WHEN** a log file the script would write holds a string matching the
+  credential patterns
+- **THEN** the script refuses to write the file
 
 ### Requirement: The credential scan reads raw markdown
 
 Each scan for the credential patterns SHALL read the raw markdown, link
 targets included, not the reduced text of *A question's text and hash are
-built one way*; the hash still uses the reduced text.
+built one way*; the hash still uses the reduced text. Just before a post
+goes out, the post hook SHALL scan its questions again and block it on a
+match (design.md: *The secret scan is only a backstop*).
+
+#### Scenario: A token added to a link target after vetting is blocked
+
+- **WHEN** a question in a post was vetted `ask`, and its link target is
+  then changed to `https://x/?token=ghp_…`, which leaves its reduced text
+  and hash unchanged
+- **THEN** the post hook blocks the post
 
 #### Scenario: A token in a link target is refused
 
@@ -3781,9 +3754,8 @@ several; else `message` and the asking message's URL.
 
 ### Requirement: A miss file's name is pushed once
 
-A miss with nothing to name its file by, as *Every miss file is named by
-one hash* names one, SHALL get no file, and a writer finding the name
-taken SHALL push nothing, so a later miss about the same reply or question
+A writer finding a miss file's name taken SHALL push nothing, so a later
+miss about the same reply or question
 leaves the first in place, as *A file on a questions branch never changes
 once pushed* requires.
 
@@ -3978,13 +3950,13 @@ id that igor PR #216 defines; and a commit by
 
 ### Requirement: Some questions are recorded by hash only
 
-A question with a category SHALL get no log or miss file, beyond a handled
-file closing one already logged, nor any other readable record: the agent
-SHALL pass it, its verdict and its picker call only on standard input; the
-first call SHALL refuse a category but `vulnerability`, `secret` and
-`personal`, and search nothing off the machine for it; the calls SHALL
-record only its hash, verdict, time and category. The post hook SHALL
-block a post with a question whose latest record has a category.
+A question with a category SHALL get no log or miss file, except a handled
+file closing a file logged before it got its category, nor other readable
+record: the agent
+SHALL pass it, its verdict and its picker call's questions only on
+standard input; the first call SHALL refuse any category but
+`vulnerability`, `secret` and `personal`, and search nothing off the machine for it; the calls SHALL
+record only its hash, verdict, time and category.
 
 #### Scenario: A question with a category given in a file is refused
 
@@ -4039,6 +4011,11 @@ block a post with a question whose latest record has a category.
 - **WHEN** an agent calls the picker with a question whose latest record is
   an `ask` with the category `personal`, made within 2 hours
 - **THEN** the picker hook lets the call through
+
+### Requirement: The post hook blocks a post holding a question with a category
+
+The post hook SHALL block a post with a question last recorded with a
+category.
 
 #### Scenario: A post holding a question with a category is blocked
 
@@ -4100,8 +4077,8 @@ only that the question blocks.
 A session with no person in it SHALL ask or post no `secret` or `personal`
 question, ask a `vulnerability` one only in the advisory, defer none, stop
 only work needing the answer, and report only its category as blocking or
-waiting. An Igor worker, a term the scenarios below widen to later model
-steps, SHALL instead report igor PR #216's flag on giving a question a
+waiting. An Igor worker, a term that here also covers each model step
+igor PR #153 runs after the worker, SHALL instead report igor PR #216's flag on giving a question a
 category: each category met, listed once, marked if a question of it
 stopped the worker, and nothing else.
 
@@ -4128,16 +4105,6 @@ stopped the worker, and nothing else.
   `secret`, and decides it under filter 4
 - **THEN** the worker's report holds igor's flag listing `secret` unmarked,
   since the question did not stop the work, and no question or answer
-- **AND** an Igor's run is the whole execution on the item, and each model
-  step igor PR #153 runs after the worker, such as writing the pull request
-  body, counts as a worker (igor PR #216's decisions 60 and 64)
-- **AND** igor PR #216's task-execution requirement [*Transcripts and
-  outcomes are captured to the state
-  branch*](https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/task-execution/spec.md),
-  which records the flag with the run's outcome, sets what the Igor does
-  with the flag, and the same rules when it runs the skill itself with no
-  worker; it counts a word as a category only when it is exactly one of
-  the three categories (its decisions 92 and 97)
 
 #### Scenario: The flag lists each category once and marks the stopped questions'
 
@@ -4207,70 +4174,39 @@ until disclosure*).
 - **THEN** its commit message says what the weakness was and why the fix
   closes it
 
-### Requirement: A weakness's regression test lands nowhere public before publication
+### Requirement: Before publication, a weakness's test and description reach only the private fork
 
-A fix's regression test that fails before the fix, such as bug-hunter's,
-SHALL land on a public branch only once the agent can read that the
-weakness's advisory is published. Before that it SHALL land only in the
-advisory's private fork, and only if **task 0.13 holds** (it showed GitHub
-merges the fork's pull request only at publication) or the advisory's
-publisher said it merges then (**the publisher's word**; design.md:
-*Weaknesses stay out of public text until disclosure*).
+Until the agent can read that a weakness's advisory is published, a
+regression test that fails before the weakness's fix SHALL land on no
+public branch. Only if **task 0.13 holds** (GitHub merges the advisory's
+private fork only at publication) or the publisher said the fork merges only
+at publication (**the publisher's word**, enough whatever task 0.13
+shows) SHALL the agent
+commit that test in the fork or describe the weakness in a fork commit;
+else the advisory's text holds the description.
 
-#### Scenario: The regression test waits for publication without the publisher's word
+#### Scenario: Task 0.13 or the publisher's word lets the fork hold the test and the description
 
-- **WHEN** task 0.13 does not hold, the agent has a regression test that
-  fails before the fix of a weakness whose advisory is unpublished, and it
-  lacks the publisher's word
-- **THEN** it commits the test neither in the fork nor on a public branch
-  until the advisory is published
+- **WHEN** the advisory is unpublished, and task 0.13 holds or the agent
+  has the publisher's word
+- **THEN** the agent commits the regression test in the private fork, and
+  on no public branch
+- **AND** its fork commit messages say what the weakness was and why the
+  fix closes it
 
-#### Scenario: The regression test goes in the fork on the publisher's word
+#### Scenario: Without either, the fork holds neither
 
-- **WHEN** task 0.13 does not hold, and the agent has the publisher's word
-- **THEN** the agent commits the regression test in the advisory's private
-  fork, and on no public branch
-
-#### Scenario: The regression test goes in the fork when task 0.13 holds
-
-- **WHEN** task 0.13 holds, the advisory is unpublished, and the agent
-  lacks the publisher's word
-- **THEN** the agent commits the regression test in the advisory's private
-  fork, and on no public branch
+- **WHEN** the advisory is unpublished, task 0.13 does not hold, and the
+  agent lacks the publisher's word
+- **THEN** it commits the regression test nowhere until the advisory is
+  published
+- **AND** its fork commit messages describe neither the weakness nor how
+  to exploit it, and it writes the full description in the advisory's text
 
 #### Scenario: The regression test lands on a public branch after publication
 
 - **WHEN** the agent can read that the weakness's advisory is published
 - **THEN** it commits the regression test on the public branch
-
-### Requirement: A commit in an advisory's private fork is described as task 0.13 allows
-
-A commit in an advisory's private fork, GitHub's temporary fork for it,
-SHALL describe neither the weakness nor its exploit unless task 0.13 holds
-or the agent has the publisher's word. The publisher's word SHALL suffice
-even if task 0.13 shows the fork's pull request can merge before
-publication. Else the agent SHALL put the full description in the advisory's
-text.
-
-#### Scenario: A fix in the private fork is described normally
-
-- **WHEN** task 0.13 holds, and the agent commits a fix in the private fork
-- **THEN** its commit message says what the weakness was and why the fix
-  closes it
-
-#### Scenario: A fork commit that might merge before publication follows the public rule
-
-- **WHEN** task 0.13 does not hold, and the agent commits a fix in the
-  private fork without the publisher's word
-- **THEN** that commit's message describes neither the weakness nor how to
-  exploit it, and the agent writes the full description in the advisory's
-  text
-
-#### Scenario: A fork commit the publisher will merge at publication is described normally
-
-- **WHEN** task 0.13 does not hold, and the agent has the publisher's word
-  before it writes a commit in the private fork
-- **THEN** that commit says what the weakness was and why the fix closes it
 
 ### Requirement: An answer that generalizes is proposed as lore
 

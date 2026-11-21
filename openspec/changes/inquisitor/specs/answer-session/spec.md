@@ -1572,15 +1572,15 @@ check SHALL still show as not checked.
 - **THEN** the answer returns to the queue, kept, and setup still shows
   the posting check as not checked
 
-### Requirement: A pending answer no check returns waits for the person
+### Requirement: A pending answer that no check returns waits for the person
 
-A pending answer that *A pending answer whose channel was off returns to
-the queue* does not return SHALL stay until the person acts on it,
-whatever check passes, even when a refusal for its text, such as its
-length, turned its channel off, as any refusal does where posting rights
-are unreadable. The person SHALL be able to edit or drop a pending
-answer at any time, and post it while its channel is on and subscribed
-here; a dropped answer is never posted.
+A pending answer SHALL stay until the person acts on it, whatever check
+passes, unless *A pending answer whose channel was off returns to the
+queue* returns it, as it returns none refused for its text. A refusal
+task 0.25's mapping cannot place counts as one for its text, shown with
+the surface's error. The person SHALL be able to edit or drop a pending
+answer at any time, and post it while its channel is on and subscribed on
+this machine; a dropped answer is never posted.
 
 #### Scenario: A text refused for its length stays pending after a recheck
 
@@ -1594,13 +1594,6 @@ here; a dropped answer is never posted.
 - **WHEN** the person drops an answer from the pending list
 - **THEN** nothing is posted for it, and the question's state is read
   from its thread
-
-### Requirement: A refusal the session cannot place waits for the person
-
-A refusal the session cannot place as one for its text or one for
-permission, by the mapping task 0.25 records for each surface, SHALL be
-handled as a refusal for its text: the answer stays pending until the
-person acts on it, shown with the surface's error, whatever check passes.
 
 #### Scenario: A refusal the session cannot place waits for the person
 
@@ -1711,26 +1704,6 @@ the answer was relayed but not logged, and why.
   posted once the channel is on, and the edited answer's push fails
 - **THEN** the answer session keeps retrying that push, and the
   "Use Postgres" file does not drop the retry
-
-### Requirement: The answer session's owed push is its only retry
-
-The answer session SHALL pass the `log` or `cite` command's session option on every
-push, so that its owed push is the only retry of any file it pushes (the
-inquisitor's *The answer session's files are never kept pending*).
-
-#### Scenario: A push that failed for a moment leaves one answer file
-
-- **WHEN** an owed push of an answer file fails for want of network, and
-  the retry at the next poll succeeds
-- **THEN** the questions branch holds one answer file for that answer,
-  and no later `log` call pushes a second
-
-#### Scenario: A push refused for lack of access is never pushed later
-
-- **WHEN** the `log` command refuses an owed push for lack of access, and
-  the person is told the answer was relayed but not logged
-- **THEN** no later `log` call, on this machine or by any agent, pushes
-  that answer file
 
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
@@ -2414,19 +2387,6 @@ concerns.
 - **THEN** the answer is relayed in the thread, and a log file naming the
   closed file in `answers` is pushed
 
-### Requirement: A question with no thread gets no ask-back or edit
-
-A question shown from a log file with no `asked_in` has no thread, so
-the answer session SHALL offer no `User asks: ` post and no edit of its
-answer.
-
-#### Scenario: A fourth-source question with no thread gets no ask-back or edit
-
-- **WHEN** the person is shown a fourth-source question whose log file has
-  no `asked_in`
-- **THEN** the session offers neither asking the asker back nor editing its
-  answer
-
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
 When the questions branch the answer file would go to is more visible than
@@ -2814,16 +2774,10 @@ break, telling the person why.
   `Recorded answer: ` whose `Recorded in: ` line holds that file's URL,
   and a miss file with `filter` `"1"` is logged
 
-#### Scenario: A filter 1 reply whose URL holds a line break is refused
+#### Scenario: A filter 1 reply whose URL holds a line break or a space is refused
 
 - **WHEN** the draft of a filter 1 reply has a `Recorded in: ` value
-  holding a line break followed by a `Re: ` line
-- **THEN** the answer session posts nothing, since the `Re: ` line would
-  make the fixed post name another question, and tells the person why
-
-#### Scenario: A filter 1 reply whose URL holds a space is refused
-
-- **WHEN** a filter 1 reply's drafted `Recorded in: ` value holds a space
+  holding a space or a line break
 - **THEN** the answer session posts nothing, and tells the person why
 
 ### Requirement: The preview warns when a filter 1 record is more private than the thread
