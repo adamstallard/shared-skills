@@ -2705,6 +2705,24 @@ def item_changed(old, new, spans):
     return False
 
 
+def quote_removed(quote, old, new):
+    """Whether a finding's quoted words were in old, the item's file when
+    its brief was printed, and are gone from new, the file as it is
+    signed. The brief shows each
+    passage inside its section, so a reader can quote an unchanged line
+    beside the item's spans, and editing those words fixes the finding.
+    Runs of whitespace match any run, so a quote may cross a line break,
+    and a quote that starts or ends with a letter or digit matches only
+    whole words: «x» is not found in "text"."""
+    words = quote.split()
+    pattern = r"\s+".join(map(re.escape, words))
+    if re.match(r"\w", words[0]):
+        pattern = r"(?<!\w)" + pattern
+    if re.search(r"\w$", words[-1]):
+        pattern += r"(?!\w)"
+    return bool(re.search(pattern, old)) and not re.search(pattern, new)
+
+
 def _read_text(path, what):
     try:
         # utf-8-sig: an editor's byte order mark is not part of the first line.
@@ -2864,10 +2882,11 @@ def read_dispositions(path, token, findings, items):
 def check_cold_read(token, record, report, dispositions, current):
     """Refused unless the report answers the brief recorded for this token;
     every finding and every item's understood line has a disposition; each
-    one marked fixed is in an item that has changed since the brief; and
+    one marked fixed is in an item that has changed since the brief, or,
+    for a finding, its quoted words are gone from the item's file; and
     each one kept says a person was asked.
     current(path) gives a file's text as it is signed; a post's path is "",
-    and current gives the post's text. A ColdResult."""
+    and current gives the post's text. Returns a ColdResult."""
     brief = record.get("cold")
     if not brief:
         raise Refused(f"no cold-read brief was printed for pass token {token}, so there is no "
@@ -2883,17 +2902,25 @@ def check_cold_read(token, record, report, dispositions, current):
     answers, said = read_dispositions(dispositions, token, findings, understood)
     now = {}
 
-    def unchanged(item):
+    def current_text(item):
         path = paths[item - 1]
         if path not in now:
             now[path] = current(path)
-        return not item_changed(texts[path], now[path], spans[item - 1])
+        return texts[path], now[path]
+
+    def unchanged(item):
+        return not item_changed(*current_text(item), spans[item - 1])
+
+    def quote_kept(finding):
+        return not quote_removed(finding.quote, *current_text(finding.item))
 
     for finding in findings:
-        if answers[finding.number] is None and unchanged(finding.item):
+        if (answers[finding.number] is None and unchanged(finding.item)
+                and quote_kept(finding)):
             raise Refused(f"finding {finding.number} is marked fixed, but item {finding.item}, in "
                           f"{paths[finding.item - 1] or 'the post'}, has not changed since the "
-                          f"brief was printed. Fix it, or keep it with a reason. {KEPT}")
+                          f"brief was printed, and the words it quotes were not edited out of "
+                          f"that file. Fix it, or keep it with a reason. {KEPT}")
     for item, answer in sorted(said.items()):
         if answer == "fixed" and unchanged(item):
             raise Refused(f"the understood line of item {item} is marked fixed, but item {item}, "
