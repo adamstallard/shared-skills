@@ -426,7 +426,7 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       script checks whether a miss file backs a reply*). Its JSON is part
       of the contract with igor, under task 2.3b's test
 - [ ] 2.3d `file-answer`, which takes a repository and a questions-branch
-      file's name and prints only that file's answer, or `null` (inquisitor
+      file name's date and 6-hex-digit suffix and prints only that file's answer, or `null` (inquisitor
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test

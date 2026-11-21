@@ -251,19 +251,6 @@ pending answer whose channel was off returns to the queue* says.
 - **WHEN** this machine holds an answer to a question on the pending list
 - **THEN** that question is not in this machine's queue
 
-### Requirement: An unanswered log file holds no answer the person gave
-
-On a questions branch, the answer session SHALL count a log file as
-unanswered as the inquisitor's Purpose defines the word: one that holds no
-answer and that no answer file counting as the person's answer names in
-`answers`.
-
-#### Scenario: A log file named only by an input answer file is unanswered
-
-- **WHEN** a questions-branch log file holds no answer, and the only
-  answer file naming it in `answers` has `authority: input`
-- **THEN** the log file counts as unanswered
-
 ### Requirement: The person's answer to a named file is their own
 
 An answer file SHALL count as **the person's answer** only when the
@@ -278,15 +265,6 @@ the same question hash is another file.
 - **WHEN** an answer file holds the person as `answered_by` and names, in
   `answers`, a log file that tags the person
 - **THEN** it counts as the person's answer
-
-#### Scenario: A file that tags no one is answered by an account with write access
-
-- **WHEN** a log file about the organization tags no one, and an answer
-  file naming it names as `answered_by` an account with write
-  access to the lore repository, which is what a collective's question
-  concerns for this rule
-- **THEN** that answer file counts as the person's answer, this spec's
-  term for a named file's answer, though no one is tagged
 
 #### Scenario: A named file's answer is shown though its hash group's newest differs
 
@@ -1880,11 +1858,11 @@ thread shows. On GitHub it is built only once task 0.21 is measured.
 
 ### Requirement: A questions-branch question's state is read from its branch
 
-A questions-branch file SHALL count as answered once it is no longer an
-unanswered log file (*An unanswered log file holds no answer the person
-gave*). Only a handled file naming it SHALL close it, on every machine
-and for good. A closed file stays unanswered: answering its open thread
-copy still pushes a log file.
+A questions-branch file SHALL count as answered once it is no longer
+unanswered, a word the inquisitor's Purpose defines. Only a handled file
+naming it SHALL close it, on every machine and for good, and closing
+leaves it unanswered. Its thread copy is a question of its own: answering
+that copy on a machine where it is still open still pushes a log file.
 
 #### Scenario: An answer to a closed file's thread copy still logs
 

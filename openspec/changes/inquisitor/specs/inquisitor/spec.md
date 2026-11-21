@@ -1277,6 +1277,12 @@ grouping supersedes still answers the file it names.
 - **AND** for a named file whose `repository` key is `o/api`, the answer
   file counts only when `alice` has write access to `o/api`
 
+#### Scenario: A log file named only by an input answer file is unanswered
+
+- **WHEN** a questions-branch log file holds no answer, and the only
+  answer file naming it in `answers` has `authority: input`
+- **THEN** the log file counts as unanswered
+
 #### Scenario: An answer naming one file does not answer another with the same question
 
 - **WHEN** two unanswered questions-branch files hold the same question,
@@ -2960,8 +2966,9 @@ repository. If the push fails, the question SHALL stay in the run's report.
 ### Requirement: A later run gets only the answer to its Igor's question on a more private repository
 
 On each later run on an item, for each question file the Igor pushed for
-it to a more private repository, the Igor SHALL run `file-answer` on that
-file, named as the Igor recorded it at the push, and pass any answer to the
+it to a more private repository, the Igor SHALL run `file-answer` with that
+repository and the file name's date and 6-hex-digit suffix, which the Igor
+records at the push, and pass any answer to the
 worker as from a more private repository and not to be quoted in the item.
 The run SHALL be shown nothing else from that branch, since the item's
 readers may not read that repository.
@@ -2987,21 +2994,24 @@ readers may not read that repository.
 
 ### Requirement: The script prints one questions-branch file's answer
 
-The script's `file-answer` command SHALL take a repository and the name of
-a file on its questions branch, and print one JSON object holding only that
-file's answer, as *A named file's answer is the newest answer file naming
-it* decides it, or `null` when it has none.
+The script's `file-answer` command SHALL take a repository and the date
+and 6-hex-digit suffix of a file name on its questions branch, and print
+one JSON object holding only that file's answer, as *A named file's answer
+is the newest answer file naming it* decides it, or `null` when it has
+none. When not exactly one file on the branch has that date and suffix, it
+SHALL exit with an error and print no `answer`.
 
 #### Scenario: The file answer prints the named file's answer and nothing else
 
-- **WHEN** `file-answer` is run for `o/api` and a question file tagging
-  `alice`, which two answer files that would count name in `answers`, the
-  older answered by `alice` and the newer by `bob`, whom it does not tag
+- **WHEN** `file-answer` is run for `o/api` and the date and suffix of a
+  question file tagging `alice`, and two answer files name that file in
+  `answers`, both passing every other check: the older answered by
+  `alice`, the newer by `bob`, whom the file does not tag
 - **THEN** it prints `{"version": 1, "answer": "<alice's answer>"}`, since
-  only the tagged person's file can be its answer, and prints nothing
-  about either answer file
-- **AND** when it cannot fetch the branch it exits with an error and
-  prints no `answer`
+  only the tagged person's file can be its answer, and no other field: no
+  answer file's name, path or author
+- **AND** when it cannot fetch the branch, or no single file has that date
+  and suffix, it exits with an error and prints no `answer`
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
@@ -4486,7 +4496,8 @@ open, since the answer session answers such a post by number.
 #### Scenario: An unnumbered reply to a post of several listed questions is input
 
 - **WHEN** an agent's post lists two questions in one open-questions
-  section, and a reply starting `Inquisitor: filter 4`, with no
+  section, or lists one there and asks another in a sentence ending in `?`
+  outside it, and a reply starting `Inquisitor: filter 4`, with no
   `question <n>: `, has its miss file
 - **THEN** the reply is input, and both questions stand
 

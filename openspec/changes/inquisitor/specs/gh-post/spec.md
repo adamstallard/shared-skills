@@ -188,10 +188,13 @@ its scenarios list as unreadable SHALL be unreadable.
 
 #### Scenario: A subshell's and an unquoted substitution's commands are read
 
-- **WHEN** a hook asks about `(cd sub && gh pr comment 3 --body hi)` and
-  about `echo $(gh pr comment 5 --body yo)`
-- **THEN** the reader reads each as a post, and returns `hi` and `yo` as
-  their bodies
+- **WHEN** a hook asks about `(cd sub && gh pr edit 3 --add-assignee @me)`
+  and about `echo $(gh pr edit 5 --add-assignee @me)`
+- **THEN** the reader reports that each line sends no post
+- **AND** it reports `(cd sub && gh pr comment 3 --body hi)` and
+  `echo $(gh pr comment 5 --body yo)` as unreadable, since neither line is
+  one whole gh command (*The reader reads a gh pr or gh issue post only as
+  a whole command line*)
 
 #### Scenario: A backslash-newline and a comment are read as nothing
 
@@ -385,17 +388,19 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 ### Requirement: A gh api call is a read only as a plain gh command
 
 A `gh api` call SHALL count as a **read** only when it is a simple
-command whose command is `gh`, or the github-app skill's form of one,
-whose every word is a literal word, except that its endpoint may hold `?`
-and gh's `{owner}`, `{repo}` and `{branch}` placeholders, and that does
-not write as *A gh api call writes by its method, fields, input or a
-mutation* says. Any other `gh` followed by `api` SHALL mention a gh post
+command whose command is `gh`, or the github-app skill's form of one;
+that does not write as *A gh api call writes by its method, fields, input
+or a mutation* says; and whose every word is a literal word, except that
+its endpoint may hold `?` and gh's `{owner}`, `{repo}` and `{branch}`
+placeholders, and the github-app form may hold `$G` assigned in the same
+line. Any other `gh` followed by `api` SHALL mention a gh post
 verb.
 
 #### Scenario: A read with placeholders or a query string is a read
 
-- **WHEN** a hook asks about `gh api repos/{owner}/{repo}/pulls/5`, and
-  about `gh api search/issues?q=x`
+- **WHEN** a hook asks about `gh api repos/{owner}/{repo}/pulls/5`, about
+  `gh api search/issues?q=x`, and about `G=/abs/github_app.py && python3
+  "$G" gh api repos/o/r/pulls/5`
 - **THEN** the reader reports that each line sends no post
 
 ### Requirement: A gh api call holding a word the shell builds is unreadable

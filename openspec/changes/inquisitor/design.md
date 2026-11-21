@@ -1374,37 +1374,6 @@ every answer relayed off GitHub as input (answer-session spec: *A
 questions-branch answer file records the answer as given*, scenario *A log
 file of a Discord-relayed answer is a decision*).
 
-#### github-app hands a relay's token to no command that can print it
-
-**github-app is to hand a relay identity's token to no command that can
-print it.** Short of reading the relay's key from the keychain (the first
-Constraint under *Recorded*), an agent can then post as the relay only
-through a github-app command, which the post hooks treat as the same `gh`
-call made directly: read in the common post forms, unread in any other.
-github-app must
-still give the answer session a command to post as the relay: the answer
-session runs it as a host command, outside any hook (answer-session spec:
-*A relay post is posted by a host command, unvetted*), while an agent that
-runs it meets the post hooks as above. Which github-app commands print the
-token today, its `gh` command among them, is in the Evidence of the second
-Constraint under *Recorded*. This change ships first and asks github-app
-for the refusal in shared-skills #96; until github-app makes it, that
-Constraint holds.
-
-**Why:** a relay App's `User says: ` post marks a question answered for the
-person and the asker, so an agent's post through it should not go unseen
-by accident.
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The
-inquisitor's GitHub post hook and the refusals asked of github-app for a relay
-identity guard against accidents, not against an agent set on forging a
-relayed answer, which can read a relay's credentials from the keychain and
-post with `curl`* and *Constraint: Until github-app hands a relay identity's
-token to no command that can print it, any agent on the person's machine can
-print a relay App's token and post `User says: ` with a plain HTTP
-call no post hook sees*. Task 5.2's README states the second (answer-session
-spec: *The README warns that a relay's token can be printed*).
-
 ### Running the answer session
 
 #### The answer session polls, only while it is open
@@ -1711,21 +1680,20 @@ in its own hash group*, scenario *The newest answer naming a file counts*).
 naming it*; answer-session spec, *The person's answer to a named file is
 their own*.
 
-**Why:** the question was put to the person it tags, and a file that tags
-no one gives no person to compare with.
+**Why:** the question was put to the person it tags. A file that tags no
+one has no such person, so an account with write access to what it
+concerns answers it.
 
-*Ruled out by a scenario* (answer-session spec: *The person's answer to a
-named file is their own*): letting a file that tags no one be answered
-only by a matching hash in filter 1's search, never through `answers`
-(scenario *A file that tags no one is answered by an
-account with write access*).
+*Ruled out by a scenario* (inquisitor spec: *An untagged file's answer
+from an account with write access counts*): answering a file that tags no
+one only by a matching hash in filter 1's search, never through
+`answers`.
 
 #### A named file stays shown until its answer counts
 
-*Ruled out by a scenario:* letting any answer file hide the file it names
-(answer-session spec: *An unanswered log file holds no answer the person
-gave*, scenario *A log file named only by an input answer file is
-unanswered*).
+*Ruled out by a scenario* (inquisitor spec: *A log file named only by an
+input answer file is unanswered*): letting any answer file, an `input`
+one included, stop the file it names being shown as unanswered.
 
 #### `answer_link` and `asked_in` are withheld where they would leak
 
@@ -2547,8 +2515,8 @@ to its 149.
   handback that says only that the work waits on a question recorded
   elsewhere**
   (inquisitor spec: *A worker's question about a more private repository
-  is asked on that repository's questions branch*). It must record the
-  file's name, and on each later run on the item run the script's
+  is asked on that repository's questions branch*). The Igor must record the
+  file name's date and 6-hex-digit suffix, and on each later run on the item run the script's
   `file-answer` on that one file and pass an answer it prints to the
   worker, saying it comes from a more private repository and must not be
   quoted in the item (*A later run gets only the answer to its Igor's
@@ -2665,14 +2633,10 @@ to its 149.
 
 ### What other changes must provide
 
-- **The github-app skill must hand a relay identity's token to no command
-  that can print it,** its `gh` command included, while leaving the answer
-  session a command to post as the relay. Issue
-  adamstallard/shared-skills#96 tracks it. Its spec, in a pull request
-  stacked on this one, starts once this change's spec is approved, and its
-  implementation follows this change's. This change does not wait for it:
-  the entry *github-app hands a relay's token to no command that can print
-  it*, above, says what stays open meanwhile.
+- **github-app still hands a relay identity's token to commands that can
+  print it.** adamstallard/shared-skills#96's body states what github-app
+  must change. Until it does, *The README warns that a relay's token can be
+  printed* keeps the README's warning.
 
 ### Outside this change
 
