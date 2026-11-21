@@ -482,14 +482,16 @@ in as it* (reason under *Configuration*).
 
 *Ruled out by a scenario:* taking the login from `gh api user` run as the
 identity the post goes out as: as a GitHub App it gives no user, and as the
-person it gives their own login, a self-tag that notifies no one (scenario
-*An agent posting as a GitHub App keeps the configured login*).
+person it gives their own login, so the post would tag the account posting
+it (scenario *An agent posting as a GitHub App keeps the configured login*).
 
 #### When no candidate can decide
 
 **Rule:** inquisitor spec, *A question no candidate can decide turns to the
 session's login*. The login is tagged only on a post going out as someone
-else, since a self-tag sends no notification (task 0.38 measures this).
+else, since tagging the account a post goes out as would ask the person
+their own question. On a post going out as the configured login, the
+picker asks instead, or, with no person in the session, the post tags no one.
 
 ### Hooks and verdict records
 
@@ -1891,9 +1893,9 @@ automatic reply is a verdict, not a person's answer*; answer-session spec,
 visible than its thread is pushed as a hash-only file*.
 
 The inquisitor decision record's *Rationale: An Inquisitor reply is acted on
-only with a writer's miss file* says why. The agent checks a readable miss
-file's `said_by` for write access since a readable miss can be pushed for
-someone else, as an Igor pushes its worker's.
+only with a writer's miss file* says why. The agent checks that the login
+a miss file names as `said_by` has write access, since the account that
+pushed the file need not be that person.
 
 A reply's miss file is named by the reply's own message id because the name
 is only a lookup key, and the file authorizes one thing, a particular reply,
@@ -2340,11 +2342,6 @@ gives its result, and a review and a review comment are still to measure.
   variable?** (task 0.36) No environment variable opens the answer session,
   because such a session could not set one. If it can, the repository's
   owner decides whether one may.
-- **Does a self-tag notify no one?** (task 0.38) When no candidate can
-  decide a question, the script tags the configured login only on a post
-  going out as another account, such as a GitHub App. If a comment that
-  tags the login posting it notifies that login, the repository's owner
-  decides whether a post going out as the configured login tags it too.
 
 ### Facts the answer session relies on
 

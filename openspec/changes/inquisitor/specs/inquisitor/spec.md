@@ -568,7 +568,8 @@ through the answer file that session pushed.
 **The credential patterns** SHALL be these and no others: a private key's
 `-----BEGIN` line, GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`,
 `github_pat_`), Anthropic API keys (`sk-ant-`), AWS access key IDs
-(`AKIA`), Slack tokens (`xox`), Linear API keys (`lin_api_`,
+(`AKIA` and 16 capital letters or digits), Slack tokens (`xox`, a
+letter, then `-`), Linear API keys (`lin_api_`,
 `lin_oauth_`), and Discord bot tokens (three base64 parts separated by
 dots: the first of 24 or more characters, the second of exactly 6, the
 third of 27 or more).
@@ -578,11 +579,11 @@ third of 27 or more).
 - **WHEN** a string holds a private key's `-----BEGIN` line, a GitHub
   token starting `ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_` or `github_pat_`,
   an Anthropic API key starting `sk-ant-`, a Linear key starting
-  `lin_api_` or `lin_oauth_`, an AWS access key ID starting `AKIA` or a
-  Slack token starting `xox`
+  `lin_api_` or `lin_oauth_`, an AWS access key ID such as
+  `AKIAIOSFODNN7EXAMPLE` or a Slack token starting `xoxb-`
 - **THEN** it matches the credential patterns
 - **AND** a token of another service, such as a Stripe key starting
-  `sk_live_`, does not
+  `sk_live_`, does not, nor do the words `xoxo` and `AKIA`
 
 #### Scenario: Dotted ordinary text is no Discord bot token
 
@@ -2827,8 +2828,9 @@ automatic reply is a verdict, not a person's answer* bars it.
 
 - **WHEN** filter 1 stops a question about a repository because a lore
   entry answers it
-- **THEN** the agent pushes a citation file holding the entry's id to the
-  lore repository's questions branch, and no log file holds the entry's id
+- **THEN** the agent pushes, with the script's `cite` command, a citation
+  file holding the entry's id to the lore repository's questions branch,
+  and no log file holds the entry's id
 - **AND** a citation file is not a log file and never an answer, and the
   search never shows one
 
@@ -3496,8 +3498,10 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   script, run in the worker, wrote none (design.md: *Every questions-branch
   file names where it was asked from*)
 - **AND** the Igor sets `asked_from`, the item's repository as `owner/repo`,
-  on every log and miss file it pushes, after refusing any already holding
-  one, and a citation file never holds it
+  on every log and miss file it pushes; it pushes no worker file holding
+  `asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`,
+  keys a worker never writes, nor a hash-only miss file from a worker;
+  and a citation file never holds `asked_from`
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
 
@@ -3616,6 +3620,8 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
   `questions/2026-10-20-should-retries-back-off-3f9a1c.md`, did not need
   asking, and the agent logs a miss against filter 3
 - **THEN** the hash takes `file`, an LF and that path
+- **AND** were the question in two log files on that branch, as when
+  two items asked it, the hash would take the path first in byte order
 - **AND** for a declined Linear message with no log file, the hash takes
   `message`, an LF and the message's URL
 

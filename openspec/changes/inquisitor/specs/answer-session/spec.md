@@ -2118,8 +2118,10 @@ from choosing what the code does beyond a closed set.
   outside them, or `none` when the model cannot tell; and, for a Linear
   or Discord question, `place_sure`, `yes` or `no`, whether the model is
   sure of `place`
-- **AND** a field an accepted call leaves out, or any field of a message
-  with no accepted call, counts as the cautious one: `question` as
+- **AND** the code acts on a message's fields once the model's turn on
+  it ends, a later accepted call's value replacing an earlier one's, and
+  a field that no accepted call for the message set counts as the
+  cautious one: `question` as
   `unclear`, `category` as some category, unnamed, `filter` as `none`
   (as is `1` with no `hit`), `place` as none and `place_sure` as `no`
 
