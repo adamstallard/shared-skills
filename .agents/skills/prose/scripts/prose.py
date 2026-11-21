@@ -2015,10 +2015,9 @@ def pr_body_post(where, payload, host):
 
 
 def pr_body(handback, payload, host):
-    """The body of the pull request a hand-back names, from GitHub; None when
-    it cannot be found without guessing the directory gh runs in, or gh
-    cannot show it. A shell command that is the gh call alone runs gh in the
-    payload's directory, so a ready or edit by branch is found there too."""
+    """The body of the pull request a hand-back names, from GitHub. None for
+    a create, whose pull request does not exist yet; when findable says the
+    pull request cannot be looked up; or when gh fails."""
     if handback.kind == "create":
         return None  # the pull request does not exist yet
     if not findable(handback, payload, host):
@@ -2027,18 +2026,23 @@ def pr_body(handback, payload, host):
 
 
 def findable(handback, payload, host):
-    """Whether the pull request a hand-back names can be looked up without
-    guessing the directory gh runs in: it is named by URL, or with its
-    repository, or the shell command is the gh call alone, so gh ran in the
-    payload's directory."""
+    """Whether the pull request a hand-back names can be looked up.
+
+    A number or branch names a pull request only in the repository of the
+    directory gh ran in, which the hook cannot always know. It can when the
+    hand-back names a URL, or a repository with `-R` or GH_REPO
+    (handback.named()). It can also when the shell command is one gh call
+    and nothing else, since gh then ran in the directory the payload names
+    (handbacks.where). github-app's script, which runs gh as a GitHub App,
+    leaves that directory as it is, so handbacks.gh_alone counts a gh call
+    through it too. Cursor gives the command at the payload's top level,
+    other hosts under tool_input."""
     if handback.named():
         return True
     command = (payload.get("command") if host == "cursor" and "command" in payload
                else (payload.get("tool_input") or {}).get("command")
                if isinstance(payload.get("tool_input"), dict) else None)
-    words = _words(command.strip()) if isinstance(command, str) and not GH_SHELL_MISSING \
-        else None
-    return bool(words) and words[0] == ("gh", False)
+    return handbacks.gh_alone(READER, command)
 
 
 def pr_field(handback, payload, field, jq):
