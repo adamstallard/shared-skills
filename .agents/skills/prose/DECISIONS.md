@@ -1421,23 +1421,13 @@ was never printed. A brief printed again replaces the record, and the report
 must answer the latest one. At signing, the script diffs the recorded text
 against the current one: a line of the item changed or removed, or a line
 added inside it or directly beside it, counts. An edit elsewhere that only
-moves its lines does not.
+moves its lines does not. The quote is for the person deciding, and is not
+checked.
 
-**A finding also counts as fixed when its quoted words are gone.** The words,
-whitespace-normalised and matched as whole words, were in the item's file
-when the brief was printed and are nowhere in it now. An item's spans are only
-the lines the diff changed, but the brief shows each passage in its section,
-so a reader can quote an unchanged line beside them. On PR #25's sixteenth
-round, two findings quoted words on the line below a one-line item; the
-author fixed exactly those words, and the span check alone refused both as
-unchanged. A quote not found in the brief-time text proves nothing, so that
-finding is checked by its spans alone. Understood lines quote nothing and
-keep the span check.
-
-**Rejected: refusing `fixed` while the quoted words remain.** That check was
-the most intricate code in the cold read, held a bug, and refused honest
-misquotes. The quoted-words rule above only adds a way to pass, so it never
-refuses a misquote.
+**Rejected: refusing `fixed` while the quoted words remain.** It was the most
+intricate code and held one of the two bugs bug-hunter found in its version;
+it refused honest misquotes, and proved only that those exact words were
+edited.
 
 **A file the brief did not name is refused** when it now has a changed comment
 or doc passage: no reader saw it, and the trailer would say one had.
@@ -1471,10 +1461,8 @@ line.
 place the reader stopped; editing another part of the item is on the cheat
 list. Where a file repeats identical lines, the diff may attribute an added
 line to the wrong repeat; if that repeat is inside an item or directly beside
-one, the item counts as fixed though nobody edited it. Quoted words may sit
-anywhere in the file, so removing them far from the item counts too; words
-that appear more than once count as gone only when every copy is. A `kept`
-reason is checked only for being there.
+one, the item counts as fixed though nobody edited it. A `kept` reason is
+checked only for being there.
 
 ---
 
@@ -1483,7 +1471,7 @@ reason is checked only for being there.
 For every item the reader writes `Item <n>, understood: <one line>`: who or
 what does each thing, whether it always happens or only in some case, and
 whether the code does it or someone else could make it happen. The author
-answers each one: `matches`, `fixed` (checked by its item changing) or
+answers each one: `matches`, `fixed` (checked like a fixed finding) or
 `kept (asked): <reason>`. The counts gain `; understood: <items>, <fixed>,
 <kept>`; a value without that part still verifies.
 
