@@ -445,8 +445,10 @@ their answer shows that place.
 
 - **WHEN** an agent's question on Linear about an organization carries no
   concerns line, the session's model can tell no lore repository for it,
-  one lore repository is configured, and an active lore entry there in
-  the question's scope answers it
+  the only configured lore repository is public, as *A recorded answer is
+  posted by itself only when no more private than its thread* requires on
+  Linear, and an active lore entry there in the question's scope answers
+  it
 - **THEN** the session posts filter 1's recorded answer by itself
 
 #### Scenario: A doubtful placement is shown to the person
@@ -752,7 +754,15 @@ Where no rule on a subscribed or lore repository's `questions` branch
 blocks both force pushes and deletion, setup SHALL suggest a rule that
 blocks both and allows direct pushes, and SHALL tell a person without
 admin access to the repository to ask an admin to set it, since setting a
-rule takes admin access.
+rule takes admin access. Setup SHALL set no rule itself, since that
+changes repository settings, which the inquisitor otherwise never touches.
+
+#### Scenario: Setup leaves branch rules as they are
+
+- **WHEN** setup suggests a rule for a subscribed repository's `questions`
+  branch, and the person has admin access there
+- **THEN** the repository's rules are unchanged after setup, and setting
+  the rule is left to the person
 
 #### Scenario: An unguarded questions branch gets a suggested rule
 
@@ -3190,9 +3200,13 @@ lore entry that stops a question gets a citation file* says.
 
 #### Scenario: A lore entry's recorded answer sends a citation
 
-- **WHEN** an active lore entry answers an incoming question with a thread
-- **THEN** the relay posts the recorded answer, and the script pushes a
-  citation file to that entry's lore repository's questions branch
+- **WHEN** an active lore entry answers an incoming question with a thread,
+  and the entry's lore repository is no more private than the thread, so
+  *A recorded answer is posted by itself only when no more private than
+  its thread* lets the session post it by itself
+- **THEN** the session posts the recorded answer through the relay, and
+  pushes, through the script, a citation file to that entry's lore
+  repository's questions branch
 
 ### Requirement: A person cites a lore entry by naming it as an answer or a record
 

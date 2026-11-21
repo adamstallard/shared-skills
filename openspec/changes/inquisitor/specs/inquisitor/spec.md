@@ -2105,6 +2105,12 @@ shared post reader reports it; anywhere else it needs an `ask` verdict.
   asks a question that no second call recorded as `ask`
 - **THEN** the hook blocks the command and names the question
 
+#### Scenario: A post with a question the filters stopped is blocked
+
+- **WHEN** a post asks a question whose most recent verdict is `answered`
+  or `decided`, even after an earlier `ask`
+- **THEN** the hook blocks the post and names the verdict
+
 #### Scenario: A post is blocked when the verdict records cannot be read
 
 - **WHEN** an agent runs `gh issue comment 7 --body-file body.md`, the body
@@ -2219,6 +2225,12 @@ reader reports as unreadable. It SHALL block a post when any body the
 reader returns for it starts with one of the four reserved prefixes the
 `answer-session` spec defines, once reduced as a question in a post is for
 its hash, with leading whitespace dropped.
+
+#### Scenario: A call that sends no post passes the post hook
+
+- **WHEN** an agent runs `gh pr view 7`, which the shared post reader
+  reports as sending no post
+- **THEN** the post hook lets the call through without vetting anything
 
 #### Scenario: A hook payload that is not JSON passes the post hook
 
@@ -3200,9 +3212,9 @@ answer, and writes no `asked_in`.
 
 - **WHEN** the `log` command runs under `IGOR_RUN=worker` with an answer
   whose `answer_link` names a comment
-- **THEN** it makes no GitHub call, and the log file it writes holds only
-  the question and the `answer_link`, with no answer and no `asked_in`; its
-  Igor writes the answer before pushing the file
+- **THEN** it makes no GitHub call, and the log file it writes holds the
+  `answer_link` but no answer, `authority` or `asked_in`; its Igor writes
+  the answer before pushing the file
 
 ### Requirement: The log command fetches no Linear or Discord answer link
 
@@ -3608,7 +3620,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 - **WHEN** a questions-branch file holding an answer answers a file on that
   branch that holds no answer
 - **THEN** its `answers` lists that file's name, without its directory,
-  beside the name of any other file it answers on that branch
+  beside the name of any other file it answers on that branch, the names
+  separated by single spaces, which no file name holds
 - **AND** no other file holds `answers`, nor does one naming a file not on
   the branch (design.md: *An answer file names every file it answers*)
 

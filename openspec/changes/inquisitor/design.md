@@ -1342,9 +1342,6 @@ channels are used*.
 person's direct pushes*; *Setup suggests a rule guarding each questions
 branch*; *Setup can create a lore repository*.
 
-Setup sets no rule itself, since setting one changes repository settings
-beyond the inquisitor's own files.
-
 *Recorded:* in both the inquisitor and the answer-session decision
 records, since a later change reads only the records of the capabilities
 it touches,
@@ -2537,16 +2534,17 @@ to its 149.
   a worker never writes the key; in a run the Igor sets it (*Every
   questions-branch file names where it was asked from*). #216's protection,
   refusing a worker's file holding the key, is unchanged.
-- **#216's Igor must write the answer into the file a worker reports for a
-  handback answer.** #216's lore-firing spec (lines 484-489 at 59e7561) has
-  the Igor write the comment's text "in place of the answer line the worker
-  wrote" only for a file holding `authority: decision` or `input`, and its
-  decision 21 pushes a file with no answer as it is. This change's worker
-  writes only the question and `answer_link`, no answer and no `authority` (*A
-  worker logs no answer*). #216 should recognise that file, write the answer
-  from the linked comment, and set `authority` and `answered_by`, a bot
-  account's comment being `input`; otherwise it
-  pushes the file as an unanswered question and the answer is lost.
+- **#216's Igor must write the answer into the log file a worker writes
+  for a person's answer to a handback.** #216's lore-firing spec (lines
+  484-489 at 59e7561) has the Igor write the text of the comment the file
+  links "in place of the answer line the worker wrote" only for a file
+  holding `authority: decision` or `input`, and its decision 21 pushes a
+  file with no answer as it is. This change's worker writes the
+  `answer_link` but no answer and no `authority` (*A worker logs no
+  answer*). #216 should recognise that file by its `answer_link` with no
+  answer, write the answer from the comment `answer_link` names, and set
+  `authority` and `answered_by`; otherwise it pushes the file as an
+  unanswered question and the answer is lost.
 - **#216's Igor must open the lore pull request for an entry its run
   reports** (*A general answer is proposed as a provisional lore entry*). The
   Igor applies this change's rules for a proposed entry's path, fields, id
