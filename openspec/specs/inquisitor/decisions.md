@@ -40,7 +40,7 @@
   Evidence: igor runs `gh`, https://github.com/adamstallard/igor/blob/8478aec/src/gh.ts#L74, `claude`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L961-L965, and `git`, https://github.com/adamstallard/igor/blob/8478aec/src/github.ts#L13
 
 - **Rationale: A questions-branch decision counts only unchanged and by write access.**
-  Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit: an edit can change the answer while `answered_by` still names the person who gave the first one. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Checking authorship further, such as asking the person a log file names in `answered_by`, or a miss file in `said_by`, whether they gave it, is left to each repository's admin.
+  Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit: an edit can change the answer while `answered_by` still names the person who gave the first one. Requiring a signed commit would not show who answered either: git signs with the configured key whatever the commit holds, so a signed file says only whose key signed it.
   Evidence: `git commit -S` signs the commit with the committer's key, whatever its content, https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--Sltkey-idgt
 
 - **Rationale: A work-branch decision answers only its own work.**

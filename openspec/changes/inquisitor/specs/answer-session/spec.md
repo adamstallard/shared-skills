@@ -433,13 +433,13 @@ their answer shows that place.
 
 ### Requirement: A concerns line settles what an agent's question concerns
 
-An agent's question SHALL concern the place its concerns line names, not
-what the session's model judges, when the line, read with its markup
-removed, names a subscribed repository, or after `lore` a configured lore
-repository, where the person has write access. A question the session
-shows from several sentences ending in `?` SHALL be settled by its lines
-only when each sentence has such a line and all name the same place. A
-line that fails either condition SHALL settle nothing.
+An agent's question SHALL concern the place its concerns line names when
+the line, with its inline markup reduced to text, names a place where the
+person has write access: a subscribed repository, or after `lore` a
+configured lore repository. The person's pick of another place for an
+answer overrides it. A question made of several sentences ending in `?`
+SHALL be settled only when each sentence has such a line and all name the
+same place. No other line SHALL settle anything.
 
 #### Scenario: The line, not the model, places the miss
 
@@ -2456,13 +2456,13 @@ decline's miss or declines without a readable one.
 
 ### Requirement: The person can pick another place in the preview
 
-For a question no concerns line settles and no questions-branch file
-holds, the preview of an answer or of a decline's miss SHALL let the
-person pick another subscribed or configured lore repository, because
-its place is a guess. The pick SHALL become what the question concerns
-from then on: the session checks the new place's visibility against the
-thread, runs filter 1 for that place and shows any hit before the person
-sends, and posts nothing by itself, a recorded answer included.
+Unless a questions-branch file holds the question, which fixes its
+place, an answer's preview SHALL let the person pick another subscribed
+or configured lore repository. A decline's preview SHALL offer it only
+when no concerns line settles the question, since the asking agent looks
+for a miss only where such a line names. The pick SHALL be what the
+question concerns for that post: the session checks its visibility, runs
+filter 1 for it and shows any hit first, and posts nothing by itself.
 
 #### Scenario: The person moves a question to another place
 
@@ -2474,6 +2474,14 @@ sends, and posts nothing by itself, a recorded answer included.
   before the person sends
 - **AND** the answer the person sends is recorded on `o/web`'s questions
   branch, and nothing is posted by itself
+
+#### Scenario: A concerns line keeps a decline's miss on its branch
+
+- **WHEN** the person answers or declines an agent's Discord question
+  that `Concerns: o/web` settles and no questions-branch file holds
+- **THEN** the answer's preview lets them pick another place for its
+  record, and the decline's preview lets them pick none, so the miss
+  goes to `o/web`'s questions branch
 
 ### Requirement: The preview says when an answer also reaches a more visible item's run
 

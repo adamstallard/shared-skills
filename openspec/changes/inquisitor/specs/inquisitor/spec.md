@@ -1580,18 +1580,13 @@ repository more private than the question's thread.
 
 In an Igor's handback comment, the Igor SHALL write each question's
 concerns line where *A question in a post or message names what it
-concerns on a line of its own* calls for one, and keep the line, or that
-it left none, in its handback record (*A later Igor run names the
-answered file only from the Igor's record*).
+concerns on a line of its own* calls for one.
 
-#### Scenario: An Igor's handback names the repository from its record
+#### Scenario: An Igor's handback names the repository a question concerns
 
 - **WHEN** an Igor posts a handback on an item of `o/web` asking its
   worker's question about `o/api`
-- **THEN** the Igor puts `Concerns: o/api` after the question, and its
-  handback record holds that line
-- **AND** for a question it writes no concerns line for, its handback
-  record says it left none
+- **THEN** the Igor puts `Concerns: o/api` after the question
 
 ### Requirement: A round's questions are asked together at its end
 
@@ -3307,11 +3302,11 @@ for each key (design.md: *An answer file names every file it answers*).
 
 A later Igor run SHALL know the answered file only from the Igor's handback
 record, one per handback, never from the comment. That record SHALL hold
-each posted question's hash and concerns line, the repository its file
-went to, and that file name's 6-hex-digit suffix and date, and no
-question text. If it holds no suffix and date, or not exactly one file on
-the branch matches, the Igor SHALL write no `answers` (design.md: *A later
-run names the answered file from the Igor's record*).
+only each posted question's hash; its concerns line, where the Igor's miss
+check runs, or that it had none; the repository its file went to; and,
+if a file was pushed, its name's 6-hex-digit suffix and date. Without
+them, or if not exactly one file on that repository's questions branch
+has them, the Igor SHALL write no `answers`.
 
 #### Scenario: The Igor's handback record holds no question text
 

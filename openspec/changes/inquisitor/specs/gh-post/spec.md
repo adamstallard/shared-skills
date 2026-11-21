@@ -515,7 +515,8 @@ When a `gh api` write to an issue or pull request endpoint, or a call to
 `-F` or `--field` with `@<file>`, or its input through `--input`, the
 reader SHALL read it only when the whole command line is that `gh api`
 command, and SHALL report it as unreadable otherwise. A write whose
-fields are all given in the command SHALL be read in a longer line too.
+fields are all given in the command SHALL be read beside other commands
+too, unless one of them is another `gh api` write.
 
 #### Scenario: A gh api body file after another command is unreadable
 
@@ -531,6 +532,8 @@ fields are all given in the command SHALL be read in a longer line too.
 - **WHEN** a hook asks about `cd /x && gh api repos/o/r/issues/5/comments
   -f body='done'`
 - **THEN** the reader returns `done` as the body
+- **AND** it reports that line as unreadable once `&& gh api
+  repos/o/r/issues/6/comments -f body='b'` follows it
 
 ### Requirement: The reader reads GraphQL posts and blocks an unreadable body sent to issues or pull requests
 
