@@ -64,7 +64,7 @@ Then go through the checklist below. For a finding that sets the change
 against something else (items 1, 2, 3, 7, 9, 11, 12, 14, 16), quote both sides:
 the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 17)
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 17, 18)
 quotes the change and says what is missing. Item 15 is either kind,
 depending on whether a record already holds what it flags.
 
@@ -152,6 +152,15 @@ depending on whether a record already holds what it flags.
     ask the person who decided for the evidence and write it, move a
     rejection a requirement guards against into that requirement's
     Rationale, reopen the decision, or strike the entry.
+18. A cut candidate: a rule or scenario a reader would not miss, such as
+    one that repeats another within the change (item 3 covers a repeat
+    elsewhere), one covering a case nobody is shown to hit, or a rule no
+    builder would need that rests on no evidence. Its *Who decides* is the
+    author when nothing in the change or the decision records needs it,
+    and a person otherwise.
+
+Report a finding that is not worth fixing too, under its own item's
+number; its *Why* line says why it is not worth fixing.
 
 Write each finding as:
 
@@ -159,7 +168,8 @@ Write each finding as:
     Change: «exact words»
     Conflicts with: «exact words» (<file>:<line> | PR #<n> | issue #<n>),
                     or "none" for a finding about the change alone
-    Why they cannot both hold, or what is missing: <one or two sentences>
+    Why: <why they cannot both hold, what is missing, or why no reader
+         would miss it, in one or two sentences>
     Who decides: author | a person (a question for design.md's Open Questions) |
                  another change or PR (report it; do not edit it)
 
@@ -181,7 +191,7 @@ Read the record whole, its diff against the base (`git diff
 <base>...<ref> -- <record>`, or `git diff <base> -- <record>` from the
 working tree), and its capability's spec on the base branch, `git show
 <base>:openspec/specs/<capability>/spec.md`, whole. Skip the reading list
-and items 1 to 13 above, and go through items 14 to 17 with the spec in
+and items 1 to 13 and 18 above, and go through items 14 to 17 with the spec in
 place of the change:
 
 - [14] a requirement of the spec that brings back an approach an entry
