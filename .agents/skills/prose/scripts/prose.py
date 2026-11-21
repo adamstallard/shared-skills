@@ -1994,17 +1994,17 @@ def pr_body_post(where, payload, host):
 def pr_body(handback, payload, host):
     """The body of the pull request a hand-back names, from GitHub; None when
     it cannot be found without guessing the directory gh runs in, or gh
-    cannot show it. A shell command that is the gh call alone runs gh in the
-    payload's directory, so a ready or edit by branch is found there too."""
+    cannot show it. A shell command that is the gh call alone, plain or
+    through github-app's script, runs gh in the payload's directory. So a
+    hand-back that names its pull request only by number or branch is
+    looked up there."""
     if handback.kind == "create":
         return None  # the pull request does not exist yet
     if not handback.named():
         command = (payload.get("command") if host == "cursor" and "command" in payload
                    else (payload.get("tool_input") or {}).get("command")
                    if isinstance(payload.get("tool_input"), dict) else None)
-        words = _words(command.strip()) if isinstance(command, str) and not GH_SHELL_MISSING \
-            else None
-        if not words or words[0] != ("gh", False):
+        if not handbacks.gh_alone(READER, command):
             return None
     args = ["pr", "view", *([handback.selector] if handback.selector else []),
             "--json", "body", "--jq", ".body"]

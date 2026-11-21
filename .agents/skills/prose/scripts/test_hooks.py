@@ -1238,6 +1238,22 @@ class DeferredColdRead(unittest.TestCase):
                 self.assertIn("deferred to the hand-back", r.stderr)
         self.assertIn("pr view 7 --json body --jq .body -R o/r", self.log.read_text())
 
+    def test_a_hand_back_through_github_app_s_script_is_checked_as_gh_s(self):
+        self.pr_body.write_text(self.deferred)
+        for command in ("python3 /s/github_app.py gh pr ready 7",
+                        "G=/s/github_app.py; python3 $G gh pr ready",
+                        "G=/s/github_app.py; python3 $G --identity bot gh pr ready 7 -R o/r"):
+            with self.subTest(command=command):
+                r = self.hook(self.bash(command))
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("prose: blocked this hand-back for review "
+                              "(github_app.py gh pr ready)", r.stderr)
+        self.assertIn("pr view 7 --json body --jq .body\n", self.log.read_text())
+        r = self.hook(self.bash("G=/s/github_app.py; python3 $G gh pr ready 7", "PostToolUse"),
+                      script=HANDBACK_NOTICE)
+        self.assertIn("(github_app.py gh pr ready)",
+                      json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"])
+
     def test_a_hand_back_of_a_cold_read_body_goes_through(self):
         self.pr_body.write_text(self.full)
         self.assertEqual(self.hook(self.bash("gh pr ready 7")).returncode, 0)

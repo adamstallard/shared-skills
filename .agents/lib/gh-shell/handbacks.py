@@ -245,11 +245,24 @@ def handbacks_in_command(reader, command):
                   else "the shell reader cannot read the command whole")
         return [], None, ((reason, False)
                           if handback_anywhere(reader, loose_words(command)) else None)
-    found, gh_calls, reasons, hidden, beside = [], 0, [], False, []
+    found, gh_calls, reasons, hidden, beside, scripts = [], 0, [], False, [], set()
     for words, _ in read[0]:
         while words and words[0][1] in reader.RESERVED:
             words = words[1:]
         hidden = hidden or handback_anywhere(reader, [text for text, _ in words])
+        if reader.app_assignments(words, scripts):
+            continue
+        # A command run through github-app's script is read as the command
+        # it wraps. The script's own words, such as `$G`, are dropped first,
+        # so the expansion check below skips them: they cannot name a pull
+        # request.
+        lead = next((k for k, (_, src) in enumerate(words) if not ASSIGNMENT.match(src)),
+                    len(words))
+        app = reader.app_command(words[lead:], scripts)
+        if app:
+            words = words[:lead] + app
+        else:
+            forget_scripts([text for text, _ in words], scripts)
         reasons += [f"the word `{src}` expands" for _, src in words if expands(src)][:1]
         repo = None
         while words and ASSIGNMENT.match(words[0][1]):
@@ -284,6 +297,8 @@ def handbacks_in_command(reader, command):
         handback = classify(reader, plain)
         if handback:
             handback.repo = handback.repo or repo
+            if app:
+                handback.what = f"{reader.APP_SCRIPT} {handback.what}"
             found.append(handback)
     if gh_calls > 1:
         reasons.append(f"the command runs {gh_calls} gh calls")
@@ -298,6 +313,49 @@ def handbacks_in_command(reader, command):
     sole = found[0] if gh_calls == 1 and len(found) == 1 and not reasons else None
     reason = reasons[0] if sole is None and reasons and (found or hidden) else None
     return found, sole, (reason and (reason, narrow))
+
+
+# Commands that may set any variable without gh_shell seeing which.
+SETS_ANY = {"source", ".", "eval"}
+
+
+def forget_scripts(texts, scripts):
+    """Take out of scripts each name a command may change other than by a
+    plain assignment (`unset G`, `export G=x`, `G+=x`, `G[0]=x`, `read G`,
+    `for G in`), and empty scripts when the command is source, `.` or eval.
+
+    It may drop a name the command leaves alone, as in `echo G`. A later
+    `python3 $G gh …` is then not read as a gh call, so its hand-back is
+    missed, never misread."""
+    if texts and texts[0] in SETS_ANY:
+        scripts.clear()
+    for name in list(scripts):
+        if any(t == name or t.startswith((name + "=", name + "+=", name + "["))
+               for t in texts):
+            scripts.discard(name)
+
+
+def gh_alone(reader, command):
+    """Whether a shell command runs one gh call and nothing else, so no other
+    command, such as a cd, can move gh out of the directory in the hook's
+    payload (see where). The gh call may be plain words with gh first, or
+    that gh call through github-app's script, named by its path or by a
+    variable the command assigned it first (`G=<path>; python3 $G gh …`)."""
+    if reader is None or not isinstance(command, str):
+        return False
+    words = reader._words(command.strip())
+    if words:
+        if words[0] == ("gh", False):
+            return True
+        app = reader.app_command([(text, text) for text, _ in words], set())
+        return bool(app) and app[0][0] == "gh"
+    read = reader._commands(command)
+    if read is None:
+        return False
+    scripts = set()
+    rest = [words for words, _ in read[0] if not reader.app_assignments(words, scripts)]
+    app = reader.app_command(rest[0], scripts) if len(rest) == 1 else None
+    return bool(app) and app[0][0] == "gh" and not any(expands(src) for _, src in app)
 
 
 def on_unnamed_list(texts):
