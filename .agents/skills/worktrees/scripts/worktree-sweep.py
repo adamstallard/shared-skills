@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Tells the agent which git worktrees to remove because their work has landed.
 
-A worktree holding a branch stops anyone checking that branch out elsewhere,
-so it should go as soon as its work is pushed. This hook never removes
+A worktree should go as soon as its work is pushed. This hook never removes
 anything itself.
 
 When it looks, and at what:
@@ -21,20 +20,21 @@ When it looks, and at what:
     ones are skipped. A worktree that isn't the session's own is also skipped
     when git did something in it during the last RECENT_SECONDS, by
     last_used. The hook's own git commands must not make a worktree look
-    recently used: last_used reads those times before git runs in the
-    worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
+    recently used: last_used reads the times of its HEAD, index and reflog
+    before git runs in the worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
     rewrite the index.
 
 A worktree is listed only when all of these hold:
-  - it is a linked worktree with a `.git` file of its own and a branch
-    checked out
+  - it is a linked worktree with a `.git` file of its own, on a branch or a
+    detached HEAD
   - it is safe to remove (judge and safe): `git status` is clean, untracked
     files included; no skip-worktree or assume-unchanged file differs on
     disk; removing it loses no commit (lost_commits); it has no submodule,
     which `git worktree remove` refuses; and no other worktree sits inside
     it, since removing it would delete that one
+  - no rebase, merge, cherry-pick, revert or bisect is paused in it
   - its own HEAD reflog shows a commit, merge, rebase, cherry-pick or revert
-    since its branch was checked out there, fast-forwards aside, so a
+    since its current HEAD was checked out there, fast-forwards aside, so a
     checkout made for review or for an agent about to start is never listed
   - HEAD is reachable from a refs/remotes/origin/* ref
   - no process has its working directory inside it, apart from this hook and
@@ -49,8 +49,8 @@ A worktree is listed only when all of these hold:
 At Stop, every idle linked worktree not in the agent's list is shown to the
 user, locked or not, whatever its state. Idle means git has done nothing
 there for IDLE_SECONDS, by last_used, and no file that `git status` lists as
-changed was modified in that time. That counts every file inside an
-untracked nested repository or a changed submodule, a moved or deleted file
+changed was modified in that time. The files checked include every file
+inside an untracked nested repository or a changed submodule, a moved or deleted file
 by its directory's time, and the skip-worktree and assume-unchanged files
 that differ on disk. The session's own worktree, a busy one (a process has
 its working directory inside it), and one whose names can't be printed
@@ -592,11 +592,29 @@ def safe_to_show(wt, main, others, busy):
                    if o != path and os.path.exists(o))
 
 
+# Files a paused rebase, merge, cherry-pick, revert or bisect leaves in the
+# worktree's own git directory. Removing the worktree deletes them, and the
+# paused operation with them. Don't drop the rebase entries: HEAD is detached
+# during a rebase and its `rebase (start)` reflog entry reads as local work, so
+# every other check passes for a tree stopped at an `edit`. `sequencer` holds
+# cherry-picks or reverts still queued after a conflict was resolved with a
+# plain `git commit`, which removes CHERRY_PICK_HEAD.
+IN_PROGRESS = ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD",
+               "REVERT_HEAD", "sequencer", "BISECT_LOG")
+
+
+def in_progress(path):
+    """Is a rebase, merge, cherry-pick, revert or bisect paused in this
+    worktree? True when its git directory can't be found."""
+    own = git_dir_of(path)
+    return own is None or any(os.path.exists(os.path.join(own, f)) for f in IN_PROGRESS)
+
+
 def describe_if_landed(wt, main, others, busy):
     """The listing line for a worktree whose work has landed and that is safe
     to remove, or None. Locks are the caller's to judge."""
     path, branch = wt.get("path"), wt.get("branch")
-    if not branch or not safe_to_show(wt, main, others, busy):
+    if not safe_to_show(wt, main, others, busy) or in_progress(path):
         return None
     code, log = git("reflog", "show", "--format=%gs", "HEAD", cwd=path)
     if code != 0 or not local_work(log.split("\n")):
@@ -607,7 +625,8 @@ def describe_if_landed(wt, main, others, busy):
     if code != 0 or not refs or not safe(judge(path, peers_of(path, main, others))):
         return None
     on = f"origin/{branch}" if f"origin/{branch}" in refs else clean(refs[0])
-    return f"  {path}  (branch {branch}, on {on})\n    {remove_command(wt, main)}"
+    held = f"branch {branch}" if branch else "detached HEAD"
+    return f"  {path}  ({held}, on {on})\n    {remove_command(wt, main)}"
 
 
 def describe_if_idle(wt, main, others, busy, since):
@@ -857,9 +876,9 @@ def peer_commits(peer):
 
 
 def local_work(reflog):
-    """Does this HEAD reflog, newest first, show work done on the branch now
-    checked out? Entries before the checkout that brought that branch here
-    belong to another branch, and fast-forwards are not work. `git rebase
+    """Does this HEAD reflog, newest first, show work done on the branch or
+    commit now checked out? Entries before the checkout that brought it here
+    belong to another branch or commit, and fast-forwards are not work. `git rebase
     <upstream> <branch>` switches branches too, logging `rebase: checkout`."""
     for entry in reflog:
         switch = SWITCH.match(entry)
@@ -1053,7 +1072,7 @@ def find_landed(payload):
 
 def agent_message(listing, mode_, host):
     leave = "ExitWorktree, or cd out" if host == "claude" else "cd out"
-    head = ("These worktrees hold work that has already landed: clean tree, branch pushed "
+    head = ("These worktrees hold work that has already landed: clean tree, HEAD pushed "
             "to origin, nothing running in them.")
     tail = f"If this session is inside one, leave it first ({leave}). "
     if "\n    locked: " in listing:
@@ -1062,8 +1081,7 @@ def agent_message(listing, mode_, host):
     if mode_ == "block":
         return (f"{head} Remove them now, before reporting done:\n{listing}\n"
                 f"{tail}If one must stay, ask the user instead of skipping it.\n")
-    return (f"{head} A worktree holding a branch stops anyone else checking that branch "
-            f"out, so remove each one once you are done with it:\n{listing}\n"
+    return (f"{head} Remove each one once you are done with it:\n{listing}\n"
             f"{tail}If one should stay, ask the user.\n")
 
 
