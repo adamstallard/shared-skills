@@ -1086,9 +1086,9 @@ session decides about it, and is never shown on its own.
 
 A log file with no `asked_in`, or linking a message this machine's polls
 have not read, SHALL be judged on its own, as a question of the fourth
-source, a questions-branch log file, save that an Igor worker's log file
-follows its handback comment whenever this machine reads the comment's item
-(*An Igor's log file follows its own handback comment*). The answer
+source, a questions-branch log file, save that an Igor's log file
+follows its handback comment as *An Igor's log file follows its own
+handback comment* says. The answer
 session SHALL NOT pair a file with a message by matching text (design.md:
 *A log file without `asked_in` is never merged*).
 
@@ -1112,16 +1112,17 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 
 ### Requirement: An Igor's log file follows its own handback comment
 
-An Igor worker's log file SHALL follow the handback comment its
-`asked_in` links when this machine reads the comment's item: a Linear
-issue, whatever the file's `asked_from`, or a GitHub issue or pull
-request in the repository its `asked_from` names, so that a newer handback passes the file over along
-with the comment. Otherwise it is shown on its own (design.md: *A link this machine never
+An Igor's log file SHALL follow the handback comment its
+`asked_in` links when this machine reads the comment's item, which
+counts only for a Linear issue, whatever the file's `asked_from`, or a
+GitHub issue or pull request in the repository its `asked_from` names, so
+that the file is passed over (*Only an item's newest handback is shown*)
+when the comment is. Otherwise it is shown on its own (design.md: *A link this machine never
 reads is not followed*).
 
 #### Scenario: An Igor's log file follows its handback comment
 
-- **WHEN** an Igor worker's log file's `asked_in` is the URL of its
+- **WHEN** an Igor's log file's `asked_in` is the URL of its
   handback comment on an issue assigned to the person, and the person
   answers that handback
 - **THEN** the answer session relays the answer on the issue and pushes
@@ -1146,11 +1147,10 @@ reads is not followed*).
 
 #### Scenario: An Igor's log file follows its Linear handback comment
 
-- **WHEN** an Igor worker's log file, on the questions branch of a
-  private repository, the only kind a Linear `asked_in` may be written
-  on, has as `asked_in` the URL of its Igor's handback
-  comment on a Linear issue in a subscribed team, and the person answers
-  that handback
+- **WHEN** an Igor's log file has as `asked_in` the URL of its Igor's
+  handback comment on a Linear issue in a subscribed team, and sits on a
+  private repository's questions branch, the only kind a Linear
+  `asked_in` may be written on, and the person answers that handback
 - **THEN** the answer session relays the answer on the Linear issue and
   pushes an answer file naming the log file, and never shows the log file
   on its own
@@ -2146,8 +2146,9 @@ from choosing what the code does beyond a closed set.
   places the code listed (each subscribed repository and each
   configured lore repository), `other` for a repository or collective
   outside them, or `none` when the model cannot tell; and, for a Linear
-  or Discord question, `place_sure`, `yes` or `no`, whether the model is
-  sure of `place`
+  or Discord question no concerns line settles, `place_sure`, `yes` or
+  `no`, whether the model is sure of `place` (*A Linear or Discord
+  question in doubt gets no automatic reply*)
 - **AND** the model judges a message in two turns: on the message, it
   sets `question`, `category` and whichever of `place` and `place_sure`
   the question has; then the code runs `search` with those and puts
@@ -2159,8 +2160,7 @@ from choosing what the code does beyond a closed set.
   accepted call in its turn set counts as the cautious one: `question` as
   `unclear`, `category` as a category the code cannot name, so the
   question is handled as one with a category, `filter` as `none` (as is
-  `1` with no `hit`), `place` as none and, for a Linear or Discord
-  question, `place_sure` as `no`
+  `1` with no `hit`), `place` as none and `place_sure` as `no`
 
 #### Scenario: A verdict call sets what the code does
 
@@ -2274,13 +2274,13 @@ space.
 
 ### Requirement: An answer is recorded by a new log file
 
-Besides handled files, the answer session SHALL write a log file only
-for an answer the person confirmed or a later edit of it. The `log` command
+The answer session SHALL write a log file, besides handled files, only
+for an answer the person confirmed or its later edit. The `log` command
 SHALL push it beside the unanswered files holding the question, naming
 them and setting `asked_from` as the inquisitor's *An answer file names
-every unanswered file it answers* sets. Where no unanswered file holds the
-question, it SHALL push it to the questions branch of what the question
-concerns.
+every unanswered file it answers* sets. Where none holds it, the command
+SHALL push it to the questions branch of what the question concerns, with
+the `repository` and `asked_from` a miss would have.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2805,23 +2805,6 @@ or citation file's push is owed and retried as a handled file's is*.
   privacy, naming neither the private repository nor its file, the person
   confirms that wording with the decline, and the miss's `said` holds it
 
-### Requirement: A filter 1 decline cites its lore entry once
-
-A filter 1 decline naming a lore entry SHALL push its citation file
-once, to the entry's own lore repository, under *A person's cite of an
-active entry in scope pushes a citation file*, whether or not it pushes
-a miss.
-
-#### Scenario: A decline's citation is pushed when no readable miss is
-
-- **WHEN** the person's filter 1 decline names an `active` entry of a
-  private lore repository, whose scope covers the question; the question is
-  about the organization and was asked in a private repository's thread;
-  and the team's lore repository, where its miss would go, is public, and
-  the person has not confirmed the miss
-- **THEN** the miss is a hash-only miss file, that branch being more
-  visible than the thread, and the answer session pushes one citation file, to that entry's lore repository
-
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
 
 A question declined with nothing posted SHALL be recorded in the state
@@ -3127,12 +3110,12 @@ included.
 
 ### Requirement: A person's cite of an active entry in scope pushes a citation file
 
-A cited entry SHALL get a citation file only when it is `active` and in
-scope for the question, as the inquisitor's *Filter 1 hides every lore
-entry outside the question's scope* defines scope, pushed by the
-inquisitor's *A lore entry that stops a question gets a citation file*,
-which pushes none to a more visible lore repository. Citing any other
-entry pushes nothing.
+Each cite of an entry that is `active` and in scope for the question, as
+the inquisitor's *Filter 1 hides every lore entry outside the question's
+scope* defines scope, SHALL push one citation file, whether or not a miss
+is pushed with it, through the inquisitor's script under *A lore entry
+that stops a question gets a citation file*. Citing any other entry
+pushes nothing.
 
 #### Scenario: Citing a lore entry sends a citation
 
@@ -3149,6 +3132,16 @@ entry pushes nothing.
   the question, or an entry in a public lore repository for a question
   about a private repository
 - **THEN** no citation file is pushed
+
+#### Scenario: A decline's citation is pushed when no readable miss is
+
+- **WHEN** the person's filter 1 decline names an `active` entry of a
+  private lore repository, whose scope covers the question; the question,
+  about the organization, was asked in a private repository's thread; its
+  miss would go to the team's lore repository, a public one; and the
+  person has not confirmed the miss for that more visible branch
+- **THEN** the miss is a hash-only miss file, and the answer session
+  still pushes one citation file, to the entry's lore repository
 
 ### Requirement: Filter 1's answer by itself to an agent's question logs a miss
 
@@ -3208,9 +3201,8 @@ answer: such a repeat goes to the person, as an ordinary question.
 
 The session's model SHALL judge each question filter 1 did not stop
 against filters 2 to 4, sending an unclear case to the person. When an
-agent's question with no category, which a concerns line settles,
-clearly fails one of them where the relay can reply, and *A Linear or
-Discord question in doubt gets no automatic reply* allows it, the answer session SHALL itself post the
+agent's question with no category, whose place a concerns line
+settles, clearly fails one of them where the relay can post in its thread, the answer session SHALL itself post the
 filter's fixed text, log its miss, and list the question as handled (*A
 handled file closes a questions-branch question*).
 

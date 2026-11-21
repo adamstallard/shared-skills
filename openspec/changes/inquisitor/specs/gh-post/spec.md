@@ -182,9 +182,9 @@ its scenarios list as unreadable SHALL be unreadable.
 - **AND** takes each simple command's command as its first word after any
   leading `if`, `then`, `elif`, `else`, `do`, `while`, `until`, `!`, `{`
   or `time`, and counts `fi`, `done` or `}` alone as no command
-- **AND** a simple command's text, quoted or not, names `gh` where `gh`
-  has no letter, digit or `_` just before it and no letter, digit, `_` or
-  `-` just after it
+- **AND** counts a simple command as naming `gh` when its text, quoted
+  or not, holds `gh` as a whole word, as *The gh post verbs are a closed
+  list* counts words
 
 #### Scenario: A subshell's and an unquoted substitution's commands are read
 

@@ -733,18 +733,18 @@ filter 1 does, but only of a repository those clones hold.
   it, or `null` when that is unknown
 - **AND** it issues no token, records no verdict and writes no file
 
-#### Scenario: The search command reads only the session's clones
+#### Scenario: The search command given no repository searches only global lore
 
-- **WHEN** `search` is given a question that concerns `o/api`, of which
-  the answer session holds no clone
-- **THEN** it fetches nothing, reads no file or issue of `o/api`, and its
-  `not_searched` names `o/api`'s decision documents, issues and questions
-  branch
+- **WHEN** `search` is given a question with no repository
+- **THEN** it searches only the configured lore clones, admitting only
+  `global` entries, as *With no repository, a
+  question concerns none* says
 
 ### Requirement: The search command takes its question as the first call does
 
-The `search` command SHALL take its question, and the repository or lore
-repository it concerns, in a file the first call would accept or on
+The `search` command SHALL take its question, and any repository or lore
+repository it concerns, in a file the first call (*Two calls prove the
+filters ran*) would accept or on
 standard input, and a question with a category only on standard input.
 For a question with a category it SHALL search nothing off the machine.
 
@@ -1254,7 +1254,7 @@ hash group* says how a replaced answer file supersedes.
 
 The answer of a **named file**, one an answer file names in `answers`,
 SHALL be the newest answer file naming it that would count and whose
-`answered_by` is the person its question tags or, if it tags no one, an
+`answered_by` is a person its question tags or, if it tags no one, an
 account with write access to what it concerns (design.md: *A named file's
 answer must be the person's own*). Only these
 files decide whether a named file is answered: an answer file that hash

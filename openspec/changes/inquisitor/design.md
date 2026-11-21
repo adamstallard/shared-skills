@@ -2057,10 +2057,10 @@ as a handled file's is*.
 Widening #216's definition of a citation is under *What igor must provide*.
 
 *Ruled out by a scenario:* pushing a decline's citation only when its miss is
-pushed (answer-session spec: *A filter 1 decline cites its lore entry once*,
-scenario *A decline's citation is pushed when no readable miss is*). When two
-machines decline one question, each pushes a citation, so the entry is cited
-twice, which *Which cross-machine cases are accepted* accepts.
+pushed (answer-session spec: *A person's cite of an active entry in scope
+pushes a citation file*). When two machines decline one question, each
+pushes a citation, so the entry is cited twice: an accepted case under
+*Which cross-machine cases are accepted*.
 
 #### Agreeing to a recorded answer is a filter 1 decline
 
@@ -2637,6 +2637,21 @@ to its 149.
   print it.** adamstallard/shared-skills#96's body states what github-app
   must change. Until it does, *The README warns that a relay's token can be
   printed* keeps the README's warning.
+
+### Rules a person must choose
+
+- **Does an `@login` in code, a quote or a link tag a person?** The
+  inquisitor spec's *A question tags* counts an `@login` anywhere in a
+  question, and the answer session uses it to choose whom a
+  questions-branch log file is shown to. The answer-session spec's *A
+  mention names a user outside code, quotes and links*, which governs
+  thread messages, skips an `@login` in code, a quote or a link. Under
+  the inquisitor's rule, a log file whose question holds
+  `` `@deprecated` `` is shown to a person whose login is `deprecated`.
+  Options: count a tag only outside code, quotes and links, as a mention
+  is; count only the question's tag line, the `@login` line an agent adds
+  after vetting; or keep it as it is. Recommended: the first, so `@login`
+  means one thing in both specs.
 
 ### Outside this change
 
