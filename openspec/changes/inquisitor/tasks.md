@@ -11,12 +11,12 @@ spec.
 ## 0. Measure before building
 
 Record each result that a requirement rests on as Evidence in its
-capability's decision record, and the rest in the design.md section listed
-for its task:
+capability's decision record, and the rest in the design.md section its
+task names, or else the one listed here:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7 to 0.14, 0.33 and 0.35;
+- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
   0.28, 0.30, 0.31, 0.34 and 0.37;
@@ -274,12 +274,6 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       spec). If no control Claude Code enforces exists, the design falls
       back to hooks and the change cannot be built as written: record it
       and stop for the repository's owner
-- [ ] 0.35 That `python3 "$G" gh pr view 12`, run as a Claude Code tool call
-      after an earlier call ran `G=/tmp/x.py`, posts nothing and runs no
-      script, because each tool call starts a fresh shell. Until then, the
-      gh-post spec's scenario *A gh read through an unset G is no post* is
-      not built. If `G` carries over, the reader reports that read as
-      unreadable instead
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, and have the model
       answer it with a tool call, unattended (design.md: *The model hands

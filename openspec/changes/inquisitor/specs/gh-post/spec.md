@@ -311,9 +311,9 @@ The reader SHALL read a call of the github-app skill's script, in the
 forms its scenarios list, as the `gh` command it runs, judging its line
 as if that `gh` command stood in the call's place and the line held no
 `G` assignment. The script's path SHALL be a literal word ending in
-`/github_app.py`, written out in the call or assigned to `G` before it.
-A line that mentions a gh post verb and runs `python3 $G` with `G`
-unassigned SHALL be unreadable, its block message saying how to fix it.
+`/github_app.py`, written in the call or in the last assignment to `G`
+before the call. A line that mentions a gh post verb and runs `python3 $G` with `G`
+unassigned SHALL be unreadable.
 
 #### Scenario: A post sent through the github-app skill is read
 
@@ -387,14 +387,12 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 
 ### Requirement: A gh api call is a read only as a plain gh command
 
-A `gh api` call SHALL count as a **read** only when it is a simple
-command whose command is `gh`, or the github-app skill's form of one;
-that does not write as *A gh api call writes by its method, fields, input
-or a mutation* says; and whose every word is a literal word, except that
-its endpoint may hold `?` and gh's `{owner}`, `{repo}` and `{branch}`
-placeholders, and the github-app form may hold `$G` assigned in the same
-line. Any other `gh` followed by `api` SHALL mention a gh post
-verb.
+A `gh api` call SHALL count as a **read** only when all three hold: it is
+a simple command whose command is `gh`, or the github-app skill's form of
+one; it does not write, as *A gh api call writes by its method, fields,
+input or a mutation* says; and every word in it is literal, save what *A
+gh api call holding a word the shell builds is unreadable* allows. Any
+other `gh` followed by `api` SHALL count as mentioning a gh post verb.
 
 #### Scenario: A read with placeholders or a query string is a read
 

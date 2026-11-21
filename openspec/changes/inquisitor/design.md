@@ -102,8 +102,8 @@ question outside a post is rewritten with nothing recorded*).
 
 **Rule:** inquisitor spec, *A question is pushed to the questions branch of
 what it concerns*; *A question is written at the privacy of what it
-concerns*; *Every answer is recorded and every asked question logged*; *An
-unanswered question goes nowhere more visible than its source*.
+concerns*; *Every answer is recorded and every asked question logged*; *No
+record goes somewhere more visible than its source*.
 
 The inquisitor decision record's *Rationale: A question is pushed to the
 questions branch of what it concerns* gives why no review is needed and why
@@ -749,13 +749,14 @@ clause has the post hook vet a `gh` post carrying the marker).
 #### Every asked question is logged with what it concerns
 
 **Rule:** inquisitor spec, *Every answer is recorded and every asked question
-logged*; *A question is written at the privacy of what it concerns*; *With
-no repository, a question concerns none*.
+logged*; *A question is written at the privacy of what it concerns*.
 Logged with what it concerns, a question's answer is found by the next agent
 instead of being asked again. No question log is kept anywhere personal,
 beyond a file pending its push (*Where the logs live*). Only the skill's
 instructions keep an agent from asking a question that concerns no
-repository, collective or person's way of working; nothing enforces it.
+repository, collective or person's way of working; nothing enforces it, and
+outside any repository filter 1 then searches only global lore (*Outside
+any repository, a question that concerns nothing sees only global lore*).
 
 #### Collective questions go on lore's `questions` branch
 
@@ -780,7 +781,7 @@ visible*; *An unreadable visibility counts against sharing*; *No record goes
 somewhere more visible than its source*, which defines a record's source;
 *A question asked in the session shows where its answer will be recorded*;
 *The answerer's confirmation can send a record somewhere more visible*;
-*An unanswered question goes nowhere more visible than its source*; *A lore pull request goes to no lore repository more
+*A lore pull request goes to no lore repository more
 visible than its source*; answer-session spec, *The preview shows where an
 answer will be recorded*. *Configuration* gives how visibility is read.
 
@@ -2338,16 +2339,6 @@ documents the same `author` field for both (the inquisitor record's
   The credential patterns' Discord shape has no measurement behind it. If
   the relay's real token does not match, the pattern is changed to the
   shape measured.
-- **Does an unset `$G` run nothing in Claude Code?** (task 0.35) `$G`
-  conventionally holds the path of the github-app skill's script. The
-  shared post reader counts a `gh` read other than `gh api`, run through
-  `$G` in a command that never assigns `G`, as no post: each Claude Code
-  tool call starts a fresh shell, so `$G` is empty and the call fails. A
-  `gh api` call through such a `$G` is already unreadable, since only a
-  `gh api` call in a plain or github-app form counts as a read (gh-post spec: *A gh api call is
-  a read only as a plain gh command*). If a shell kept `G` between calls,
-  the read could run any script `G` named, so the reader would report it
-  as unreadable too, and the post hook would block it.
 
 ### Facts the answer session relies on
 
@@ -2500,13 +2491,13 @@ to its 149.
   questions to the team's lore repository's. igor's own specs, #216's
   lore-firing delta among them, must change to match.
 - **The Igor must push no file, unanswered or answered, to a questions
-  branch more visible than the handback's item** (inquisitor spec: *An
-  unanswered question goes nowhere more visible than its source*). A
+  branch more visible than the handback's item** (inquisitor spec: *No
+  record goes somewhere more visible than its source*). A
   worker can ask an organization question from a private repository's item
   while the lore repository is public. The handback comment is then the
   question's only record. Only the answer session pushes a file to that
-  branch, and only an answer the person confirmed there; nobody confirms an
-  answer typed in a comment.
+  branch, and only an answer the person confirmed in their answer session;
+  nobody confirms an answer typed in a comment.
 - **For a worker's question about a repository more private than its
   item's, the Igor must push the question file to that repository's
   questions branch at once, without waiting for an answer. The file has
@@ -2652,6 +2643,29 @@ to its 149.
   is; count only the question's tag line, the `@login` line an agent adds
   after vetting; or keep it as it is. Recommended: the first, so `@login`
   means one thing in both specs.
+- **What does filter 1 search for a question about a repository or
+  collective outside the answer session's clones?** The model sets such a
+  question's `place`, a field of `record_verdict`, to `other`. The
+  answer-session spec's *The answer session's filter 1 reads only
+  subscribed and lore repositories* then passes `search` no repository,
+  so `search` reads every configured lore clone's `global` entries
+  (inquisitor spec: *Outside any repository, a question that concerns
+  nothing sees only global lore*). But for a question about `o/api`,
+  *Filter 1 searches every place an answer is recorded* searches only the
+  lore repositories serving `o/api`. A `global` entry of a lore
+  repository that does not serve `o/api` can then be posted
+  automatically, with no person checking, as a `Recorded answer:`. Options: search nothing for it and show that it was not
+  searched; have `place` name the repository or collective, so `search`
+  reads the lore clones serving it and names the repository's own
+  sources as not searched; or keep it as it is. Recommended: the first,
+  the shortest; a question filter 1 cannot stop goes to the person.
+- **Do the model steps igor PR #153 runs after the worker count as the
+  worker?** Nothing in this change says what those steps are, yet *A
+  session with no person in it holds back a question with a category*
+  holds them to its worker rule.
+  Options: cut the clause, so the rule covers the worker and #153 settles
+  its own steps; or keep it and say in *What igor must provide* what #153
+  must do. Recommended: cut it.
 
 ### Outside this change
 

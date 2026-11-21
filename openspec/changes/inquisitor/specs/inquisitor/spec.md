@@ -348,12 +348,12 @@ branch as the clone's remote-tracking branch has it. Its `status` SHALL be
 - **THEN** `entries/retry.md` is no lore entry, and filter 1 does not show
   it
 
-### Requirement: With no repository, a question concerns none
+### Requirement: Outside any repository, a question that concerns nothing sees only global lore
 
-When the agent works in no git repository and the question is about none, no
-repository SHALL be the one it concerns: filter 1 SHALL search only the
-configured lore repositories and admit only `global` entries, and no
-citation SHALL be sent.
+When the agent works in no git repository and the question concerns no
+repository, collective or person's way of working, filter 1 SHALL search
+only the configured lore repositories and admit only `global` entries,
+and no citation file SHALL be pushed.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
@@ -737,8 +737,7 @@ filter 1 does, but only of a repository those clones hold.
 
 - **WHEN** `search` is given a question with no repository
 - **THEN** it searches only the configured lore clones, admitting only
-  `global` entries, as *With no repository, a
-  question concerns none* says
+  `global` entries, as *Outside any repository, a question that concerns nothing sees only global lore* says
 
 ### Requirement: The search command takes its question as the first call does
 
@@ -1198,10 +1197,8 @@ SHALL count as no write access.
 Whoever logs an answer from a GitHub comment, whether the skill's script,
 an answer session or an Igor, SHALL record the comment's whole text word
 for word as the file's answer, never a paraphrase and never the answer
-text passed with the link. The only line that may be left out is the
-`Re: ` line naming the question a relay post answers, which *The
-answerer's confirmation can send a record somewhere more visible* drops
-when the record goes somewhere more visible.
+text passed with the link, save the `Re: ` line *The answerer's
+confirmation can send a record somewhere more visible* drops.
 
 #### Scenario: A comment's whole text is recorded as the answer
 
@@ -2427,10 +2424,10 @@ nothing and say so.
 The agent SHALL record each answer where its log file's `recorded_in`
 names. Unless its own requirement says otherwise, as for a worker's
 question about a more private repository, each asked question SHALL be
-logged as one file on a questions branch: one asked in a GitHub post when
-asked, save as *An unanswered question goes nowhere more visible than its
-source* says, and any other once answered, with its answer, any thread
-being its record until then.
+logged as one file on a questions branch. One asked in a GitHub post is
+logged when asked, save as *No record goes somewhere more visible than its
+source* says. Any other is logged once answered, with its answer, and
+until then its thread is its record.
 
 #### Scenario: A question waiting for its answer is already logged
 
@@ -2616,12 +2613,14 @@ questions-branch answer's file is pushed after its post*).
 
 ### Requirement: No record goes somewhere more visible than its source
 
-A record's **source** SHALL be the thread its question was asked or its
-answer given in, a Linear or Discord thread counting as a private
-repository, and the repository it was asked from. The script SHALL
-refuse to push a log file, or a miss file other than a hash-only one, to a
-questions branch more visible than either part of its source, save as *The answerer's confirmation can send a record somewhere
-more visible* allows, and the agent SHALL then tell the person why.
+A record's **source** SHALL have two parts: its thread, where its
+question was asked or answered, a Linear or Discord thread counting as a
+private repository; and the repository it was asked from. No log file, nor a miss file other
+than a hash-only one, SHALL be pushed or kept pending for a questions
+branch more visible than either, save as *The
+answerer's confirmation can send a record somewhere more visible* allows.
+Outside an Igor's run, the agent SHALL say why the question is not yet
+logged.
 
 #### Scenario: A private repository's question stays out of an internal lore repository
 
@@ -2647,6 +2646,40 @@ more visible* allows, and the agent SHALL then tell the person why.
 - **AND** the script pushes the file to the questions branch of `o/web`
   only once the person's answer confirms it, and then with
   `asked_from: "o/web"`
+
+#### Scenario: A private repository's organization question is not logged when asked
+
+- **WHEN** an agent working in the private `o/api` asks, in an issue of
+  `o/api`, a question about the organization `o`, and the team's lore
+  repository `o/lore` is public
+- **THEN** the script pushes no log file and keeps none pending, and the
+  agent's report says the question is not yet logged
+
+#### Scenario: The question is found in its thread and logged once confirmed
+
+- **WHEN** the person's answer session, which reads `o/api`, shows that
+  question from its issue, and the person answers it and confirms the
+  preview's warning that the record is more visible than `o/api`
+- **THEN** the answer is relayed in the issue, and a log file holding the
+  question and the answer, with no `asked_in` or `answer_link`, is pushed
+  to the questions branch of `o/lore`
+- **AND** it holds no `answers`, since no file was logged when the
+  question was asked
+
+#### Scenario: An answer given only in the thread is not logged on the lore repository
+
+- **WHEN** a person answers that question in a comment on the issue,
+  outside any answer session
+- **THEN** no log file is pushed to the questions branch of `o/lore`,
+  since nobody confirmed sending the record there
+
+#### Scenario: An Igor pushes no file for such a handback question
+
+- **WHEN** an Igor worker asks, in its handback comment on an issue of the
+  private `o/api`, a question about the organization `o`, and `o/lore` is
+  public
+- **THEN** the worker's report holds that question's file, as for any
+  question, and its Igor pushes that file nowhere
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 
@@ -2680,48 +2713,6 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 - **WHEN** a session with no person in it holds an answer, read in a
   private repository's thread, to a question about a public repository
 - **THEN** it pushes nothing to the public repository's questions branch
-
-### Requirement: An unanswered question goes nowhere more visible than its source
-
-A question asked in a post or a handback comment SHALL get no file pushed
-or kept pending on a questions branch more visible than its thread, or
-than the repository it was asked from, until a person answers and confirms
-the record (*The answerer's confirmation can send a record somewhere more
-visible*). A worker cannot read visibility, so its Igor applies this rule
-to the files the worker reports. Outside an
-Igor's run, the agent SHALL report that the question is not yet logged.
-
-#### Scenario: A private repository's organization question is not logged when asked
-
-- **WHEN** an agent working in the private `o/api` asks, in an issue of
-  `o/api`, a question about the organization `o`, and the team's lore
-  repository `o/lore` is public
-- **THEN** the script pushes no log file and keeps none pending, and the
-  agent's report says the question is not yet logged
-
-#### Scenario: The question is found in its thread and logged once confirmed
-
-- **WHEN** the person's answer session, which reads `o/api`, shows that
-  question from its issue, and the person answers it and confirms the
-  preview's warning that the record is more visible than `o/api`
-- **THEN** the answer is relayed in the issue, and a log file holding the
-  question and the answer, with no `answers`, `asked_in` or
-  `answer_link`, is pushed to the questions branch of `o/lore`
-
-#### Scenario: An answer given only in the thread is not logged there
-
-- **WHEN** a person answers that question in a comment on the issue,
-  outside any answer session
-- **THEN** no log file is pushed to the questions branch of `o/lore`,
-  since nobody confirmed sending the record there
-
-#### Scenario: An Igor pushes no file for such a handback question
-
-- **WHEN** an Igor worker asks, in its handback comment on an issue of the
-  private `o/api`, a question about the organization `o`, and `o/lore` is
-  public
-- **THEN** the worker's report holds that question's file, as for any
-  question, and its Igor pushes that file nowhere
 
 ### Requirement: A question asked in the session shows where its answer will be recorded
 
@@ -2850,9 +2841,9 @@ When filter 1 stops a question with a lore entry, the agent SHALL push a
 citation file to the entry's lore repository's questions branch, unless:
 the question has a category; the lore repository is more visible than the
 question's repository or, for a collective's, the one it was asked from;
-or *With no repository, a question concerns none*, *No worker or
-Igor-started run pushes to a questions branch* or *An answer session's
-automatic reply is a verdict, not a person's answer* bars it.
+or *No worker or Igor-started run pushes to a questions branch* or *An
+answer session's automatic reply is a verdict, not a person's answer*
+bars it.
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -3166,9 +3157,9 @@ For a Linear or Discord `answer_link`, which only an answer session passes,
 the `log` command SHALL refuse a call without its session option, since a
 link only the answer session makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
-the text the answer session says it relayed, save the `Re: ` line naming
-the question it answers, which *The answerer's confirmation can send a record somewhere more visible*
-drops.
+the text the answer session says it relayed, save a Linear relay post's
+`Re: ` line, which *The answerer's confirmation can send a record
+somewhere more visible* drops.
 
 #### Scenario: A Discord answer link without the session option is refused
 
