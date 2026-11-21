@@ -16,13 +16,14 @@ often when it is:
   be read first, or read before some task. A link to be read only before
   changing the skill does not count: that file is read only when the skill
   changes;
-- an open OpenSpec change's `proposal.md` or `design.md`: spec-check's
-  consistency read opens both in every open change, once per review round;
+- an open OpenSpec change's `design.md`: it holds the change's open
+  questions for a person, and spec-check's consistency read and every agent
+  working on the change read those questions, to leave them to the person;
 - or declared with `prose-compact` in `.gitattributes`.
 
 No other doc is read often. So an OpenSpec `spec.md`, main or delta, is
-checked for compaction only when a `SKILL.md` or `AGENTS.md` links it to be
-read first, or it is declared. Spec-check reads it as often as a proposal,
+checked for compaction only when a `SKILL.md` or `AGENTS.md` links it as
+above, or it is declared. Spec-check reads it in every review round,
 but its compactions cut little: OpenSpec's format repeats scenario lines on
 purpose, which a compaction cannot remove, and spec-check keeps history out
 of it.

@@ -114,8 +114,8 @@ rule, but the declaration shows in the commit, and anyone can undo it.
 
 ## Docs agents read before working stay compact
 
-Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
-proposals before every task, so history, repetition and padding left in them
+Agents reread docs such as `SKILL.md` and `AGENTS.md` before every task,
+and an open OpenSpec change's `design.md` before each task on that change, so history, repetition and padding left in them
 cost tokens on every read. When a commit changes a doc agents read often,
 and the history, repetition and padding added since it was last compacted
 make up a tenth of the doc and at least 1,000 bytes, or the doc has grown by
