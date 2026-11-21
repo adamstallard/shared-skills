@@ -1712,11 +1712,12 @@ with its original text, as the person's answer.
 ### Requirement: A relay post can be edited where it was posted
 
 The answer session SHALL let the person edit the latest relay post
-naming a question, whatever its prefix, and SHALL edit it in place, as
+naming a question, and SHALL edit it in place, as
 the relay identity that posted it, found by the id the state folder keeps
 or, where this machine lacks it, in the question's thread. The edit SHALL
-keep the `Re: ` line and a `User says: ` or `User asks: ` prefix; an
-automatic post's becomes `User says: `. The edited text is scanned as a
+keep the `Re: ` line, any `question <n>: ` naming which of the post's
+questions it answers, and a `User says: ` or `User asks: ` prefix; an
+automatic post's prefix becomes `User says: `. The edit is scanned as a
 new post is.
 
 #### Scenario: An answer is edited in place
@@ -2539,13 +2540,13 @@ it or its `asked_in` links the question's message.
 ### Requirement: A handled file is pushed once its close takes effect
 
 The answer session SHALL push a handled file once the post leading to it
-has gone out or, with nothing posted, once the person confirms the
-decline or, for a question with a category, whose answer may never be
-posted, the answer. It SHALL record the
-owed push in the state folder before the post or, with nothing posted,
-before the push, drop it if the post fails, and retry a failed push at
-each poll and opening until it succeeds or the `log` or `cite` command
-refuses it for good.
+is out; with nothing posted, once the person confirms the decline;
+and for a question with a category, whose answer may never be posted,
+once the person confirms the answer. It SHALL record the owed push in
+the state folder before that post, or with none before the push, drop it
+if a post it waits on fails, and retry it at each poll and opening
+until it succeeds or its `log` or `cite` command refuses it for
+good.
 
 #### Scenario: A failed post pushes no handled file
 

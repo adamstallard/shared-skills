@@ -51,6 +51,10 @@
   Evidence: igor PR #216's lore-firing spec at 59e7561, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L3-L29
   Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/7d969cd/src/firing.ts#L40
 
+- **Rationale: A run's lore search keeps to the Igor's lore repository and scope.**
+  igor hides a `project:X` entry from a run whose item's repository is more visible than the repository `project:X` names, since a worker could otherwise repost what it read about a private repository into a more public item. So the inquisitor's scenario *Inside an Igor, a project entry matches any repository the role works*, under *Only an answer with authority stops a question*, sets the item's repository no more visible than that one: with a more visible item, the entry would be hidden.
+  Evidence: igor PR #216's lore-firing spec at 59e7561, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L3-L29
+
 - **Rationale: A log file and a miss file have one format.**
   Of this requirement, the scenario *Where an asked_in may be written* fixes one form for a Discord or Linear message's URL because the forms the surfaces give differ. Discord returns no URL for a message, only ids, so the asking agent and the answer session each build it; a message that starts a thread has two addresses, its parent channel's and one inside the thread, where a placeholder message points back to it; and `discordapp.com` answers 301 to the same path on `discord.com`. Linear returns a comment's URL with the issue's title slug, and renaming the issue changed that slug in every comment's URL, so a URL recorded before a rename would match nothing after it. This was measured on 2026-11-19 on a test Discord thread and a test Linear issue, and task 0.23 in the change's tasks.md holds the result.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)

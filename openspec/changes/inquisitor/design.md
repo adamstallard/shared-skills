@@ -43,10 +43,6 @@ that was not vetted*):
 
 - **The skill's description alone,** with no hook: a model loads a skill by
   judgement (scenario *An unvetted question is blocked*).
-- **Records kept per clone,** as prose keeps its pass tokens in the git
-  directory: a `vet` run in another repository or clone would record where
-  the hook never looks, and a verdict is about the text, not the clone or
-  worker (scenario *A verdict recorded in another repository counts*).
 
 ### What the hook relies on, not yet measured
 
@@ -1153,17 +1149,14 @@ with the script* gives why the Igor runs the script and the worker does not.
 
 #### Questions-branch files and `project:` entries in a run's search
 
-The scope rules for lore entries are igor PR #216's (decisions 44, 53 and
-54); the spec points to them. For a questions-branch file the script applies
-this change's run rules itself (inquisitor spec: *The script searches a
-questions branch and prints labelled hits as JSON*). A `project:X` entry is
-hidden in a run whose item's repository is more visible than X's repository
-(decisions 53 and 54). So the spec's scenario of a `project:` entry in an
-Igor's run sets the item's repository no more visible than X: with a more
-visible item, the entry would be hidden and the scenario would show nothing.
-
-**Why** visibility limits what a run sees: a worker could otherwise repost
-what it read about a private repository into a more public item.
+igor PR #216 sets the scope rules for lore entries (its decisions 44, 53
+and 54), and the inquisitor spec only cites them. For a questions-branch
+file, the script's `branch-search` applies the inquisitor's own run rules:
+a file about another repository is input, and a file the item's
+visibility hides is left out (inquisitor spec: *The script searches a
+questions branch and prints labelled hits as JSON*). The script applies
+them because igor holds no copy of the inquisitor's rules (*The Igor reads
+questions branches with the script*).
 
 **Why** a file about another repository is input in a run: *Every
 questions-branch file names where it was asked from* gives the reason.

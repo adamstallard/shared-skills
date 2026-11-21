@@ -212,8 +212,8 @@ record its choice and why in the decision document about the question's
 subject in the repository the question concerns, such as the current
 change's spec, or, for a way-of-working question, in that person's memory
 or user-level `CLAUDE.md`; where none fits, only in its report. It SHALL
-push no file for its own choice to a questions branch, so a later agent
-runs filters 3 and 4 afresh.
+push no file for its own choice to a questions branch, so a choice in no
+decision document stops no later agent's question.
 
 #### Scenario: An agent's choice with no document goes only in its report
 
@@ -846,12 +846,11 @@ on. It SHALL keep to the role's scope and the item's visibility.
   its run works an item of `o/web`, and its lore repository holds
   `project:api` and `project:web` entries, a question file naming the public
   `o/doc` and a miss file naming the private `o/api`
-- **THEN** `igor lore-search` returns the `project:web` entry and the
-  `o/doc` file. The scope rule of igor PR #216's lore-firing spec covers
+- **THEN** `igor lore-search` returns the `project:web` entry and, as
+  input, the `o/doc` file. The scope rule of igor PR #216's lore-firing spec covers
   the `project:` entries of each repository the role works,
   `project:api` among them, but the item's visibility hides that entry
-  and the `o/api` file (design.md:
-  *Questions-branch files and `project:` entries in a run's search*)
+  and the `o/api` file
 - **AND** it returns nothing from any lore repository but the one the Igor
   injects lore from
 - **AND** it does so under igor PR #216's requirements *Lore reaches the
@@ -3619,11 +3618,11 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 ### Requirement: Every miss file is named by one hash
 
 Every miss file SHALL be `misses/<hash>.md`, `<hash>` being the lowercase
-hex SHA-256 of two parts joined by an LF: for a miss with a reply the
-answer session posted, the surface (`github`, `linear` or `discord`) and
-the reply's message id; otherwise `file` and the path of the question's log file on the branch the miss goes to, or with
-none, `message` and the asking message's URL. A miss with none of these
-SHALL get no file, and a writer finding the name taken SHALL push nothing.
+hex SHA-256 of two parts joined by an LF: for a reply the answer session
+posted, the surface (`github`, `linear` or `discord`) and the reply's id,
+on GitHub its `node_id`; else `file` and the path of the question's log
+file on the questions branch the miss goes to, the first in byte order if
+several; else `message` and the asking message's URL.
 
 #### Scenario: A miss file is named by its reply's id
 
@@ -3644,12 +3643,6 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
 - **THEN** that comment's id names no file on the branch, and the reply is
   input
 
-#### Scenario: A retried push of a miss already on the branch pushes nothing
-
-- **WHEN** the answer session retries an owed push of a miss file whose
-  earlier push had landed
-- **THEN** it pushes nothing, the name being on the branch
-
 #### Scenario: A miss with no reply hashes its question's file path
 
 - **WHEN** a person says a picker question, logged as
@@ -3666,6 +3659,20 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
 - **WHEN** a person says that a picker question, never logged and asked
   in no message, did not need asking
 - **THEN** no miss file is written
+
+### Requirement: A miss file's name is pushed once
+
+A miss with nothing to name its file by, as *Every miss file is named by
+one hash* names one, SHALL get no file, and a writer finding the name
+taken SHALL push nothing, so a later miss about the same reply or question
+leaves the first in place, as *A file on a questions branch never changes
+once pushed* requires.
+
+#### Scenario: A retried push of a miss already on the branch pushes nothing
+
+- **WHEN** the answer session retries an owed push of a miss file whose
+  earlier push had landed
+- **THEN** it pushes nothing, the name being on the branch
 
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
@@ -4480,7 +4487,7 @@ that should have stopped it, and what the person said.
 No miss file SHALL be written for a way-of-working question, whose answer
 goes to the person's memory (*A way-of-working answer goes to the
 person's memory, not a log*). Two other requirements name the other
-misses that get no miss file: *Every miss file is named by one hash*, for
+misses that get no miss file: *A miss file's name is pushed once*, for
 a miss with nothing to name its file by, and *Some questions are recorded
 by hash only*, for a question with a category.
 
