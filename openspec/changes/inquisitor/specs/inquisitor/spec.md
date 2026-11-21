@@ -2811,7 +2811,7 @@ confirms it.
   no configured lore repository serves, or any picker question in a session
   with no login configured
 - **THEN** it prints `Not recorded: about your way of working`, `Not
-  recorded: kept in its security advisory`, `Not recorded: it has a
+  recorded: only a security advisory may hold it`, `Not recorded: it has a
   category`, `Not recorded: no push access to its
   questions branch`, `Not recorded: no team's lore repository serves it`
   or `Not recorded: no GitHub login configured`, the first of these that

@@ -32,6 +32,11 @@ inquisitor's, or that spec's, *Title*:
   marker* defines one.
 - A **questions branch** is a repository's orphan branch `questions`,
   which holds its question and miss files (the inquisitor's Purpose).
+- A question's **concerns line** names the repository it concerns, and a
+  **related-decision line** gives a related decision's URL (the
+  inquisitor's *A question in a post or message names what it concerns on
+  a line of its own* and *A related-decision line is one URL on a line of
+  its own*).
 - `answers` (the file answered), `asked_in` (the post asked in),
   `asked_from` (the repository asked from), `answer_link` (a link to the
   answer), `answered_by` (who answered), `authority` (`decision` or `input`) and `recorded_in` (where
@@ -1213,13 +1218,6 @@ reads is not followed*).
 - **THEN** the answer session relays the answer on the Linear issue and
   pushes an answer file naming the log file, and never shows the log file
   on its own
-
-#### Scenario: A link to a non-handback comment, or to an item this machine does not read, is not followed
-
-- **WHEN** a log file's `asked_in` links an Igor's comment that holds no
-  handback marker, a comment by an author that is not an Igor, or a
-  comment on an item this machine does not read
-- **THEN** the link is not followed, and the log file is shown on its own
 
 ### Requirement: A question is resolved once answered or declined
 
