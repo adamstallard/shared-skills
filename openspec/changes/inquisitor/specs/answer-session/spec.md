@@ -1854,8 +1854,9 @@ that reply and keeping a held-back answer pending.
 The answer session SHALL keep its working state per machine in the state
 folder, as *The state folder holds all working state* lists, except each
 lore repository's questions branch, which it fetches into that
-repository's configured clone. Filter 1 SHALL never search the state
-folder. A discussion record SHALL be deleted once its question is
+repository's configured clone. Filter 1 SHALL search nothing in the
+state folder but the session's clones of subscribed repositories. A discussion
+record SHALL be deleted once its question is
 answered by the person, answered or handled for them, or closed; a pending answer
 outlives it.
 
@@ -2823,7 +2824,7 @@ logged at the decline SHALL stay when the question is reopened.
 
 Before the answer session shows a question, whether a person or an agent
 asked it, it SHALL run filter 1 on it through the inquisitor script's
-search, with the person's credentials, as the inquisitor's *Filter 1
+`search` command, which reads issues with the person's credentials, as the inquisitor's *Filter 1
 searches every place an answer is recorded* and *Only an answer with
 authority stops a question* say. The session's model judges whether a
 hit with authority answers the question; a hit that is only input is
@@ -2837,18 +2838,20 @@ shown with the question, and stops nothing.
 
 ### Requirement: The answer session's filter 1 reads decision documents only from its clones
 
-When the answer session runs filter 1, the script SHALL search decision
-documents only in the clones the session holds, as last fetched: each
-subscribed repository's on its default branch, and each configured lore
-repository's. It SHALL name every other repository's decision documents
-as a source not searched.
+The answer session's clones SHALL be its clone of each subscribed
+repository, holding the default and questions branches, and each
+configured lore repository's clone. The inquisitor's *The search command
+runs filter 1 alone for the answer session* reads files only from them.
+For a question that concerns any other repository, `search` SHALL name
+that repository's decision documents and questions branch as sources
+not searched.
 
 #### Scenario: A repository with no clone has its decision documents named as not searched
 
 - **WHEN** a question in a subscribed `o/web` thread concerns `o/api`,
   which no subscription names
-- **THEN** filter 1 searches no decision document of `o/api`, and its
-  output names them as not searched
+- **THEN** filter 1 searches no decision document or questions branch of
+  `o/api`, and its output names them as not searched
 - **AND** a question about `o/web` has the decision documents on its
   clone's default branch searched
 - **AND** a question about the organization has the decision documents
@@ -2857,11 +2860,12 @@ as a source not searched.
 ### Requirement: A question with a category reaches filter 1 on standard input
 
 The session's model SHALL first judge whether the question has a
-category. The answer session SHALL pass a question with a category to
-the script on standard input, which searches nothing off the machine,
-and SHALL post nothing by itself on it; it SHALL pass any other question
-in a file as the inquisitor's *The two calls' files and records stay
-private* keeps the two calls' files.
+category, as the inquisitor's *Some questions are recorded by hash only*
+defines one. The answer session SHALL pass a question with a category to
+the `search` command on standard input, which keeps its search on the
+machine under the inquisitor's *The search command takes its question as
+the first call does*, and SHALL post nothing by itself on it; it SHALL
+pass any other question in a private file.
 
 #### Scenario: A question with a category is searched on the machine only
 

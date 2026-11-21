@@ -422,6 +422,11 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test
+- [ ] 2.3e `search`, which runs filter 1 alone for the answer session,
+      reading only the session's clones, and prints its results as JSON
+      with no token or record (inquisitor spec: *The search command runs
+      filter 1 alone for the answer session*; *The search command takes
+      its question as the first call does*)
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
       - `authority` is `decision` or `input`. An agent's own choice
@@ -780,10 +785,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, the questions branch of every
       subscribed repository and configured lore repository, and each
-      subscribed repository's default branch, which filter 1 searches for
-      decision documents, naming every other repository's as not searched
-      (answer-session spec: *The answer session's filter 1 reads decision
-      documents only from its clones*)
+      subscribed repository's default branch. The `search` command reads
+      only these fetched branches and the lore clones (answer-session spec:
+      *The answer session's filter 1 reads decision documents only from
+      its clones*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, or on Linear the session's own
       HTTP request, carrying the token linear-app's `token` command prints,
@@ -837,8 +842,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       guidance on its automatic replies, and the tests below. igor builds
       the item marked igor's, as igor PR #216 is asked to.
       - Built in this task:
-        - filter 1 on every incoming question and the `Recorded answer:
-          ` post;
+        - filter 1 on every incoming question, run through the script's
+          `search` command, and the `Recorded answer: ` post;
         - placing a question asked on Linear or Discord (answer-session
           spec: *A Linear or Discord question is placed by what it
           concerns*), and placing an agent's question by its concerns line

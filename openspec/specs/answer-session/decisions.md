@@ -93,6 +93,11 @@
   Evidence: GitHub's notification reasons, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
   Evidence: the REST rate limit these reads count against, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
 
+- **Rationale: The answer session's filter 1 reads decision documents only from its clones.**
+  Decision documents and questions-branch files are files, so searching them needs a copy on the machine, and the session keeps a copy fresh only of each subscribed repository and each configured lore repository. Any other repository a question names is open-ended, chosen by the question's own text, so fetching one on demand would let a crafted question choose what the session downloads with the person's credentials and puts before the model, a private repository included. The session otherwise acts only on a closed set of places, as *A concerns line settles what an agent's question concerns* keeps it, because untrusted text may only pick among what the code already offers (*Rationale: The model's judgements reach the session's code only through record_verdict*). A question the limit leaves unstopped still comes to the person, so the limit costs a recorded answer from that repository, never the question.
+  Evidence: `git fetch` downloads a repository's objects before any of its files can be read on the machine, https://git-scm.com/docs/git-fetch
+  Evidence: OWASP lists, among prompt injection's mitigations, restricting the model's privileges to the minimum it needs, https://genai.owasp.org/llmrisk/llm01-prompt-injection/
+
 - **Rationale: Whom a message reaches is set by its mentions.**
   The rule gives an Igor's question to the person who should answer it, because an Igor is to mention that person first. Igor issue #229, open, decides the order, which no igor spec states and igor does not yet build: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
   Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229

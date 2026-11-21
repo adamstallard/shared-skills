@@ -708,6 +708,54 @@ the last fetch*).
   updated by a fetch 30 days ago
 - **THEN** the search output gives that date beside the clone's results
 
+### Requirement: The search command runs filter 1 alone for the answer session
+
+The script's `search` command SHALL print filter 1's results for one
+question as one JSON object, issuing no token and recording nothing:
+the answer session records verdicts through `record_verdict`, never the
+second call, so a token would be spent by nothing. It SHALL read
+repositories' files only from the clones the answer session's
+configuration and state folder name, as last fetched, and fetch nothing
+itself. It SHALL read issues as filter 1 does.
+
+#### Scenario: The search command prints filter 1's results and nothing more
+
+- **WHEN** the answer session runs `search` for a question about `o/web`
+- **THEN** it prints `{"version": 1, "hits": [...], "not_searched":
+  [...], "clones": [...]}`: each hit labelled as filter 1 labels it, a
+  questions-branch hit with the fields `branch-search` gives; each
+  source not searched; and each clone with the time a fetch last updated
+  it, or `null` when that is unknown
+- **AND** it issues no token, records no verdict and writes no file
+
+#### Scenario: The search command reads only the session's clones
+
+- **WHEN** `search` runs for a question about `o/api`, of which the
+  answer session holds no clone
+- **THEN** it fetches nothing, reads no file of `o/api`, and its
+  `not_searched` names `o/api`'s decision documents and questions branch
+
+### Requirement: The search command takes its question as the first call does
+
+The `search` command SHALL take its question, and the repository or lore
+repository it concerns, in a file the first call would accept or on
+standard input, and a question with a category only on standard input.
+For a question with a category it SHALL search nothing off the machine.
+
+#### Scenario: The search command refuses a file others can read
+
+- **WHEN** `search` is given a question in a file with mode 0644
+- **THEN** it refuses and searches nothing
+
+#### Scenario: The search command takes a question with a category only on standard input
+
+- **WHEN** `search` is given, in a private file, a question with the
+  category `secret`
+- **THEN** it refuses and searches nothing
+- **AND** given the same question on standard input, it searches nothing
+  off the machine, and its `not_searched` names the issues of the
+  repository the question concerns
+
 ### Requirement: The script tells an Igor's run by IGOR_RUN
 
 The script SHALL tell an Igor's run only by the exact name and value of
