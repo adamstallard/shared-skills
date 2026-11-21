@@ -872,9 +872,13 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
           (design.md: *Messages that are not questions are ignored*;
           *Misses the answer session logs*), and a miss against filter 1
           for an agent's question the answer session answers by itself;
-        - a recorded answer by itself on a relayed question, and no
-          `Inquisitor: ` post on one (design.md: *Which questions count
-          as an agent's*; *Filter 1 runs on every incoming question*);
+        - a `Recorded answer: ` post the answer session makes without
+          the person, but no `Inquisitor: ` post, on a relayed question:
+          one a bot account posted starting `User says: ` or
+          `User asks: ` (answer-session: *A relayed question is a
+          person's question*; design.md: *Which questions
+          count as an agent's*; *Filter 1 runs on every incoming question
+          not placed `other`*);
         - no automatic post that repeats an automatic post made earlier
           in its chain of replies (design.md: *No automatic post repeats
           one in its chain of replies*);

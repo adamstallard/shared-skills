@@ -2073,14 +2073,16 @@ it adds nothing; a later searching agent is stopped by the record only if
 its own filter 1 can read and count it. Agreeing logs a miss on a person's
 question too, since the person chose the filter themselves.
 
-*Ruled out by a scenario* (answer-session spec: *Agreeing to a shown recorded
-answer is a filter 1 decline*): withholding agreement for a record more
-private than the thread, where the preview's warning lets the person decide
-(scenario *Agreeing to a more private record posts it after a warning*);
+*Ruled out by a scenario* (answer-session spec: *Agreeing to a shown
+recorded answer is a filter 1 decline*): the session refusing agreement to
+a record more private than the thread, which keeps the record's URL out of
+that thread; instead the person agrees after the warning any filter 1 reply
+with a more private record gets (scenario *Agreeing in a thread on a
+questions-branch question pushes no answer file*);
 giving agreeing its own record and `said`, the miss file's key for what the
 person said, rather than the decline's (scenario *Agreeing on a question with
-no thread is a filter 1 decline*); and no miss on an agent's question
-(scenario *Agreeing logs a miss on any question*).
+no thread is a filter 1 decline*); and logging a miss only when an agent
+asked, since a decline logs one on any question.
 
 #### Misses the answer session logs
 

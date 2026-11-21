@@ -486,12 +486,6 @@ the reader SHALL read each `body` field, and each `body` key of the
 - **THEN** the reader returns `b` as the body, and says that the post
   creates an issue
 
-#### Scenario: A quoted gh api body is read after quote removal
-
-- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments -f
-  body='a b'`
-- **THEN** the reader returns `a b` as the body
-
 #### Scenario: gh api placeholders count as an owner and a repository
 
 - **WHEN** a hook asks about `gh api /repos/{owner}/{repo}/issues/5/comments

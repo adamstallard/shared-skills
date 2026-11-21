@@ -764,13 +764,6 @@ the inquisitor's own files.
 - **THEN** the repository's rules are unchanged after setup, and setting
   the rule is left to the person
 
-#### Scenario: An unguarded questions branch gets a suggested rule
-
-- **WHEN** a subscribed repository's `questions` branch has no rule, or
-  does not exist yet
-- **THEN** setup suggests a rule for the branch that blocks force pushes
-  and deletion and allows direct pushes
-
 #### Scenario: A person without admin access is told to ask an admin
 
 - **WHEN** a subscribed repository's `questions` branch has no rule
@@ -1051,11 +1044,11 @@ is.
 
 ### Requirement: Only an item's newest handback is shown
 
-An item an Igor handed back, and assigned to the person, SHALL be shown
-only through its newest handback. Older handbacks are **passed over**:
+An issue or pull request an Igor handed back SHALL be shown only as the
+question its newest handback asks. Older handbacks are **passed over**:
 each machine works this out from the thread alone, writes nothing for
 them, and never shows them again, even once the newest is answered. A
-review request alone SHALL NOT make such an item a question.
+review request on it SHALL NOT make it a second question.
 
 #### Scenario: A newer handback passes over an older unanswered one
 
@@ -1712,22 +1705,6 @@ kept pending. No other answer SHALL push a file before its relay post.
 - **THEN** the `log` command pushes an answer file naming that file, with
   no `answer_link`, and the answer stays pending
 
-#### Scenario: An answer to a question with a category pushes only a handled file
-
-- **WHEN** the person confirms an answer to a question with a category
-  that a questions-branch file holds, while the thread's channel is off
-- **THEN** no answer file is pushed, and that file's handled file is
-  pushed, as *A question with a category leaves no readable record on
-  disk* requires
-
-#### Scenario: A failed push of an answer logged at once is retried
-
-- **WHEN** the person confirms such an answer while its thread's channel
-  is off, and the push fails for want of network
-- **THEN** the push stays owed in the state folder, with no post's URL,
-  and is retried at each poll and opening until it lands or its retry
-  stops as for any owed push
-
 #### Scenario: A failed push of an answer with no thread is retried
 
 - **WHEN** the person answers a question shown from its questions-branch
@@ -1842,13 +1819,6 @@ asker when the asker is a person. The question then waits for the asker.
   means by "soon"
 - **THEN** the Linear relay posts, in the question's comment thread, a
   comment that starts with `User asks: ` and mentions Maya
-
-#### Scenario: A clarifying question to an Igor worker goes on the item
-
-- **WHEN** the person asks back on an Igor worker's handback on an issue
-  assigned to them
-- **THEN** the relay posts the clarifying question on that issue, where
-  whichever worker next takes the item reads it
 
 ### Requirement: The thread is the durable record of an answer
 
@@ -2017,14 +1987,6 @@ names it only by a hash (inquisitor spec: *A handled file's keys*).
   when it cannot be posted there; no log file is pushed, and either way
   the questions-branch file's handled file is pushed, so the file is not
   shown again
-
-#### Scenario: A declined questions-branch question with a category gets a handled file, owed
-
-- **WHEN** the person declines a questions-branch question the session's
-  model judges has a category, and the handled file's push fails
-- **THEN** nothing is posted, and the owed push, which holds only the
-  handled file, stays in the state folder and is retried at each poll and opening until it
-  succeeds
 
 ### Requirement: One answer session runs on each machine
 
@@ -2215,8 +2177,9 @@ from choosing what the code does beyond a closed set.
   accepted call's value replacing an earlier one's, and a field that no
   accepted call in its turn set counts as the cautious one: `question` as
   `unclear`, `category` as a category the code cannot name, so the
-  question is handled as one with a category, `filter` as `none` (as is
-  `1` with no `hit`), `place` as none and `place_sure` as `no`
+  question is handled as one with a category, `filter` as `none` (a `1`
+  with no `hit` counts as `none` too), `place` as `none`, the value
+  for a model that cannot tell, and `place_sure` as `no`
 
 #### Scenario: A verdict call sets what the code does
 
@@ -2677,12 +2640,6 @@ the person's words.
   hook vets what the shared post reader returns* says, and on Linear or
   Discord nothing checks it
 
-#### Scenario: An automatic post is never shown as the person's words
-
-- **WHEN** the answer session lists a question it answered for the person
-- **THEN** it shows the post as made by the answer session, not as the
-  person's answer
-
 ### Requirement: The person answers for what their relay posts
 
 The inquisitor skill's instructions SHALL say that the person is
@@ -2733,14 +2690,6 @@ giving one of two reasons:
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
 - **AND** another open question in the same thread stays in the queue
-
-#### Scenario: A reply to a relay post after a decline is a new question
-
-- **WHEN** the person declined a message with nothing to answer, and the
-  asker then replies, without a mention, to an earlier relay post in
-  that thread, on Discord or in a GitHub review thread
-- **THEN** the declined question is not reopened, and the reply is shown
-  on its own as a new question
 
 #### Scenario: A message picked up by mistake logs no miss
 
@@ -3119,13 +3068,6 @@ posts the picked filter's reply* and the requirements after it say.
 Agreeing takes no note, so its miss's `said` is
 `the inquisitor should have handled it`.
 
-#### Scenario: Agreeing to a more private record posts it after a warning
-
-- **WHEN** the person agrees to the recorded answer shown for a question
-  in a public repository, a decision document in a private repository
-- **THEN** once they confirm the warning, the relay posts the fixed
-  recorded answer, with the record's URL
-
 #### Scenario: Agreeing on a question with no thread is a filter 1 decline
 
 - **WHEN** the person agrees to a fourth-source question's shown
@@ -3141,12 +3083,6 @@ Agreeing takes no note, so its miss's `said` is
 - **THEN** the relay posts the recorded answer in the thread, and the
   answer session pushes a handled file naming that log file and no
   answer file, besides the decline's miss
-
-#### Scenario: Agreeing logs a miss on any question
-
-- **WHEN** the person agrees to a recorded answer shown for a question,
-  asked by a person or an agent, in a private repository's GitHub thread
-- **THEN** a miss against filter 1 is logged
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
 
@@ -3202,14 +3138,6 @@ scope* defines scope, SHALL push one citation file, whether or not a miss
 is pushed with it, through the inquisitor's script under *A lore entry
 that stops a question gets a citation file*. Citing any other entry
 pushes nothing.
-
-#### Scenario: Citing a lore entry sends a citation
-
-- **WHEN** the person answers, or agrees to a recorded answer for, a
-  question about a private repository with an `active` entry in a private
-  lore repository whose scope covers it
-- **THEN** that lore repository's questions branch gets a citation file
-  for the entry
 
 #### Scenario: Citing an inactive, out-of-scope or more visible entry sends none
 

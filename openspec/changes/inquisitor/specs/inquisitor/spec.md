@@ -151,13 +151,6 @@ agent lists it as not done, and files an issue if it outlives the work.
 - **AND** if the current work ends with the question still unanswered, the
   agent files an issue for it
 
-#### Scenario: A deferred question listed in the reply is not asked there
-
-- **WHEN** an agent in a session with a person in it defers a question
-  under filter 2
-- **THEN** its reply to the person lists the question as not done, asks
-  nothing about it, and opens no question picker for it
-
 ### Requirement: Filters 3 and 4 have the agent decide the question itself
 
 Filter 3, not a real question, SHALL stop a question when fewer than two of
@@ -976,20 +969,6 @@ repository an attacker can push to.
   handback record, carried `Concerns: o/api`
 - **THEN** the Igor runs no `miss-check`, and the reply is input to the
   worker
-
-### Requirement: igor's search passes on the script's labels
-
-`igor lore-search` SHALL return each questions-branch hit as `branch-search`
-labelled it, and label a lore entry by its status.
-
-#### Scenario: igor's results keep the script's labels
-
-- **WHEN** `igor lore-search` returns a questions-branch file that
-  `branch-search` labelled `input` with the `reason` `unconfirmed`, and a
-  `provisional` entry
-- **THEN** filter 1 shows the first as input, labelled unconfirmed, and the
-  second by its status, labelled as *A hit that is not an answer is shown
-  as labelled, quoted input* gives
 
 ### Requirement: An Igor worker's search covers only its working tree beyond lore
 
@@ -2419,12 +2398,10 @@ nothing and say so.
 ### Requirement: Every answer is recorded and every asked question logged
 
 The agent SHALL record each answer where its log file's `recorded_in`
-names. Unless its own requirement says otherwise, as for a worker's
-question about a more private repository, each asked question SHALL be
-logged as one file on a questions branch. One asked in a GitHub post is
+names. Unless another requirement says otherwise, each asked question
+SHALL be logged as one file on the questions branch of what it concerns. One asked in a GitHub post is
 logged when asked, save as *No record goes somewhere more visible than its
-source* says. Any other is logged once answered, with its answer, and
-until then its thread is its record.
+source* says. Any other is logged once answered, with its answer.
 
 #### Scenario: A question waiting for its answer is already logged
 
@@ -2991,13 +2968,13 @@ SHALL exit with an error and print no `answer`.
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
-A worker re-working an item after a person answered its handback question
-SHALL report a new questions-branch log file whose `answer_link` names that
-answer (design.md: *A worker logs no answer*). The Igor writes the answer from the linked comment, decides its
+A worker re-working an item after a person answered, in a GitHub
+comment, the question the item's handback asked SHALL report to its Igor
+a new questions-branch log file whose `answer_link` names that answer.
+The Igor writes the answer from the linked comment, decides its
 `authority` under *An answer is a decision only from a person with write
-access* and its `answered_by` as the `log` command would, a bot account's
-comment being input, and adds
-`answers` itself.
+access* and its `answered_by` as the `log` command would, and adds
+`answers`, naming the handback question's log file.
 
 #### Scenario: A worker re-working an answered handback reports the answer
 
@@ -3352,30 +3329,6 @@ Igor's handback record, never matching by the comment's text (design.md:
   does not hold
 - **THEN** the Igor pushes nothing for it
 
-### Requirement: A log file holds its question and day, and an answer's file its keys
-
-A log file for an asked question SHALL hold the question as asked, any
-tag line (*A tag line names the person a posted question tags*) included,
-and the day it was asked. A file pushed with an answer SHALL also hold
-`answered_by`, `authority`, the answer and where the answer is recorded, as
-*A log file and a miss file have one format* states.
-
-#### Scenario: An answer is logged with its place
-
-- **WHEN** a person answers a question about a repository's spec, logged
-  unanswered on that repository's questions branch
-- **THEN** the agent records the answer in that spec, and pushes an answer
-  file naming the unanswered file; the answer file's `recorded_in` points to
-  the spec
-
-#### Scenario: A logged question keeps its tag line
-
-- **WHEN** an agent logs a question asked in a post with the tag line
-  `@alice`
-- **THEN** the log file's `## Question` holds that line, so the file's
-  question tags `alice`, and its hash, which drops tag lines, is the one
-  the second call vetted
-
 ### Requirement: An agent's own choice is written at the question's privacy
 
 An agent's own choice under filter 3 or 4 SHALL be written, in a decision
@@ -3676,6 +3629,15 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 - **WHEN** a question's text holds `../`, a `---` line and a colon
 - **THEN** the log file's name holds none of them, and its frontmatter
   still parses to the same text
+
+#### Scenario: A logged question keeps its tag line
+
+- **WHEN** an agent logs a question asked in a post with the tag line
+  `@alice`
+- **THEN** the log file's `## Question` holds that line, so the file's
+  question tags `alice`, and the question's hash, which drops tag lines,
+  still matches the hash vetted before the tag line was added (*Adding
+  the tag line keeps the vetted hash*)
 
 ### Requirement: Every miss file is named by one hash
 
