@@ -370,8 +370,10 @@ changes, and its title, that still describes work as unfinished or to
 come. Ask a person only before such a fix would delete a result or decision
 the text states. The note ends with one of three sentences about the body:
 
-- *Leave the body as it is*: no reviewer was requested, or only the author.
-- *Pull request body due*: a review was requested from someone else. A new
+- *Leave the body as it is*: the call requested no reviewer, or none but
+  the author and bots. A bot, `@copilot` or a login ending in `[bot]`,
+  reviews the diff whatever the body says.
+- *Pull request body due*: a review was requested from another person. A new
   reader joins, so have the body written afresh, as above, and sign it
   without `--defer-cold-read`.
 - *Pull request body due if* a review was requested from anyone but the

@@ -1967,9 +1967,9 @@ HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes,
                  "It was handed back for review ({what}): flag and fix any that still describes "
                  "work as unfinished or to come.")
 # Appended to HANDBACK_PASS when no review was requested from anyone but the
-# author.
-BODY_KEPT = (" Leave the body as it is: a body is written only when a reviewer other than the "
-             "author joins.")
+# author and bots.
+BODY_KEPT = (" Leave the body as it is: a body is written only when a person other than the "
+             "author joins as a reviewer.")
 # Appended to HANDBACK_PASS when a review was requested from someone other
 # than the author (BODY_DUE_KNOWN), or may have been, because the author is
 # unknown (BODY_DUE_UNKNOWN). BODY_DUE follows either.
@@ -2083,21 +2083,30 @@ def pr_author(handback, sole, payload, host):
     return login or None
 
 
+def is_bot(login):
+    """Whether a reviewer is a bot, by name alone: gh's `@copilot`, or an
+    app's login, which ends in `[bot]`. A bot reviews the diff whatever the
+    body says, so it is no reader to write a body for."""
+    login = login.casefold()
+    return login == "@copilot" or login.endswith("[bot]")
+
+
 def body_note(found, sole, payload, host):
     """What the hand-back note says of the pull request's body: due when a
-    review is requested from someone other than the author, or may be,
-    because the author is unknown; else left as it is. gh is called only
-    for a hand-back that requests reviews."""
+    review is requested from a person other than the author; may be due
+    when the author is unknown; else left as it is. Bots are left out
+    before pr_author looks the author up, so a hand-back that requests
+    reviews only from bots runs no gh."""
     joining, unknown = [], []
     for handback in found:
-        if not handback.reviewers:
+        people = [r for r in handback.reviewers if not is_bot(r)]
+        if not people:
             continue
         author = pr_author(handback, sole, payload, host)
         if author is None:
-            unknown += handback.reviewers
+            unknown += people
         else:
-            joining += [(r, author) for r in handback.reviewers
-                        if r.casefold() != author.casefold()]
+            joining += [(r, author) for r in people if r.casefold() != author.casefold()]
     if joining:
         return BODY_DUE_KNOWN.format(
             reviewers=", ".join(r for r, _ in joining),

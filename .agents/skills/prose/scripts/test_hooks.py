@@ -1283,10 +1283,11 @@ class DeferredColdRead(unittest.TestCase):
 
 
 class ReviewerJoins(unittest.TestCase):
-    """After a call that requests a review from someone other than the pull
+    """After a call that requests a review from a person other than the pull
     request's author, the hand-back hook says a body is due. When it can't
     tell the author, it says a body is due if a reviewer is someone else.
-    After any other hand-back, it says to leave the body as it is."""
+    After any other hand-back, including one that requests reviews only
+    from bots, it says to leave the body as it is."""
 
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
@@ -1365,6 +1366,7 @@ class ReviewerJoins(unittest.TestCase):
         note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_EXIT="1")
         self.assertIn(unknown, note)
         self.assertIn("bob", note)
+        self.assertIn("fresh agent", note)
         self.assertNotIn("Leave the body as it is", note)
         note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_AUTHOR="")
         self.assertIn(unknown, note)
@@ -1390,6 +1392,24 @@ class ReviewerJoins(unittest.TestCase):
             "reviewers": ["bob"]}))
         self.assertIn("could not tell the pull request's author", note)
         self.assertEqual(self.gh_calls(), [])
+
+    def test_a_review_requested_only_from_bots_makes_no_body_due(self):
+        for payload in (self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot"),
+                        self.bash("gh pr create -t x -b y --reviewer 'Some-App[bot]'"),
+                        self.bash("cd sub && gh pr edit --add-reviewer @Copilot"),
+                        self.mcp("update_pull_request", {
+                            "owner": "o", "repo": "r", "pullNumber": 7,
+                            "reviewers": ["copilot-pull-request-reviewer[bot]"]})):
+            with self.subTest(payload=payload):
+                note = self.note(payload)
+                self.assertNotIn("body due", note)
+                self.assertIn("Leave the body as it is", note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_a_person_beside_a_bot_still_makes_a_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot,bob"))
+        self.assertIn("a review was requested from bob, not the author", note)
+        self.assertNotIn("@copilot", note)
 
     def test_cursor_gets_the_same_note(self):
         note = self.note({"hook_event_name": "postToolUse", "cwd": str(self.dir),
