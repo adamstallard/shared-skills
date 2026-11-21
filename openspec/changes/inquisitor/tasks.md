@@ -385,11 +385,12 @@ have no task, so that the other tasks keep their numbers.
       verdicts and their fields, an `ask`'s related earlier decision, the
       person-required line printed for an `ask` naming the skill that
       requires it (inquisitor spec: *A question another skill requires
-      carries a person-required line*), the record line printed for a
-      picker `ask`, a `Not recorded: ` line holding only a reason from its
-      closed list (inquisitor spec: *A picker question shows where its
-      answer will be recorded*), the
-      three categories recorded by hash only, the refusals, and the records
+      carries a person-required line*), the record line printed for an
+      `ask` asked in the session, a `Not recorded: ` line holding only one
+      of the reasons listed in the inquisitor spec's scenario *Not
+      recorded gives a listed reason* (inquisitor spec: *A question asked in
+      the session shows where its answer will be recorded*), the three
+      categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
 - [ ] 2.3 Filter 1's search. Items marked igor's are applied by
       `igor lore-search`, which igor PR #216 builds.

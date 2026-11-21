@@ -797,10 +797,10 @@ repository.
 
 **Rule:** inquisitor spec, *Nothing about a repository goes somewhere more
 visible*; *An unreadable visibility counts against sharing*; *No record goes
-somewhere more visible than its source*; *A picker question shows where its
-answer will be recorded*; *The answerer's confirmation can send a record
-somewhere more visible*; *An unanswered question goes nowhere more visible
-than its source*; *A lore pull request goes to no lore repository more
+somewhere more visible than its source*, which defines a record's source;
+*A question asked in the session shows where its answer will be recorded*;
+*The answerer's confirmation can send a record somewhere more visible*;
+*An unanswered question goes nowhere more visible than its source*; *A lore pull request goes to no lore repository more
 visible than its source*; answer-session spec, *The preview shows where an
 answer will be recorded*. *Configuration* gives how visibility is read.
 

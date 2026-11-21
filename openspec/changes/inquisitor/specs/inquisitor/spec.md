@@ -1747,7 +1747,8 @@ SHALL hand back surviving questions, prepared.
 - **WHEN** an agent, in a session with a person in it on a host with no
   picker, has a question that survives the filters
 - **THEN** it runs the two calls on the question, then asks it in the text
-  of its reply, and no hook checks it
+  of its reply, its record line (*A question asked in the session shows
+  where its answer will be recorded*) last, and no hook checks it
 
 #### Scenario: A subagent hands its question back
 
@@ -2044,7 +2045,8 @@ hook does when it can't read*).
 - **WHEN** a question was recorded as `ask` without a related-decision
   line, and the agent then adds `Related: ` and a link to the decision the
   first call's search found, after the question's text and before any
-  record line (*A picker question shows where its answer will be recorded*)
+  record line (*A question asked in the session shows where its answer
+  will be recorded*)
 - **THEN** the hook matches the question's text as recorded, and lets the
   call through
 
@@ -2508,7 +2510,7 @@ SHALL never be `decision`.
 
 - **WHEN** the person running the session answers in the picker, and the
   configured login has no write access to the repository the question
-  concerns, or `gh` is logged in as another account
+  concerns
 - **THEN** the log file records the answer with `authority: input`
 
 #### Scenario: A picker answer from a person with write access is a decision
@@ -2761,15 +2763,16 @@ Igor's run, the agent SHALL report that the question is not yet logged.
 - **THEN** the worker's report holds that question's file, as for any
   question, and its Igor pushes that file nowhere
 
-### Requirement: A picker question shows where its answer will be recorded
+### Requirement: A question asked in the session shows where its answer will be recorded
 
-The second call SHALL print, with each picker `ask`, the question's
-**record line**: `Recorded: `, the repository whose questions branch will
-hold the question and answer, and its visibility; or
-`Not recorded: ` and only a reason *Not recorded gives a listed reason*
-lists. Where that branch is more visible than the record's source, the
-line SHALL also name the source. The agent SHALL put the line, exactly as
-printed, last in the question; answering it confirms the record.
+For each question given the verdict `ask` and asked in the picker or the
+agent's reply, the second call SHALL print its **record line**:
+`Recorded: `, the repository whose questions branch will hold the record
+and its visibility, naming the repository it was asked from where that
+branch is more visible; or `Not recorded: ` and a reason that *Not
+recorded gives a listed reason* lists. The agent SHALL put the line, as
+printed, last in the question; an answer not refusing the record
+confirms it.
 
 #### Scenario: The picker shows where the answer will be recorded
 
@@ -2794,11 +2797,24 @@ printed, last in the question; answering it confirms the record.
 
 - **WHEN** the second call gives the verdict `ask` to a picker question
   about the person's way of working, one with a category, one whose
-  questions branch the session cannot push to, or a collective's question
-  no configured lore repository serves
+  questions branch the session cannot push to, a collective's question
+  no configured lore repository serves, or any picker question in a session
+  with no login configured
 - **THEN** it prints `Not recorded: about your way of working`, `Not
   recorded: it has a category`, `Not recorded: no push access to its
-  questions branch` or `Not recorded: no team's lore repository serves it`
+  questions branch`, `Not recorded: no team's lore repository serves it`
+  or `Not recorded: no GitHub login configured`, the first of these that
+  applies
+
+#### Scenario: A picker question with no login configured is not recorded
+
+- **WHEN** the second call gives the verdict `ask` to a picker question,
+  and `inquisitor.json` names no login, or names `alice` while `gh` is
+  logged in as `bob`, so no login counts (*A configured login counts only
+  when gh is logged in as it*)
+- **THEN** the record line reads `Not recorded: no GitHub login
+  configured`, so the person sees before answering that nothing will be
+  logged, and the agent logs nothing
 
 #### Scenario: A Not recorded line with other text stays in the question
 
@@ -2808,18 +2824,34 @@ printed, last in the question; answering it confirms the record.
   whose hash then differs from the one the second call vetted, and the
   picker hook finds no verdict for the question
 
-### Requirement: A picker question shown as not recorded is never logged
+### Requirement: A question shown as not recorded is never logged
 
-The agent SHALL run no `log` for a picker question whose record line read
-`Not recorded: `, since the person answered it told it would not be
-recorded.
+The agent SHALL run no `log` for a question whose record line read
+`Not recorded: `, since the person was told before answering that it
+would not be recorded.
 
-#### Scenario: A picker question shown as not recorded is never logged later
+#### Scenario: A question shown as not recorded is never logged later
 
 - **WHEN** the person answers a picker question whose record line read
   `Not recorded: no push access to its questions branch`
 - **THEN** the agent runs no `log` for it, so no file for it is kept
   pending or pushed later
+
+### Requirement: With no login configured, no answer given in the session is logged
+
+With no login configured (*A configured login counts only when gh is
+logged in as it*), the agent SHALL log no answer the person gives in the
+session, in the picker or in a message of their own, and SHALL tell the
+person why, because nothing then confirms whose account the person holds,
+and a file naming `gh`'s account as `answered_by` could put the answer
+under someone else's name.
+
+#### Scenario: An answer in the person's own message is not logged without a login
+
+- **WHEN** `inquisitor.json` names `alice`, `gh` is logged in as `bob`,
+  and the person decides a question in their own message
+- **THEN** the agent logs nothing for it, and tells the person no GitHub
+  login is configured
 
 ### Requirement: A question with no team's lore repository is not logged
 
@@ -3177,10 +3209,10 @@ answer, and writes no `asked_in`.
 For a Linear or Discord `answer_link`, which only an answer session passes,
 the `log` command SHALL refuse a call without its session option, since a
 link only the answer session makes would otherwise record words nothing
-checked. With the option it SHALL fetch nothing, since the answer session
-passes the text it relayed itself, and record that answer word for word,
-save a `Re: ` line, which *The answerer's confirmation can send a record
-somewhere more visible* drops.
+checked. With the option it SHALL fetch nothing, and record word for word
+the text the answer session says it relayed, save the `Re: ` line naming
+the question it answers, which *The answerer's confirmation can send a record somewhere more visible*
+drops.
 
 #### Scenario: A Discord answer link without the session option is refused
 

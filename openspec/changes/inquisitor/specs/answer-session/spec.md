@@ -196,6 +196,12 @@ in.
   and 09:10, found in that order, none set aside
 - **THEN** the queue orders them 09:05, 09:10, 09:20
 
+#### Scenario: Questions asked at the same time keep the order they were found in
+
+- **WHEN** the queue holds two questions asked at 09:05, the one from
+  `o/web` found before the one from `o/api`
+- **THEN** the queue orders the `o/web` question first
+
 ### Requirement: The queue puts questions set aside after the rest
 
 **A question set aside for later** is one the person moved to the end of
@@ -814,6 +820,12 @@ would open it in only some sessions.
   second line is `# written by inquisitor answer-session setup`
 - **THEN** Claude Code starts named `Answers`, in its fullscreen layout,
   and opens the answer session
+
+#### Scenario: Typing /answer in a restricted session opens the answer session
+
+- **WHEN** the person types `/answer` in a Claude Code session that has the
+  inquisitor skill and was started with the option that restricts its tools
+- **THEN** the answer session opens in that session
 
 #### Scenario: No environment variable opens the answer session
 
