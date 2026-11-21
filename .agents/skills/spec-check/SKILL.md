@@ -280,6 +280,9 @@ that the author did it.
 - **Amend the spec itself.** Never answer a finding in a pull request comment:
   `gh pr view` shows the body without comments, and an implementer builds from
   the spec. Comment to think out loud; amend to decide.
+- **Cut before adding.** A gap may be closed by removing the rule that
+  creates it. Remove a cut candidate (item 18 of consistency-read.md's
+  checklist) when its finding's *Who decides* line names the author.
 - **A question only a person can decide** goes into design.md's *Open
   Questions*.
 - **A conflict with another change or pull request** is reported, not edited:
@@ -310,7 +313,14 @@ enforced, not why it is needed. Every *Evidence* line and every
 *Lost because* line holds a link for each piece of evidence it names, and
 ends in a link: a URL, an issue or pull request, a commit, or a markdown
 link to a file. Reasoning without evidence, however sound, is not an entry:
-it goes in the change's design.md or a pull request description.
+it goes in the change's design.md or a pull request description. When
+the change removes a requirement, with its scenarios, and has no evidence
+for removing it, the removal needs no design.md entry and no record entry.
+A removal with no evidence is easy to reverse, since whoever reverses it
+has no evidence to rebut, so it need not be written down in the spec,
+design.md or a record. The
+pull request description and the commit message still give a one-line
+reason for the deletion.
 
 Each entry is stated as it stands now, with no history:
 
@@ -330,8 +340,9 @@ Each entry is stated as it stands now, with no history:
 A rejection a requirement guards against (the rejected approach would fail
 that requirement's scenario) is written as that scenario. With evidence, its
 reasoning and Evidence go in the requirement's Rationale entry, created if
-there is none; without, the reasoning goes in the change's design.md or a
-pull request description.
+there is none. Without, the reasoning goes in the change's design.md or a
+pull request description. Or the change may remove that one scenario,
+which then needs no entry either, for the same reason.
 
 A requirement's optional *because* sentence, one plain line inside or right
 after its SHALL statement, helps a reader. With no place for Evidence, it
@@ -443,8 +454,10 @@ wrap onto indented lines, with no blank line before a continuation.
 Write a decision as a testable requirement and scenario. Failing that,
 write it as a [decision record](#decision-records) when evidence supports
 it. Otherwise, write it either in design.md or in a pull request
-description. design.md is archived with its change and never read again. It
-never restates a record entry, though it may link to one.
+description. Removing a requirement, with no evidence for removing it,
+needs no design.md entry (see *Decision records*). design.md is archived with
+its change and never read again. It never restates a record entry, though
+it may link to one.
 
 design.md's *Decisions* section states once each
 decision the change did not write as a requirement, a scenario or a record
