@@ -1,24 +1,31 @@
 """What counts as handing a pull request back for review, read from a hook's
 tool call.
 
-Shared by spec-check's hand-back hook (.agents/skills/spec-check/scripts/
-handback.py), which blocks a hand-back, or takes it back by making the pull
-request a draft again and removing the reviewers the call requested, while
-an OpenSpec change has had no consistency read
-since its last edit; and prose's posting hook
-(.agents/skills/prose/scripts/prose.py), which cold-reads a pull request
-body only at a hand-back and, after one, prints a reminder of the
-current-state pass: rewriting any doc, body or title the pull request
-changes that still describes work as unfinished or to come.
-Each hook imports it from this directory of the shared-skills clone. The
-functions here take the gh_shell module, beside this file, as their `reader`
-argument, to split shell commands; with no reader (None), a shell command
-holds no hand-back.
+Shared by two hooks, which import it from this directory of the
+shared-skills clone:
+
+- spec-check's hand-back hook (.agents/skills/spec-check/scripts/
+  handback.py). While an OpenSpec change has had no consistency read since
+  its last edit, it blocks a hand-back before the call, and after a call
+  that went through, takes it back: the pull request is made a draft again
+  and the reviewers the call requested are removed.
+- prose's hooks (.agents/skills/prose/scripts/prose.py). The posting hook
+  cold-reads a pull request body only at a hand-back. After one, the
+  hand-back hook prints the current-state pass due: rewrite any doc the
+  pull request changes, or its title, that still describes work as
+  unfinished or to come. Its note also says whether a new body must be
+  written for a new reader: it must when the call requests a review from
+  someone other than the pull request's author.
+
+The functions here take the gh_shell module, beside this file, as their
+`reader` argument, to split shell commands. Passed None, as a hook does
+when gh_shell is missing, they find no hand-back in any shell command;
+GitHub MCP calls are still read.
 
 A hand-back is:
 
-- `gh pr create`, unless it is a draft or a dry run; with a reviewer, even as
-  a draft;
+- `gh pr create` or `gh pr new`, unless it is a dry run, or a draft that
+  requests no reviewer;
 - `gh pr ready`, unless it is `--undo`;
 - `gh pr edit --add-reviewer`;
 - the GitHub MCP server's `create_pull_request`, unless it is a draft, and its

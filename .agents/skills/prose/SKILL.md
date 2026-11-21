@@ -367,9 +367,19 @@ it with `gh pr edit`, and hand back again.
 **After a hand-back,** a hook prints `current-state pass due for: ...`. Do
 that final pass at once, without asking first: fix any doc the pull request
 changes, and its title, that still describes work as unfinished or to
-come. Ask a person only before deleting a conclusion the text states. The
-hook names the body too: rewrite it only when a new reader joins, as
-above, and then sign it without `--defer-cold-read`.
+come. Ask a person only before such a fix would delete a result or decision
+the text states. The note ends with one of three sentences about the body:
+
+- *Leave the body as it is*: the call requested no reviewer, or none but
+  the author and bots. A bot, `@copilot` or a login ending in `[bot]`,
+  reviews the diff whatever the body says.
+- *Pull request body due*: a review was requested from another person. A new
+  reader joins, so have the body written afresh, as above, and sign it
+  without `--defer-cold-read`.
+- *Pull request body due if* a review was requested from anyone but the
+  author: the hook could not work out who the author is. Compare the
+  reviewers it names with the pull request's author
+  (`gh pr view --json author`); if any differs, treat it as a body due.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked

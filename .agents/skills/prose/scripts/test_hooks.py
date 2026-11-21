@@ -1269,7 +1269,7 @@ class DeferredColdRead(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         note = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertTrue(note.startswith("prose: current-state pass due for: each doc the pull "
-                                        "request changes, and its body and title."), note)
+                                        "request changes, and its title."), note)
         self.assertIn("(gh pr ready)", note)
         r = self.hook(self.bash("gh pr ready 7", "postToolUse"), host="cursor",
                       script=HANDBACK_NOTICE)
@@ -1280,6 +1280,164 @@ class DeferredColdRead(unittest.TestCase):
             with self.subTest(payload=payload):
                 r = self.hook(payload, script=HANDBACK_NOTICE)
                 self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+
+
+class ReviewerJoins(unittest.TestCase):
+    """After a call that requests a review from a person other than the pull
+    request's author, the hand-back hook says a body is due. When it can't
+    tell the author, it says a body is due if a reviewer is someone else.
+    After any other hand-back, including one that requests reviews only
+    from bots, it says to leave the body as it is."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        # A fake gh that logs its arguments, writes its working directory to
+        # $FAKE_PWD, prints $FAKE_ME for `gh api ...` and $FAKE_AUTHOR for
+        # anything else, and exits $FAKE_EXIT.
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_LOG"\npwd -P > "$FAKE_PWD"\n'
+                      'case "$1" in api) echo "$FAKE_ME" ;; *) echo "$FAKE_AUTHOR" ;; esac\n'
+                      'exit "${FAKE_EXIT:-0}"\n')
+        gh.chmod(0o755)
+        self.log = self.dir / "gh.log"
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        FAKE_LOG=str(self.log), FAKE_ME="adam", FAKE_AUTHOR="adam",
+                        FAKE_PWD=str(self.dir / "gh.pwd"))
+
+    def note(self, payload, host="claude", **env):
+        r = run(["sh", str(HANDBACK_NOTICE), "--host", host], stdin=json.dumps(payload),
+                env=dict(self.env, **env))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        return out["additional_context"] if host == "cursor" \
+            else out["hookSpecificOutput"]["additionalContext"]
+
+    def bash(self, command):
+        return {"hook_event_name": "PostToolUse", "cwd": str(self.dir), "tool_name": "Bash",
+                "tool_input": {"command": command}}
+
+    def mcp(self, tool, tool_input):
+        return {"hook_event_name": "PostToolUse", "cwd": str(self.dir),
+                "tool_name": f"mcp__github__{tool}", "tool_input": tool_input}
+
+    def gh_calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_a_reviewer_other_than_the_author_makes_a_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"))
+        self.assertIn("Pull request body due", note)
+        self.assertIn("bob", note)
+        self.assertIn("(adam)", note)
+        self.assertIn("fresh agent", note)
+        self.assertIn("tasks.md", note)
+        self.assertNotIn("Leave the body as it is", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author --jq .author.login -R o/r"])
+
+    def test_a_review_requested_from_the_author_makes_no_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer Adam"))
+        self.assertNotIn("body due", note)
+        self.assertIn("Leave the body as it is", note)
+
+    def test_a_create_with_a_reviewer_compares_with_gh_s_own_user(self):
+        note = self.note(self.bash("gh pr create -t x -b y --reviewer bob,org/team"))
+        self.assertIn("Pull request body due", note)
+        self.assertIn("bob, org/team", note)
+        self.assertEqual(self.gh_calls(), ["api user --jq .login"])
+        self.log.unlink()
+        note = self.note(self.bash("gh pr create -t x -b y --reviewer adam"), FAKE_ME="ADAM")
+        self.assertNotIn("body due", note)
+
+    def test_a_hand_back_with_no_reviewer_looks_nothing_up(self):
+        for command in ("gh pr ready 7", "gh pr create -t x -b y"):
+            with self.subTest(command=command):
+                note = self.note(self.bash(command))
+                self.assertTrue(note.startswith(
+                    "prose: current-state pass due for: each doc the pull request changes, "
+                    "and its title."), note)
+                self.assertIn("Leave the body as it is", note)
+                self.assertNotIn("body due", note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_an_author_it_cannot_look_up_is_said_not_guessed(self):
+        unknown = "could not tell the pull request's author"
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_EXIT="1")
+        self.assertIn(unknown, note)
+        self.assertIn("bob", note)
+        self.assertIn("fresh agent", note)
+        self.assertNotIn("Leave the body as it is", note)
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_AUTHOR="")
+        self.assertIn(unknown, note)
+        self.log.unlink()
+        # The author is not looked up when the command could run gh in another
+        # directory, or as another account, than the hook's own gh.
+        for command in ("cd sub && gh pr edit --add-reviewer bob",
+                        "GH_TOKEN=t gh pr create -t x -b y --reviewer bob"):
+            with self.subTest(command=command):
+                note = self.note(self.bash(command))
+                self.assertIn(unknown, note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_the_github_mcp_equivalents(self):
+        note = self.note(self.mcp("update_pull_request", {
+            "owner": "o", "repo": "r", "pullNumber": 7, "reviewers": ["bob"]}))
+        self.assertIn("Pull request body due", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author --jq .author.login -R o/r"])
+        self.log.unlink()
+        # The MCP server's own identity is not gh's, so a create's author is unknown.
+        note = self.note(self.mcp("create_pull_request", {
+            "owner": "o", "repo": "r", "title": "x", "head": "h", "base": "main",
+            "reviewers": ["bob"]}))
+        self.assertIn("could not tell the pull request's author", note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_a_review_requested_only_from_bots_makes_no_body_due(self):
+        for payload in (self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot"),
+                        self.bash("gh pr create -t x -b y --reviewer 'Some-App[bot]'"),
+                        self.bash("cd sub && gh pr edit --add-reviewer @Copilot"),
+                        self.mcp("update_pull_request", {
+                            "owner": "o", "repo": "r", "pullNumber": 7,
+                            "reviewers": ["copilot-pull-request-reviewer[bot]"]})):
+            with self.subTest(payload=payload):
+                note = self.note(payload)
+                self.assertNotIn("body due", note)
+                self.assertIn("Leave the body as it is", note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_a_person_beside_a_bot_still_makes_a_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot,bob"))
+        self.assertIn("a review was requested from bob, not the author", note)
+        self.assertNotIn("@copilot", note)
+
+    def test_cursor_gets_the_same_note(self):
+        note = self.note({"hook_event_name": "postToolUse", "cwd": str(self.dir),
+                          "command": "gh pr edit 7 -R o/r --add-reviewer bob"}, host="cursor")
+        self.assertIn("Pull request body due", note)
+        # For a command that is the gh call alone, the author is looked up with no -R.
+        self.log.unlink()
+        note = self.note({"hook_event_name": "postToolUse", "cwd": str(self.dir),
+                          "command": "gh pr edit 7 --add-reviewer bob"}, host="cursor")
+        self.assertIn("Pull request body due", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author --jq .author.login"])
+
+    def test_gh_runs_in_the_payload_s_directory(self):
+        self.note(self.bash("gh pr edit --add-reviewer bob\n"))
+        self.assertEqual(self.gh_calls(), ["pr view --json author --jq .author.login"])
+        self.assertEqual((self.dir / "gh.pwd").read_text().strip(), str(self.dir))
+
+    def test_a_missing_gh_or_pull_request_number_leaves_the_author_unknown(self):
+        unknown = "could not tell the pull request's author"
+        gh = self.dir / "bin" / "gh"
+        script = gh.read_text()
+        gh.write_text("#!/nonexistent/sh\n")  # gh cannot start: OSError
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"))
+        self.assertIn(unknown, note)
+        gh.write_text(script)
+        note = self.note(self.mcp("update_pull_request", {"pullNumber": 7, "reviewers": ["bob"]}))
+        self.assertIn(unknown, note)
+        self.assertEqual(self.gh_calls(), [])
 
 
 if __name__ == "__main__":
