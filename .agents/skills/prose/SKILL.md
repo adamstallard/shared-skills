@@ -347,9 +347,18 @@ it with `gh pr edit`, and hand back again.
 
 **After a hand-back,** a hook prints `current-state pass due for: ...`. Do
 that final pass at once, without asking first: fix any doc the pull request
-changes, and its body and title, that still describes work as unfinished or
-to come. Ask a person only before dropping a conclusion. A person now reads
-the body, so sign a body you change then with its cold read.
+changes, and its title, that still describes work as unfinished or to come.
+Ask a person only before deleting a conclusion the text states. The note
+ends with what to do about the body:
+
+- **Leave the body as it is** when no review was requested from anyone but
+  the author.
+- **Body due** when a review was requested from someone else. Start a
+  subagent that has not seen the work, to write a new body from the specs,
+  decision records, code and `tasks.md`. Sign it with its cold read, and
+  post it in place of the old body, never as an edit of it.
+- **Body due if** a reviewer is someone other than the author, when the
+  hook could not tell the author. If one is, do as for a body due.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked
