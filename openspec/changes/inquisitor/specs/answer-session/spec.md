@@ -347,14 +347,13 @@ holding the question's thread.
 
 ### Requirement: A Linear or Discord question is placed by what it concerns
 
-For a question asked on Linear or Discord that no concerns line settles,
-the session's model SHALL judge from the question and its thread what it
-concerns and, for a collective's
-question, which configured lore repository serves it. If it cannot tell
-which, the only configured one SHALL serve it when exactly one is
-configured. A question placed in neither way has **no place**: the
-session SHALL post no reply by itself, show the person the question, and
-post their answer unrecorded.
+For a Linear or Discord question no concerns line settles, the session's
+model SHALL judge from the question and its thread what it concerns and,
+for a collective's question, which configured lore repository serves it.
+When it cannot tell and exactly one is configured, that one SHALL serve
+it. A question left unplaced, or placed outside the repositories
+`record_verdict` lists, has **no place**: the session SHALL post nothing
+by itself and relay the person's answer unrecorded.
 
 #### Scenario: The thread shows which lore repository serves the question
 
@@ -1571,8 +1570,9 @@ the answer was relayed but not logged, and why.
 #### Scenario: A push the log command refuses for good is not retried
 
 - **WHEN** the `log` command refuses an owed push for lack of access, for
-  a relay post it cannot read, or for a credential its scan finds in the
-  answer
+  a rule on the branch that refuses direct pushes, for a relay post it
+  cannot read to copy the answer from, or for a credential its scan finds
+  in the answer
 - **THEN** it is not retried, and the person is told so and why
 
 #### Scenario: Only an answer file first seen after the record drops the retry
@@ -2105,9 +2105,12 @@ from choosing what the code does beyond a closed set.
   `personal` and `none`; `filter`, the filter that clearly stops the
   question, `1` to `4`, or `none`, with `hit` only for `1`, the number
   of the filter 1 hit with authority that answers it, among those the code
-  listed; and, for a Linear or Discord question, `place`, one of the
-  repositories and lore repositories the code listed, and `place_sure`,
-  `yes` or `no`, whether the model is sure of `place`
+  listed; for a question no concerns line settles, `place`, one of the
+  places the code listed (each repository a subscription covers and each
+  configured lore repository), `other` for a repository or collective
+  outside them, or `none` when the model cannot tell; and, for a Linear
+  or Discord question, `place_sure`, `yes` or `no`, whether the model is
+  sure of `place`
 - **AND** a field an accepted call leaves out, or any field of a message
   with no accepted call, counts as the cautious one: `question` as
   `unclear`, `category` as some category, unnamed, `filter` as `none`
@@ -2278,9 +2281,9 @@ concerns.
 #### Scenario: An answer the session cannot place is relayed, not recorded
 
 - **WHEN** the person answers a question that no questions-branch file
-  holds, and either it concerns no repository or collective the
-  session's model can tell, or the person cannot push to the questions
-  branch of what it concerns
+  holds, and either it concerns no place the code lists for
+  `record_verdict`, or the person cannot push to the questions branch
+  of what it concerns
 - **THEN** the answer is relayed in its thread, and no log file is pushed
 
 #### Scenario: A late answer on another machine answers a closed file
@@ -2505,7 +2508,8 @@ effect: once the post leading to it has gone out, or, with nothing
 posted, once the person confirms the decline. It SHALL record the owed
 push in the state folder before the post or, with nothing posted, before
 the push, drop the record when the post never went out, and retry a failed
-push at each poll and each opening until it succeeds.
+push at each poll and each opening until it succeeds or the script
+refuses it for a reason that will not change.
 
 #### Scenario: A failed post pushes no handled file
 
@@ -2519,6 +2523,9 @@ push at each poll and each opening until it succeeds.
   handled file's push fails
 - **THEN** the push stays owed in the state folder and is retried at
   each poll and opening until it succeeds
+- **AND** a handled, miss or citation push the `log` or `cite` command
+  refuses for good, such as for lack of access, is not retried, and the
+  person is told so
 
 ### Requirement: A miss or citation file's push is owed and retried as a handled file's is
 
@@ -2836,24 +2843,25 @@ shown with the question, and stops nothing.
 - **THEN** nothing is posted by itself, and the question is shown with
   that hit labelled as input
 
-### Requirement: The answer session's filter 1 reads decision documents only from its clones
+### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
 
-The answer session's clones SHALL be its clone of each subscribed
-repository, holding the default and questions branches, and each
-configured lore repository's clone. The inquisitor's *The search command
-runs filter 1 alone for the answer session* reads files only from them.
-For a question that concerns any other repository, `search` SHALL name
-that repository's decision documents and questions branch as sources
-not searched.
+The answer session's clones SHALL be one clone of each subscribed
+repository, holding its default and questions branches, and each
+configured lore repository's clone. `search` reads files and issues only
+of the repositories these clones hold. For a question placed in none of
+them, the session SHALL pass `search` no repository, and show with its
+hits that the repository it concerns was not searched.
 
-#### Scenario: A repository with no clone has its decision documents named as not searched
+#### Scenario: An unsubscribed repository is named as not searched
 
 - **WHEN** a question in a subscribed `o/web` thread concerns `o/api`,
   which no subscription names
-- **THEN** filter 1 searches no decision document or questions branch of
-  `o/api`, and its output names them as not searched
+- **THEN** its verdict's `place` is `other`, filter 1 searches no
+  decision document, issue or questions branch of `o/api`, and the
+  session shows that the repository the question concerns was not
+  searched
 - **AND** a question about `o/web` has the decision documents on its
-  clone's default branch searched
+  clone's default branch, its questions branch and its issues searched
 - **AND** a question about the organization has the decision documents
   in the clone of the organization's configured lore repository searched
 
@@ -3356,6 +3364,9 @@ its lore repository.
 - **THEN** the answer session passes `asked_from: "o/private-item"` to
   the `log` command with the miss's other keys, and the miss file holds
   it and no `repository`
+- **AND** had one of the two files held `repository: "o/api"` and the
+  other `repository: "o/web"`, no miss file would be written, since a
+  miss holds one `repository`
 
 #### Scenario: A miss on a thread question names the thread's repository
 
@@ -3387,11 +3398,11 @@ The answer session SHALL write no miss file, telling the person why,
 when any of these holds:
 
 - the question has a category;
-- it concerns no repository or collective;
-- it concerns a collective with no team's lore repository;
-- its decline posts nothing and the person has not confirmed the miss,
-  while the branch its miss would go to is more visible than its thread
-  (with no thread, than the questions-branch file it was shown from).
+- it concerns no place the code lists for `record_verdict`;
+- the person cannot push to that place's questions branch;
+- its decline posts nothing, its miss would go to a branch more visible
+  than its thread (with no thread, than the questions-branch file it was
+  shown from), and the person has not confirmed that miss.
 
 #### Scenario: No place for the miss means no miss file
 
@@ -3400,6 +3411,13 @@ when any of these holds:
   repository or collective
 - **THEN** no miss file is written, the person is told why, and the
   question still closes
+
+#### Scenario: No miss goes to a repository outside the session's places or closed to the person
+
+- **WHEN** the person declines, for filter 3, an agent's question in an
+  issue of `o/web` that concerns `o/api`, which no subscription covers,
+  or concerns `o/web`, whose questions branch the person cannot push to
+- **THEN** no miss file is written, and the person is told why
 
 #### Scenario: A question with a category gets no miss
 

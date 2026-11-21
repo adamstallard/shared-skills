@@ -711,12 +711,12 @@ the last fetch*).
 ### Requirement: The search command runs filter 1 alone for the answer session
 
 The script's `search` command SHALL print filter 1's results for one
-question as one JSON object, issuing no token and recording nothing:
-the answer session records verdicts through `record_verdict`, never the
-second call, so a token would be spent by nothing. It SHALL read
-repositories' files only from the clones the answer session's
-configuration and state folder name, as last fetched, and fetch nothing
-itself. It SHALL read issues as filter 1 does.
+question as one JSON object, issuing no token and recording nothing,
+since the answer session records verdicts through `record_verdict`. It
+SHALL fetch nothing, read files only from the answer session's clones
+as last fetched (the lore clones its configuration names and the clones
+of subscribed repositories in its state folder), and read issues as
+filter 1 does, but only of a repository those clones hold.
 
 #### Scenario: The search command prints filter 1's results and nothing more
 
@@ -730,10 +730,11 @@ itself. It SHALL read issues as filter 1 does.
 
 #### Scenario: The search command reads only the session's clones
 
-- **WHEN** `search` runs for a question about `o/api`, of which the
-  answer session holds no clone
-- **THEN** it fetches nothing, reads no file of `o/api`, and its
-  `not_searched` names `o/api`'s decision documents and questions branch
+- **WHEN** `search` is given a question that concerns `o/api`, of which
+  the answer session holds no clone
+- **THEN** it fetches nothing, reads no file or issue of `o/api`, and its
+  `not_searched` names `o/api`'s decision documents, issues and questions
+  branch
 
 ### Requirement: The search command takes its question as the first call does
 
@@ -2894,7 +2895,7 @@ repository. If the push fails, the question SHALL stay in the run's report.
   recorded elsewhere, and its Igor pushes the question file, with no
   `asked_in`, to the questions branch of `o/api`
 - **AND** the file's question tags the person a post of it would tag, so
-  that person's answer session shows it
+  that person's answer session shows it if they subscribe to `o/api`
 
 #### Scenario: A question the Igor cannot push stays in the report
 

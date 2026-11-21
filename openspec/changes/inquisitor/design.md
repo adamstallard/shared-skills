@@ -1403,7 +1403,7 @@ section.
 open*; *The answer session polls GitHub's notifications*; *The
 answer session reads with the person's credentials, except on Discord*;
 *Local state is per machine, in the state folder*; *The answer session's
-filter 1 reads decision documents only from its clones*; *Until
+filter 1 reads only subscribed and lore repositories*; *Until
 notifications are measured, the poll reads every GitHub question source*.
 Task 0.15 also checks that a mention subscribes the person to its thread,
 so later replies there, the relay's included, arrive as notifications.
@@ -1411,7 +1411,8 @@ so later replies there, the relay's included, arrive as notifications.
 *Recorded:* `openspec/specs/answer-session/decisions.md`, *Rationale: Until
 notifications are measured, the poll reads every GitHub question source*
 and *Rationale: The answer session polls only while it is open*, and the
-*Rationale* entries named by the other titles above.
+*Rationale* entries named by the other titles above, except *Local state
+is per machine, in the state folder*, whose reasons follow.
 
 #### Local state is per machine, in the state folder
 
@@ -1506,9 +1507,9 @@ Rationale entry of that title gives why.
 **The code puts each message to judge into the session's conversation as a
 prompt of its own, holding the message as quoted data, while the model is
 not answering the person.** The model answers it with two `record_verdict`
-calls: first `question` and `category`, since filter 1 searches a question
-with a category on the machine only; then, shown filter 1's hits, `filter`,
-`hit` and, for Linear or Discord, `place` and `place_sure`.
+calls: first `question` and `category`, and `place` and `place_sure`
+where the question has them, since `search` takes the question's
+category and place; then, shown filter 1's hits, `filter` and `hit`.
 The code acts on the accepted fields.
 
 **If task 0.37 finds a mod cannot prompt its own model unattended, work on

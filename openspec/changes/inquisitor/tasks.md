@@ -423,7 +423,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       JSON is part of the contract with
       igor, under task 2.3b's test
 - [ ] 2.3e `search`, which runs filter 1 alone for the answer session,
-      reading only the session's clones, and prints its results as JSON
+      reading only the session's clones and their repositories' issues,
+      and prints its results as JSON
       with no token or record (inquisitor spec: *The search command runs
       filter 1 alone for the answer session*; *The search command takes
       its question as the first call does*)
@@ -786,9 +787,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       requests, poll positions, the questions branch of every
       subscribed repository and configured lore repository, and each
       subscribed repository's default branch. The `search` command reads
-      only these fetched branches and the lore clones (answer-session spec:
-      *The answer session's filter 1 reads decision documents only from
-      its clones*)
+      only these fetched branches and the lore clones, and issues only of
+      their repositories (answer-session spec: *The answer session's
+      filter 1 reads only subscribed and lore repositories*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, or on Linear the session's own
       HTTP request, carrying the token linear-app's `token` command prints,
