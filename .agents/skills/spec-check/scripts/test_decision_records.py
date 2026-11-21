@@ -326,7 +326,7 @@ class RationaleTests(unittest.TestCase):
             self.assertEqual(kinds(r), ["rationale"])
             self.assertIn("holds 3 sentences beside its SHALL statement", r.stdout)
             self.assertIn("move reasoning with evidence to a Rationale entry in "
-                          "openspec/specs/cap/decisions.md, and the rest to design.md", r.stdout)
+                          "openspec/specs/cap/decisions.md, and cut the rest", r.stdout)
 
     def test_main_specs_are_not_given_the_rationale_check(self):
         repo = Repo(self)

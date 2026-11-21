@@ -695,10 +695,6 @@ ask a person only before dropping a conclusion, as `prose compact` does.
   or edits an open change (on the base branch itself, every open change
   counts). Update the pull request's title in the same turn as the push
   wherever it says "specification only", or "will" for what is now built.
-  The hook's message also lists proposal.md, design.md and the body,
-  which this pass leaves alone: nobody keeps them current (see *Decisions
-  and open questions*), and a body is written only as prose's *Posting*
-  says.
 - **A change is archived:** the commit hook prints it when a commit moves
   the change into `openspec/changes/archive/`, as `openspec archive` does.
   If the change's design.md holds anything but open questions, move what
@@ -730,7 +726,6 @@ ask a person only before dropping a conclusion, as `prose compact` does.
   after the agent's hand-back, and the GitHub workflow as a notice when a
   hand-back leaves no change unread. Fix each doc the pull request changes,
   and the pull request's title, wherever it still describes work as unfinished or to come.
-  The notice names the body too: rewrite it only as prose's *Posting* says.
 
 ## Report
 
