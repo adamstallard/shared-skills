@@ -486,10 +486,13 @@ have no task, so that the other tasks keep their numbers.
         repository, and `asked_from` on every log and miss file except a
         handled file, a hash-only miss file and a file written during an
         Igor's run. Outside a
-        run it is the repository holding the current work, or the
-        branch's own repository once the person confirms sending the
-        file somewhere more visible, so the file is read at that
-        branch's visibility (inquisitor spec: *The answerer's
+        run `asked_from` is the repository holding the current work
+        (for an answer file, the most private `asked_from` of the files
+        it answers), or the branch's own repository once the person
+        confirms sending the file somewhere more visible. Since a file
+        is as private as the more private of its branch's repository
+        and its `asked_from`, it is then read at that branch's
+        visibility (inquisitor spec: *The answerer's
         confirmation can send a record somewhere more visible*); on a log or
         miss file the answer session writes, it is the `asked_from` the
         answer session passes to the `log` command (design.md: *Every

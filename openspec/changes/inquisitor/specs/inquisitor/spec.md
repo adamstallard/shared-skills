@@ -3326,7 +3326,9 @@ Igor log file follows its own handback comment*).
 
 An answer file SHALL list in `answers` every unanswered file it answers:
 where several unanswered files on its branch hold the question, it SHALL
-list each whose exact name the writer knows. Files with different
+list each whose exact name the writer knows. It SHALL hold the most
+private of their `asked_from`, so it is as private as each, unless the
+answerer confirmed a more visible record. Files with different
 `repository` keys, a missing key counting as one, SHALL get one answer file
 for each key (design.md: *An answer file names every file it answers*).
 
@@ -3342,6 +3344,13 @@ for each key (design.md: *An answer file names every file it answers*).
 - **WHEN** an agent records the answer to a question it logged unanswered
   on a questions branch twice, knowing both files' names
 - **THEN** it pushes one answer file listing both in `answers`
+
+#### Scenario: An answer file copies the most private asked_from
+
+- **WHEN** an answer is recorded to a question that two unanswered files
+  on one questions branch hold, with `asked_from: "o/public-item"`, a
+  public repository, and `asked_from: "o/private-item"`, a private one
+- **THEN** the answer file's `asked_from` is `o/private-item`
 
 #### Scenario: Files with different repository keys get an answer file each
 
@@ -4590,16 +4599,24 @@ that should have stopped it, and what the person said.
 
 No miss file SHALL be written for a way-of-working question, whose answer
 goes to the person's memory (*A way-of-working answer goes to the
-person's memory, not a log*). Two other requirements name the other
-misses that get no miss file: *A miss file's name is pushed once*, for
-a miss with nothing to name its file by, and *Some questions are recorded
-by hash only*, for a question with a category.
+person's memory, not a log*), nor, with no login configured, for a miss
+the person states in the session, since nothing would confirm that its
+`said_by` is the person's login. *A miss file's name is pushed once* and
+*Some questions are recorded by hash only* name the other misses that get
+none.
 
 #### Scenario: A way-of-working question gets no miss file
 
 - **WHEN** a person says a question about their own way of working did
   not need asking
 - **THEN** no miss file is written
+
+#### Scenario: A miss stated in the session with no login configured gets no miss file
+
+- **WHEN** `inquisitor.json` names no login, and the person tells the
+  session a question the agent posted did not need asking
+- **THEN** no miss file is written, and the agent tells the person no
+  GitHub login is configured
 
 ### Requirement: A miss file goes where its question's file went
 

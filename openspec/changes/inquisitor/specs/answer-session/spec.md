@@ -402,10 +402,11 @@ holding the question's thread.
 For a Linear or Discord question no concerns line settles, the session's
 model SHALL judge from the question and its thread what it concerns and,
 for a collective's question, which configured lore repository serves it.
-When it cannot tell and exactly one is configured, that one SHALL serve
-it. A question left unplaced, or placed outside the repositories
-`record_verdict` lists, has **no place**: the session SHALL post nothing
-by itself and relay the person's answer unrecorded.
+When it cannot tell which and only one is configured, it SHALL set
+`place` to that one, with `place_sure` `yes`. A question unplaced, or
+placed outside `record_verdict`'s places, has **no place**: the
+session SHALL post nothing by itself and relay the person's answer
+unrecorded.
 
 #### Scenario: The thread shows which lore repository serves the question
 
@@ -421,7 +422,7 @@ by itself and relay the person's answer unrecorded.
   session's model can match it to no configured lore repository's `owners`
   or `repos`, and one lore repository is configured
 - **THEN** that lore repository serves the question, whatever its `owners`
-  and `repos`
+  and `repos`, and the model sets `place` to it and `place_sure` to `yes`
 
 #### Scenario: A question with no place gets no automatic reply and no record
 
@@ -436,9 +437,8 @@ by itself and relay the person's answer unrecorded.
 The answer session SHALL post a reply by itself to a question asked on
 Linear or Discord that no concerns line settles, which can only be
 filter 1's recorded answer, only when the session's model is sure of the
-place it judged, or the place is the only configured lore repository, taken because
-the model could tell none. When the model judged a place and is not sure of
-it, the session SHALL show the person the question, and the preview of
+place it judged. When the model judged a place and is not sure of it,
+the session SHALL show the person the question, and the preview of
 their answer shows that place.
 
 #### Scenario: A recorded answer goes out by itself from the only configured lore repository
@@ -753,9 +753,9 @@ one, and showing the check as not checked when it cannot tell.
 Where no rule on a subscribed or lore repository's `questions` branch
 blocks both force pushes and deletion, setup SHALL suggest a rule that
 blocks both and allows direct pushes, and SHALL tell a person without
-admin access to the repository to ask an admin to set it, since setting a
-rule takes admin access. Setup SHALL set no rule itself, since that
-changes repository settings, which the inquisitor otherwise never touches.
+admin access to the repository to ask an admin to set it. Setup SHALL
+set no rule itself, since that would change repository settings beyond
+the inquisitor's own files.
 
 #### Scenario: Setup leaves branch rules as they are
 
@@ -2365,10 +2365,10 @@ space.
 Besides handled files, the answer session SHALL write a log file only
 for an answer the person confirmed or a later edit of it. The `log` command
 SHALL push it beside the unanswered files holding the question, naming
-them as the inquisitor's *An answer file names every unanswered file it
-answers* sets and giving it their most private `asked_from`, or once the
-person confirmed a more visible record, the branch's own repository; with
-none, to the questions branch of what the question concerns.
+them and setting `asked_from` as the inquisitor's *An answer file names
+every unanswered file it answers* sets. Where no unanswered file holds the
+question, it SHALL push it to the questions branch of what the question
+concerns.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2386,13 +2386,6 @@ none, to the questions branch of what the question concerns.
   the organization hold on the questions branch of `o/lore`
 - **THEN** the `log` command pushes one answer file listing both files in
   `answers`
-
-#### Scenario: An answer file copies the most private asked_from
-
-- **WHEN** the person answers a question that two unanswered files about
-  the organization hold, with `asked_from: "o/public-item"`, a public
-  repository, and `asked_from: "o/private-item"`, a private one
-- **THEN** the answer file's `asked_from` is `o/private-item`
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
@@ -3039,7 +3032,7 @@ pass any other question in a private file.
 
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 
-When an answer with authority is recorded and the question has a
+When an answer with authority is recorded for a question read from its
 thread, the answer session SHALL answer it by itself, whoever asked,
 unless *A recorded answer is posted by itself only when no more private
 than its thread*, *A Linear or Discord question in doubt gets no
@@ -3150,7 +3143,8 @@ post only what the person relays or confirms.
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 
 - **WHEN** a decision document in a public repository answers a
-  fourth-source question
+  fourth-source question, even one whose `asked_in` links a thread this
+  machine has not read
 - **THEN** the recorded answer is shown beside it, and nothing is posted
   by itself
 
