@@ -69,7 +69,7 @@ can reach it.
 
 A worker reports to its Igor through its output or an outbox; igor PR #175
 chooses which channel each kind of report, such as its citations, takes.
-Once igor lets a worker run the skill's script (*What igor must provide*),
+Once igor lets a worker run the skill's script (igor issue #247),
 the script's rules for an Igor's run apply (inquisitor spec: *The script
 tells an Igor's run by IGOR_RUN*; *In an Igor's run, filter 1 searches
 through igor*).
@@ -997,8 +997,9 @@ Igor's run holds no run id*, which gives its only keys, `entry` and `date`).
 **Rule:** inquisitor spec, *A question is pushed to the questions branch of
 what it concerns*, with its reason in the inquisitor decision record's
 *Rationale* entry of that title. igor PR #153 would have an Igor push only
-commits carrying prose's and bug-hunter's trailers; whether it exempts an
-Igor's citation commits is #153's to settle (*What igor must provide*).
+commits carrying prose's and bug-hunter's trailers, which citation commits
+lack. Whether #153 exempts them is #153's to settle; igor issue #247 asks
+it to.
 
 #### A citation's commit names no person
 
@@ -1209,16 +1210,16 @@ that holds the question, and how the item is released are igor PR #216's
 #### The Igor pushes the questions-branch files its worker reports
 
 igor PR #216's requirement *An Igor publishes the questions-branch files its
-worker reports* holds these rules for both changes, save one it must still
-adopt (*What igor must provide*): the Igor pushes a file about a repository
-to that repository's questions branch. It pushes one about a collective to
-the team's lore repository's. It pushes only an unanswered question file or a miss file, each
-only at a path not already on the branch (decision 21); every file
-passes igor PR #217's credential matcher, which matches known secrets'
-values such as the seat token (decision 28); and it reads the lore
-repository's visibility at every push (decision 37). This change also needs
-a person's answer to a handback pushed, which #216 does not handle as this
-change has it (*What igor must provide*).
+worker reports* holds these rules for both changes. The Igor pushes only an
+unanswered question file or a miss file, each only at a path not already on
+the branch (decision 21); every file passes igor PR #217's credential
+matcher, which matches known secrets' values such as the seat token
+(decision 28); and it reads the lore repository's visibility at every push
+(decision 37). #216 pushes only to the team's lore repository's questions
+branch; igor issue #247 asks it also to push a file about a repository to
+that repository's questions branch. #216 also pushes a worker's file for a
+person's answer to a handback as an unanswered question; igor issue #247
+asks the Igor to write the answer into it.
 
 #### A person's answer to a handback
 
@@ -1281,9 +1282,9 @@ entry that stops a question gets a citation file*.
 #### igor-dependent rules state the end state
 
 The rule this heading names is in no spec: it is the Constraint named on
-the *Recorded:* line below. What igor must provide is listed under *Open
-Questions*. Clauses for igor before the change a rule needs are left out,
-but a clause guarding against misuse in igor's end state is written, such
+the *Recorded:* line below. What igor must provide is in igor issue
+#247's body. A rule describes no igor behaviour from before the igor
+change it needs, but a clause guarding against misuse in igor's end state is written, such
 as:
 - an answer to a question the handback record does not hold is not pushed;
 - an `igor lore-search` call that fails searches no lore;
@@ -1298,7 +1299,7 @@ change it needs lands, …*.
 
 **The spec states igor PR #216's rules where they touch this change, and
 points to the rest,** such as the Igor's `authority` and `answered_by` for a
-handback answer. *What igor must provide* lists where this change
+handback answer. igor issue #247 lists where this change
 departs from #216.
 
 ### Answer-session configuration, setup and relay identities
@@ -2054,7 +2055,8 @@ reopened*).
 pushes a citation file*; *A miss or citation file's push is owed and retried
 as a handled file's is*.
 
-Widening #216's definition of a citation is under *What igor must provide*.
+#216 counts as a citation only an agent's record that a lore entry answered
+a question; igor issue #247 asks it to count a person's cite too.
 
 *Ruled out by a scenario:* pushing a decline's citation only when its miss is
 pushed (answer-session spec: *A person's cite of an active entry in scope
@@ -2397,231 +2399,6 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
-
-### What igor must provide
-
-The archive and Igor-worker mode wait on igor. What follows was read from
-igor PR #216 at head 59e7561 (2026-10-24), which records #216's decisions up
-to its 149.
-
-- **Igor-worker mode waits for igor to build its search command.** A worker
-  can't run this skill (*What task 0.12 measured*), so filter 1 in a worker
-  calls igor's read-only `igor lore-search`, which igor PR #216 specifies and
-  igor has not built. #216's task 4.5 measures whether a worker can give the
-  command its standard input; if not, #216's gate two gives the command
-  another way to take the text (#216's task 4.5, and its proposal's open
-  item on standard input), and the script passes the question that way
-  (inquisitor spec: *In an Igor's run, filter 1 searches through igor*).
-  igor must also let a worker run the skill's script itself, which today
-  means a role's `commands` lists the script. The spec's rule that
-  a failed command searches no lore stays as a guard.
-- **Task 4.3 and the archive wait for igor to build `igor lore-search` and
-  let a worker run the script** (*The change is archived
-  only after every expected gap is tagged*). Task 7.0 also waits for igor
-  PR #216 to merge and for igor PR #202 to set the path of the scribe's
-  records.
-- **igor PR #216, with igor issue
-  [#215](https://github.com/adamstallard/igor/issues/215),** amends igor's
-  lore-firing spec, holds every rule for an Igor's citations, and has not
-  merged. This change relies on it for:
-  - *An Igor publishes the citations its worker reports*, a worker's citation
-    report carrying no category, and its review counting citations on the
-    lore repository's `questions` branch (its decisions 8 and 32).
-  - Its id check reporting an out-of-scope collision during a run only as "id
-    taken" (its decision 6); the Igor proposes no such entry and says so.
-  - *Transcripts and outcomes are captured to the state branch*, in its
-    task-execution spec: the flag for a question with a category, the
-    categories it lists, and the Igor's handling of it (its decisions 92 and
-    97).
-  - *An Igor publishes the questions-branch files its worker reports*: which
-    files the Igor pushes and when (its decisions 20, 21, 24 and 26), a
-    handback's answer included when a worker re-works the item, and the
-    checks under *A flagged run asks nothing and pushes nothing* (its decision
-    38), *The Igor pushes the questions-branch files its worker reports* (28
-    and 37), *A person's answer to a handback* (30 and 41) and *Every
-    questions-branch file names where it was asked from* (42).
-    A file's `repository` may name any repository, whether or not the run's
-    role works it (its decision 33).
-  - *An Igor runs its worker's lore searches*, called by a worker and by the
-    Igor's own inquisitor run. It matches plain text, ranks and caps hits as
-    filter 1 does, and labels each question file an answer, input,
-    unanswered or a miss (its decision 23). It searches the lore repository's
-    decision records at the path igor PR #202 sets too, counting an `accepted`
-    one as this change does. For a questions-branch file it passes on the label
-    `branch-search` gives, in place of the authority checks its decision 34
-    has igor run.
-  - What the Igor checks before it pushes a questions-branch file, the
-    destination's visibility among them (its decisions 37 and 42).
-  - Its `graceful-handoff` and `work-triage` deltas: igor's side of a flagged
-    run, its handoff, its host file and the release of a held item.
-- **#216's push condition should judge a file by the more private of
-  whichever of `repository` and `asked_from` it holds.** Its push condition that
-  the destination is no more visible "than the repository its `repository`
-  key names" applies only to a file holding one. Its *Lore reaches the worker
-  unbidden, beside a search it may run* cites this change's rule (#216 calls
-  this change #25, its pull request in shared-skills) that a file whose
-  `repository` names a repository other than the item's is input; that needs
-  no rewording, since a file about a collective holds no `repository` and so
-  never names another repository.
-- **#216 should say that no worker writes `asked_from`, not that only an
-  Igor does.** Its decision 42's sentence "Under #25 only an Igor writes the
-  key", and its lore-firing spec's "which only the Igor writes", should read:
-  a worker never writes the key; in a run the Igor sets it (*Every
-  questions-branch file names where it was asked from*). #216's protection,
-  refusing a worker's file holding the key, is unchanged.
-- **#216's Igor must write the answer into the log file a worker writes
-  for a person's answer to a handback.** #216's lore-firing spec (lines
-  484-489 at 59e7561) has the Igor write the text of the comment the file
-  links "in place of the answer line the worker wrote" only for a file
-  holding `authority: decision` or `input`, and its decision 21 pushes a
-  file with no answer as it is. This change's worker writes the
-  `answer_link` but no answer and no `authority` (*A worker logs no
-  answer*). #216 should recognise that file by its `answer_link` with no
-  answer, write the answer from the comment `answer_link` names, and set
-  `authority` and `answered_by`; otherwise it pushes the file as an
-  unanswered question and the answer is lost.
-- **#216's Igor must open the lore pull request for an entry its run
-  reports** (*A general answer is proposed as a provisional lore entry*). The
-  Igor applies this change's rules for a proposed entry's path, fields, id
-  and visibility, and on "id taken" proposes nothing and says so.
-- **#216 must keep its decision 62:** an Igor whose App's slug lacks the
-  `igor-` prefix refuses to start. On GitHub, the answer session tells a
-  handback's author by that prefix (*igor's handback marker*).
-- **igor must push a worker's repository questions to the questions branch
-  of the repository each concerns,** as it pushes a worker's collective
-  questions to the team's lore repository's. igor's own specs, #216's
-  lore-firing delta among them, must change to match.
-- **The Igor must push no file, unanswered or answered, to a questions
-  branch more visible than the handback's item** (inquisitor spec: *No
-  record goes somewhere more visible than its source*). A
-  worker can ask an organization question from a private repository's item
-  while the lore repository is public. The handback comment is then the
-  question's only record. Only the answer session pushes a file to that
-  branch, and only an answer the person confirmed in their answer session;
-  nobody confirms an answer typed in a comment.
-- **For a worker's question about a repository more private than its
-  item's, the Igor must push the question file to that repository's
-  questions branch at once, without waiting for an answer. The file has
-  no `asked_in`, since the handback does not ask the question, and tags
-  whoever a posted copy of the question would tag. The Igor must also post a
-  handback that says only that the work waits on a question recorded
-  elsewhere**
-  (inquisitor spec: *A worker's question about a more private repository
-  is asked on that repository's questions branch*). The Igor must record the
-  file name's date and 6-hex-digit suffix, and on each later run on the item run the script's
-  `file-answer` on that one file and pass an answer it prints to the
-  worker, saying it comes from a more private repository and must not be
-  quoted in the item (*A later run gets only the answer to its Igor's
-  question on a more private repository*).
-- **The Igor must run the script's `branch-search` on the item's
-  repository's questions branch and its lore repository's, and return the
-  JSON to the worker over the channel `igor lore-search` uses** (*The Igor
-  reads questions branches by running the script*). igor copies none of
-  those branches' matching, file format or authority rules, and runs the
-  version of the script its workers run. #216 should drop two things `branch-search`
-  now does: the authority checks, and the visibility rule that its *An Igor
-  runs its worker's lore searches* applies to questions-branch files. Its
-  checks before a push stay.
-  Task 0.29 measures whether the Igor's host has Python and the skill for
-  the Igor's own process, and what its token can read.
-- **#216 should drop its decisions 45, 77 and 78,** under which an Igor
-  reads relay files. No relay file exists: the Igor logs a bot account's
-  comment on a handback, a `User says: ` one included, as `input`, and the
-  answer session's answer file, which names the Igor's log file in
-  `answers`, is what counts.
-- **The Igor must run the script's `miss-check` for its worker,** with the
-  Igor's own credentials and in the script version its workers run, on the
-  surface and id of the reply the worker read in its item's thread, and
-  return the JSON over the channel `igor lore-search` uses (*The Igor checks
-  a reply's miss file for its worker*). It runs the check each time the
-  worker asks, since a worker looks again for a missing file as any agent
-  does. It runs it only on the repository its handback's concerns line named
-  for the question, taken from the Igor's own handback record
-  (*The Igor runs a worker's miss check only where an agent would look*). A worker holds no credential and fetches no
-  questions branch, and `branch-search` never shows a hash-only miss file,
-  so a worker cannot itself check the file that backs an `Inquisitor: `
-  reply. With the check, *An Inquisitor reply is acted on only with its
-  miss file* covers a worker as it covers any agent, an automatic
-  filter 3 or 4 reply included.
-- **The Igor must put each question's concerns line in its handback
-  comment,** naming the repository the question concerns, or `lore` and
-  the team's lore repository for a collective's question, and leaving it
-  out where that repository is more private than the item's (inquisitor
-  spec: *A question in a post or message names what it concerns on a line
-  of its own*). Without the line, the answer session posts no automatic
-  `Inquisitor: ` reply to the question.
-- **The Igor should write its own answer file for a handback only when the
-  answer session pushed none.** Otherwise one answer has two answer files.
-- **#216 should refuse a miss file holding `said_by`, and any hash-only
-  miss file, that a worker or the Igor's own inquisitor run reports,** since
-  the Igor's push, as a writer's, would let a run steered by item text back
-  an `Inquisitor: ` reply that anyone posted.
-- **#216 should refuse a worker's file holding `handled` or `closes`,** as it
-  refuses one holding `asked_from`. #216 pushes any worker file with no
-  `authority` as an unanswered question file, so a worker steered by item
-  text could otherwise close, on every machine and for good, whichever file a
-  planted `closes` names.
-- **#216's Igor should keep its decision 59's record of each handback,
-  adding for each question its concerns line, the repository its file went
-  to, and that file name's suffix and date** (*A later run names the
-  answered file from the Igor's record*). Decision 59 keeps only the hash,
-  the comment's id and its time. Without the suffix, date and repository, a
-  later run writes no `answers`; without the line, the Igor's `miss-check`
-  has no repository to run on.
-- **#216's Igor should write `asked_in`** in a worker's log file as the URL of
-  the handback comment that asks its question, once it has posted that
-  comment, writing a Linear comment's URL in the form the inquisitor spec's
-  scenario *Where an asked_in may be written* gives, with no title slug. In
-  each answer file it writes, it adds `answers`, naming the log file that
-  file answers, and it refuses a worker's file holding `answers`. Without
-  `answers`, the answer session keeps showing the answered file as unanswered.
-- **#216 should give every handback comment a fixed marker,** on GitHub
-  and on Linear, and record the marker's form on each (*igor's handback
-  marker*). On Linear, igor must also make known to the answer session
-  whatever task 0.38 finds marks its app user as an Igor's, such as the
-  user id of its Linear identity.
-- **igor must say which repository a run on a Linear item works in.** That
-  repository is the item's repository (inquisitor spec: *An Igor is an igor
-  teammate, and its worker does an item*), which a worker's questions
-  default to and the Igor writes as `asked_from`.
-- **#216 should widen its definition of a citation to include a person's
-  cite.** #216 counts only an agent's record that a lore entry answered a
-  question so that no person was asked. Here a person's cite of an `active`
-  entry in scope pushes a citation too, as does a decline under "the
-  inquisitor should have handled it" with filter 1 naming such an entry (*A
-  person's cite pushes a citation file*).
-- **How an Igor runs the inquisitor skill itself** is only partly set. igor
-  PR #216's `task-execution` spec sets `IGOR_RUN=igor` in that run's
-  environment, and the script then searches lore only through `igor
-  lore-search` and pushes nothing, reporting each file it would push and each
-  entry it would propose to the Igor. #216's task 3.6 waits for igor #211 to
-  say how the Igor starts that run. Open: which other sources that run's
-  filter 1 covers, how the report reaches the Igor, and whether the run can
-  read GitHub.
-- **igor must say how `igor lore-search` identifies the Igor's own
-  inquisitor run.** #216 takes the run and role from the channel a request
-  arrives on, which only that run's worker can reach (its lore-firing spec),
-  and the Igor's own run has no worker.
-- **igor's specs must state the order in which each Igor mentions people,**
-  set in igor issue [#229](https://github.com/adamstallard/igor/issues/229),
-  which is open. No igor spec states it, yet *A bot's question reaches only
-  the first person it mentions* relies on it.
-- **igor PR #153, signed publishing,** would have an Igor whose role lists
-  prose or bug-hunter push only commits that went through those skills and
-  carry their trailers. Citation commits carry none, so #153 should exempt an
-  Igor's commits to a lore repository's `questions` branch. That is #153's to
-  settle.
-- **igor PR #202 must say where the scribe's records live,** in the repository
-  a question concerns and in the lore repository, since filter 1 searches them
-  there. Two of #202's open points decide when an answer typed directly on
-  another surface can count through a scribe's record:
-  - #202 has not settled how the scribe recognises an approval given off
-    GitHub. An answer typed directly on another surface counts only through a
-    decision document (*An answer typed on another surface counts only through
-    a decision document*).
-  - #202's spec puts a decision about several repositories in the lore
-    repository. Filter 1 reads the lore repository's decision records where
-    #202 puts them (task 7.0).
 
 ### What other changes must provide
 

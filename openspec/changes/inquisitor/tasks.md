@@ -12,7 +12,7 @@ spec.
 
 Record each result that a requirement rests on as Evidence in its
 capability's decision record, and the rest in the design.md section its
-task names, or else the one listed here:
+task names, or else the place listed here:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
@@ -20,7 +20,8 @@ task names, or else the one listed here:
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
   0.28, 0.30, 0.31, 0.34, 0.35 and 0.37;
-- *What igor must provide*: 0.29.
+- igor issue #247's body, since its result is a fact about igor's host:
+  0.29.
 
 Record there too any result that contradicts what design.md assumed. In
 the same commit, rewrite each requirement and scenario that waits on that
@@ -72,8 +73,8 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
       (design.md: *What task 0.12 measured*). The implementation builds
-      everything except Igor-worker mode, which waits for design.md's
-      *What igor must provide*
+      everything except Igor-worker mode, which waits for what igor issue
+      #247 lists
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published (design.md:
       *Weaknesses stay out of public text until disclosure*). Until it
