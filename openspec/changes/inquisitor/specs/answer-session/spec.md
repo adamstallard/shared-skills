@@ -414,11 +414,10 @@ their answer shows that place.
 
 ### Requirement: A concerns line settles what an agent's question concerns
 
-An agent's question SHALL concern what the inquisitor's concerns line
-after it names, found with markup reduced, and not what the session's
-model judges, when the line names a repository a subscription covers or,
-after `lore`, a configured lore repository, and the person has write
-access to it. A post shown as one question SHALL be settled so only when
+An agent's question SHALL concern what the concerns line following it
+names, found with markup reduced, not what the session's model judges,
+when that line names a subscribed repository, or after `lore` a
+configured lore repository, and the person has write access to it. A post shown as one question SHALL be settled so only when
 every question in it carries such a line and all name the same place. Any
 other line SHALL settle nothing.
 
@@ -538,7 +537,9 @@ keychain, and a save SHALL keep keys it does not write.
 - **THEN** each object's `relay` names the surface's relay identity, by
   the name its skill, github-app, linear-app or discord-bot, takes with
   `--identity`, and its `subscriptions` lists its channels: on GitHub
-  `owner/repo`, or `owner` for every repository of an owner; on Linear
+  `owner/repo`, or `owner`, which makes each repository of that owner the
+  person can read, one created later included, a subscribed repository;
+  on Linear
   team keys; on Discord channel ids, a channel's id covering its threads
 - **AND** only the `discord` object also holds `user`, the person's
   Discord user id
@@ -2133,7 +2134,7 @@ from choosing what the code does beyond a closed set.
   question, `1` to `4`, or `none`, with `hit` only for `1`, the number
   of the filter 1 hit with authority that answers it, among those the code
   listed; for a question no concerns line settles, `place`, one of the
-  places the code listed (each repository a subscription covers and each
+  places the code listed (each subscribed repository and each
   configured lore repository), `other` for a repository or collective
   outside them, or `none` when the model cannot tell; and, for a Linear
   or Discord question, `place_sure`, `yes` or `no`, whether the model is
@@ -2622,6 +2623,23 @@ instructions.
 - **THEN** they say the person is accountable for what an agent in any
   session posts as their relay and where, and that no hook checks where a
   relay post goes, so the visibility rules bind only through instructions
+
+### Requirement: The README warns that a relay's token can be printed
+
+While any of github-app's `token`, `run`, `credential get` and `wire`
+gives out a relay identity's token, the inquisitor's README SHALL say
+that any agent on the person's machine can print that token and post
+`User says: ` unseen by the post hook; once all four refuse, it SHALL
+not.
+
+#### Scenario: The README warns that a relay's token can be printed
+
+- **WHEN** the README is checked while github-app's `token`, `run`,
+  `credential get` or `wire` gives out a relay identity's token
+- **THEN** it says any agent on the person's machine can print that token
+  and post `User says: ` unseen by the post hook
+- **AND** once all four refuse a relay identity, the README holds no such
+  warning
 
 ### Requirement: The person can decline to answer
 

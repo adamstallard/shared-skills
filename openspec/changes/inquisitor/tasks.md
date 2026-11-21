@@ -646,12 +646,9 @@ have no task, so that the other tasks keep their numbers.
       advisory is published, reviewing misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
-      blocked picker or post. It also says that, until github-app refuses
-      `token`, `run`, `credential get` and `wire` for an identity marked
-      as a relay, any agent on the person's machine can print a relay
-      App's token and post `User says: ` unseen by the post hook
-      (design.md: *github-app refuses `token`, `run`, `credential get` and
-      `wire` for a relay identity*).
+      blocked picker or post, and, while github-app gives out a relay's
+      token, the warning that any agent can take it (answer-session spec:
+      *The README warns that a relay's token can be printed*).
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with

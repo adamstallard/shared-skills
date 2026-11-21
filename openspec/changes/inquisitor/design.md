@@ -235,12 +235,13 @@ untrusted text reach it.
 
 A relay post counts for nothing in filter 1 (*An answer given through the
 answer session counts by its answer file*).
-The thread's state is still read from relay posts, which is sound only while
-nothing but the answer session starts a post with a reserved prefix (the
-answer-session decision record's *Constraint: Until github-app refuses
-`token`, `run`, `credential get` and `wire` for a relay identity, any agent
-on the person's machine can print a relay App's token and post `User says: `
-with a plain HTTP call no post hook sees, and the README says so*).
+The thread's state is still read from relay posts, so a post with a reserved
+prefix that the answer session did not make would mislead it about that
+thread. The answer-session decision record accepts that risk, in
+*Constraint: Until github-app refuses `token`, `run`, `credential get` and
+`wire` for a relay identity, any agent on the person's machine can print a
+relay App's token and post `User says: ` with a plain HTTP call no post hook
+sees*.
 
 ### What the answer session does by itself
 
@@ -1398,8 +1399,8 @@ relayed answer, which can read a relay's credentials from the keychain and
 post with `curl`* and *Constraint: Until github-app refuses `token`, `run`,
 `credential get` and `wire` for a relay identity, any agent on the person's
 machine can print a relay App's token and post `User says: ` with a plain HTTP
-call no post hook sees, and the README says so*. Task 5.2 writes that README
-section.
+call no post hook sees*. Task 5.2's README states the second (answer-session
+spec: *The README warns that a relay's token can be printed*).
 
 ### Running the answer session
 
@@ -2197,11 +2198,13 @@ own*).
 mentions*.
 
 So each bot question has one owner: two people cannot give a bot
-conflicting answers. The answer-session decision record's *Rationale: Whom a
-message reaches is set by its mentions* gives the order an Igor mentions
-people in. The first-mention rule has no interim form for the time igor's
-specs leave that order unstated (*igor-dependent rules state the end
-state*).
+conflicting answers. igor issue #229, open, decides the order an Igor
+mentions people in, which no igor spec states. Under it, an Igor that stops
+on a fault it detects itself, such as an error, mentions its operator, the
+person who runs it, first. Every other handback, a question included,
+mentions the item's assignee and then its creator. The first-mention rule
+applies as written whatever order an Igor uses before igor's specs state
+#229's (*igor-dependent rules state the end state*).
 
 *Ruled out by a scenario:* a handback reaching the assignee unless it
 mentions only others, which gives a bot question more than one owner
@@ -2667,6 +2670,17 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
+
+### Undecided
+
+- **Whether two answer-session requirements describe the screen,** which
+  `AGENTS.md` leaves to the approved prototype: *The queue shows unanswered
+  questions one at a time* and *Reopening shows the question last on
+  screen*, which shows the question that was on screen at closing. Both set
+  state a test checks without a screen: the queue's order, and the question
+  kept across a restart. But "one at a time" also says how the queue is
+  shown. The repository's owner decides; a requirement that describes the
+  screen would leave the spec, and the prototype would govern it.
 
 ### Left to implementation
 

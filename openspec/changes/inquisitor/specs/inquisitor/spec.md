@@ -909,8 +909,7 @@ During an Igor's run, the Igor SHALL run its worker's version of
 `branch-search`, with its own credentials and naming the run's item, on the
 item's repository's questions branch and its lore repository's, and return
 the output to the worker over `igor lore-search`'s channel. The worker
-SHALL NOT fetch or verify either branch, and igor SHALL hold no copy of
-their matching, file format or authority rules. A call that fails or times out
+SHALL NOT fetch either branch or judge its files itself. A call that fails or times out
 SHALL be reported as a source not searched.
 
 #### Scenario: A worker's search gets the item's questions branch from its Igor
@@ -1160,9 +1159,10 @@ once pushed*).
 A `decision` log entry SHALL count only when its `answered_by` has write
 access, when the search reads it, to what the logged question concerns,
 whatever the agent's own question concerns: the repository its `repository`
-key names, or, for a questions-branch file with no such key, the lore
-repository (design.md: *A questions-branch decision counts by write access
-to what it names*).
+key names, or, for a file with no such key on a lore repository's
+questions branch, that lore repository (design.md: *A questions-branch
+decision counts by write access to what it names*). Such a file elsewhere
+is unreadable.
 
 #### Scenario: A decision whose author lost write access is input
 
@@ -3774,11 +3774,12 @@ unreadable, and SHALL post nothing from it, its name included.
 
 ### Requirement: A log file's repository keys and links are checked before use
 
-Filter 1 SHALL show as input labelled unreadable a file whose `repository`
-or `asked_from` is not `<owner>/<repo>` as the scenarios give it, or whose
-`answer_link` or `recorded_in` takes none of the forms the scenarios give; a file whose `asked_in` takes none of the
-forms *A log file and a miss file have one format* gives; and an unhandled
-questions-branch log file with no `asked_from`. No reader or `log` command SHALL fetch, or pass to
+Filter 1 SHALL show as input labelled unreadable a file whose `repository`,
+`asked_from`, `answer_link`, `recorded_in` or `asked_in` takes none of the
+forms the scenarios give (for `asked_in`, those *A log file and a miss file
+have one format* gives); and an unhandled questions-branch log file with
+no `asked_from`, or with no `repository` on a questions branch other than a
+lore repository's. No reader or `log` command SHALL fetch, or pass to
 GitHub, any such value.
 
 #### Scenario: The forms a repository key and an answer_link must take
@@ -3817,8 +3818,10 @@ GitHub, any such value.
 - **WHEN** a questions-branch log file that is not handled holds
   `repository: "o/api"` and no `asked_from`
 - **THEN** filter 1 shows it as input, labelled unreadable
-- **AND** a questions-branch log file holding `asked_from` and no
-  `repository` passes the check, as a file about a collective
+- **AND** a log file holding `asked_from` and no `repository` passes the
+  check on a lore repository's questions branch, as a file about the
+  collective that lore repository serves, and on any other questions branch is input, labelled
+  unreadable
 
 ### Requirement: A citation file has one format
 

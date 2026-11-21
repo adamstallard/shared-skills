@@ -8,11 +8,11 @@
   Holds while: a relay identity's key sits where the person's own agents can read it.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/
 
-- **Constraint: Until github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity, any agent on the person's machine can print a relay App's token and post `User says: ` with a plain HTTP call no post hook sees, and the README says so.**
-  Because: the inquisitor asks github-app for those refusals and ships without them.
+- **Constraint: Until github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity, any agent on the person's machine can print a relay App's token and post `User says: ` with a plain HTTP call no post hook sees.**
+  Because: the inquisitor asks github-app for those refusals and ships without them; they would close the skill's own commands, though not the keychain path the constraint above accepts.
   Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md)
   Holds while: github-app hands a relay identity's token to a command.
-  Paths: .agents/skills/github-app/, .agents/skills/inquisitor/README.md
+  Paths: .agents/skills/github-app/
 
 - **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
   Because: the only layout the answer session's prototype has been built and used in is the fullscreen one, so no other layout has a design to build from, and `/answer` typed in another layout shows the session there as it comes, untried.
@@ -89,13 +89,13 @@
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
 
 - **Rationale: An agent's question comes from a bot account or a log file.**
-  This covers the bot-account half of the rule: a message counts as a bot account's by a mark the surface, not the account, sets on its author. On Linear an app user's comment has `user.app` `true`, with `botActor` and `externalUser` null, so a reader checking `botActor` would count every agent as a person; on Discord a bot's message has `author.bot` `true`, and a person's user object has no `bot` key. Both were read back from the API on 2026-11-19, and tasks 0.16 and 0.17 in the change's tasks.md hold the results: of 77 comments in a test team, the 5 an app identity posted had `user.app` `true` and the other 72 `false`, and every message a bot posted in a test thread had `author.bot` `true`. That a person's Linear account cannot take on `app` rests only on the schema's description, untested, and a Discord webhook's message and GitHub's mark (task 0.21) are not measured.
+  This covers the rule's bot-account half; its log-file half needs no measurement. A message counts as a bot account's by a mark the surface, not the account, sets on its author. On Linear an app user's comment has `user.app` `true`, with a null `botActor`, so a reader checking `botActor` would count every agent as a person; on Discord a bot's message has `author.bot` `true`, and a person's user object has no `bot` key. Both were read back from the API on 2026-11-19, and tasks 0.16 and 0.17 in the change's tasks.md hold the results: of 77 comments in a test team, the 5 an app identity posted had `user.app` `true` and the other 72 `false`, and every message a bot posted in a test thread had `author.bot` `true`. That a person's Linear account cannot take on `app` rests only on the schema's description, untested, and a Discord webhook's message and GitHub's mark (task 0.21) are not measured.
   Evidence: Linear's GraphQL schema describes `User.app` as "Whether this account represents an installed application rather than a person", https://linear.app/developers/graphql
   Evidence: Discord documents `bot` on its user object, https://discord.com/developers/docs/resources/user#user-object
   Evidence: the 2026-11-19 measurements, recorded in tasks 0.16 and 0.17, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: Until notifications are measured, the poll reads every GitHub question source.**
-  These reads cost rate-limited requests for every subscribed repository and every repository of an owner a subscription names, since a subscription may name an owner, a cost accepted until task 0.15 shows notifications alone suffice. Without them a question could be missed: GitHub notifies a person only for a thread they take part in, watch or are asked to review, so a mention of their relay in a thread they never joined reaches them through no notification.
+  The poll reads each subscribed repository's issues, pull requests and their comments, so it costs rate-limited requests for every subscribed repository, each repository of a subscribed owner included, a cost accepted until task 0.15 shows notifications alone suffice. Without them a question could be missed: GitHub notifies a person only for a thread they take part in, watch or are asked to review, so a mention of their relay, the bot account that posts for them and that an asker may tag in place of the person, in a thread they never joined reaches them through no notification.
   Evidence: GitHub's notification reasons, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
   Evidence: the REST rate limit these reads count against, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
 
@@ -104,10 +104,6 @@
   Evidence: `git fetch` downloads a repository's objects before any of its files can be read on the machine, https://git-scm.com/docs/git-fetch
   Evidence: GitHub returns a private repository's issues to any request authenticated as a person who can read that repository, https://docs.github.com/en/rest/issues/issues#get-an-issue
   Evidence: OWASP lists, among prompt injection's mitigations, restricting the model's privileges to the minimum it needs, https://genai.owasp.org/llmrisk/llm01-prompt-injection/
-
-- **Rationale: Whom a message reaches is set by its mentions.**
-  The rule gives an Igor's question to the person who should answer it, because an Igor is to mention that person first. Igor issue #229, open, decides the order, which no igor spec states and igor does not yet build: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
-  Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229
 
 - **Rationale: A handback that mentions no one goes to the item's assignee.**
   An Igor claims an item assigned to a person only when that person hands it over, so the assignee gave the Igor the work and is the right reader for its question.
