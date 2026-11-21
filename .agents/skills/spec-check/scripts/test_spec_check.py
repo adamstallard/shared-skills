@@ -6741,8 +6741,7 @@ class PassDueTests(unittest.TestCase):
         self.commit("Build it", "src/store.py", "packages/web/src/view.ts")
         r = self.hook()
         self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("current-state pass due for: openspec/changes/good/proposal.md, "
-                      "openspec/changes/good/design.md, and the pull request's body and title. "
+        self.assertIn("current-state pass due for: the pull request's title. "
                       "The implementation is on the branch of the open change good "
                       "(packages/web/src/view.ts, src/store.py added)", r.stderr)
         self.assertNotIn("without a Spec-check: trailer", r.stderr)
@@ -7054,7 +7053,7 @@ class PassDueTests(unittest.TestCase):
         r = ci("ready_for_review")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("::notice::current-state pass due for: each doc the pull request "
-                      "changes, and its body and title.", r.stdout)
+                      "changes, and its title.", r.stdout)
         self.assertNotIn("current-state pass due for:", ci("synchronize").stdout)
 
 

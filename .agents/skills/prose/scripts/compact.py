@@ -181,10 +181,11 @@ def human_only(path):
 
 def default_current(path):
     """True when, with no `prose-compact` attribute, path's name or place
-    alone puts it under the compaction trigger: a SKILL.md, AGENTS.md or
-    CLAUDE.md, or an open OpenSpec change's proposal or design. A human_only
-    doc never is. _due also takes a file a SKILL.md or AGENTS.md links to be
-    read first. A spec, main or delta, is not under the trigger by default:
+    alone makes it read often, so that prose check checks it for
+    compaction: a SKILL.md, AGENTS.md or CLAUDE.md, or an open OpenSpec
+    change's design. A human_only doc never is. settings also counts a file
+    .gitattributes declares with `prose-compact`, and _due a file a SKILL.md
+    or AGENTS.md links to be read first. A spec, main or delta, is not under the trigger by default:
     spec-check reads it, but its compactions cut little, since OpenSpec's
     format repeats scenario lines on purpose and spec-check keeps history
     out of it."""
@@ -197,16 +198,18 @@ def default_current(path):
 
 
 def open_change_doc(rest):
-    """"proposal" or "design" when rest, a path's parts after the
-    repository's openspec/ directory, is changes/<change>/proposal.md or
-    design.md, unless <change> is the archive directory; otherwise None.
-    default_current puts both under the trigger, and _often names the kind
-    in the reason it prints, both from this one function, so the two agree.
-    spec-check's consistency read opens both in every open change."""
+    """"design" when rest, a path's parts after the repository's openspec/
+    directory, is changes/<change>/design.md, unless <change> is the archive
+    directory; otherwise None. default_current makes that file read often,
+    and _often builds the reason it prints, "an open OpenSpec change's
+    design", from the value returned, so the two agree. A design.md holds the change's open
+    questions for a person, which spec-check's consistency read and every
+    agent working on the change read so as not to decide them. proposal.md
+    is not here: it is a stub written once, read only by spec-check's script
+    for its Builds on: lines."""
     if len(rest) != 3 or rest[0] != "changes" or rest[1] == "archive":
         return None
-    name = rest[-1].lower()
-    return name[:-3] if name in ("proposal.md", "design.md") else None
+    return "design" if rest[-1].lower() == "design.md" else None
 
 
 class Settings(NamedTuple):

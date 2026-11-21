@@ -1963,21 +1963,44 @@ GH = shutil.which("gh") or "gh"
 GH_TIMEOUT = 30
 PR_BODY_VERBS = {"create", "new", "edit"}
 PR_BODY_TOOLS = {"create_pull_request", "update_pull_request"}
-HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its body "
-                 "and title. It was handed back for review ({what}): flag and fix any that "
-                 "still describes work as unfinished or to come. Sign a body you change now "
-                 "with its cold read, since a person reads it.")
+HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its title. "
+                 "It was handed back for review ({what}): flag and fix any that still describes "
+                 "work as unfinished or to come.")
+# Appended to HANDBACK_PASS when no review was requested from anyone but the
+# author and bots.
+BODY_KEPT = (" Leave the body as it is: a body is written only when a person other than the "
+             "author joins as a reviewer.")
+# Appended to HANDBACK_PASS when a review was requested from someone other
+# than the author (BODY_DUE_KNOWN), or may have been, because the author is
+# unknown (BODY_DUE_UNKNOWN). BODY_DUE follows either.
+BODY_DUE_KNOWN = (" Pull request body due: a review was requested from {reviewers}, not the "
+                  "author ({author}).")
+BODY_DUE_UNKNOWN = (" Pull request body due if a review was requested from anyone but the "
+                    "author among {reviewers}: this hook could not tell the pull request's "
+                    "author.")
+BODY_DUE = (" Have a fresh agent write the body from durable sources (specs, decision records, "
+            "code and tasks.md), never from the current body, as an introduction for a "
+            "first-time reader that says what the pull request builds on. Replace the current "
+            "body rather than updating it, and sign it with its cold read.")
 
 
 def handbacks_of(payload, host):
     """[Handback] the call makes, read by the shared handbacks.py."""
+    return handbacks_and_sole(payload, host)[0]
+
+
+def handbacks_and_sole(payload, host):
+    """([Handback], sole): the hand-backs the call makes; and sole, that
+    hand-back when it is the only one and nothing else in the command, such
+    as a variable assignment like GH_TOKEN=, can change what gh does, else
+    None. handbacks.py's handbacks_in has the full rule."""
     if handbacks is None or not isinstance(payload, dict):
-        return []
+        return [], None
     try:
-        found, _, _ = handbacks.handbacks_in(READER, payload, host)
+        found, sole, _ = handbacks.handbacks_in(READER, payload, host)
     except Exception:  # noqa: BLE001 - a reader bug must not block a post
-        return []
-    return found
+        return [], None
+    return found, sole
 
 
 def pr_body_post(where, payload, host):
@@ -1992,30 +2015,109 @@ def pr_body_post(where, payload, host):
 
 
 def pr_body(handback, payload, host):
-    """The body of the pull request a hand-back names, from GitHub; None when
-    it cannot be found without guessing the directory gh runs in, or gh
-    cannot show it. A shell command that is the gh call alone, plain or
-    through github-app's script, runs gh in the payload's directory. So a
-    hand-back that names its pull request only by number or branch is
-    looked up there."""
+    """The body of the pull request a hand-back names, from GitHub. None for
+    a create, whose pull request does not exist yet; when findable says the
+    pull request cannot be looked up; or when gh fails."""
     if handback.kind == "create":
         return None  # the pull request does not exist yet
-    if not handback.named():
-        command = (payload.get("command") if host == "cursor" and "command" in payload
-                   else (payload.get("tool_input") or {}).get("command")
-                   if isinstance(payload.get("tool_input"), dict) else None)
-        if not handbacks.gh_alone(READER, command):
-            return None
+    if not findable(handback, payload, host):
+        return None
+    return pr_field(handback, payload, "body", ".body")
+
+
+def findable(handback, payload, host):
+    """Whether the pull request a hand-back names can be looked up.
+
+    A number or branch names a pull request only in the repository of the
+    directory gh ran in, which the hook cannot always know. It can when the
+    hand-back names a URL, or a repository with `-R` or GH_REPO
+    (handback.named()). It can also when the shell command is one gh call
+    and nothing else, since gh then ran in the directory the payload names
+    (handbacks.where). github-app's script, which runs gh as a GitHub App,
+    leaves that directory as it is, so handbacks.gh_alone counts a gh call
+    through it too. Cursor gives the command at the payload's top level,
+    other hosts under tool_input."""
+    if handback.named():
+        return True
+    command = (payload.get("command") if host == "cursor" and "command" in payload
+               else (payload.get("tool_input") or {}).get("command")
+               if isinstance(payload.get("tool_input"), dict) else None)
+    return handbacks.gh_alone(READER, command)
+
+
+def pr_field(handback, payload, field, jq):
+    """One field of the pull request a hand-back names, from `gh pr view`
+    with --json field --jq jq; None when gh cannot show it."""
     args = ["pr", "view", *([handback.selector] if handback.selector else []),
-            "--json", "body", "--jq", ".body"]
+            "--json", field, "--jq", jq]
     if handback.repo:
         args += ["-R", handback.repo]
+    return run_gh(args, payload)
+
+
+def run_gh(args, payload):
+    """gh's output for args, run in the payload's directory
+    (handbacks.where); None when it fails."""
     try:
         out = subprocess.run([GH, *args], cwd=handbacks.where(payload), capture_output=True,
                              text=True, timeout=GH_TIMEOUT, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     return out.stdout if out.returncode == 0 else None
+
+
+def pr_author(handback, sole, payload, host):
+    """The login of the author of the pull request a hand-back requests
+    reviews on, or None when it cannot be told without guessing.
+
+    A create's author is the account gh is signed in as. The hook's own
+    `gh api user` sees that same account only when nothing else in the
+    command can change gh's identity (sole). The GitHub MCP server signs in
+    on its own, so its create's author is unknown. An existing pull
+    request's author comes from `gh pr view`."""
+    if handback.kind == "create":
+        if handback is not sole or not handback.what.startswith("gh "):
+            return None
+        login = run_gh(["api", "user", "--jq", ".login"], payload)
+    elif findable(handback, payload, host):
+        login = pr_field(handback, payload, "author", ".author.login")
+    else:
+        return None
+    login = (login or "").strip()
+    return login or None
+
+
+def is_bot(login):
+    """Whether a reviewer is a bot, by name alone: gh's `@copilot`, or an
+    app's login, which ends in `[bot]`. A bot reviews the diff whatever the
+    body says, so it is no reader to write a body for."""
+    login = login.casefold()
+    return login == "@copilot" or login.endswith("[bot]")
+
+
+def body_note(found, sole, payload, host):
+    """What the hand-back note says of the pull request's body: due when a
+    review is requested from a person other than the author; may be due
+    when the author is unknown; else left as it is. Bots are left out
+    before pr_author looks the author up, so a hand-back that requests
+    reviews only from bots runs no gh."""
+    joining, unknown = [], []
+    for handback in found:
+        people = [r for r in handback.reviewers if not is_bot(r)]
+        if not people:
+            continue
+        author = pr_author(handback, sole, payload, host)
+        if author is None:
+            unknown += people
+        else:
+            joining += [(r, author) for r in people if r.casefold() != author.casefold()]
+    if joining:
+        return BODY_DUE_KNOWN.format(
+            reviewers=", ".join(r for r, _ in joining),
+            author=", ".join(sorted({a for _, a in joining}))) + BODY_DUE
+    if unknown:
+        return BODY_DUE_UNKNOWN.format(reviewers=", ".join(unknown)) + BODY_DUE
+    return BODY_KEPT
 
 
 def hook_post(raw, host):
@@ -2093,17 +2195,19 @@ FAILED_EVENTS = {"PostToolUseFailure"}
 
 def hook_handback(raw, host):
     """(exit code, stdout, stderr) for the hook after a tool call: the
-    current-state pass a hand-back starts, as context for the agent."""
+    current-state pass a hand-back starts, and whether the pull request's
+    body is due, as context for the agent."""
     try:
         payload = json.loads(raw)
     except ValueError:
         return 0, "", ""
     if not isinstance(payload, dict) or payload.get("hook_event_name") in FAILED_EVENTS:
         return 0, "", ""
-    found = handbacks_of(payload, host)
+    found, sole = handbacks_and_sole(payload, host)
     if not found:
         return 0, "", ""
-    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found)) \
+        + body_note(found, sole, payload, host)
     if host == "cursor":
         return 0, json.dumps({"additional_context": note}) + "\n", ""
     name = payload.get("hook_event_name")
