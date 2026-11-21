@@ -1816,9 +1816,9 @@ doubt counts a question as a person's: no person then gets a reply nobody
 wrote. An agent's question posted with a person's own credentials counts as
 a person's since the answer session cannot tell the two apart.
 
-#### Filter 1 runs on every incoming question
+#### Filter 1 runs on every incoming question not placed `other`
 
-**Rule:** answer-session spec, *Filter 1 runs on every incoming question*;
+**Rule:** answer-session spec, *Filter 1 runs on every incoming question not placed `other`*;
 *Filter 1's answer by itself to an agent's question logs a miss*.
 
 #### Filters 2 to 4 judge every incoming question
@@ -2342,19 +2342,19 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34, 0.35 and 0.37 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
 building if they fail, until the repository's owner decides; so does task
-0.34 if Claude Code cannot restrict the session's tools. Task 0.37's
-fallback is decided (*The model hands its judgements to the code through
-record_verdict*). The rules that wait on
+0.34 if Claude Code cannot restrict the session's tools. If task 0.37
+fails, the answer session is built as a standalone UI, not a mod. The
+rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and what to build for them is decided then.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
 how the Linear relay posts a comment, how setup checks a relay's
-access to each channel, and whether an asking agent's recorded `asked_in` URL
+access to each channel, whether setup can read the GitHub links on a Linear team's issues to guess its repositories, and whether an asking agent's recorded `asked_in` URL
 is the one the answer session reads.
 
 Task 0.25 records how each surface reports two kinds of refusal of a relay
@@ -2628,44 +2628,6 @@ to its 149.
   print it.** adamstallard/shared-skills#96's body states what github-app
   must change. Until it does, *The README warns that a relay's token can be
   printed* keeps the README's warning.
-
-### Rules a person must choose
-
-- **Does an `@login` in code, a quote or a link tag a person?** The
-  inquisitor spec's *A question tags* counts an `@login` anywhere in a
-  question, and the answer session uses it to choose whom a
-  questions-branch log file is shown to. The answer-session spec's *A
-  mention names a user outside code, quotes and links*, which governs
-  thread messages, skips an `@login` in code, a quote or a link. Under
-  the inquisitor's rule, a log file whose question holds
-  `` `@deprecated` `` is shown to a person whose login is `deprecated`.
-  Options: count a tag only outside code, quotes and links, as a mention
-  is; count only the question's tag line, the `@login` line an agent adds
-  after vetting; or keep it as it is. Recommended: the first, so `@login`
-  means one thing in both specs.
-- **What does filter 1 search for a question about a repository or
-  collective outside the answer session's clones?** The model sets such a
-  question's `place`, a field of `record_verdict`, to `other`. The
-  answer-session spec's *The answer session's filter 1 reads only
-  subscribed and lore repositories* then passes `search` no repository,
-  so `search` reads every configured lore clone's `global` entries
-  (inquisitor spec: *Outside any repository, a question that concerns
-  nothing sees only global lore*). But for a question about `o/api`,
-  *Filter 1 searches every place an answer is recorded* searches only the
-  lore repositories serving `o/api`. A `global` entry of a lore
-  repository that does not serve `o/api` can then be posted
-  automatically, with no person checking, as a `Recorded answer:`. Options: search nothing for it and show that it was not
-  searched; have `place` name the repository or collective, so `search`
-  reads the lore clones serving it and names the repository's own
-  sources as not searched; or keep it as it is. Recommended: the first,
-  the shortest; a question filter 1 cannot stop goes to the person.
-- **Do the model steps igor PR #153 runs after the worker count as the
-  worker?** Nothing in this change says what those steps are, yet *A
-  session with no person in it holds back a question with a category*
-  holds them to its worker rule.
-  Options: cut the clause, so the rule covers the worker and #153 settles
-  its own steps; or keep it and say in *What igor must provide* what #153
-  must do. Recommended: cut it.
 
 ### Outside this change
 

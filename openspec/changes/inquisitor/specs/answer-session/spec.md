@@ -351,10 +351,10 @@ terminal, so its lock does not mark it as a background session.
 **What the question concerns**, **the repository the question concerns**,
 **the team's lore repository** and **more visible** SHALL be as the
 inquisitor's spec defines them, and the session's model SHALL judge what
-a question concerns as that spec has an agent judge it, except where *A
-concerns line settles what an agent's question concerns*. On GitHub, when
-it can't tell, the repository the question concerns SHALL be the one
-holding the question's thread.
+a question concerns as that spec has an agent judge it, except where a
+concerns line or a mapped channel's repositories place it. On GitHub,
+when it can't tell, the repository the question concerns SHALL be the
+one holding the question's thread.
 
 #### Scenario: A GitHub question whose subject is unclear concerns its thread's repository
 
@@ -371,41 +371,59 @@ holding the question's thread.
 
 For a Linear or Discord question no concerns line settles, the session's
 model SHALL judge from the question and its thread what it concerns and,
+outside a mapped channel, which subscribed repository it concerns or,
 for a collective's question, which configured lore repository serves it.
-A question the model can judge no configured place for has **no place**: the
-session SHALL post nothing by itself and relay the person's answer
-unrecorded.
-
-#### Scenario: The thread shows which lore repository serves the question
-
-- **WHEN** a question in a Discord thread is about how the `web` project,
-  known by its repository `o/web`, names its releases, and of two
-  configured lore repositories one serves `o/web`
-- **THEN** the question concerns that project, and the lore repository
-  serving `o/web` serves it
+A question placed in no subscribed or configured lore repository,
+`other` and none included, has **no place**: the session SHALL post
+nothing by itself and relay the person's answer unrecorded.
 
 #### Scenario: A question with no place gets no automatic reply and no record
 
-- **WHEN** a question on Linear concerns an organization, the session's
-  model cannot tell which of two configured lore repositories serves it,
-  and the person answers it
+- **WHEN** a question on Linear, in a team that is not mapped, concerns an
+  organization, the session's model cannot tell which of two configured
+  lore repositories serves it, and the person answers it
 - **THEN** the session posted no reply by itself, the person was shown the
   question, and the answer is relayed in its thread with no log file pushed
+- **AND** a question there that the model places, sure of it, in `o/api`,
+  public as a Linear automatic post requires, whose decision record
+  filter 1 finds, gets that recorded answer by itself
+
+### Requirement: A channel's repositories place its questions
+
+A **mapped channel** is a Linear team or Discord channel whose `repos`
+names a subscribed repository, and **its repositories** are the
+subscribed ones it names. They SHALL place a question there that no
+concerns line settles: one about any repository in the channel's one
+repository, or in the one of several the model picks; a collective's
+question in **the channel's lore repository**, the team's lore
+repository of its repositories when they all share one, else nowhere.
+
+#### Scenario: A channel's repositories place its questions
+
+- **WHEN** a Discord channel's `repos` is `["o/web"]`, the configured lore
+  repository `o/lore` serves the owner `o`, and two questions there have
+  no concerns line, one about a release script and one about the
+  organization's naming rule
+- **THEN** the first concerns `o/web` and the second is the collective's
+  that `o/lore` serves, the model judging only whether each is about a
+  repository or the collective
+- **AND** were `repos` also to hold a repository another lore repository
+  serves, the second question would have no place
 
 ### Requirement: A Linear or Discord question in doubt gets no automatic reply
 
 The answer session SHALL post a reply by itself to a question asked on
-Linear or Discord that no concerns line settles, which can only be
-filter 1's recorded answer, only when the session's model is sure of the
-place it judged. When the model judged a place and is not sure of it,
-the session SHALL show the person the question, and the preview of
+Linear or Discord that no concerns line settles only when the session's
+model is sure of the place it picked, or a mapped channel placed it in
+its one repository or its lore repository. When the model picked a place and is not sure of
+it, the session SHALL show the person the question, and the preview of
 their answer shows that place.
 
 #### Scenario: A doubtful placement is shown to the person
 
-- **WHEN** an agent's question on Discord with no concerns line has a
-  recorded answer filter 1 finds, and the session's model judges that it
-  concerns the repository `o/api` but is not sure
+- **WHEN** an agent's question with no concerns line, in a Discord channel
+  whose `repos` is `["o/web", "o/api"]`, has a recorded answer filter 1
+  finds, and the session's model picks `o/api` but is not sure
 - **THEN** the session posts no reply by itself and shows the person the
   question, and the preview of their answer names the questions branch of
   `o/api`
@@ -538,8 +556,10 @@ keychain, and a save SHALL keep keys it does not write.
   `--identity`, and its `subscriptions` lists its channels: on GitHub
   `owner/repo`, or `owner`, which makes each repository of that owner the
   person can read, one created later included, a subscribed repository;
-  on Linear
-  team keys; on Discord channel ids, a channel's id covering its threads
+  on Linear and Discord objects holding `id`, a team key or a channel id
+  (a channel's id covering its threads), and, once setup has set it,
+  `repos` (*Setup guesses the repositories a Linear or Discord channel
+  concerns*)
 - **AND** only the `discord` object also holds `user`, the person's
   Discord user id
 
@@ -669,6 +689,33 @@ read and save every channel the person chose, whatever its checks found.
 - **WHEN** the person types `/answer setup` with the configuration
   complete
 - **THEN** setup runs, showing the saved subscriptions as chosen
+
+### Requirement: Setup guesses the repositories a Linear or Discord channel concerns
+
+When setup saves a Linear team or Discord channel with no `repos`, its
+code SHALL guess them from the channel's history: the subscribed
+repositories named by Linear's GitHub-integration links on the team's
+issues, or by GitHub URLs or `owner/repo` names, as in `o/web#12`, in
+its Discord messages. Setup SHALL show each repository beside the issues
+or messages naming it, save the guess when it names one or more, and
+otherwise ask the person. Only the person SHALL change a saved `repos`,
+in setup.
+
+#### Scenario: A guess naming repositories is saved with its evidence
+
+- **WHEN** setup saves a Discord channel whose messages link pull
+  requests of `o/web` and name `o/api`, both subscribed
+- **THEN** setup saves `repos: ["o/web", "o/api"]` and shows each
+  repository beside the messages naming it, and later setups keep it
+  unless the person changes it
+
+#### Scenario: A channel whose history names no repository is asked about
+
+- **WHEN** setup saves the Linear team `ENG`, whose issues carry no
+  GitHub link to a subscribed repository
+- **THEN** setup asks the person which subscribed repositories `ENG`
+  concerns, and saves their answer, `repos: []` for none, which leaves
+  the team unmapped and is not guessed again
 
 ### Requirement: Setup checks each questions branch takes the person's direct pushes
 
@@ -842,6 +889,8 @@ unanswered one of these, and nothing else:
 - **WHEN** a subscribed repository's questions branch holds an unanswered
   log file, with no `asked_in`, whose question tags the person
 - **THEN** it is shown as a question asked of the person
+- **AND** a file whose question holds the person's `@login` only in a
+  code span, a quoted line or a link is not
 
 ### Requirement: Handled and answer files set how a questions-branch file shows
 
@@ -1481,7 +1530,8 @@ relay by hand. It SHALL tell no other machine.
   another reads the question's thread, which holds no relay post naming
   the question
 - **THEN** the other machine shows the question as unanswered and asks
-  it as usual
+  it as usual, while the first tells its person the asker has not got the
+  answer and shows its text to relay by hand
 
 ### Requirement: A pending answer whose channel was off returns to the queue
 
@@ -2143,17 +2193,20 @@ from choosing what the code does beyond a closed set.
   question, `1` to `4`, or `none`, with `hit` only for `1`, the number
   of the filter 1 hit with authority that answers it, among those the code
   listed; for a question no concerns line settles, `place`, one of the
-  places the code listed (each subscribed repository and each
-  configured lore repository), `other` for a repository or collective
-  outside them, or `none` when the model cannot tell; and, for a Linear
-  or Discord question no concerns line settles, `place_sure`, `yes` or
-  `no`, whether the model is sure of `place` (*A Linear or Discord
-  question in doubt gets no automatic reply*)
+  places the code listed (in a mapped channel, its repositories and its
+  lore repository; elsewhere each subscribed repository and each
+  configured lore repository), `other` outside a mapped channel for a
+  repository or collective outside the listed places, or `none` when the model cannot
+  tell, which on GitHub places it in its thread's repository and
+  elsewhere leaves it with no place; and, for a Linear or Discord
+  question no concerns line settles, `place_sure`, `yes` or `no`,
+  whether the model is sure of `place` (*A Linear or Discord question in
+  doubt gets no automatic reply*)
 - **AND** the model judges a message in two turns: on the message, it
   sets `question`, `category` and whichever of `place` and `place_sure`
-  the question has; then the code runs `search` with those and puts
-  filter 1's hits before the model, and on the hits it sets `filter` and
-  `hit`
+  the question has; then the code runs `search` with those, unless
+  `place` is `other`, and puts filter 1's hits, if any, before the model,
+  and on them it sets `filter` and `hit`
 - **AND** the code acts on a turn's fields once the model's reply in that
   turn ends, a later
   accepted call's value replacing an earlier one's, and a field that no
@@ -2850,15 +2903,15 @@ logged at the decline SHALL stay when the question is reopened.
 - **THEN** a handled file is pushed for it, and no way to reopen it is
   offered
 
-### Requirement: Filter 1 runs on every incoming question
+### Requirement: Filter 1 runs on every incoming question not placed `other`
 
-Before the answer session shows a question, whether a person or an agent
+Before the answer session shows a question not placed `other`, whoever
 asked it, it SHALL run filter 1 on it through the inquisitor script's
-`search` command, which reads issues with the person's credentials, as the inquisitor's *Filter 1
-searches every place an answer is recorded* and *Only an answer with
-authority stops a question* say. The session's model judges whether a
-hit with authority answers the question; a hit that is only input is
-shown with the question, and stops nothing.
+`search` command, which reads issues with the person's credentials, as
+the inquisitor's *Filter 1 searches every place an answer is recorded*
+and *Only an answer with authority stops a question* say. The session's
+model judges whether a hit with authority answers the question; a hit
+that is only input stops nothing.
 
 #### Scenario: Input does not answer by itself
 
@@ -2868,22 +2921,22 @@ shown with the question, and stops nothing.
 
 ### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
 
-The answer session's clones SHALL be one clone of each subscribed
-repository, holding its default and questions branches, and each
-configured lore repository's clone, the only repositories whose files
-and issues `search` reads (inquisitor spec: *The search command runs filter 1 alone for the answer
-session*). For a question placed in none of
-them, the session SHALL pass `search` no repository, and show with its
-hits that the repository it concerns was not searched.
+The answer session's clones, of each subscribed repository's default
+and questions branches and each configured lore repository, SHALL be the
+only repositories `search` reads (inquisitor spec:
+*The search command runs filter 1 alone for the answer session*). A
+Linear or Discord question whose `place` is none SHALL be searched in
+`global` lore alone. A question placed `other` SHALL not be searched,
+and is shown as not searched, because a `global` entry may contradict
+that place's unread rules.
 
-#### Scenario: An unsubscribed repository is named as not searched
+#### Scenario: A question about an unsubscribed repository is not searched
 
 - **WHEN** a question in a subscribed `o/web` thread concerns `o/api`,
   which no subscription names
-- **THEN** its verdict's `place` is `other`, filter 1 searches no
-  decision document, issue or questions branch of `o/api`, and the
-  session shows that the repository the question concerns was not
-  searched
+- **THEN** its verdict's `place` is `other`, filter 1 searches nothing
+  for it, `global` lore entries included, and the session shows that
+  nothing was searched
 - **AND** a question about `o/web` has the decision documents on its
   clone's default branch, its questions branch and its issues searched
 - **AND** a question about the organization has the decision documents
@@ -2905,6 +2958,7 @@ pass any other question in a private file.
   session
 - **THEN** it is passed to the script on standard input, the search
   reaches no source off the machine, and nothing is posted by itself
+- **AND** a message with no category is passed in a private file
 
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 

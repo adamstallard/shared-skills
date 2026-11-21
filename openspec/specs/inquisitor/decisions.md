@@ -36,6 +36,7 @@
 
 - **Rationale: The Igor reads questions branches with the script.**
   A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
+  Evidence: a worker's only credential is its seat's model-provider token, under igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md#L333
   Evidence: igor runs `gh`, https://github.com/adamstallard/igor/blob/8478aec/src/gh.ts#L74, `claude`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L961-L965, and `git`, https://github.com/adamstallard/igor/blob/8478aec/src/github.ts#L13
 
 - **Rationale: A questions-branch decision counts only unchanged and by write access.**

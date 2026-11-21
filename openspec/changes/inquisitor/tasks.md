@@ -19,7 +19,7 @@ task names, or else the one listed here:
 - *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
-  0.28, 0.30, 0.31, 0.34 and 0.37;
+  0.28, 0.30, 0.31, 0.34, 0.35 and 0.37;
 - *What igor must provide*: 0.29.
 
 Record there too any result that contradicts what design.md assumed. In
@@ -274,6 +274,11 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       spec). If no control Claude Code enforces exists, the design falls
       back to hooks and the change cannot be built as written: record it
       and stop for the repository's owner
+- [ ] 0.35 Whether the person's Linear key reads the GitHub links that
+      Linear's GitHub integration puts on a team's issues. If not, setup's
+      guess for a Linear team names nothing, and setup asks the person
+      (answer-session spec: *Setup guesses the repositories a Linear or
+      Discord channel concerns*).
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, and have the model
       answer it with a tool call, unattended (design.md: *The model hands
@@ -554,7 +559,8 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       write access and the post goes out as someone else, and otherwise
       tags no one. The tag goes on the question's tag line, which the
       question's hash leaves out (inquisitor spec: *A tag line names the
-      person a posted question tags*)
+      person a posted question tags*; *A question's text and hash are
+      built one way*)
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
       `questions` branch, or refusing it by visibility or by an id outside
       igor's id rule. During an Igor's run it opens nothing and writes the
@@ -702,8 +708,7 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       on 2026-11-19; this task changes `read` to return both
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
-      commit fc3c35f; `ui-approved-v0.1-33` in the repository's owner's local prototype
-      repository, `~/answer-session-prototype`), the only build the mod
+      commit fc3c35f), the only build the mod
       starts from. It descends
       from v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5)
       and contains all of it, including declining and the list of
@@ -778,7 +783,9 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
       off and checked again at each opening; the Linear key in the
-      keychain; `~/.local/bin/answer`; the check that each subscribed or
+      keychain; each Linear or Discord channel's `repos`, guessed from its
+      history (answer-session spec: *Setup guesses the repositories a
+      Linear or Discord channel concerns*); `~/.local/bin/answer`; the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push,
       and the suggested rule blocking its force pushes and deletion;
       and the optional step that creates a lore repository, its clone and its
@@ -846,11 +853,11 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       guidance on its automatic replies, and the tests below. igor builds
       the item marked igor's, as igor PR #216 is asked to.
       - Built in this task:
-        - filter 1 on every incoming question, run through the script's
+        - filter 1 on every incoming question not placed `other`, run through the script's
           `search` command, and the `Recorded answer: ` post;
         - placing a question asked on Linear or Discord (answer-session
           spec: *A Linear or Discord question is placed by what it
-          concerns*), and placing an agent's question by its concerns line
+          concerns*; *A channel's repositories place its questions*), and placing an agent's question by its concerns line
           (*A concerns line settles what an agent's question concerns*);
         - filters 2 to 4 and the three fixed `Inquisitor: ` texts, and a
           question carrying a person-required line always shown to the

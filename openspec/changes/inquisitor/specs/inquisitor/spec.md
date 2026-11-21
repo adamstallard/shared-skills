@@ -60,8 +60,9 @@ the repository it was asked from (*A collective's question is bounded by
 the repository it was asked from* defines that repository, and *The team's
 lore repository is the most specific one that serves* picks among
 several). For a collective's question asked on Linear or Discord, where no repository was asked from, the
-`answer-session` spec's *A Linear or Discord question is placed by what it
-concerns* picks the team's lore repository.
+`answer-session` spec's *A channel's repositories place its questions*
+or, outside a mapped channel, *A Linear or Discord question is placed by
+what it concerns* picks the team's lore repository.
 
 *A session with a person in it* is one a person started and is reading, such
 as an interactive Claude Code session. Any other, such as an Igor worker or
@@ -84,7 +85,9 @@ Code.
 issue comment, sent through `gh` or a GitHub MCP tool, and its questions
 are those in its body. *A question tags* a
 person when its tag line (*A tag line names the person a posted question
-tags*), list item or sentence mentions their login as `@login`.
+tags*), list item or sentence mentions their login as `@login` outside
+code, quotes and links, as the `answer-session` spec's *A mention names a
+user outside code, quotes and links* counts a mention.
 
 *An Igor's handback comment* is the comment in which an Igor hands an item
 back to a person, holding what its worker reported.
@@ -1464,8 +1467,7 @@ After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
 them, on the question's **tag line**: `@` and a login in GitHub's login
 syntax, alone on a line after any related-decision, person-required and
-concerns lines, which come in that order. The hooks leave the tag line out of the question's
-text, as they do a related-decision line, so the hash stays the one vetted.
+concerns lines, which come in that order.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
@@ -4050,9 +4052,8 @@ only that the question blocks.
 A session with no person in it SHALL ask or post no `secret` or `personal`
 question, ask a `vulnerability` one only in the advisory, defer none, stop
 only work needing the answer, and report only its category as blocking or
-waiting. An Igor worker, a term that here also covers each model step
-igor PR #153 runs after the worker, SHALL instead report igor PR #216's flag on giving a question a
-category: each category met, listed once, marked if a question of it
+waiting. An Igor worker's report SHALL instead be igor PR #216's flag
+on giving a question a category: each category met, listed once, marked if a question of it
 stopped the worker, and nothing else.
 
 #### Scenario: A headless session files a vulnerability's advisory
