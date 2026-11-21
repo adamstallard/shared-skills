@@ -395,7 +395,7 @@ the session SHALL have no login configured.
 
 Visibility SHALL be ranked private, then internal, then public, and
 nothing about one repository SHALL go to a **more visible** place, except
-a post whose words the person confirms before it goes out, and except
+a post or message whose words the person confirms, and except
 as three requirements allow: *The answerer's confirmation can send a
 record somewhere more visible*; *A later run gets only the answer to its
 Igor's question on a more private repository*; and answer-session's *A
@@ -720,7 +720,8 @@ filter 1 does, but only of a repository those clones hold.
   questions-branch hit with the fields `branch-search` gives; each
   source not searched; and each clone with the time a fetch last updated
   it, or `null` when that is unknown
-- **AND** it issues no token, records no verdict and writes no file
+- **AND** it issues no token, records no verdict, writes no file, fetches
+  nothing, and reads no issue of a repository those clones don't hold
 
 #### Scenario: The search command given no repository searches only global lore
 
@@ -1381,21 +1382,6 @@ refuse its `ask`.
   asked in that public repository's pull request
 - **THEN** the question has no related-decision line linking that decision
 
-### Requirement: A related earlier decision is named at the second call
-
-A **related earlier decision** SHALL be one the agent names at the second
-call, with the question's verdict, from the filter 1 hits the first call
-printed for it, as related to the question; the second call SHALL record it
-with that verdict.
-
-#### Scenario: The related decision is named at the second call
-
-- **WHEN** the first call prints, among a question's filter 1 hits, an
-  earlier decision related to it, and the second call gives the question an
-  `ask` naming that decision as related
-- **THEN** the second call records the decision with the verdict, and the
-  agent adds its related-decision line after the second call
-
 ### Requirement: A related-decision line is one URL on a line of its own
 
 A question's **related-decision line** SHALL be `Related: ` and one URL with
@@ -1636,13 +1622,6 @@ subagent's run excepted.
 - **THEN** the round goes on, and the agent asks none of the questions it
   holds
 
-#### Scenario: In a terminal with no pull request, the final reply ends the round
-
-- **WHEN** an agent in a terminal session, working on a change with no
-  pull request, finishes and is about to end its turn
-- **THEN** that ends the round, and it asks the questions it holds through
-  the picker before its final reply
-
 #### Scenario: Ending its turn ends the round on work with a pull request
 
 - **WHEN** an agent working on a draft pull request, with a person in the
@@ -1788,7 +1767,8 @@ SHALL take them as the person would see them, print the four filters and
 filter 1's search results for each, and issue a token, recording no verdict.
 The **second call** SHALL take the token and a verdict per question,
 `answered`, `deferred`, `decided` or `ask`, with its field and, for an
-`ask`, any related earlier decision.
+`ask`, any **related earlier decision**: one the agent names as related
+from the first call's filter 1 hits for the question.
 
 #### Scenario: The first call prints the filters and records no verdict
 
@@ -1804,6 +1784,13 @@ The **second call** SHALL take the token and a verdict per question,
   of the work"; `decided` where the choice is recorded; and `ask` the
   recommended answer, a picker option's label or, for a question in a
   post, a sentence, and what changes under each other answer
+
+#### Scenario: The related decision is named at the second call
+
+- **WHEN** the first call prints, among a question's filter 1 hits, an
+  earlier decision related to it, and the second call gives the question an
+  `ask` naming that decision as related
+- **THEN** the second call records the decision with the verdict
 
 ### Requirement: The second call records all its verdicts or none
 

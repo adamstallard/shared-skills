@@ -18,7 +18,7 @@ task names, or else the place listed here:
 - *Configuration* and *Facts measured before building*: 0.4;
 - *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
 - *igor's handback marker*: 0.6 and 0.38;
-- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
+- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25,
   0.28, 0.30, 0.31, 0.34, 0.35 and 0.37;
 - igor issue #247's body, since its result is a fact about igor's host:
   0.29.
@@ -209,21 +209,6 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-session spec's *A pending
       answer that no check returns waits for the person* uses
-- [ ] 0.26 With a mod logging the `agentId` of every call to a tool it
-      registers, such as `propose_reply`, let Claude Code's forked side
-      conversations, such as the one that guesses the next prompt, run,
-      and record whether any of their calls arrives without an `agentId`.
-      Record too whether a subagent's call carries one. For forks this
-      decides nothing: `propose_reply` refuses a call carrying one and
-      takes a call without one as the main conversation's (answer-session
-      spec: *Claude's draft goes to the prompt box, never to a post*). If
-      any arrives without one, record it in design.md's *Claude drafts a
-      reply only into the prompt box*; the rule stands. A subagent's call
-      that arrives without one is taken as the main conversation's, as
-      the scenario *A subagent cannot call propose_reply* already says,
-      and design.md's *Claude drafts a reply only into the prompt box*
-      accepts that case as it accepts a fork's: the draft reaches only the
-      prompt box, where the person sees it before anything is sent
 - [ ] 0.28 Post the lines `Inquisitor: a person must decide this
       (required by spec-trace).` and `Concerns: o/web` in a Linear comment
       and a Discord message, read each back as the answer session would,
@@ -448,9 +433,8 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
         passes (inquisitor
         spec: *A hash-only miss file shows nothing but that it exists*).
       - A log file for a question also asked in a post holds that post's
-        URL as `asked_in`: a Linear or Discord one only on a private
-        repository's questions branch, a GitHub one only on a questions
-        branch no more visible than the repository it points into (design.md: *`answer_link` and
+        URL as `asked_in`, only on a questions branch no more visible than
+        the repository it points into (design.md: *`answer_link` and
         `asked_in` are withheld where they would leak*). Igor-worker mode
         writes no `asked_in`, because each Igor log file follows its own
         handback comment (design.md: *Each Igor log file follows its own

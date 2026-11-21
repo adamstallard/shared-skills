@@ -57,6 +57,12 @@ inquisitor's, or that spec's, *Title*:
 - **The preview** is what the answer session shows the person before a
   post goes out: the exact post, where it will be recorded, and any
   warning.
+- **The person's answer** to a log file is the answer file that is its
+  answer by the inquisitor's *A named file's answer is the newest answer
+  file naming it*.
+- A **thread copy** is a question the answer session shows from a thread;
+  a questions-branch log file **holds** it when the file's `asked_in`
+  links that thread message.
 
 Any other term is defined in the requirement that sets the term's rule;
 a requirement before that one may already use the term.
@@ -67,11 +73,11 @@ a requirement before that one may already use the term.
 
 The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
-`User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
-On GitHub, this requirement and every one that posts through the relay
-wait on task 0.21 (tasks.md), which measures whether GitHub shows which App
-wrote a comment, and the three GitHub replies task 0.31 names wait on
-task 0.31 as well.
+`User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `,
+which the skill's instructions reserve for its posts. On GitHub, this
+requirement and every one that posts through the relay
+wait on task 0.21, and the three GitHub replies backed by a miss file
+named by the reply's `node_id` wait on task 0.31 as well.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -90,6 +96,12 @@ task 0.31 as well.
 - **WHEN** a relay identity, used for other work, posts in a question's
   thread with no reserved prefix
 - **THEN** it is no relay post, and the question's state is unchanged
+
+#### Scenario: The instructions reserve the prefixes
+
+- **WHEN** an agent reads the skill's instructions on relay identities
+- **THEN** they say a relay identity may post for other work, but only
+  the answer session's posts use the reserved prefixes
 
 ### Requirement: An automatic post's text is fixed by the answer session
 
@@ -177,21 +189,15 @@ GitHub, this requirement is built only once task 0.21 is measured.
 those closed (*A decline with nothing posted closes a thread copy on this
 machine only*) and those whose answer is on the pending list (*An answer
 that cannot reach its thread is kept pending*). The answer session SHALL
-order the questions not set aside by their asked times (*A question is
-asked when its message was posted or a poll first found it*), oldest
-first.
+order the questions not set aside by their asked times, oldest first,
+and then, in no order among themselves, those **set aside for later**:
+moved by the person to the queue's end on this machine.
 
 #### Scenario: The question asked first comes first
 
 - **WHEN** the queue holds questions with the asked times 09:20, 09:05
   and 09:10, found in that order, none set aside
 - **THEN** the queue orders them 09:05, 09:10, 09:20
-
-### Requirement: The queue puts questions set aside after the rest
-
-**A question set aside for later** is one the person moved to the end of
-the queue on this machine. The answer session SHALL order it after every
-question not set aside.
 
 #### Scenario: A question set aside comes after the new ones
 
@@ -222,19 +228,6 @@ or Linear's times for requests and assignments.
   `asked_in` whose adding commit is dated 1970
 - **THEN** each of the three questions has the asked time 09:30
 
-### Requirement: The person's answer to a named file is their own
-
-An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`, by the inquisitor's *A
-named file's answer is the newest answer file naming it*, which checks
-the file's `answered_by` against whom that log file's question tags.
-
-#### Scenario: An answer file naming the asked person counts
-
-- **WHEN** an answer file holds the person as `answered_by` and names, in
-  `answers`, a log file that tags the person
-- **THEN** it counts as the person's answer
-
 ### Requirement: A poll position marks the newest message a poll read
 
 A channel's **poll position** SHALL be the time of the newest message its
@@ -253,18 +246,6 @@ GitHub channel, SHALL have one poll position of its own: the
 - **WHEN** GitHub's last notifications response had `Last-Modified` 10:06,
   and the newest notification in it was updated at 10:02
 - **THEN** the notifications feed's poll position is 10:06
-
-### Requirement: A thread copy is a question shown from a thread
-
-The answer session SHALL count as a **thread copy** a question it shows
-from a thread. A questions-branch log file **holds** a thread copy when
-the file's `asked_in` links that thread message.
-
-#### Scenario: A question shown from a linked message is a thread copy the file holds
-
-- **WHEN** the answer session shows a question from a GitHub comment that
-  a questions-branch log file's `asked_in` links
-- **THEN** the question is a thread copy, and that log file holds it
 
 ### Requirement: The state folder is under the XDG state home
 
@@ -2071,9 +2052,8 @@ line.
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
 - **AND** a call with no `agentId` is taken as the main conversation's. If
-  a subagent's call can arrive without one, which task 0.26 measures, its
-  draft still lands only in the prompt box, where the person sees it
-  before anything is sent
+  a subagent's call arrives without one, its draft still lands only in
+  the prompt box, where the person sees it before anything is sent
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
@@ -2336,13 +2316,9 @@ nothing; a reworded answer needs the same confirmation.
 ### Requirement: The preview shows where an answer will be recorded
 
 Before the person confirms an answer, or a decline that logs a miss, its
-preview SHALL show which repository's questions branch will hold the
-record and how visible it is; or that nothing will be recorded and why,
-and, if the question has no thread, that the asker gets nothing. When
-that branch is more visible than the thread, the preview SHALL warn,
-naming the thread: the person confirms an answer with its record or
-rewords it, and confirms a decline's miss or declines with a hash-only
-miss.
+preview SHALL show which questions branch will hold the record and its
+visibility, or that nothing will be recorded and why, and, if the
+question has no thread, that the asker gets nothing.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2350,6 +2326,23 @@ miss.
   the private `o/api`, asked in an issue of `o/api`
 - **THEN** the preview shows that the question and the answer will be
   recorded on the questions branch of `o/api`, which is private
+
+#### Scenario: The preview says when nothing will be recorded
+
+- **WHEN** the person is about to confirm an answer to a question with no
+  thread that has a category, or whose questions branch they cannot push
+  to
+- **THEN** the preview says the answer will not be recorded, why, and
+  that the asker will not receive it
+
+### Requirement: The preview warns before a record goes somewhere more visible
+
+When the questions branch is more visible than the question's thread or,
+when it has no thread, than the file it came from, the preview SHALL
+warn, naming both, and let the person confirm the record or reword an
+answer. A decline that posts a reply may instead push a hash-only miss
+backing it, and one that posts nothing then logs no miss (*The answer
+session writes no miss it cannot place privately*).
 
 #### Scenario: The preview warns before a record more visible than its thread
 
@@ -2366,14 +2359,6 @@ miss.
 - **THEN** the preview warns that the miss on the questions branch of
   `o/web` is public and that Linear thread is not, and offers confirming
   the miss or declining with a hash-only miss file
-
-#### Scenario: The preview says when nothing will be recorded
-
-- **WHEN** the person is about to confirm an answer to a question with no
-  thread that has a category, or whose questions branch they cannot push
-  to
-- **THEN** the preview says the answer will not be recorded, why, and
-  that the asker will not receive it
 
 ### Requirement: The person can pick another place in the preview
 
@@ -2411,9 +2396,7 @@ When the person is about to confirm an answer to a log file that has no
 the one whose questions branch holds the file, the preview SHALL add one
 line: the answer is also passed to an Igor's run on an item in the
 repository `asked_from` names, and that run must not quote it in the
-item. Such a file is an Igor worker's question about a repository more
-private than its item, since a question asked in a thread has an
-`asked_in`.
+item.
 
 #### Scenario: The preview says an answer also reaches a more visible item's run
 
@@ -2573,26 +2556,6 @@ its close takes effect* does a handled file's.
   pushing the miss or citation file it leads to, or that push fails
 - **THEN** it pushes the file at its next opening, or retries it at each
   poll and opening until it succeeds
-
-### Requirement: Four reserved prefixes mark the answer session's posts
-
-Only the answer session's own posts SHALL start with a reserved prefix. An
-automatic post SHALL be posted as a relay post is, and never shown as
-the person's words.
-
-#### Scenario: The instructions reserve the prefixes
-
-- **WHEN** an agent reads the skill's instructions on relay identities
-- **THEN** they say a relay identity may post for other work, but only
-  the answer session's posts use the reserved prefixes
-
-#### Scenario: A reserved prefix outside the answer session is checked only on GitHub
-
-- **WHEN** an agent's post outside the answer session starts with a
-  reserved prefix
-- **THEN** on GitHub the inquisitor's post hook blocks it, as *The post
-  hook vets what the shared post reader returns* says, and on Linear or
-  Discord nothing checks it
 
 ### Requirement: The person answers for what their relay posts
 

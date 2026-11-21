@@ -78,7 +78,7 @@
   Evidence: OWASP lists, among prompt injection's mitigations, "Define and validate expected output formats", using "deterministic code to validate adherence to these formats", https://genai.owasp.org/llmrisk/llm01-prompt-injection/
 
 - **Rationale: Claude's draft goes to the prompt box, never to a post.**
-  The model reads untrusted thread text, which can steer it to write what the person would not say, so its draft goes where the person reads it before anything is sent, never straight to a post. `propose_reply` also refuses a call carrying an `agentId`, keeping out a subagent's draft wherever Claude Code marks the call as a subagent's; a subagent's call without one still lands only in the prompt box. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.
+  The model reads untrusted thread text, which can steer it to write what the person would not say, so its draft goes where the person reads it before anything is sent, never straight to a post. `propose_reply` also refuses a call carrying an `agentId`, which the spec assumes Claude Code sets on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; a subagent's call without one still lands only in the prompt box.
   Evidence: OWASP names indirect prompt injection, content from external sources that "alters the behavior of the model in unintended or unexpected ways", https://genai.owasp.org/llmrisk/llm01-prompt-injection/
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
 

@@ -224,7 +224,7 @@ identities* to *Linking log files to threads, and handbacks*.
 ### What the answer session posts, and what it logs
 
 Only the answer session starts a post with a reserved prefix (answer-session
-spec: *Four reserved prefixes mark the answer session's posts*); *The post
+spec: *Relay posts start with a reserved prefix*); *The post
 hook blocks a reserved prefix on GitHub* gives why, and what enforces it.
 
 **Rule:** answer-session spec, *A relay post is posted by a host command,
@@ -571,7 +571,7 @@ and the call's other questions need no vetting again.
 #### The related-decision line is left out of the hash
 
 **Rule:** inquisitor spec, *A question's text and hash are built one way*;
-*A related earlier decision is named at the second call*; *A
+*Two calls prove the filters ran*; *A
 related-decision line is one URL on a line of its own*.
 The related decision turns up in the first call's search, so the agent adds
 the line after the second call with no further vetting. Since no vetting
@@ -721,8 +721,8 @@ until the host is fixed.
 #### The post hook blocks a reserved prefix on GitHub
 
 **Rule:** inquisitor spec, *The post hook vets what the shared post reader
-returns*; answer-session spec, *Four reserved prefixes mark the answer
-session's posts*.
+returns*; answer-session spec, *Relay posts start with a reserved
+prefix*.
 
 **Why:** anything holding a relay identity could post `User says: `, which
 marks a question answered on every machine. So only the answer session may
@@ -2345,7 +2345,7 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34, 0.35 and 0.37 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35 and 0.37 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
@@ -2354,7 +2354,7 @@ building if they fail, until the repository's owner decides; so does task
 fails, the answer session is built as a standalone UI, not a mod. The
 rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
-measured, and what to build for them is decided then.** The other tasks cover
+measured, and the repository's owner decides then what to build for them.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
 how the Linear relay posts a comment, how setup checks a relay's
 access to each channel, whether setup can read the GitHub links on a Linear team's issues to guess its repositories, and whether an asking agent's recorded `asked_in` URL
@@ -2408,6 +2408,29 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+
+### For the repository's owner to decide
+
+- **Which github-app calls does the post reader read?** A call it
+  can't read is reported unreadable, so the post hooks block it. The
+  gh-post spec (*The reader reads posts sent through the github-app skill
+  and gh api*) reads the script only at a literal path, written in the
+  call or assigned to `G`, the variable github-app's instructions keep the
+  path in. Its scenario *A quoted assignment to G sets it* reports
+  `G="$HOME/github_app.py"` as unreadable. The shared library on main
+  (`.agents/lib/gh-shell/gh_shell.py`, which task 1.1 builds gh-post on
+  and spec-check's hand-back hook already calls) also reads a path built
+  from a variable, such as `$D/github_app.py`, the path held in any
+  variable, and `--identity=<name>`. The options:
+  - The spec takes the library's reading and drops the `$HOME` case from
+    that scenario. Recommended: a literal path proves no more about which
+    script runs, since any file named `github_app.py` passes, and both
+    hooks then read a call one way.
+  - Task 1.3, which lists every change to the library's behaviour,
+    narrows the library. spec-check's hand-back hook then checks fewer
+    hand-backs.
+  - gh-post gets its own narrower check, and the library reads one call
+    two ways for two hooks.
 
 ### What other changes must provide
 
