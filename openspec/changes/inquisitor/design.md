@@ -684,8 +684,9 @@ mutation. So such a write is read only as the whole command line. A field
 given in the command cannot be rewritten.
 
 *Ruled out by a scenario:* reporting every GraphQL mutation as unreadable,
-which blocks writes that send no text (scenario *A GraphQL mutation with no
-body sends no post*).
+which blocks writes that send no text (gh-post spec: *The reader reads
+GraphQL posts and blocks an unreadable body sent to issues or pull
+requests*, scenario *A write with no body sends no post*).
 
 #### A gh api call counts only when it can write
 
@@ -822,19 +823,17 @@ unchanged.
 #### Weaknesses stay out of public text until disclosure
 
 **Rule:** inquisitor spec, *A weakness is not described in public text
-before its advisory is published*; *A weakness's regression test lands
-nowhere public before publication*; *A commit in an advisory's private fork
-is described as task 0.13 allows*. A fix's regression test is a working
-exploit. Task 0.13 measures whether GitHub can merge the fork's pull request
-before the advisory is published.
+before its advisory is published*; *Before publication, a weakness's test
+and description reach only the private fork*.
 
 **Why:**
 - The risk is describing the weakness, in any words, so whether the text
   states a question or its answer is the wrong test.
-- Before publication, a public fix points straight at the weakness. A
-  fix made in the advisory's temporary private fork, whose commits become
-  public with the advisory, is not public before the advisory, unless the
-  fork's pull request can merge before the advisory is published.
+- Before publication, a public fix points straight at the weakness, and
+  its regression test is a working exploit. A fix made in the advisory's
+  temporary private fork stays private until its commits become public
+  with the advisory, as long as the fork's pull request cannot merge
+  earlier; task 0.13 measures whether it can.
 - The rule ends at publication (the inquisitor decision record's
   *Rationale: A weakness is not described in public text before its
   advisory is published*).
@@ -845,7 +844,7 @@ before the advisory is published.
   test.
 
 *Ruled out by a scenario:* keeping only the vulnerability question and its
-answer out of public text, for the first and third reasons above (inquisitor
+answer out of public text, for the first reason above (inquisitor
 spec: *A weakness is not described in
 public text before its advisory is published*, scenario *A fix after
 publication is described normally*).
@@ -1726,11 +1725,11 @@ pending rather than leaving the question as it was, which would drop the
 answer the person typed.
 
 **Pending answers are kept in a separate pending list that reuses the main
-queue's screens,** which spares the list a prototype round.
+queue's screens,** so the list needs no prototype of its own.
 
-*Ruled out by a scenario:* returning an answer no check brings back to the
-queue at the next opening (answer-session spec: *A pending answer no check
-returns waits for the person*, scenario *A text refused for its length stays
+*Ruled out by a scenario:* returning to the queue, when the answer session
+next opens, a pending answer that no check returns (answer-session spec: *A pending answer that no
+check returns waits for the person*, scenario *A text refused for its length stays
 pending after a recheck*); and an "Answered on another machine, not relayed"
 notice on other machines, offering to relay, edit or answer afresh, even only
 for a file linked by `asked_in` (answer-session spec: *Only the person is told
@@ -2630,27 +2629,6 @@ to its 149.
   print it.** adamstallard/shared-skills#96's body states what github-app
   must change. Until it does, *The README warns that a relay's token can be
   printed* keeps the README's warning.
-
-### Decisions for a person
-
-- **Where does an answer go when its question has a category and no
-  thread?** Take a questions-branch file with no thread whose question the
-  session's model judges `vulnerability`, `secret` or `personal`. One case
-  is a file an Igor pushed for its worker, about a repository more private
-  than the worker's item. Answering it pushes a handled file that closes
-  it. No answer file is pushed, since the answer-session spec records no
-  answer to a question with a category, and with no thread nothing is
-  posted or kept on the pending list. So the asker never gets the answer,
-  and the preview says only that the answer will not be recorded. The
-  options:
-  1. Keep this, and have the preview also say the asker will not receive
-     the answer, so the person can answer on the asker's issue or pull
-     request instead.
-  2. Push no handled file for such a question. It stays in the queue until
-     the person declines it.
-
-  Recommended: option 1, the smallest change. With no thread, the session
-  has nowhere to send an answer that must not be recorded.
 
 ### Outside this change
 

@@ -175,8 +175,8 @@ GitHub, this requirement is built only once task 0.21 is measured.
 
 **The queue** is this machine's list of unanswered questions, other than
 those closed (*A decline with nothing posted closes a thread copy on this
-machine only*) and those on the pending list (*A question with a pending
-answer is out of the queue*). The answer session SHALL
+machine only*) and those whose answer is on the pending list (*An answer
+that cannot reach its thread is kept pending*). The answer session SHALL
 order the questions not set aside by their asked times (*A question is
 asked when its message was posted or a poll first found it*), oldest
 first.
@@ -191,21 +191,13 @@ first.
 
 **A question set aside for later** is one the person moved to the end of
 the queue on this machine. The answer session SHALL order it after every
-question not set aside, and the questions set aside in the order they
-were set aside.
+question not set aside.
 
 #### Scenario: A question set aside comes after the new ones
 
 - **WHEN** the person sets a question aside for later, and a new question
   then reaches the queue
 - **THEN** the queue orders the new question before the one set aside
-
-#### Scenario: Questions set aside keep the order they were set aside
-
-- **WHEN** the person sets aside a question asked at 10:00, then one asked
-  at 09:00
-- **THEN** the queue orders the 10:00 question before the 09:00 one, after
-  every question not set aside
 
 ### Requirement: A question is asked when its message was posted or a poll first found it
 
@@ -229,20 +221,6 @@ or Linear's times for requests and assignments.
   an issue assigned to them, and a questions-branch log file with no
   `asked_in` whose adding commit is dated 1970
 - **THEN** each of the three questions has the asked time 09:30
-
-### Requirement: A question with a pending answer is out of the queue
-
-**The pending list** is this machine's list, apart from the queue, of
-confirmed answers not yet posted in their threads (**answered, not
-relayed**, as *An answer that cannot reach its thread is kept pending*
-defines it); every such answer SHALL be on it, and its question SHALL
-NOT be in this machine's queue until the answer returns there, as *A
-pending answer whose channel was off returns to the queue* says.
-
-#### Scenario: A pending answer's question leaves this machine's queue
-
-- **WHEN** this machine holds an answer to a question on the pending list
-- **THEN** that question is not in this machine's queue
 
 ### Requirement: The person's answer to a named file is their own
 
@@ -1492,20 +1470,20 @@ off (*Setup checks each relay identity before its channels are used*).
 ### Requirement: An answer that cannot reach its thread is kept pending
 
 The answer session SHALL keep a confirmed answer that cannot be posted
-in its thread as **answered, not relayed**, with its thread, on the
-pending list: when its channel is off or not read here, or its post is
-refused or fails, or is held back because the fetch before posting found
-a reply the person has not seen (*The thread is read again before a
-question is shown and before a post*). For a question with a category it
-keeps the answer only in memory.
+in its thread as **answered, not relayed**, on this machine's **pending
+list**, together with the thread it must go to: when its channel is off
+or not read on this machine, or its post is refused or fails, or is held
+back because the fetch before posting found a reply the person has not
+seen (*The thread is read again before a question is shown and before a
+post*).
 
 #### Scenario: A refused answer is kept pending
 
 - **WHEN** the person confirms an answer and Discord refuses the relay
   post, as for lack of permission
 - **THEN** the answer session keeps the answer as answered, not relayed,
-  and tells the person as *Only the person is told an answer is pending*
-  says
+  its question leaves this machine's queue, and the person is told as
+  *Only the person is told an answer is pending* says
 
 ### Requirement: Only the person is told an answer is pending
 
@@ -2367,13 +2345,14 @@ nothing; a reworded answer needs the same confirmation.
 
 ### Requirement: The preview shows where an answer will be recorded
 
-Before the person confirms an answer, or a decline that logs a miss, the
-answer session SHALL show, with the post's preview, the repository whose
-questions branch will hold the record and that repository's visibility, or
-that nothing will be recorded and why. When that branch is more visible
-than the thread, the preview SHALL warn of it, naming the thread: the
-person confirms an answer with its record or rewords it, and confirms a
-decline's miss or declines without a readable one.
+Before the person confirms an answer, or a decline that logs a miss, its
+preview SHALL show which repository's questions branch will hold the
+record and how visible it is; or that nothing will be recorded and why,
+and, if the question has no thread, that the asker gets nothing. When
+that branch is more visible than the thread, the preview SHALL warn,
+naming the thread: the person confirms an answer with its record or
+rewords it, and confirms a decline's miss or declines with a hash-only
+miss.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2400,9 +2379,11 @@ decline's miss or declines without a readable one.
 
 #### Scenario: The preview says when nothing will be recorded
 
-- **WHEN** the person is about to confirm an answer to a question with a
-  category, or one whose questions branch they cannot push to
-- **THEN** the preview says the answer will not be recorded, and why
+- **WHEN** the person is about to confirm an answer to a question with no
+  thread that has a category, or whose questions branch they cannot push
+  to
+- **THEN** the preview says the answer will not be recorded, why, and
+  that the asker will not receive it
 
 ### Requirement: The person can pick another place in the preview
 
@@ -3360,9 +3341,9 @@ branch of what it concerns*.
 - **THEN** it takes the reply's id from the surface's response and then
   pushes the miss file that id names, as the inquisitor's *Every miss file
   is named by one hash* says
-- **AND** the push is recorded as owed, for that question, before the post;
-  a retry that finds no id recorded takes it from the relay's
-  `Inquisitor: ` reply to that question in the thread
+- **AND** if the session stopped before saving the reply's id, the
+  retried push takes the id from the relay's `Inquisitor: ` reply to that
+  question in the thread
 
 ### Requirement: A miss records who judged it and where it was asked from
 
@@ -3383,12 +3364,6 @@ repository.
 - **THEN** the file's `asked_from` is `o/lore`, not `o/api`, as the
   inquisitor's *The answerer's confirmation can send a record somewhere
   more visible* sets
-
-#### Scenario: An automatic miss is marked as the answer session's
-
-- **WHEN** the answer session handles an agent's question under filter 2
-  by itself
-- **THEN** the miss file's `said` is `answer session: clearly filter 2`
 
 #### Scenario: A miss copies the most private asked_from
 

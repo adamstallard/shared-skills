@@ -280,8 +280,9 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       (answer-session spec: *Setup guesses the repositories a Linear or
       Discord channel concerns*).
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
-      conversation while the person is not typing, and have the model
-      answer it with a tool call, unattended (design.md: *The model hands
+      conversation while the person is not typing, have the model answer
+      it with a tool call, unattended, and detect when the model's reply in
+      that turn has ended (design.md: *The model hands
       its judgements to the code through record_verdict*). If it cannot,
       record it and stop building the mod: the answer session is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
