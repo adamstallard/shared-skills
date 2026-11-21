@@ -362,7 +362,9 @@ have no task, so that the other tasks keep their numbers.
         and a review whose comments it can't read.
       - It applies the closed list of gh post verbs, blocking as
         unreadable `gh discussion` posts and `gh release` posts given
-        notes.
+        notes, reading a `gh project` draft issue's body and title as
+        literal words, and reading a `gh agent-task create` description only as
+        the whole command line.
       - It keeps prose's reader's block, as unreadable, on a command
         that names `gh`, followed by another word, in another command's
         arguments, such as `sh -c`, unless that command is a data command
@@ -487,8 +489,8 @@ have no task, so that the other tasks keep their numbers.
         handled file, a hash-only miss file and a file written during an
         Igor's run. Outside a
         run `asked_from` is the repository holding the current work
-        (for an answer file, the most private `asked_from` of the files
-        it answers), or the branch's own repository once the person
+        (for an answer file naming files it answers, the most private of
+        their `asked_from`), or the branch's own repository once the person
         confirms sending the file somewhere more visible. Since a file
         is as private as the more private of its branch's repository
         and its `asked_from`, it is then read at that branch's
@@ -619,8 +621,10 @@ have no task, so that the other tasks keep their numbers.
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
-      section or a new issue; and vets every post it sees, igor's handback
-      included (design.md: *No exemption for an Igor's handback*)
+      section or a new issue; blocks a draft issue or an agent task's
+      description holding any question (inquisitor spec: *The post hook
+      blocks a question in a draft issue or an agent task*); and vets
+      every post it sees, igor's handback included (design.md: *No exemption for an Igor's handback*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests

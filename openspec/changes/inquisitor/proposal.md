@@ -117,6 +117,10 @@ None.
   - blocks as unreadable `gh discussion` posts and the agent-written notes
     of `gh release create` and `edit`, as the reader blocks the same text
     sent through `gh api`; prose's hook lets both through today.
+  - reads a project draft issue's body and title from `gh project
+    item-create` or `item-edit`, and an agent task's description from `gh
+    agent-task create`, which prose's hook lets through unread today; it
+    then checks their footer as for any post.
   - keeps reading an unquoted `--body` or `-b` of one plain word, such as
     `--body hi`.
 - The `questions` branch is an orphan branch, pushed with no pull request.

@@ -623,17 +623,23 @@ only runs prose's script sends no post*; *A line whose simple commands send
 no text is no post*; *Any other line that mentions a gh post verb is
 unreadable*; *The reader reads a gh pr or gh issue post only as a whole
 command line*; *A gh pr or gh issue body comes from a plain option value or
-an existing file*.
-A `gh pr` or `gh issue` post is read only as the whole command line since an
-earlier command in the line could rewrite a body file it reads.
+an existing file*; *The reader reads a gh project draft issue's body and
+title as literal words*; *The reader reads a gh agent-task description
+only as a whole command line*.
+A `gh pr`, `gh issue` or `gh agent-task` command can take its body from a
+file, which an earlier command in the line could rewrite, so it is read only
+as the whole command line. A `gh project` draft issue takes its text only
+from the command, so it is read in a longer line too.
 
 **Why:** prose's reader already keeps most of these rules. Three of them
 are new for prose's hook too, each with its reasons elsewhere: blocking a gh
 alias or extension (the gh-post decision record's *Rationale: The reader
 reads only gh's own top-level commands*), counting a `gh api` call only when
-it can write (its own heading below), and blocking `gh discussion` posts and
-`gh release` notes (the record's *Rationale: A command that mentions no gh
-post verb sends no post*).
+it can write (*A gh api call counts only when it can write*, below), and
+the closed list's `gh discussion`, `gh release`, `gh project` and `gh
+agent-task` verbs, which block discussion posts and release notes and read
+project draft issues and agent tasks (the record's *Rationale: A command that
+mentions no gh post verb sends no post*).
 
 *Ruled out by a scenario:* letting a command through when `gh` appears only
 inside quotes (gh-post spec: *Any other line that mentions a gh post verb is
@@ -851,10 +857,10 @@ before the advisory is published.
 **Why:**
 - The risk is describing the weakness, in any words, so whether the text
   states a question or its answer is the wrong test.
-- The risk exists only while the fix is public and the advisory is not. A
+- Before publication, a public fix points straight at the weakness. A
   fix made in the advisory's temporary private fork, whose commits become
-  public with the advisory, is not public first, unless the fork's pull
-  request can merge first.
+  public with the advisory, is not public before the advisory, unless the
+  fork's pull request can merge before the advisory is published.
 - The rule ends at publication (the inquisitor decision record's
   *Rationale: A weakness is not described in public text before its
   advisory is published*).

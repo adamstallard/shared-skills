@@ -14,6 +14,12 @@
   Holds while: a citation is pushed with a person's own credentials, and never to a lore repository more visible than that.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
+- **Constraint: An agent in the person's session can log words the person never said as their decision, by passing their login as `answered_by` to the `log` command with no `answer_link`.**
+  Because: that agent already holds the person's push access, so it could as well commit a decision document that filter 1 counts, and closing this one path would protect nothing.
+  Evidence: git pushes with the credentials its configured helper holds for the host, whichever program runs `git push`, https://git-scm.com/docs/gitcredentials, and `gh auth setup-git` makes gh that helper with the person's own login, https://cli.github.com/manual/gh_auth_setup-git
+  Holds while: an agent in the person's session runs with the person's push access.
+  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
+
 - **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
   Because: igor has published no release, so no igor before that change is supported for such a clause to serve.
   Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
@@ -92,7 +98,7 @@
   Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md#L333
 
 - **Rationale: A weakness is not described in public text before its advisory is published.**
-  The rule lasts only while the fix is public and the advisory is not, because a blanket rule would leave a fix's commit message unable to say why the fix was made even after disclosure, which prose's rules require of every commit message's body.
+  The rule lasts only until the advisory is published, because a rule with no end would leave a fix's commit message unable to say why the fix was made even after disclosure, which prose's rules require of every commit message's body.
   Evidence: prose's rule 14, "Commit subject says what changed; the body says why", https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/prose/rules.md#L228
 
 - **Rationale: A lore entry that stops a question gets a citation file.**

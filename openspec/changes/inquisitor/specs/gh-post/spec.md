@@ -10,9 +10,11 @@ hook judge the same text, and each blocks a post it cannot read.
 
 The shared post reader, `.agents/lib/gh-shell/`, SHALL tell a hook, for a
 tool call, its post, that it sends no post, or that it is unreadable. A
-post is a body; a title, when the call sets an issue's or a pull request's
-title; and whether the call creates an issue. prose's posting hook and the
-inquisitor's post hook SHALL read posts only through it.
+post is what the call sends: a body; a title, when the call sets an issue's, a pull request's
+or a project draft issue's title; whether the call creates an issue; and
+whether it sends a draft issue or an agent task's description. prose's
+posting hook and the inquisitor's post hook SHALL read posts only through
+it.
 
 #### Scenario: Both post hooks read a post through the shared reader
 
@@ -52,10 +54,10 @@ unreadable call.
 A command SHALL send no post when it **mentions** no **gh post verb**
 (scenario *The gh post verbs are a closed list*). It mentions one when its
 text, quoted or not, holds `gh` followed later by `pr`, `issue`,
-`discussion` or `release` and later by a post verb listed for that word,
-or `gh` followed by `api`, unless *A gh api call is a read only as a plain
-gh command* counts that call as a read, which it does only for a plain call
-that does not write.
+`discussion`, `release`, `project` or `agent-task` and later by a post
+verb listed for that word, or `gh` followed by `api`, unless the call is
+a read, which *A gh api call is a read only as a plain gh command* allows
+only for a plain call that does not write.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -68,17 +70,21 @@ that does not write.
   `|` or line break, by a word that is `--notes`, `--notes-file` or
   `--notes-from-tag`, whole or with `=` and a value after it, or that
   starts with a single `-` and holds `n` or `F`, as gh's short notes flags
-  do even when bundled (`-dn`); and a `gh api` call that can write
+  do even when bundled (`-dn`); `gh project` with `item-create` or
+  `item-edit`, only when followed later, before any `;`, `&`, `|` or line
+  break, by a word that is `--body`, whole or with `=` and a value after
+  it; `gh agent-task` with `create`; and a `gh api` call that can write
 - **AND** the reader reads no `gh discussion` post, so both hooks block
   as unreadable a line holding a `gh discussion` post verb, as they block a
   `gh api` call with an `addDiscussionComment` mutation carrying a `body`
-- **AND** `gh`, `pr`, `issue`, `discussion`, `release`, `api` and each verb
-  count only as whole words, with no letter, digit or `_` just before and
-  no letter, digit, `_` or `-` just after, so `--comments` holds no
+- **AND** `gh`, `pr`, `issue`, `discussion`, `release`, `project`,
+  `agent-task`, `api` and each verb count only as whole words, with no
+  letter, digit or `_` just before and no letter, digit, `_` or `-` just
+  after, so `--comments` holds no
   `comment` and `--comment` holds one
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
-  `comment`, `review` and `revert`, and `close` or `reopen` given
-  `--comment` or `-c`; `close` or `reopen` without one still mentions a
+  `comment`, `review`, `revert`, `item-create` and `item-edit`, and
+  `close` or `reopen` given `--comment` or `-c`; `close` or `reopen` without one still mentions a
   post verb but sends no text
 
 #### Scenario: A gh release with notes is unreadable
@@ -287,6 +293,72 @@ and its variants SHALL make the command unreadable.
   body.md`, or the same with `--fill` or `--fill-verbose`, and `body.md`
   exists
 - **THEN** the reader reports each command as unreadable
+
+### Requirement: The reader reads a gh project draft issue's body and title as literal words
+
+For a `gh project item-create` or `item-edit` command given `--body`, the
+reader SHALL return the body from `--body` and any title from `--title`,
+and SHALL report the command as unreadable when either is not a literal
+word. It SHALL read the command in a line holding other commands too, such
+as after `cd x &&`, since neither comes from a file an earlier command
+could rewrite. It SHALL say that the
+post is a draft issue, never that it creates an issue.
+
+#### Scenario: A draft issue's body and title are read
+
+- **WHEN** a hook asks about `gh project item-create 1 --owner '@me'
+  --title 'Retry it?' --body 'Why now?'`, and about `gh project item-edit
+  --id PVTI_1 --body=hi`
+- **THEN** the reader returns `Why now?` as the first's body and
+  `Retry it?` as its title, and `hi` as the second's body
+- **AND** it says each is a draft issue, and neither creates an issue
+- **AND** it returns `hi` for `cd x && gh project item-edit --id PVTI_1
+  --body hi` too
+
+#### Scenario: A project item edit without a body is no post
+
+- **WHEN** a hook asks about `gh project item-edit 1 --owner o --url
+  https://github.com/o/r/issues/5 --field Status --value Done`
+- **THEN** the reader reports that the command sends no post
+
+#### Scenario: A draft issue body or title built by the shell is unreadable
+
+- **WHEN** a hook asks about `gh project item-create 1 --owner o --title t
+  --body "$(cat b.md)"`, and about `gh project item-create 1 --owner o
+  --title "$(git log -1 --format=%s)" --body hi`
+- **THEN** the reader reports each command as unreadable
+
+### Requirement: The reader reads a gh agent-task description only as a whole command line
+
+For `gh agent-task create`, the reader SHALL return a body only when the
+whole command line is that command, holding only the options its scenario
+lists, and its description comes from a single argument that is neither
+an option nor an option's value, as a literal word, or from `-F` or
+`--from-file` naming a file that exists. It SHALL say that the post is an
+agent task's description. Any other `gh agent-task create` SHALL be
+unreadable.
+
+#### Scenario: An agent task's description is read
+
+- **WHEN** a hook asks about `gh agent-task create 'Fix the flaky test?'
+  -b main`, and about `gh agent-task create -F task.md`, where `task.md`
+  exists
+- **THEN** the reader returns `Fix the flaky test?` as the first's body,
+  `-b` giving its base branch, not a body, and the file's text as the
+  second's body, saying each is an agent task's description
+- **AND** the options it may hold are `-b`, `--base`, `-a`,
+  `--custom-agent`, `-R`, `--repo`, `-F` and `--from-file`, each taking a
+  value, and `--follow`, which takes none
+
+#### Scenario: An agent task's description it can't read exactly is unreadable
+
+- **WHEN** a hook asks about `gh agent-task create`, `cat t.md | gh
+  agent-task create -F -`, `gh agent-task create -F missing.md`, where
+  `missing.md` does not exist, `gh agent-task create "$(cat t.md)"`, `gh
+  agent-task create x --web`, and `cd x && gh agent-task create -F
+  task.md`, where `task.md` exists
+- **THEN** the reader reports each command as unreadable: the first opens
+  an editor, and the second reads standard input
 
 ### Requirement: The reader reads a GitHub MCP tool's body, comment and title keys
 
@@ -580,8 +652,9 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 - **WHEN** a hook asks about `G=/abs/github_app.py && python3 "$G"
   --identity bot gh pr comment 5 --body-file c.md`
 - **THEN** the reader returns the file's text as the body
-- **AND** the script runs `gh pr`, `gh issue` or `gh api`, either
-  directly or after `run --`
+- **AND** the reader reads this form only when the script runs `gh pr`,
+  `gh issue`, `gh project`, `gh agent-task` or `gh api`, either directly
+  or after `run --`
 - **AND** `--identity <name>` may come before `gh` or `run`
 - **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
   `G=<path> &&` does

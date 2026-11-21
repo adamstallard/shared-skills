@@ -81,7 +81,11 @@ picker* is the host's interactive question tool, `AskUserQuestion` in Claude
 Code.
 
 *A post* is a pull request description, review or comment, or an issue or
-issue comment, sent through `gh` or a GitHub MCP tool. *A question tags* a
+issue comment, sent through `gh` or a GitHub MCP tool. A project draft
+issue and an agent task's description are not posts in this spec, though
+the shared post reader returns them as posts; the post hook blocks any
+question in either (*The post hook blocks a question in a draft issue or
+an agent task*). *A question tags* a
 person when its tag line (*A tag line names the person a posted question
 tags*), list item or sentence mentions their login as `@login`.
 
@@ -2271,6 +2275,22 @@ its hash, with leading whitespace dropped.
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
 
+### Requirement: The post hook blocks a question in a draft issue or an agent task
+
+The post hook SHALL block a project draft issue or an agent task's
+description, as the shared post reader reports one, when its body or
+title holds a question, whatever that question's verdict, because neither
+is a place where a person is asked or an asked question is logged.
+
+#### Scenario: A vetted question in a draft issue or an agent task is blocked
+
+- **WHEN** an agent runs `gh project item-create 1 --owner o --title t
+  --body 'Should retries back off?'`, or `gh agent-task create 'Should
+  retries back off?'`, and a second call recorded that question as `ask`
+  an hour ago
+- **THEN** the post hook blocks each command, saying to ask in the picker
+  or in an issue or pull request post instead
+
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
 A posted question SHALL tag the first of these with write access to what it
@@ -3357,6 +3377,12 @@ for each key (design.md: *An answer file names every file it answers*).
   public repository, and `asked_from: "o/private-item"`, a private one
 - **THEN** the answer file's `asked_from` is `o/private-item`
 
+#### Scenario: An answer file with no answers key takes a question file's asked_from
+
+- **WHEN** an agent records an answer in a file with no `answers` key
+- **THEN** that file's `asked_from` is the one a question file written at
+  the same time would hold
+
 #### Scenario: Files with different repository keys get an answer file each
 
 - **WHEN** an agent records the answer to a question that two unanswered
@@ -3650,7 +3676,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 - **AND** the Igor sets `asked_from`, the item's repository as `owner/repo`,
   on every log and miss file it pushes, except on a log file into which it
   writes an answer: that file's `asked_from` names the most private
-  repository among the `asked_from` of the files it answers, as this
+  repository among the `asked_from` of the files it answers, or the item's
+  repository when that file has no `answers` key, as this
   spec's requirement *An answer file names every unanswered file it
   answers* sets; it pushes no worker file holding
   `asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`,
