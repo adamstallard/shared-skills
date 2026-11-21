@@ -176,8 +176,9 @@ four exceptions:
   hour.
 - Leave a worktree someone else made that has no commits of its own: one
   whose `git -C <worktree> reflog` shows no commit, merge, rebase,
-  cherry-pick or revert since its current HEAD was checked out there,
-  fast-forwards aside. Its HEAD being on origin, for example on
+  cherry-pick or revert since its current HEAD was checked out there.
+  Fast-forwards don't count, nor do a rebase's entries that make no commit:
+  `start`, `finish`, `abort`, and `reset`, which `--rebase-merges` logs. Its HEAD being on origin, for example on
   `origin/main` because it was just created from there, doesn't mean work
   has landed: it may be a review checkout, or a tree an agent is about to
   work in. If one looks abandoned, tell the user.
@@ -204,9 +205,9 @@ to remove:
 - **When you stop:** every worktree in the repository, except locked ones and
   other worktrees used in the last hour.
 
-A listed worktree has commits made in it, a HEAD that is on origin, no
-paused rebase, merge, cherry-pick, revert or bisect, no worktree inside it,
-and nothing running in it, and passes every check in *Safe to remove*.
+A listed worktree passes every check in *Safe to remove*. It also has
+commits made in it and a HEAD on origin, nothing is running in it, and no
+rebase, merge, cherry-pick, revert, bisect or notes merge is paused in it.
 Remove each one with the command it prints, or ask the user if one must stay.
 The hook never removes anything itself.
 

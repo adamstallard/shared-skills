@@ -40,10 +40,13 @@ A worktree is listed only when all of these hold:
   and it has no submodules,
   which git refuses to remove;
 - someone committed, merged, rebased, cherry-picked or reverted in that
-  worktree; fast-forwards don't count. So a worktree made only to review a
-  branch, or for an agent about to start, is never listed, even after it is
-  updated to the author's latest push;
-- no rebase, merge, cherry-pick, revert or bisect is paused in it;
+  worktree. A fast-forward doesn't count, nor does a rebase that made no new
+  commit and only moved the worktree to commits that already existed. So a
+  worktree made only to review a branch, or for an agent about to start, is
+  never listed, even after a fast-forward or such a rebase brings it up to
+  the author's latest push;
+- no rebase, merge, cherry-pick, revert, bisect or notes merge is paused in
+  it;
 - its HEAD is on origin, on its own branch or on another, such as main;
 - no other worktree sits inside it, since removing it would delete that one
   too;
