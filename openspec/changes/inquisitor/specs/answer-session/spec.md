@@ -28,8 +28,8 @@ inquisitor's, or that spec's, *Title*:
   worker** the agent an Igor starts to do an item (the inquisitor's *An
   Igor is an igor teammate, and its worker does an item*). **An Igor's log
   file** is an unanswered questions-branch log file whose `asked_in`
-  links a handback, as *A handback is an igor- App's comment holding
-  igor's marker* defines one.
+  links a handback, as *A handback is an Igor's comment holding igor's
+  marker* defines one.
 - A **questions branch** is a repository's orphan branch `questions`,
   which holds its question and miss files (the inquisitor's Purpose).
 - `answers` (the file answered), `asked_in` (the post asked in),
@@ -1000,13 +1000,15 @@ none. On Linear or Discord, this rule is built only once task 0.16 or
   code span, code block, quoted line or link
 - **THEN** it mentions no one
 
-### Requirement: A handback is an igor- App's comment holding igor's marker
+### Requirement: A handback is an Igor's comment holding igor's marker
 
-The answer session SHALL count as a **handback** only a comment by an
-App whose slug starts with `igor-` holding a fixed marker that quoted
-text cannot produce, which igor PR #216 is asked to give, in a form task
-0.6 records (design.md: *igor's handback marker*). It is built only once
-task 0.21 is measured (tasks.md).
+The answer session SHALL count as a **handback** only a comment that an
+Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
+an app user task 0.38 shows to be an Igor's) and that holds igor's
+handback marker, which quoted text cannot produce, in the form task 0.6
+records for each surface (design.md: *igor's handback marker*). It is
+built on GitHub once task 0.21 is measured, and on Linear once task 0.38
+is.
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -1014,6 +1016,22 @@ task 0.21 is measured (tasks.md).
   without the handback marker, after a handback no relay post names
 - **THEN** the answer session still shows the earlier handback, and does
   not treat the new comment as one
+
+#### Scenario: An Igor's marked Linear comment is a handback
+
+- **WHEN** an Igor's Linear app user comments, on an issue in a
+  subscribed team assigned to the person, holding igor's handback marker
+  and mentioning no one
+- **THEN** the answer session shows it as that issue's handback, reaching
+  the person as the assignee
+
+#### Scenario: Another app user's marked Linear comment is not a handback
+
+- **WHEN** a Linear app user that is not an Igor's comments on an issue
+  assigned to the person, holding igor's handback marker, mentioning no
+  one and replying to no relay post
+- **THEN** it is not a handback, and as a bot account's message that
+  mentions no one it reaches no one
 
 ### Requirement: Only an item's newest handback is shown
 
@@ -1127,13 +1145,12 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 
 ### Requirement: An Igor's log file follows its own handback comment
 
-When an Igor worker's log file's `asked_in` links a handback comment on
-an issue or pull request in the repository its `asked_from` names, and
-this machine reads that item, the log file SHALL follow that comment (*A
-log file follows the thread message its asked_in links*), so it is not
-shown once a newer handback passes that comment over (*Only an item's
-newest handback is shown*). Otherwise it is shown on its own (design.md:
-*A link this machine never reads is not followed*).
+An Igor worker's log file SHALL follow the handback comment its
+`asked_in` links when this machine reads the comment's item: a Linear
+issue, whatever the file's `asked_from`, or a GitHub issue or pull
+request in the repository its `asked_from` names, so that a newer handback passes the file over along
+with the comment. Otherwise it is shown on its own (design.md: *A link this machine never
+reads is not followed*).
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -1160,11 +1177,22 @@ newest handback is shown*). Otherwise it is shown on its own (design.md:
 - **THEN** the answer session follows the link, and an answer to that
   handback names the log file
 
+#### Scenario: An Igor's log file follows its Linear handback comment
+
+- **WHEN** an Igor worker's log file, on the questions branch of a
+  private repository, the only kind a Linear `asked_in` may be written
+  on, has as `asked_in` the URL of its Igor's handback
+  comment on a Linear issue in a subscribed team, and the person answers
+  that handback
+- **THEN** the answer session relays the answer on the Linear issue and
+  pushes an answer file naming the log file, and never shows the log file
+  on its own
+
 #### Scenario: A link to a non-handback comment, or to an item this machine does not read, is not followed
 
-- **WHEN** a log file's `asked_in` links a comment by an `igor-` App that
-  holds no handback marker, by an author that is not an App with an
-  `igor-` slug, or on an item this machine does not read
+- **WHEN** a log file's `asked_in` links an Igor's comment that holds no
+  handback marker, a comment by an author that is not an Igor, or a
+  comment on an item this machine does not read
 - **THEN** the link is not followed, and the log file is shown on its own
 
 ### Requirement: A question is resolved once answered or declined

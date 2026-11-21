@@ -2179,9 +2179,11 @@ on its own*; *An Igor's log file follows its own handback comment*.
 An Igor's log file follows its handback only on an item this machine
 already reads: reading any other item would let the file's `asked_from`,
 which whoever pushes the file writes, choose which repository the session
-reads with the person's credentials. It follows only a handback in the
-repository `asked_from` names, because an Igor posts its handback on the
-item it works, in that repository.
+reads with the person's credentials. On GitHub the handback must also be
+in the repository `asked_from` names, where an Igor posts it, so a file
+cannot attach itself to a handback on another repository's item. A Linear
+issue sits in no repository, so there the only check is that this machine
+reads the issue.
 
 *Ruled out by a scenario:* showing the file nowhere on that machine, so the
 person would never see the question there (answer-session spec: *A log file
@@ -2210,13 +2212,11 @@ own*).
 mentions*.
 
 So each bot question has one owner: two people cannot give a bot
-conflicting answers. igor issue #229, open, decides the order an Igor
-mentions people in, which no igor spec states. Under it, an Igor that stops
-on a fault it detects itself, such as an error, mentions its operator, the
-person who runs it, first. Every other handback, a question included,
-mentions the item's assignee and then its creator. The first-mention rule
-applies as written whatever order an Igor uses before igor's specs state
-#229's (*igor-dependent rules state the end state*).
+conflicting answers. The order an Igor mentions people in, set by igor
+issue #229, is in the answer-session record's *Rationale: A handback that
+mentions no one goes to the item's assignee*. The first-mention rule
+applies as written whatever order an Igor uses until igor's specs state
+#229's order (*igor-dependent rules state the end state*).
 
 *Ruled out by a scenario:* a handback reaching the assignee unless it
 mentions only others, which gives a bot question more than one owner
@@ -2225,15 +2225,20 @@ scenario *A bot's message reaches only the first person it mentions*).
 
 #### igor's handback marker
 
-**Rule:** answer-session spec, *A handback is an igor- App's comment holding
+**Rule:** answer-session spec, *A handback is an Igor's comment holding
 igor's marker*.
 
 The marker is needed because an Igor posts other comments on the item too.
 The post hook does not read the marker (*No exemption for an Igor's
 handback*).
 
+Why a Linear comment counts too is in the answer-session record's
+*Rationale: A handback is an Igor's comment holding igor's marker*. Linear
+marks an app user's comment (task 0.16); which app user is an Igor's is
+still to be measured, by task 0.38.
+
 *Ruled out by a scenario:* counting every comment by an `igor-` App as a
-handback (answer-session spec: *A handback is an igor- App's comment holding
+handback (answer-session spec: *A handback is an Igor's comment holding
 igor's marker*, scenario *An Igor comment without the handback marker is not a
 handback*).
 
@@ -2540,8 +2545,8 @@ to its 149.
   Igor applies this change's rules for a proposed entry's path, fields, id
   and visibility, and on "id taken" proposes nothing and says so.
 - **#216 must keep its decision 62:** an Igor whose App's slug lacks the
-  `igor-` prefix refuses to start. The answer session tells a handback by
-  that prefix (*igor's handback marker*).
+  `igor-` prefix refuses to start. On GitHub, the answer session tells a
+  handback's author by that prefix (*igor's handback marker*).
 - **igor must push a worker's repository questions to the questions branch
   of the repository each concerns,** as it pushes a worker's collective
   questions to the team's lore repository's. igor's own specs, #216's
@@ -2623,12 +2628,21 @@ to its 149.
   later run writes no `answers`; without the line, the Igor's `miss-check`
   has no repository to run on.
 - **#216's Igor should write `asked_in`** in a worker's log file as the URL of
-  the handback comment that asks it, once it has posted that comment. In
+  the handback comment that asks its question, once it has posted that
+  comment, writing a Linear comment's URL in the form the inquisitor spec's
+  scenario *Where an asked_in may be written* gives, with no title slug. In
   each answer file it writes, it adds `answers`, naming the log file that
   file answers, and it refuses a worker's file holding `answers`. Without
   `answers`, the answer session keeps showing the answered file as unanswered.
-- **#216 should give every handback comment a fixed marker** (*igor's
-  handback marker*).
+- **#216 should give every handback comment a fixed marker,** on GitHub
+  and on Linear, and record the marker's form on each (*igor's handback
+  marker*). On Linear, igor must also make known to the answer session
+  whatever task 0.38 finds marks its app user as an Igor's, such as the
+  user id of its Linear identity.
+- **igor must say which repository a run on a Linear item works in.** That
+  repository is the item's repository (inquisitor spec: *An Igor is an igor
+  teammate, and its worker does an item*), which a worker's questions
+  default to and the Igor writes as `asked_from`.
 - **#216 should widen its definition of a citation to include a person's
   cite.** #216 counts only an agent's record that a lore entry answered a
   question so that no person was asked. Here a person's cite of an `active`
@@ -2688,20 +2702,6 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
-
-### Undecided
-
-- **Should an Igor's comment on a Linear item count as a handback?** An Igor
-  also claims Linear items delegated to it, but only a GitHub App's comment
-  counts as a handback (answer-session spec: *A handback is an igor- App's
-  comment holding igor's marker*). A handback that mentions no one reaches
-  the item's assignee. An Igor's Linear comment is instead an ordinary bot
-  message, which reaches only the first person it mentions (*Whom a message
-  reaches is set by its mentions*), so one that mentions no one reaches no
-  one and its question waits unseen. The options: define a Linear handback,
-  by the Igor's Linear app user and igor's marker, with a task measuring how
-  a Linear comment shows that user; or state that an Igor hands back only on
-  GitHub. The repository's owner decides.
 
 ### Left to implementation
 

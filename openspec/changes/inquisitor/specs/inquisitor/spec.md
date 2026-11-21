@@ -112,13 +112,22 @@ person's cite pushes a citation file*).
 
 The skill SHALL treat as an **Igor** one of the igor project's AI teammates,
 and as its **worker** the agent that Igor starts to do an item, a piece of
-work such as an issue or pull request that the Igor holds.
+work such as an issue or pull request that the Igor holds. **The item's
+repository** SHALL be the GitHub repository holding the item or, for a
+Linear issue, the repository igor runs the item's work in.
 
 #### Scenario: An agent an Igor starts for an item is its worker
 
 - **WHEN** an Igor starts an agent to work an item it holds
 - **THEN** that agent is its worker, and this spec's rules for an Igor
   worker apply to it
+
+#### Scenario: A Linear item's repository is the one its work runs in
+
+- **WHEN** an Igor works a Linear issue, and igor runs that work in
+  `o/web`
+- **THEN** the item's repository is `o/web`, which the Igor writes as
+  `asked_from` on the files it pushes for that run
 
 ### Requirement: Every question passes four filters before a person sees it
 

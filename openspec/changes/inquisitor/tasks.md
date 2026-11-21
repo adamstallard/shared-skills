@@ -16,7 +16,7 @@ capability's decision record, and the rest in this design.md section:
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
 - *Facts measured before building*: 0.5, 0.7 to 0.14, 0.33, 0.35 and 0.36;
-- *igor's handback marker*: 0.6;
+- *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
   0.28, 0.30, 0.31, 0.34 and 0.37;
 - *What igor must provide*: 0.29.
@@ -42,10 +42,11 @@ have no task, so that the other tasks keep their numbers.
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
       returns, or the script must skip that candidate
-- [ ] 0.6 Record, from igor PR #216, the form of the fixed marker on igor's
-      handback comments, a marker that no text the Igor quotes from its
-      item can produce, by which the answer session tells a handback from
-      the Igor's other comments (design.md: *igor's handback marker*)
+- [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
+      marker on igor's handback comments on GitHub and on Linear, a marker that no text the
+      Igor quotes from its item can produce, by which the answer session
+      tells a handback from the Igor's other comments (design.md: *igor's
+      handback marker*)
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
@@ -155,7 +156,7 @@ have no task, so that the other tasks keep their numbers.
       - task 6.4's GitHub relaying, which is every requirement that posts
         through the relay on GitHub and needs that question state;
       - on GitHub, each rule that reads a `[bot]` author login: *A
-        handback is an igor- App's comment holding igor's marker* and *An
+        handback is an Igor's comment holding igor's marker* and *An
         agent's question comes from a bot account or a log file*;
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions*, *A bot's message
@@ -291,6 +292,17 @@ have no task, so that the other tasks keep their numbers.
       record it and stop building the mod: the answer session is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
       for the owner's approval
+- [ ] 0.38 How the answer session tells, with the person's Linear key,
+      that a Linear app user is an Igor's, in a form no other app user can
+      take on, as the `igor-` slug tells an Igor's App on GitHub: for
+      example by the user id of the Linear identity an Igor is configured
+      with, or by a name igor requires of its Linear app. Task 0.16
+      measured that Linear marks an app user's comment, with `user.app`
+      `true`; which app user is an Igor's is not measured. On Linear, *A handback is an Igor's comment holding igor's
+      marker* is built only once this is measured; until then no Linear
+      comment is a handback, and an Igor's Linear comment reaches only the
+      first person it mentions, as any bot account's message does. If
+      no such form exists, no Linear comment is a handback for good
 
 ## 1. Shared post reader
 
@@ -980,8 +992,8 @@ have no task, so that the other tasks keep their numbers.
           the Igor's record*).
       - For Igor items the tests also cover:
         - every Igor log file following its own handback comment, a link
-          followed only from a marked `igor-` App handback in the
-          repository the file's `asked_from` names (design.md: *Each Igor
+          followed only from a marked handback by an Igor, on GitHub in
+          the repository the file's `asked_from` names (design.md: *Each Igor
           log file follows its own handback comment*; *igor's handback
           marker*);
         - an item shown only through its newest handback, an older
