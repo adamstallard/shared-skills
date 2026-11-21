@@ -236,8 +236,10 @@ so the reader needs nothing else.
    ```
 
    `fixed` means you changed the item: the one the finding is in, or the one
-   the understood line describes. `matches` means the understood line says
-   what you meant on all three points above.
+   the understood line describes. A finding also counts as fixed when the
+   words it quotes are nowhere in the item's file any more, even if you
+   edited them on a line beside its item. `matches`
+   means the understood line says what you meant on all three points above.
 5. **A person decides every kept finding and understood line.** To keep one
    is to leave its item as it is: for an understood line, although it shows
    a meaning other than yours. For each one you would keep, ask a person one

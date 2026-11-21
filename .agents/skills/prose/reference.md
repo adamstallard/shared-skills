@@ -78,13 +78,15 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
 - a finding or understood line is unanswered, answered twice, or not in the
   report, or is kept without a reason or without `(asked)`;
 - a finding or understood line is marked `fixed`, but its item has not
-  changed since the brief;
+  changed since the brief and, for a finding, the words it quotes were not
+  edited out of the item's file;
 - a file the brief did not name now has a changed comment or doc passage:
   run the signing call without `--cold-read` for a new brief, and have that
   read cold.
 
 Each token takes one cold read. Fixes, including those a person chose, are
-not read cold again: the script checks `fixed` by the item having changed.
+not read cold again: the script checks `fixed` by the item having changed,
+or a finding's quoted words being gone.
 
 **A re-sign of the same tree reuses its cold read.** A signing call that
 checks a cold read and signs records the staged tree's hash with the read's

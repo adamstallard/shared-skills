@@ -36,10 +36,11 @@ quoting the words. For every item
 it also says in one line what it understood: who does each thing, whether it
 always happens, and whose doing it is. That line catches a confident
 misreading, which makes no reader stop. The agent then answers every finding
-and every understood line. A finding is fixed, which the script checks by its
-item having changed since the brief, or kept, which a person decides. An
-understood line matches what the agent meant, or else is fixed or kept in the
-same way. The signing call refuses without
+and every understood line. A finding is either fixed or kept. The script
+checks a fixed one by its item having changed since the brief, or its quoted
+words being gone from the file; a person decides a kept one. An understood
+line matches what the agent meant, or else is fixed or kept; a fixed one is
+checked by its item having changed alone. The signing call refuses without
 a report and those answers, both bound to that pass's token, and refuses a
 kept one unless the agent says a person was asked. An agent that cannot ask
 leaves the change unsigned, and hands each finding or understood line it would
