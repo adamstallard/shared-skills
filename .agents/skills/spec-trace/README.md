@@ -217,9 +217,10 @@ test. A tag that names a scenario the change removes or renames is listed
 below the tables, under `### Problems`: change it to the scenario's new
 name, or delete it.
 
-When you open the implementation pull request, paste the change's part of
-the output into the body, so the reviewer sees which test covers each
-scenario. For each capability the change touches, that is the `###` heading,
+A pull request body is written only once a reviewer other than its
+author joins, since nobody reads it before then. Whoever writes the
+implementation pull request's body then pastes the change's part of the
+output into it, so the reviewer sees which test covers each scenario. For each capability the change touches, that is the `###` heading,
 the `| Scenario | Tests |` and `| --- | --- |` lines, and the change's rows.
 
 `report --include-changes` always exits 0, so it can't fail a build; CI runs

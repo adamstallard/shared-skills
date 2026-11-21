@@ -19,13 +19,25 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Text | Who reads it | Why, most likely first |
 |---|---|---|
 | Commit message | a reviewer; later, someone running `git blame` | what changed and whether to approve it; why a line is the way it is |
-| PR description | the reviewer | what to look at, what's risky, whether it's done |
+| PR description | a reviewer reading it for the first time | what it changes and builds on; what to look at, what's risky |
 | Code comment | someone about to change this code | what it does that the code doesn't show; what breaks if they change it |
 | YAML prose string | whoever a tool shows the string to, often an agent | what to do; when it applies |
 | README | someone new to the thing | what it's for; how to start; what to do when it fails |
 | Spec | an implementer; a reviewer approving the design | what must be true; what's decided vs. open |
 | Other doc (architecture, guide) | someone learning what it describes | how it works now; why it is that way |
 | Issue or ticket comment | a teammate | what's decided, what's needed from them |
+
+**When to write each kind, and whether an agent may build on it.** Write a text at the time its row gives. Never cite one nobody keeps current as a source for a spec, for code or for an agent's brief: whatever an agent takes from it may be stale.
+
+| Text | Written | Agents rely on it | Kept current |
+|---|---|---|---|
+| Docs and code comments | with what they describe | yes | yes, with what they describe |
+| Specs | before the code | yes, as the source | yes |
+| Decision records | with the evidence they hold | yes, as the source | yes |
+| PR description | when someone other than the author is about to read it | no | no: regenerated, never updated |
+| OpenSpec `proposal.md` | once, as a stub | no | no |
+| OpenSpec `design.md` | when an open question for a person arises | only for its open questions | holds open questions only; deleted when none is left |
+| Comments (GitHub, Linear, Discord) | once | as input, such as a review finding to amend into a spec; never as the current state | no: a correction is a new post |
 
 **Each text has its own reader.** A commit holds several: `--goals` names the message's reader, the reviewer, but each doc, spec and comment is read by someone else, who never sees the conversation behind the change. Name that reader for each document: an architecture doc, an API reference and a runbook are read for different reasons. What a reviewer needs to approve the change goes in the message or the PR description, not the doc.
 
@@ -182,7 +194,7 @@ After:  In the one place the rule is decided:
 
 ### 8. What is, not how it got here
 A doc or comment describes what *is*. No "previously", "we changed", "the old version", "the argument once made". The past comes in two kinds:
-- **Why a decision holds:** what was decided, its reason or measurement, and each rejected alternative with why it was rejected. This stays true while the decision stands. It goes in a decision record (a capability's `openspec/specs/<capability>/decisions.md`, or the *Decisions* section of an open OpenSpec change's design.md), stated as the decision stands now, never as a chain of amendments. A free-form DECISIONS.md or an ADR is a document for people: agents don't read or write one. A doc or comment that is not a decision record names a rejected design only where a reader would otherwise reinvent it: what it is, and why it was rejected.
+- **Why a decision holds:** what was decided, its reason or measurement, and each rejected alternative with why it was rejected. This stays true while the decision stands. It goes in a decision record (a capability's `openspec/specs/<capability>/decisions.md`), or, in a repository without OpenSpec, a comment beside the code it governs, stated as the decision stands now, never as a chain of amendments. A free-form DECISIONS.md or an ADR is a document for people: agents don't read or write one. A doc or comment that is not a decision record names a rejected design only where a reader would otherwise reinvent it: what it is, and why it was rejected.
 - **How the text evolved:** amendments, reversals, earlier wordings, who decided what on which date, what a push or a review round changed. This goes only in commit messages and pull request descriptions or comments, never in a doc, spec or decision record.
 
 To tell them apart, ask of each piece of the past whether it would still help someone changing the design it is about, a year from now. A warning about a tempting change isn't history: keep it beside the code or text that change would touch, and make it easy to find.
