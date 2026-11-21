@@ -99,7 +99,7 @@
 
 - **Rationale: A handback that mentions no one goes to the item's assignee.**
   An Igor claims an item assigned to a person only when that person hands it over, so the assignee gave the Igor the work and is the right reader for its question.
-  Evidence: igor issue #229's first point, that a handoff mentioning no one on an issue assigned to a person reaches the assignee, https://github.com/adamstallard/igor/issues/229
+  Evidence: igor's work-claiming requirement *An item someone else holds is not claimed*, under which an Igor claims an item assigned to a person only once the item's holder field, Linear's delegate or GitHub's `igor:` label, names that Igor, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/openspec/specs/work-claiming/spec.md#L465
 
 - **Rationale: Setup checks each relay identity before its channels are used.**
   The Discord relay reads messages that do not mention the bot, which needs Discord's privileged Message Content intent, so setup checks that `messageContent` is `true`. discord-bot's setup has the person turn the intent on, and its `check` reports `messageContent` from the bot's application flags.

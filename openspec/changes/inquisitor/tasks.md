@@ -514,7 +514,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       names no person*). It sends none for a question with a category,
       none where *A lore entry that stops a question gets a citation
       file* bars it by visibility, and none for a cited entry not `active` or out
-      of scope. During an Igor's run it pushes nothing; igor PR #216's
+      of scope. A push it cannot make stays pending as `log`'s does,
+      except when called with the session option `log` also takes,
+      which the answer session passes (inquisitor spec: *The answer
+      session's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
 - [ ] 2.5 The question finder for posts, one function the post hook also
       calls, finding questions in a post's title and body, with an
@@ -927,7 +930,7 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
           record once the post goes out, the record dropped when it never
           went out (design.md: *The push order for a questions-branch
           answer*);
-        - every push passing the `log` command's session option, so
+        - every push passing the `log` or `cite` command's session option, so
           that the owed push is the only retry;
         - the answer file pushed only after the thread is checked, none
           for an answer held back or dropped, and at once only for one

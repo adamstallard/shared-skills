@@ -1593,7 +1593,7 @@ the answer was relayed but not logged, and why.
 
 ### Requirement: The answer session's owed push is its only retry
 
-The answer session SHALL pass the `log` command's session option on every
+The answer session SHALL pass the `log` or `cite` command's session option on every
 push, so that its owed push is the only retry of any file it pushes (the
 inquisitor's *The answer session's files are never kept pending*).
 
@@ -2224,13 +2224,13 @@ space.
 
 ### Requirement: An answer is recorded by a new log file
 
-Handled files aside, the answer session SHALL write a log file only to
-record an answer the person confirmed, or an edit of one. The `log`
-command SHALL push it beside the unanswered files holding the question,
-listing each in `answers` and copying their most private `asked_from` and
-any `repository`, or, where no file holds it, to the questions branch of
-what it concerns, with any relay post's URL as `answer_link`. A question
-shown from its branch with no thread SHALL get no ask-back or edit.
+Besides handled files, the answer session SHALL write a log file only
+for an answer the person confirmed or a later edit of it. Where
+unanswered files hold the question, the `log` command SHALL push it
+beside them, naming them as the inquisitor's *An answer file names every
+unanswered file it answers* sets and giving it the most private of their
+`asked_from`; elsewhere, to the questions branch of what the question
+concerns.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2282,13 +2282,6 @@ shown from its branch with no thread SHALL get no ask-back or edit.
   branch of what it concerns
 - **THEN** the answer is relayed in its thread, and no log file is pushed
 
-#### Scenario: A fourth-source question with no thread gets no ask-back or edit
-
-- **WHEN** the person is shown a fourth-source question whose log file has
-  no `asked_in`
-- **THEN** the session offers neither asking the asker back nor editing its
-  answer
-
 #### Scenario: A late answer on another machine answers a closed file
 
 - **WHEN** the person declined with nothing to answer, on one machine, a
@@ -2296,6 +2289,19 @@ shown from its branch with no thread SHALL get no ask-back or edit.
   copy on another machine
 - **THEN** the answer is relayed in the thread, and a log file naming the
   closed file in `answers` is pushed
+
+### Requirement: A question with no thread gets no ask-back or edit
+
+A question shown from a log file with no `asked_in` has no thread, so
+the answer session SHALL offer no `User asks: ` post and no edit of its
+answer.
+
+#### Scenario: A fourth-source question with no thread gets no ask-back or edit
+
+- **WHEN** the person is shown a fourth-source question whose log file has
+  no `asked_in`
+- **THEN** the session offers neither asking the asker back nor editing its
+  answer
 
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 

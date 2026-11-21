@@ -2527,19 +2527,21 @@ agent's report SHALL say the question is not yet logged, and why.
 ### Requirement: The answer session's files are never kept pending
 
 Called with its session option, which only the answer session passes,
-the `log` command SHALL keep no pending copy of a file it cannot push,
+the `log` or `cite` command, which does not check its caller, SHALL
+still fetch and push again when the branch moved, but SHALL keep no
+pending copy of a file it cannot push,
 and SHALL tell the answer session why the push failed, leaving the
 file's retry to the session (answer-session spec: *The answer session's
 owed push is its only retry*).
 
 #### Scenario: A file the answer session cannot push leaves no pending copy
 
-- **WHEN** the answer session calls the `log` command with its session
-  option, and the push fails for want of network or of write access
+- **WHEN** the answer session calls the `log` or `cite` command with its
+  session option, and the push fails for want of network or of write access
 - **THEN** the command keeps no pending copy and reports why the push
   failed
-- **AND** the next `log` call that pushes to that branch pushes only its
-  own file
+- **AND** the next `log` or `cite` call that pushes to that branch pushes
+  only its own file
 
 ### Requirement: No record goes somewhere more visible than its source
 
