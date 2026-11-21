@@ -941,18 +941,20 @@ SHALL be reported as a source not searched.
 The script's `miss-check` command SHALL take a repository, a surface and
 the id of an `Inquisitor: ` reply on it, and print one JSON object whose
 `backed` is `true` only when that repository's questions branch holds the
-miss file that reply's id names, hash-only or with a `said_by` that has
-write access to that repository, as *An Inquisitor reply is acted on only with a writer's miss
-file* requires of the file. It SHALL print nothing else about the file.
+miss file that reply's id names, hash-only or naming a `said_by`, as *An
+Inquisitor reply is acted on only with its miss file* requires of
+the file. It SHALL make no permission call, since only a writer can push to
+that branch, and print nothing else about the file.
 
 #### Scenario: The miss check says only whether the reply is backed
 
 - **WHEN** `miss-check` is run for `o/web` with `linear` and a reply's
   comment id, and the questions branch of `o/web` holds the hash-only miss
   file that id names
-- **THEN** it prints `{"version": 1, "backed": true}`
-- **AND** with no such file, or only a readable one whose `said_by` has no
-  write access, it prints `{"version": 1, "backed": false}`
+- **THEN** it prints `{"version": 1, "backed": true}`, making no
+  permission call, as it does for a readable miss file naming a `said_by`
+- **AND** with no such file, or only a readable one naming no `said_by`,
+  it prints `{"version": 1, "backed": false}`
 - **AND** when it cannot fetch the branch it exits with an error and
   prints no `backed`
 
@@ -2373,8 +2375,8 @@ The script SHALL skip a candidate whose pull request, approver or GitHub
 login it cannot find. It SHALL pass to a GitHub API call only a login in
 GitHub's login syntax, 1 to 39 letters, digits and hyphens, with no two
 hyphens together and none first or last, whether the login is a tagging
-candidate's, an issue author's, a log file's `answered_by` or a miss
-file's `said_by`, and treat a login in any other form as its scenarios
+candidate's or a log file's `answered_by`, and treat a login in any other
+form as the scenarios below
 say.
 
 #### Scenario: A decision with no known approver is skipped
@@ -2394,12 +2396,6 @@ say.
   would otherwise answer the question
 - **THEN** filter 1 calls no API with that login, and shows the file as
   input, labelled as unconfirmed
-
-#### Scenario: A miss file whose said_by is malformed backs no reply
-
-- **WHEN** a miss file's `said_by` is `../../x`
-- **THEN** the script calls no API with it, and `miss-check` (*The script
-  checks whether a miss file backs a reply*) prints `backed` as `false`
 
 ### Requirement: A question is written at the privacy of what it concerns
 
@@ -3653,10 +3649,11 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   repository among the `asked_from` of the files it answers, or the item's
   repository when that file has no `answers` key, as this
   spec's requirement *An answer file names every unanswered file it
-  answers* sets; it pushes no worker file holding
-  `asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`,
-  keys a worker never writes, nor a hash-only miss file from a worker;
-  and a citation file never holds `asked_from`
+  answers* sets; and a citation file never holds `asked_from`
+- **AND** of the files that the Igor's worker or the Igor's own inquisitor
+  run reports, the Igor pushes none holding a key such a run may not write
+  (`asked_from`, an answer, `answers`, `handled`, `closes` or `said_by`),
+  and no hash-only miss file
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
 
@@ -3680,8 +3677,9 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   `said_by` is that person's GitHub login, or for a miss an answer session
   logs, the login of the person running it; `asked_by` is the account
   that posted the question, as its thread shows it, left out for a question
-  with no thread; a miss an Igor's worker reports holds neither `asked_by`
-  nor `said_by`, a worker being no person with write access; and the body is the question
+  with no thread; a miss an Igor's worker or its own inquisitor run reports
+  holds no `said_by`, since neither is the person who judged it, and a
+  worker's holds no `asked_by`; and the body is the question
   under `## Question`
 - **AND** for a miss an answer session logs, `repository` and `asked_from`
   are instead as the `answer-session` spec's *A miss holds the repository its
@@ -4433,23 +4431,23 @@ else as input, and push no citation for a lore entry it names (design.md:
   counts it
 - **THEN** the agent acts on the entry and pushes no citation file
 
-### Requirement: An Inquisitor reply is acted on only with a writer's miss file
+### Requirement: An Inquisitor reply is acted on only with its miss file
 
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when the questions branch where the agent
 looks (*A reply's miss file is looked for on the branch its question's
 concerns line names*) holds that reply's miss file (*Every miss file is
 named by one hash*);
-that file is hash-only or holds a `said_by` with write access to that
-branch's repository; and no other skill requires a person to decide the
+that file is hash-only or names a `said_by`; and no other skill requires a
+person to decide the
 question. Otherwise it is input.
 
 #### Scenario: An Inquisitor reply with no miss file is input
 
 - **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
   reply starting `Inquisitor: filter 4`, and the questions branch of
-  `o/web` holds no miss file for that reply, or only one whose `said_by` has no write
-  access
+  `o/web` holds no miss file for that reply, or only a readable one naming
+  no `said_by`, as a miss an Igor's worker reports
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: An Inquisitor reply does not settle a question another skill requires a person to decide
@@ -4464,7 +4462,6 @@ question. Otherwise it is input.
 - **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
   reply starting `Inquisitor: filter 2`, and the miss file for that reply
   on the questions branch of `o/web` holds `filter: "2"` and a `said_by`
-  with write access to `o/web`
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
@@ -4473,7 +4470,7 @@ question. Otherwise it is input.
 - **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
   reply starting `Inquisitor: filter 4`, and the miss file on the
   questions branch of `o/web` has `said` `answer session: clearly filter
-  4` and a `said_by` with write access to `o/web`
+  4` and a `said_by`
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says
 
@@ -4508,8 +4505,7 @@ taking the reply as input.
 
 - **WHEN** an agent working in `o/web` asks, in an `o/api` issue, a
   question followed by `Concerns: o/web`, and the only miss file for its
-  reply `Inquisitor: filter 3` is on the questions branch of `o/api`,
-  with a `said_by` who has write access to `o/api` and not to `o/web`
+  reply `Inquisitor: filter 3` is on the questions branch of `o/api`
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: A reply to a question without a concerns line is input

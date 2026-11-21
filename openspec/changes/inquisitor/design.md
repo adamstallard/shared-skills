@@ -258,7 +258,7 @@ risks, and the spec answers each:
   no word of an automatic post, and a crafted question can at worst choose
   which fixed reply or which record is posted. The asking agent acts on a
   filter 3 or 4 reply only when a miss file backs it (the inquisitor decision
-  record's *Rationale: An Inquisitor reply is acted on only with a writer's
+  record's *Rationale: An Inquisitor reply is acted on only with its
   miss file*). The asking agent already ran both filters itself, so a backed
   reply is a second judgment, by the person's answer session, that one
   option has merit or that the choice is cheap to reverse (*What an asking
@@ -897,8 +897,7 @@ changed after its push, which counts for nothing, from one as pushed.
 #### A file is trusted for who it names
 
 **Rule:** inquisitor spec, *A questions-branch decision counts only
-unchanged and by write access*; *An Inquisitor reply is acted on only with a
-writer's miss file*.
+unchanged and by write access*.
 
 *Why a commit's signature is no check of authorship:*
 `openspec/specs/inquisitor/decisions.md`, *Rationale: A questions-branch
@@ -1895,8 +1894,8 @@ to fail filter 3 reaches the person*).
 
 #### What an asking agent does with an automatic reply
 
-**Rule:** inquisitor spec, *An Inquisitor reply is acted on only with a
-writer's miss file*; *A reply's miss file is looked for on the branch its
+**Rule:** inquisitor spec, *An Inquisitor reply is acted on only with its
+miss file*; *A reply's miss file is looked for on the branch its
 question's concerns line names*; *Every miss file is named by one hash*; *A
 hash-only miss file shows nothing but that it exists*; *An answer session's
 automatic reply is a verdict, not a person's answer*; answer-session spec,
@@ -1904,9 +1903,7 @@ automatic reply is a verdict, not a person's answer*; answer-session spec,
 visible than its thread is pushed as a hash-only file*.
 
 The inquisitor decision record's *Rationale: An Inquisitor reply is acted on
-only with a writer's miss file* says why. The agent checks that the login
-a miss file names as `said_by` has write access, since the account that
-pushed the file need not be that person.
+only with its miss file* says why.
 
 A reply's miss file is named by the reply's own message id because the name
 is only a lookup key, and the file authorizes one thing, a particular reply,
@@ -1926,9 +1923,9 @@ verdict's `place`) and one the person can write to. A crafted thread can
 already steer `place` to any place on that list, so a crafted concerns line
 reaches nowhere new.
 
-A hash-only miss file needs no `said_by`, since only an account with push
-access can put it on the branch. What it still shows is under the
-answer-session decision record's Constraint on GitHub's events API. A
+A hash-only miss file still shows who pushed it and when (answer-session
+decision record: *Constraint: GitHub's events API shows the pusher and push
+time of each hash-only miss file…*). A
 readable miss stays the form wherever privacy allows one, for its value as a
 log. Where the session has no questions branch for either form, it posts no
 reply by itself, so an agent never acts on a bare reply. A decline that
@@ -2595,9 +2592,9 @@ to its 149.
   (*The Igor runs a worker's miss check only where an agent would look*). A worker holds no credential and fetches no
   questions branch, and `branch-search` never shows a hash-only miss file,
   so a worker cannot itself check the file that backs an `Inquisitor: `
-  reply. With the check, *An Inquisitor reply is acted on only with a
-  writer's miss file* covers a worker as it covers any agent, an automatic
-  filter 3 or 4 reply included; no rule is specific to an Igor.
+  reply. With the check, *An Inquisitor reply is acted on only with its
+  miss file* covers a worker as it covers any agent, an automatic
+  filter 3 or 4 reply included.
 - **The Igor must put each question's concerns line in its handback
   comment,** naming the repository the question concerns, or `lore` and
   the team's lore repository for a collective's question, and leaving it
@@ -2607,9 +2604,10 @@ to its 149.
   `Inquisitor: ` reply to the question.
 - **The Igor should write its own answer file for a handback only when the
   answer session pushed none.** Otherwise one answer has two answer files.
-- **#216 should refuse a worker's miss file holding `said_by`, and any
-  hash-only miss file a worker reports,** since either would let a steered worker
-  lend authority to an `Inquisitor: ` reply that anyone posted.
+- **#216 should refuse a miss file holding `said_by`, and any hash-only
+  miss file, that a worker or the Igor's own inquisitor run reports,** since
+  the Igor's push, as a writer's, would let a run steered by item text back
+  an `Inquisitor: ` reply that anyone posted.
 - **#216 should refuse a worker's file holding `handled` or `closes`,** as it
   refuses one holding `asked_from`. #216 pushes any worker file with no
   `authority` as an unanswered question file, so a worker steered by item

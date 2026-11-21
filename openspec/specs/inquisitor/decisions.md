@@ -125,6 +125,6 @@
   Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
   Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
-- **Rationale: An Inquisitor reply is acted on only with a writer's miss file.**
-  The reply's own text and author count for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide a maintainer's question; only an account with write access, a writer, can push to the questions branch.
+- **Rationale: An Inquisitor reply is acted on only with its miss file.**
+  The reply itself counts for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide a maintainer's question; only a writer, an account with write access, can push to a questions branch. A readable miss file must also name a `said_by`, because the Igor, a writer, refuses that key on every file its worker or its own inquisitor run reports, so a file it pushes for a run steered by item text backs nothing.
   Evidence: GitHub's repository roles give the push permission only from the Write role up, while the Read role can comment on issues and pull requests, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization

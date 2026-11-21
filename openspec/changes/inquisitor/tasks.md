@@ -890,8 +890,8 @@ have no task, so that the other tasks keep their numbers.
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
         only when a miss file on the branch its question's concerns line
-        names backs it: one whose `said_by` has write
-        access to that branch's repository, or the hash-only miss file, each named by the reply's id
+        names backs it: one naming a `said_by`, or a hash-only one, each
+        named by a hash of the reply's surface and id
         (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
         - the handled file, pushed whenever the answer session closes a
