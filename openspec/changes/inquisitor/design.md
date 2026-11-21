@@ -1334,9 +1334,10 @@ and a test pinned to an igor commit checks that copy (task 2.8).
 #### Discord is in the first version, through discord-bot
 
 **Discord is in the first version, through the `discord-bot` skill of
-shared-skills PR #1, merged,** because it gives each role a named bot
-identity (the answer-session decision record's *Rationale: The person runs
-the session, and a relay identity posts for them*).
+shared-skills PR #1, merged,** because the skill's bot can post for the
+person without any service running beside the session (the answer-session decision record's
+*Rationale: The person runs the session, and a relay identity posts for
+them*).
 
 #### On Discord one identity both reads and relays
 
@@ -2112,11 +2113,11 @@ handled file's is*; inquisitor spec, *A log file and a miss file have one
 format*.
 
 The fixed `said` of an automatic miss lets a review of misses tell the
-session's judgement from a person's word. A readable miss file's `asked_by`
-names the account that posted the question, since which asker keeps asking
-what it should have filtered is what a reader of misses wants first, and the
-key reveals nothing new, since the account already shows on the question in
-its thread. A miss on questions-branch files copies their `asked_from` and
+session's judgement from a person's word. Every miss file but a hash-only
+one names in `asked_by` the account that posted the question, so a review
+of misses shows which asker keeps asking what it should have filtered.
+`asked_by` reveals nothing new: the account already shows on the question
+in its thread. A miss on questions-branch files copies their `asked_from` and
 `repository` so it is as private as they are and about the same thing;
 files naming different repositories get no miss, since they leave no one
 `repository` to copy.
@@ -2210,9 +2211,9 @@ handback*).
 **Rule:** answer-session spec, *Only an item's newest handback is shown*;
 *An item's newest handback is open until a relay post names it*.
 
-A newer handback follows only once the person returns the item to the Igor
-without answering the older one, so the case is rare, and the newest says
-where the Igor is blocked now.
+Only the newest handback is open because it says where the Igor is blocked
+now. A newer one is posted only after the person hands the item back to the
+Igor without answering the older one.
 
 *Ruled out by a scenario:* an answer naming only the oldest unanswered log
 file, whose question no longer says where the Igor is blocked (answer-session

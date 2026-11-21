@@ -1196,11 +1196,12 @@ SHALL count as no write access.
 
 ### Requirement: An answer logged from a comment is the comment's whole text
 
-Whoever logs an answer from a comment, whether the skill's script, an
-answer session or an Igor, SHALL record the comment's whole text word for
-word as the file's answer, never a paraphrase, save a `Re: ` line *The
-answerer's confirmation can send a record somewhere more visible* drops.
-Answer text passed with a link is not recorded.
+Whoever logs an answer from a GitHub comment, whether the skill's script,
+an answer session or an Igor, SHALL record the comment's whole text word
+for word as the file's answer, never a paraphrase and never the answer
+text passed with the link. The one line left out is a `Re: ` line, which
+is dropped as *The answerer's confirmation can send a record somewhere
+more visible* says.
 
 #### Scenario: A comment's whole text is recorded as the answer
 
@@ -1593,6 +1594,8 @@ answered file only from the Igor's record*).
   worker's question about `o/api`
 - **THEN** the Igor puts `Concerns: o/api` after the question, and its
   handback record holds that line
+- **AND** for a question it writes no concerns line for, its handback
+  record says it left none
 
 ### Requirement: A round's questions are asked together at its end
 
@@ -1875,13 +1878,13 @@ only what *Some questions are recorded by hash only* allows.
 
 ### Requirement: The two calls' files and records stay private
 
-The two calls' files and verdict records SHALL have mode 0600, in a
-directory only the agent's user can read, the records in
-`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`. Either call SHALL
-refuse a file inside a git working tree, one its group or others can read,
-or one whose directory they can read. A picker `ask`'s record SHALL keep the
-verdict's field without any option's label. The next call or hook reading
-the records SHALL delete each over 2 hours old.
+The two calls' files and verdict records SHALL have mode 0600, in a private
+directory, the records in
+`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/verdicts/`. Either call
+SHALL refuse a file inside a git working tree, one its group or others can
+read, or one whose directory they can read. A picker `ask`'s record SHALL
+hold no option's label. The next call or hook reading the records SHALL
+delete each record over 2 hours old, and nothing else.
 
 #### Scenario: A questions file others can read is refused
 
@@ -1899,8 +1902,8 @@ the records SHALL delete each over 2 hours old.
 
 - **WHEN** the second call records a verdict, with `XDG_STATE_HOME` set to
   `/x/state` or not set
-- **THEN** the record file has mode 0600, in `/x/state/inquisitor/` or
-  `$HOME/.local/state/inquisitor/`, a private directory
+- **THEN** the record file has mode 0600, in `/x/state/inquisitor/verdicts/`
+  or `$HOME/.local/state/inquisitor/verdicts/`, a private directory
 
 #### Scenario: A record holds no option's label
 
@@ -2554,9 +2557,9 @@ alone.
 
 When a push to a questions branch is rejected because the branch moved, the
 script SHALL fetch and push again. When it cannot push for any other
-reason, it SHALL keep the file pending beside its verdict records, with
-mode 0600, and push it with the next file it pushes to that branch. The
-agent's report SHALL say the question is not yet logged, and why.
+reason, it SHALL keep the file pending, with mode 0600, in
+`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/pending/`, and push it
+with the next file it pushes to that branch. The agent's report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2568,8 +2571,9 @@ agent's report SHALL say the question is not yet logged, and why.
 
 - **WHEN** an agent with no write access to `o/api` logs a question about
   `o/api`
-- **THEN** the script pushes nothing and keeps the file pending, and the
-  agent's report says the question is not yet logged, and why
+- **THEN** the script pushes nothing and keeps the file pending, with
+  mode 0600, in `$HOME/.local/state/inquisitor/pending/`, and the agent's
+  report says the question is not yet logged, and why
 - **AND** the next `log` call that can push to that branch pushes the
   pending file with its own
 
@@ -2596,10 +2600,9 @@ owed push is its only retry*).
 
 A record's **source** SHALL be the thread its question was asked or its
 answer given in, a Linear or Discord thread counting as a private
-repository, and, for a collective's question, also the
-repository it was asked from. The script SHALL refuse to push a log file
-or a miss file with keys to a questions branch more visible than its
-source, save as *The answerer's confirmation can send a record somewhere
+repository, and the repository it was asked from. The script SHALL
+refuse to push a log file, or a miss file other than a hash-only one, to a
+questions branch more visible than either part of its source, save as *The answerer's confirmation can send a record somewhere
 more visible* allows, and the agent SHALL then tell the person why.
 
 #### Scenario: A private repository's question stays out of an internal lore repository
@@ -2617,6 +2620,15 @@ more visible* allows, and the agent SHALL then tell the person why.
   question about the public `o/web`
 - **THEN** the script refuses to push its log file to the questions branch
   of `o/web`
+
+#### Scenario: A picker question from private work stays off a public questions branch
+
+- **WHEN** an agent working in the private `o/api` asks, through the
+  picker, a question about the public `o/web`
+- **THEN** its record line names `o/api` as the more private source
+- **AND** the script pushes the file to the questions branch of `o/web`
+  only once the person's answer confirms it, and then with
+  `asked_from: "o/web"`
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 
@@ -2705,8 +2717,7 @@ The second call SHALL print, with each picker `ask`, the question's
 **record line**: `Recorded: `, the repository whose questions branch will
 hold the question and answer, and its visibility; or
 `Not recorded: ` and only a reason *Not recorded gives a listed reason*
-lists. Where that branch is more visible than the record's source, where
-the question was asked, the
+lists. Where that branch is more visible than the record's source, the
 line SHALL also name the source. The agent SHALL put the line, exactly as
 printed, last in the question; answering it confirms the record.
 
@@ -3224,6 +3235,14 @@ question text. If no record
 holds them, or not exactly one file on the branch matches, the Igor SHALL
 write no `answers` (design.md: *A later run names the answered file from
 the Igor's record*).
+
+#### Scenario: The Igor's handback record holds no question text
+
+- **WHEN** an Igor posts a handback asking a question about `o/api` and
+  pushes its file to the questions branch of `o/api`
+- **THEN** its handback record holds the question's hash, its concerns
+  line, `o/api`, and the file name's suffix and date, and not the
+  question's text
 
 #### Scenario: A later run finds the file by the Igor's record
 
@@ -4165,8 +4184,6 @@ SHALL say so.
 - **WHEN** the agent proposes a lore entry with the id `x`
 - **THEN** the pull request adds `entries/x.md`, whose frontmatter holds
   every field igor's lore-store spec requires for an entry of its status
-  (`openspec/specs/inquisitor/decisions.md`, *Rationale: A proposed lore
-  entry's path, fields and id follow igor's rules*)
 
 #### Scenario: An id outside igor's id rule is refused
 
