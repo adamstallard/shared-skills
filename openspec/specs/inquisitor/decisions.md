@@ -9,9 +9,9 @@
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
-  Because: that repository is never more visible than the question's, so the pusher is shown only to people who may already see the question.
+  Because: the inquisitor pushes no citation to a lore repository more visible than the question's repository or, for a question about an organization or other group, the repository it was asked from, and the citation file holds only the entry's id and a date, so the lore repository's readers learn only who cited which entry and when.
   Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
-  Holds while: a citation is pushed with a person's own credentials.
+  Holds while: a citation is pushed with a person's own credentials, and never to a lore repository more visible than that.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
 - **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
@@ -65,7 +65,8 @@
   Evidence: igor PR #171 adds `IGOR_RUN_TOKEN`, https://github.com/adamstallard/igor/pull/171
 
 - **Rationale: In an Igor's run, filter 1 searches through igor.**
-  An Igor worker cannot run the skill's script, so the filter 1 search it runs, by the skill's instructions, goes through `igor lore-search`, a command its role's `commands` must list. A worker's Bash permission is only its role's `commands`, the list of commands the role lets its worker run; Read is refused outside its working tree, and its HOME holds no `inquisitor.json` or `gh` login unless a developer set one up; igor's deployment guide says not to log `gh` in as the service user. igor PR #175's spec makes the lore checkout mode 0750, which the worker cannot read, though this is unchecked, since #175 is not built; and the run is headless, `claude -p`, with no picker. igor passes the worker no lore repository, only the item's worktree and the lore rendered into its system prompt, and injects the active entries in scope only when all of them fit a 4,000-token budget, and none when they do not, so injected lore alone is not enough for filter 1.
+  A worker's Bash permission is only its role's `commands`, the list of commands the role lets its worker run; Read is refused outside its working tree, and its HOME holds no `inquisitor.json` or `gh` login unless a developer set one up, which igor's deployment guide warns against for `gh`. igor PR #175's spec makes the lore checkout mode 0750, which the worker cannot read, though this is unchecked, since #175 is not built; and the run is headless, `claude -p`, with no question picker to ask a person through. So a worker cannot run the skill's script even if its role lists it, and the filter 1 search it runs, by the skill's instructions, goes through `igor lore-search`, a command its role's `commands` must list. igor passes the worker no lore repository, only the item's worktree and the lore rendered into its system prompt, and injects the active entries in scope only when all of them fit a 4,000-token budget, and none when they do not, so injected lore alone is not enough for filter 1. igor's lore-firing spec forbids offering a worker a search tool, reasoning only that a worker needs none, which filter 1's search disproves; igor PR #216 removes that rule.
+  Evidence: igor's rule and its reasoning, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/specs/lore-firing/spec.md#L5-L14, and #216's removal of it, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L1105-L1115
   Evidence: task 0.12, measured 2026-10-20: the worker's `allowedTools` are its role's `commands`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1607
   Evidence: its system prompt, `workerSystemPrompt`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L161
   Evidence: the deployment guide on the service user's `gh` login, https://github.com/adamstallard/igor/blob/8478aec/docs/deployment.md#L112-L115

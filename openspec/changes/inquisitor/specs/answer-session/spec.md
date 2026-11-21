@@ -762,8 +762,9 @@ Repository questions SHALL need no lore repository and no igor.
 The answer session SHALL open when the person types `/answer` in a
 Claude Code session that has the skill and whose tools are restricted,
 or runs `answer`. No environment variable SHALL open it, since a session
-an app starts could not set one (task 0.36), so a variable would open it
-in only some sessions.
+the Claude app starts from its list of sessions, with no terminal, may be
+unable to set one (task 0.36 measures whether it can), so a variable
+would open it in only some sessions.
 
 #### Scenario: The answer command starts an answer session
 
@@ -1085,12 +1086,13 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 
 ### Requirement: An Igor's log file follows its own handback comment
 
-When the handback comment an Igor worker's log file links in `asked_in`
-is on an issue or pull request in the repository its `asked_from` names,
-the log file SHALL follow that comment, even on a machine that does not
-read the comment's item, and SHALL be shown only while that comment is
-its item's newest handback. A log file whose handback comment is on no
-such item is shown on its own.
+When an Igor worker's log file's `asked_in` links a handback comment on
+an issue or pull request in the repository its `asked_from` names, and
+this machine reads that item, the log file SHALL follow that comment (*A
+log file follows the thread message its asked_in links*), so it is not
+shown once a newer handback passes that comment over (*Only an item's
+newest handback is shown*). Otherwise it is shown on its own (design.md:
+*A link this machine never reads is not followed*).
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -1112,31 +1114,39 @@ such item is shown on its own.
 #### Scenario: An Igor question about another repository follows its handback
 
 - **WHEN** an Igor's log file has `repository: o/api` and `asked_from:
-  o/web`, and its `asked_in` links a handback on an issue in `o/web`
+  o/web`, and its `asked_in` links a handback on an issue in `o/web`, a
+  subscribed repository
 - **THEN** the answer session follows the link, and an answer to that
   handback names the log file
 
-#### Scenario: A link to a comment that is not a handback is not followed
+#### Scenario: A link to a non-handback comment, or to an item this machine does not read, is not followed
 
 - **WHEN** a log file's `asked_in` links a comment by an `igor-` App that
-  holds no handback marker, or by an author that is not an App with an
-  `igor-` slug
+  holds no handback marker, by an author that is not an App with an
+  `igor-` slug, or on an item this machine does not read
 - **THEN** the link is not followed, and the log file is shown on its own
 
 ### Requirement: A question is resolved once answered or declined
 
 A question SHALL count as **resolved** once it is answered and, if a
-questions-branch file holds it, its answer file is pushed (*A
-questions-branch answer's file is pushed after its post*; *An answer
-whose thread is unreachable here is logged at once*), or once its
-decline takes effect. A decline with nothing posted resolves it only on
-the declining machine.
+questions-branch file holds it, the file the answer must push is pushed
+or no longer retried (*An owed push's retry stops when answered or
+refused for good*), since nothing is then pending; or once its decline
+takes effect, when its post goes out or, with nothing posted, the person
+confirms it. A decline with nothing posted resolves it only on the
+declining machine.
 
 #### Scenario: A held thread copy is resolved once its answer file is pushed
 
 - **WHEN** the person answered, in a GitHub issue, a thread copy a
   questions-branch file holds, and its answer file was pushed
 - **THEN** the question counts as resolved
+
+#### Scenario: A held question with a category is resolved once its handled file is pushed
+
+- **WHEN** the person answered a question with a category that a
+  questions-branch file holds, and that file's handled file was pushed
+- **THEN** the question counts as resolved, with no answer file
 
 ### Requirement: Later messages after an answer or a decline are new questions
 
@@ -2866,8 +2876,9 @@ shown with the question, and stops nothing.
 
 The answer session's clones SHALL be one clone of each subscribed
 repository, holding its default and questions branches, and each
-configured lore repository's clone. `search` reads files and issues only
-of the repositories these clones hold. For a question placed in none of
+configured lore repository's clone, the only repositories whose files
+and issues `search` reads (inquisitor spec: *The search command runs filter 1 alone for the answer
+session*). For a question placed in none of
 them, the session SHALL pass `search` no repository, and show with its
 hits that the repository it concerns was not searched.
 

@@ -1124,10 +1124,11 @@ answer to go on.
 [#216](https://github.com/adamstallard/igor/pull/216) (its decisions 23, 49
 and 52), whose decisions igor issue
 [#215](https://github.com/adamstallard/igor/issues/215) also holds. #216
-amends igor's lore-firing spec: lore still reaches the worker unbidden, the
-ban on offering a worker a search tool, which rested only on a worker not
-needing one, is lifted, and a run's search applies firing's scope rule and
-labels an in-scope non-`active` entry as not lore.
+amends igor's lore-firing spec: lore is injected into the worker's prompt
+as before, a worker may now also be offered a search tool, and a run's
+search returns only entries whose scope covers the worker's role, as
+injection does, marking an in-scope entry that is not `active` as not lore,
+so the worker does not take it as decided.
 
 **Why** a worker searches at all: the inquisitor decision record's
 *Rationale: In an Igor's run, filter 1 searches through igor*.
@@ -2165,6 +2166,13 @@ message it links*).
 
 **Rule:** answer-session spec, *A log file with no followed link is judged
 on its own*; *An Igor's log file follows its own handback comment*.
+
+An Igor's log file follows its handback only on an item this machine
+already reads: reading any other item would let the file's `asked_from`,
+which whoever pushes the file writes, choose which repository the session
+reads with the person's credentials. It follows only a handback in the
+repository `asked_from` names, because an Igor posts its handback on the
+item it works, in that repository.
 
 *Ruled out by a scenario:* showing the file nowhere on that machine, so the
 person would never see the question there (answer-session spec: *A log file

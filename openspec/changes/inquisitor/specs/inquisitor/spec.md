@@ -410,18 +410,24 @@ the session SHALL have no login configured.
 
 Visibility SHALL be ranked private, then internal, then public, and
 nothing about one repository SHALL go to a **more visible** place, except
-under four rules: *The answerer's
-confirmation can send a record somewhere more visible*; *A later run
-gets only the answer to its Igor's question on a more private
-repository*; and answer-session's *The preview warns when a filter 1
-record is more private than the thread* and *A miss more visible than its
-thread is pushed as a hash-only file*.
+a post whose words the person confirms before it goes out, and except
+as three requirements allow: *The answerer's confirmation can send a
+record somewhere more visible*; *A later run gets only the answer to its
+Igor's question on a more private repository*; and answer-session's *A
+miss more visible than its thread is pushed as a hash-only file*.
 
 #### Scenario: A private repository's question goes to no internal or public place
 
 - **WHEN** a question concerns the private `o/api`, and the agent could
   post it in an internal or a public repository
 - **THEN** nothing about `o/api` goes to either, both being more visible
+
+#### Scenario: A person's confirmed answer is relayed in its thread
+
+- **WHEN** a person confirms, in their answer session, an answer that
+  names the private `o/api`, to a question asked in a public repository
+- **THEN** the answer session's relay identity posts it in that thread,
+  in the words the person confirmed
 
 ### Requirement: An unreadable visibility counts against sharing
 
