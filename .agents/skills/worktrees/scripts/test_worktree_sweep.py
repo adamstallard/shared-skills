@@ -195,10 +195,111 @@ class SweepTests(unittest.TestCase):
         self.git(review, "cherry-pick", "--ff", "origin/pr")
         self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
 
-    def test_skips_a_detached_head(self):
+    def test_skips_a_worktree_switched_to_a_detached_head_after_its_work_landed(self):
         path = self.landed()
         self.git(path, "checkout", "-q", "--detach")
         self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def detached(self, name, start="origin/main"):
+        path = self.repo / ".claude" / "worktrees" / name
+        self.git(self.repo, "worktree", "add", "-q", "--detach", str(path), start)
+        return path
+
+    def test_lists_a_detached_worktree_pushed_to_a_new_branch(self):
+        path = self.detached("feature")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        r = self.run_hook(self.stop())
+        self.assertIn(f"  {path}  (detached HEAD, on origin/feature)", self.listed(r))
+        self.assertIn(f"git -C {self.repo} worktree remove {path}", self.listed(r))
+
+    def test_push_lists_its_own_detached_worktree(self):
+        path = self.detached("feature")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        r = self.run_hook(self.push("git push origin HEAD:refs/heads/feature"), aged=False)
+        self.assertIn(f"  {path}  (detached HEAD, on origin/feature)", self.listed(r))
+
+    def test_skips_a_worktree_paused_in_a_rebase(self):
+        path = self.detached("feature")
+        self.commit(path, "b")
+        self.commit(path, "c")
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/feature")
+        env = dict(self.env, GIT_SEQUENCE_EDITOR="sed -i.bak s/^pick/edit/")
+        r = subprocess.run(["git", "rebase", "-q", "-i", "HEAD~2"], cwd=path, env=env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("rebase in progress", self.git(path, "status"))
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_branch_worktree_paused_in_a_rebase(self):
+        path = self.worktree("feature")
+        self.commit(path, "b")
+        self.commit(path, "c")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        env = dict(self.env, GIT_SEQUENCE_EDITOR="sed -i.bak s/^pick/edit/")
+        r = subprocess.run(["git", "rebase", "-q", "-i", "HEAD~2"], cwd=path, env=env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("rebase in progress", self.git(path, "status"))
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_worktree_with_cherry_picks_still_queued(self):
+        (self.repo / "f.txt").write_text("base")
+        self.git(self.repo, "add", ".")
+        self.git(self.repo, "commit", "-q", "-m", "base")
+        self.git(self.repo, "switch", "-q", "-c", "feat")
+        (self.repo / "f.txt").write_text("feat")
+        self.git(self.repo, "commit", "-q", "-am", "a")
+        self.commit(self.repo, "b")
+        self.git(self.repo, "switch", "-q", "main")
+        (self.repo / "f.txt").write_text("main")
+        self.git(self.repo, "commit", "-q", "-am", "main")
+        self.git(self.repo, "push", "-q", "origin", "main")
+        self.git(self.repo, "fetch", "-q", "origin")
+        path = self.detached("pick")
+        r = subprocess.run(["git", "cherry-pick", "feat~1", "feat"], cwd=path, env=self.env,
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the first pick should conflict")
+        (path / "f.txt").write_text("resolved")
+        self.git(path, "add", "f.txt")
+        self.git(path, "commit", "-q", "--no-edit")
+        self.assertTrue(pathlib.Path(self.git(path, "rev-parse", "--path-format=absolute",
+                                              "--git-path", "sequencer")).is_dir())
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/pick")
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_worktree_paused_in_a_revert(self):
+        path = self.detached("rv")
+        for text in ("one", "two"):
+            (path / "f.txt").write_text(text)
+            self.git(path, "add", "f.txt")
+            self.git(path, "commit", "-q", "-m", text)
+        self.git(path, "push", "-q", "origin", "HEAD:refs/heads/rv")
+        r = subprocess.run(["git", "revert", "--no-edit", "HEAD~1"], cwd=path, env=self.env,
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0, "the revert should conflict")
+        self.git(path, "checkout", "--ours", "f.txt")
+        self.git(path, "add", "f.txt")
+        self.assertEqual(self.git(path, "status", "--porcelain"), "")
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_detached_worktree_with_an_unpushed_commit(self):
+        path = self.detached("feature")
+        self.commit(path, "feature")
+        self.assertNotIn(str(path), self.listed(self.run_hook(self.stop())))
+
+    def test_skips_a_detached_review_checkout_fast_forwarded_to_a_new_push(self):
+        self.git(self.repo, "push", "-q", "origin", "HEAD:pr")
+        self.git(self.repo, "fetch", "-q", "origin")
+        review = self.detached("pr", "origin/pr")
+        author = self.tmp / "author"
+        self.git(self.tmp, "clone", "-q", "-b", "pr", str(self.origin), str(author))
+        self.commit(author, "more")
+        self.git(author, "push", "-q", "origin", "pr")
+        self.git(review, "fetch", "-q", "origin")
+        self.git(review, "merge", "-q", "--ff-only", "origin/pr")
+        self.assertNotIn(str(review), self.listed(self.run_hook(self.stop())))
 
     def test_skips_a_worktree_a_process_is_running_in(self):
         path = self.landed()
@@ -1143,6 +1244,11 @@ class SweepTests(unittest.TestCase):
         self.assertEqual(out["hookEventName"], "PostToolUse")
         self.assertIn(str(path), out["additionalContext"])
         self.assertIn("ask the user", out["additionalContext"])
+        self.assertIn("ExitWorktree", out["additionalContext"])
+        # A listed worktree may be on a detached HEAD, so the message must not
+        # say it holds a branch or pushed one.
+        self.assertNotIn("branch pushed", out["additionalContext"])
+        self.assertNotIn("holding a branch", out["additionalContext"])
 
     def test_claude_push_in_block_mode_exits_2_with_the_list(self):
         path = self.landed()

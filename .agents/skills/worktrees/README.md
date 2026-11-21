@@ -1,10 +1,12 @@
 # worktrees
 
 Teaches your agent to do its work in git worktrees, so your own checkout is
-never switched to another branch or left dirty. The agent locks each
+never switched to another branch or left dirty. Each worktree is on a
+detached HEAD, never on a local branch, so you, your IDE or another agent can
+check out the branch the agent is pushing to while it works. git lets a
+branch be checked out in one place only, so a worktree holding it would make
+`gh pr checkout` and every other checkout of it fail. The agent locks each
 worktree while it works there and removes it as soon as its work has landed.
-A worktree left behind holds its branch: git refuses to check that branch out
-anywhere else, so you can't open it to review until the worktree is gone.
 
 Ask your agent to "install the worktrees skill". [SKILL.md](SKILL.md) holds
 the rules it follows: when to use a worktree, how to create one locked on the
@@ -15,9 +17,7 @@ lock.
 An agent that stops without committing anything in its worktree, because it
 gave up, found nothing to change, or handed the work off, removes the
 worktree before it reports. It first checks, with the skill's own
-`worktree-sweep.py check`, that removing it loses nothing, and asks you if not. It also deletes the
-branch it made for the worktree, once every commit on that branch and in its
-reflog is on a remote.
+`worktree-sweep.py check`, that removing it loses nothing, and asks you if not.
 
 ## The hook
 
@@ -34,16 +34,16 @@ tells the agent which worktrees to remove:
 
 A worktree is listed only when all of these hold:
 
-- it has a branch checked out, not a detached HEAD;
 - it is safe to remove: `git status` is clean, untracked files included;
   no skip-worktree or assume-unchanged file holds an edit; removing it loses
-  no commit, such as one made earlier on a detached HEAD and left behind;
+  no commit, such as one made on a detached HEAD and never pushed;
   and it has no submodules,
   which git refuses to remove;
 - someone committed, merged, rebased, cherry-picked or reverted in that
   worktree; fast-forwards don't count. So a worktree made only to review a
   branch, or for an agent about to start, is never listed, even after it is
   updated to the author's latest push;
+- no rebase, merge, cherry-pick, revert or bisect is paused in it;
 - its HEAD is on origin, on its own branch or on another, such as main;
 - no other worktree sits inside it, since removing it would delete that one
   too;
@@ -78,8 +78,8 @@ Worktrees idle for over a day: no git activity, and no changed file edited. Whoe
 The remove command appears only when the tree is safe to remove, by the
 same test the agent's list uses. The tree is clean, and no skip-worktree or
 assume-unchanged file holds an edit. Removing it loses no commit: a commit
-on a branch stays with the branch, but one left behind on a detached HEAD
-would be lost. It has no submodules, which git refuses to remove. Otherwise
+on a branch stays with the branch, but one on a detached HEAD that was never
+pushed would be lost. It has no submodules, which git refuses to remove. Otherwise
 you see what it holds and decide.
 
 The agent is never told about idle worktrees, and they never block a stop.
@@ -147,7 +147,8 @@ or run `worktree-sweep.py check <worktree>`, which says what makes it unsafe.
 failed. The usual ones are:
 
 - an untracked file in the worktree;
-- a commit left behind on a detached HEAD, which only its reflog holds;
+- a commit on a detached HEAD that was never pushed, which only its reflog
+  holds;
 - a submodule;
 - a terminal, dev server or other program whose working directory is
   inside it;
