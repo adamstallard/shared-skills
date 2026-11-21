@@ -180,18 +180,64 @@ as new.
   posted, and its channel is polled again
 - **THEN** this machine shows it neither in the queue nor as new
 
+### Requirement: The queue is ordered oldest asked first
+
+**The queue** is this machine's list of unanswered questions, other than
+closed ones and those with a pending answer. The answer session SHALL
+order the questions not set aside by their asked times (*A question is
+asked when its message was posted or a poll first found it*), oldest
+first, so the asker who has waited longest is answered first. Questions
+with the same asked time SHALL keep the order this machine found them
+in.
+
+#### Scenario: The question asked first comes first
+
+- **WHEN** the queue holds questions with the asked times 09:20, 09:05
+  and 09:10, found in that order, none set aside
+- **THEN** the queue orders them 09:05, 09:10, 09:20
+
 ### Requirement: The queue puts questions set aside after the rest
 
-**The queue** is the list of unanswered questions. **A question set aside
-for later** is one the person moved to the end of the queue on this
-machine; the answer session SHALL order it after every question not set
-aside.
+**A question set aside for later** is one the person moved to the end of
+the queue on this machine. The answer session SHALL order it after every
+question not set aside, and the questions set aside in the order they
+were set aside.
 
 #### Scenario: A question set aside comes after the new ones
 
 - **WHEN** the person sets a question aside for later, and a new question
   then reaches the queue
 - **THEN** the queue orders the new question before the one set aside
+
+#### Scenario: Questions set aside keep the order they were set aside
+
+- **WHEN** the person sets aside a question asked at 10:00, then one asked
+  at 09:00
+- **THEN** the queue orders the 10:00 question before the 09:00 one, after
+  every question not set aside
+
+### Requirement: A question is asked when its message was posted or a poll first found it
+
+The answer session SHALL take as a question's **asked time** the time
+its service gives for posting the message the question is shown from.
+For a review request, an assignment, or a questions-branch file shown as
+a question itself, not from the message its `asked_in` links, it SHALL
+take the time of the poll on this machine that first found it, because a
+commit's dates are set by its committer, and no task measures GitHub's
+or Linear's times for requests and assignments.
+
+#### Scenario: A message's asked time is its posting time
+
+- **WHEN** an Igor's handback that mentions no one was posted at 09:10 on
+  an issue assigned to the person at 08:00, and a poll found it at 09:30
+- **THEN** that question's asked time is 09:10
+
+#### Scenario: A review request, assignment or file is asked when first found
+
+- **WHEN** one poll at 09:30 first finds a review request for the person,
+  an issue assigned to them, and a questions-branch log file with no
+  `asked_in` whose adding commit is dated 1970
+- **THEN** each of the three questions has the asked time 09:30
 
 ### Requirement: A question with a pending answer is out of the queue
 
@@ -1892,7 +1938,7 @@ outlives it.
 
 - **WHEN** the answer session saves its working state
 - **THEN** it writes only to the state folder: the questions set aside
-  for later, the closed questions, each open question's discussion
+  for later, the asked times set by polls, the closed questions, each open question's discussion
   record, each channel's and the notifications feed's poll position,
   each check's last result, relay post ids, the question on screen, the
   answers held as answered, not relayed, each owed answer-file,

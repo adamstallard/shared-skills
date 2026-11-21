@@ -361,28 +361,29 @@ hand-back they turn to the work anyway, so the round's questions cost one
 read. Because the question names the assumption, the rework an answer causes
 is bounded by one round.
 
-**Why every end of the agent's turn ends a round with a person in the
-session:** ending the turn hands the person control, so held questions would
+**Why, with a person in the session, every end of the agent's turn ends a
+round:** ending the turn hands the person control, so held questions would
 sit unseen while they are there; without a pull request there is no
 hand-back at all.
 
 **The hand-back is spec-check's,** so one word means one moment across the
-skills; the inquisitor spec cites spec-check's rule with one example, keeping
-its list of what counts in one place. The round also ends at each end of the
-agent's turn, which spec-check's review round does not, so it has its own
-name: a question round.
+skills. The inquisitor spec gives one example of a hand-back and cites
+spec-check's rule for the full list, so the list is kept in one place. The
+round also ends at each end of the agent's turn, which spec-check's review
+round, ended only by a hand-back, does not, so it has its own name: a
+question round.
 
 **Unlike a deferred question,** which the current work does not need
 answered and so is listed as not done and never asked, a question waiting for
 the round's end is one the work needs: the work goes on, on an assumption the
 answer may overturn. The agent vets it again at the round's end, since a
-verdict lasts 2 hours and an answer may have been recorded since.
+verdict the script records lasts 2 hours and an answer may have been recorded since.
 
 *Ruled out by a scenario:* asking each surviving question as it arises
 (scenario *A blocking question is asked at once, and the others wait*); and
-ending a round at each push, which spec-check's SKILL.md rejects for its
-review rounds too, since agents push after almost every commit (scenario *A
-push ends no round*).
+ending a round at each push, since a push hands the person nothing to read,
+so its questions would interrupt them as mid-round ones do (scenario *A push
+ends no round*).
 
 #### A question another skill requires goes through filters 1 and 3 only
 
