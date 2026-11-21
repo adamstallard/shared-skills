@@ -113,6 +113,9 @@ None.
     fixed subcommand allowlist (so `git -C . status` is blocked). Each can
     run a post the reader never sees. A `gh api` read mentions no gh post
     verb, so these blocks pass it even piped into a script.
+  - blocks as unreadable `gh discussion` posts and the agent-written notes
+    of `gh release create` and `edit`, as the reader blocks the same text
+    sent through `gh api`; prose's hook lets both through today.
   - keeps reading an unquoted `--body` or `-b` of one plain word, such as
     `--body hi`.
 - The `questions` branch is an orphan branch, pushed with no pull request.

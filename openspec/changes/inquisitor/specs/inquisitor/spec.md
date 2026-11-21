@@ -2330,12 +2330,12 @@ authority to decide could be found.
 ### Requirement: A candidate or login that cannot be checked is skipped
 
 The script SHALL skip a candidate whose pull request, approver or GitHub
-login it cannot find. In
-tagging and in filter 1's checks of an issue's author or a log file's
-`answered_by`, it SHALL pass to a GitHub API call only a login in GitHub's
-login syntax: 1 to 39 letters, digits and single hyphens, not starting or
-ending with a hyphen. A candidate with any other login is skipped, and an
-answer whose author has one is input.
+login it cannot find. It SHALL pass to a GitHub API call only a login in
+GitHub's login syntax, 1 to 39 letters, digits and hyphens, with no two
+hyphens together and none first or last, whether the login is a tagging
+candidate's, an issue author's, a log file's `answered_by` or a miss
+file's `said_by`, and treat a login in any other form as its scenarios
+say.
 
 #### Scenario: A decision with no known approver is skipped
 
@@ -2354,6 +2354,12 @@ answer whose author has one is input.
   would otherwise answer the question
 - **THEN** filter 1 calls no API with that login, and shows the file as
   input, labelled as unconfirmed
+
+#### Scenario: A miss file whose said_by is malformed backs no reply
+
+- **WHEN** a miss file's `said_by` is `../../x`
+- **THEN** the script calls no API with it, and `miss-check` (*The script
+  checks whether a miss file backs a reply*) prints `backed` as `false`
 
 ### Requirement: A question is written at the privacy of what it concerns
 
@@ -3734,7 +3740,7 @@ unreadable, and SHALL post nothing from it, its name included.
 
 Filter 1 SHALL show as input labelled unreadable a file whose `repository`
 or `asked_from` is not `<owner>/<repo>` as the scenarios give it, or whose
-`answer_link` takes none of the forms the scenarios give; a file whose `asked_in` takes none of the
+`answer_link` or `recorded_in` takes none of the forms the scenarios give; a file whose `asked_in` takes none of the
 forms *A log file and a miss file have one format* gives; and an unhandled
 questions-branch log file with no `asked_from`. No reader or `log` command SHALL fetch, or pass to
 GitHub, any such value.
@@ -3754,6 +3760,11 @@ GitHub, any such value.
   `#pullrequestreview-<id>` or `#discussion_r<id>` with a decimal `<id>`,
   or in the form *Where an answer_link may be written* gives for an
   answer relayed on Linear or Discord, and nothing else
+- **AND** it accepts a `recorded_in` only as a URL in a form an
+  `answer_link` may take, or as a path from the repository's root that
+  *An answered log file's keys* gives, with no leading `/`, optionally
+  followed by `@` and a 40-digit hex commit hash, with no empty, `.` or
+  `..` segment and none starting with `-`
 
 #### Scenario: A malformed repository key is never sent to GitHub
 
@@ -4436,22 +4447,15 @@ that should have stopped it, and what the person said.
 
 No miss file SHALL be written for a way-of-working question, whose answer
 goes to the person's memory (*A way-of-working answer goes to the
-person's memory, not a log*), or for one with nothing to name its file
-by, having no reply id, log file or asking message's URL (*Every miss
-file is named by one hash*), such as a picker question never logged. A
-question with a category gets no miss file either, by *Some questions are
-recorded by hash only*.
+person's memory, not a log*). Two other requirements name the other
+misses that get no miss file: *Every miss file is named by one hash*, for
+a miss with nothing to name its file by, and *Some questions are recorded
+by hash only*, for a question with a category.
 
 #### Scenario: A way-of-working question gets no miss file
 
 - **WHEN** a person says a question about their own way of working did
   not need asking
-- **THEN** no miss file is written
-
-#### Scenario: A picker question never logged gets no miss file
-
-- **WHEN** a person says a question asked in the picker, which no log file
-  holds, did not need asking
 - **THEN** no miss file is written
 
 ### Requirement: A miss file goes where its question's file went

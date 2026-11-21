@@ -337,13 +337,16 @@ have no task, so that the other tasks keep their numbers.
         `gh-post` spec's *A gh api call writes by its method, fields,
         input or a mutation* says, whose body it can't read, a GraphQL query it can't parse,
         and a review whose comments it can't read.
-      - It applies the closed list of gh post verbs, and blocks as
-        unreadable, as prose's reader does today, a command that names
-        `gh`, followed by another word, in another command's arguments,
-        such as `sh -c`, unless that command is a data command given no
-        code (gh-post spec: *The reader reads only gh's own top-level
-        commands*), or that
-        pipes into a command other than a data command.
+      - It applies the closed list of gh post verbs, blocking as
+        unreadable `gh discussion` posts and `gh release` posts given
+        notes.
+      - It keeps prose's reader's block, as unreadable, on a command
+        that names `gh`, followed by another word, in another command's
+        arguments, such as `sh -c`, unless that command is a data command
+        given no code (gh-post spec: *The reader reads only gh's own
+        top-level commands*), and on input piped into a command other
+        than a data command on a line that is otherwise no post (gh-post
+        spec: *Input to a no-post line reaches only data commands*).
       - On a line that mentions a gh post verb, it blocks as unreadable
         an interpreter with a code flag anywhere among its words, such as
         `python3 -W ignore -c`, `node -pe` or `perl -e`, and input from a
@@ -651,7 +654,7 @@ have no task, so that the other tasks keep their numbers.
       delete the branch; and that with it a writer can still push a handled
       file that hides a question from the person (the inquisitor decision record's constraint on guarding a
       `questions` branch); and that spec-trace's workflow skips pushes to
-      the `questions` branch, which holds none of the project's files; a
+      the `questions` branch (task 5.9), which holds none of the project's files; a
       repository owner must make any other workflow that checks those
       files on push skip that branch too, or it fails there
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
@@ -687,6 +690,11 @@ have no task, so that the other tasks keep their numbers.
       public branch never describe the weakness before publication (*A
       weakness is not described in public text before its advisory is
       published*)
+- [ ] 5.9 Bring shared-skills PR #101's commit 7b6ffa3 (branch
+      `spec-trace-skip-questions`) onto this branch, by cherry-pick or, if
+      spec-trace's README or SKILL.md has changed since, by reapplying it:
+      the workflow template in spec-trace's README skips pushes to
+      `questions`, and the README and SKILL.md say why. Once this change merges, close #101 as included
 
 ## 6. The answer session
 

@@ -624,11 +624,13 @@ an existing file*.
 A `gh pr` or `gh issue` post is read only as the whole command line since an
 earlier command in the line could rewrite a body file it reads.
 
-**Why:** these are prose's reader's rules, an unquoted one-word body such as
-`--body hi` included, plus two that prose's hook gains too: the alias rule
-(the gh-post decision record's *Rationale: The reader reads only gh's own
-top-level commands*); and the write rule (*A gh api call counts only when it
-can write*).
+**Why:** prose's reader already keeps most of these rules. Three of them
+are new for prose's hook too, each with its reasons elsewhere: blocking a gh
+alias or extension (the gh-post decision record's *Rationale: The reader
+reads only gh's own top-level commands*), counting a `gh api` call only when
+it can write (its own heading below), and blocking `gh discussion` posts and
+`gh release` notes (the record's *Rationale: A command that mentions no gh
+post verb sends no post*).
 
 *Ruled out by a scenario:* letting a command through when `gh` appears only
 inside quotes (gh-post spec: *Any other line that mentions a gh post verb is
@@ -1288,17 +1290,19 @@ entry that stops a question gets a citation file*.
 
 #### igor-dependent rules state the end state
 
-The rule this heading names is the inquisitor decision record's entry
-that the *Recorded:* line below names. What igor must provide is listed
-under *Open Questions*. A clause that guards against misuse in igor's end
-state is still written, such as:
+The rule this heading names is in no spec: it is the Constraint named on
+the *Recorded:* line below. What igor must provide is listed under *Open
+Questions*. Clauses for igor before the change a rule needs are left out,
+but a clause guarding against misuse in igor's end state is written, such
+as:
 - a log file with no matching record of the handback writes no `answers`;
 - an `igor lore-search` call that fails searches no lore;
 - a handback-marked post is vetted like any other (*No exemption for an
   Igor's handback*).
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: A rule that
-depends on igor states its end state, …*.
+*Recorded:* in the inquisitor and answer-session decision records,
+*Constraint: Each rule that depends on igor states what holds once the igor
+change it needs lands, …*.
 
 #### Alignment with igor PR #216
 
@@ -1312,7 +1316,8 @@ departs from #216.
 #### Setup is part of the answer session
 
 **Rule:** answer-session spec, *Setup opens on an incomplete
-configuration*. How setup looks is prototyped, not specified.
+configuration*. How setup looks is not specified: task 6.1 designs it from
+the approved prototype's patterns.
 
 #### A failed relay check turns off only its channel
 
@@ -2267,6 +2272,20 @@ skill with no spec, as this one edits github-app and bug-hunter (tasks 5.5,
 check is in the decision records of `inquisitor`, `answer-session` and
 `gh-post`; there is no `.agents/skills/inquisitor/DECISIONS.md`.
 
+#### spec-trace's template skips the questions branch in this change's merge
+
+**Task 5.9 brings shared-skills PR #101's commit onto this change's own
+branch with the implementation, so spec-trace's workflow template, which
+other repositories copy, skips pushes to a `questions` branch starting with
+the merge that ships the inquisitor.** This repository's own workflow already
+skips it. A `questions`
+branch holds none of the project's files, so a workflow that checks them on
+push fails there. #101's README and SKILL.md text gives the inquisitor as the
+reason for the skip. Landing in this change's merge, the skip arrives with
+the inquisitor's README (task 5.6), which says the template skips the branch;
+#101 merged earlier would name a skill not yet shipped, and merged later
+would leave that README describing a skip the template lacks.
+
 #### The change is archived only after every expected gap is tagged
 
 **Archiving waits for task 4.3 to tag every expected gap, beside task 7.0's
@@ -2633,14 +2652,6 @@ to its 149.
   implementation follows this change's. This change does not wait for it:
   the entry *github-app refuses `token`, `run`, `credential get` and `wire`
   for a relay identity*, above, says why and what stays open meanwhile.
-
-- **spec-trace's workflow template must skip pushes to a `questions`
-  branch.** That branch holds none of the project's files, so a workflow
-  that checks those files on push fails there. shared-skills PR #101 makes
-  the template skip it. Its text names the inquisitor skill, so it merges
-  with this change's implementation or right after it; until it merges,
-  task 5.6's README says the template skips a branch it does not yet
-  skip.
 
 ### Outside this change
 

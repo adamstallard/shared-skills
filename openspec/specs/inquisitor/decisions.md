@@ -14,8 +14,8 @@
   Holds while: a citation is pushed with a person's own credentials.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
-- **Constraint: A rule that depends on igor states its end state, with no clause for an igor state before the igor change it needs lands.**
-  Because: igor has published no release, so there is no released igor state for an interim design to serve.
+- **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
+  Because: igor has published no release, so no igor before that change is supported for such a clause to serve.
   Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
   Holds while: igor has published no release.
   Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md

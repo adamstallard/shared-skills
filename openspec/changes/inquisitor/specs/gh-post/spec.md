@@ -49,13 +49,13 @@ unreadable call.
 
 ### Requirement: A command that mentions no gh post verb sends no post
 
-A command SHALL send no post when it **mentions** no **gh post verb**, one
-of the verbs the scenario *The gh post verbs are a closed list* gives. A
-command mentions one when its text, quoted or not, holds `gh` followed
-later by `pr`, `issue` or `discussion` and later by one of the post verbs
-that scenario gives for that word, or `gh` followed by `api`, unless
-that `gh api` is a call *A gh api call is a read only as a plain gh
-command* counts as a read.
+A command SHALL send no post when it **mentions** no **gh post verb**
+(scenario *The gh post verbs are a closed list*). It mentions one when its
+text, quoted or not, holds `gh` followed later by `pr`, `issue`,
+`discussion` or `release` and later by a post verb listed for that word,
+or `gh` followed by `api`, unless *A gh api call is a read only as a plain
+gh command* counts that call as a read, which it does only for a plain call
+that does not write.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -63,19 +63,35 @@ command* counts as a read.
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
   `create`, `new`, `edit`, `comment`, `close` or `reopen`; `gh
-  discussion` with `create`, `edit` or `comment`; and a `gh api` call
-  that can write
-- **AND** the reader reads no `gh discussion` post, since gh marks those
-  commands a preview subject to change without notice, so both hooks block
+  discussion` with `create`, `edit` or `comment`; `gh release` with
+  `create` or `edit`, only when followed later, before any `;`, `&`,
+  `|` or line break, by a word that is `--notes`, `--notes-file` or
+  `--notes-from-tag`, whole or with `=` and a value after it, or that
+  starts with a single `-` and holds `n` or `F`, as gh's short notes flags
+  do even when bundled (`-dn`); and a `gh api` call that can write
+- **AND** the reader reads no `gh discussion` post, so both hooks block
   as unreadable a line holding a `gh discussion` post verb, as they block a
   `gh api` call with an `addDiscussionComment` mutation carrying a `body`
-- **AND** `pr`, `issue`, `discussion`, `api` and each verb count only as whole
-  words, with no letter, digit or `_` just before and no letter, digit,
-  `_` or `-` just after, so `--comments` holds no `comment` and
-  `--comment` holds one
+- **AND** `gh`, `pr`, `issue`, `discussion`, `release`, `api` and each verb
+  count only as whole words, with no letter, digit or `_` just before and
+  no letter, digit, `_` or `-` just after, so `--comments` holds no
+  `comment` and `--comment` holds one
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
-  `comment` and `review`; `revert`, for a pull request only; and `close`
-  or `reopen` with a comment
+  `comment`, `review` and `revert`, and `close` or `reopen` given
+  `--comment` or `-c`; `close` or `reopen` without one still mentions a
+  post verb but sends no text
+
+#### Scenario: A gh release with notes is unreadable
+
+- **WHEN** a hook asks about `gh release create v1.2 --notes 'Ready?'`,
+  `gh release edit v1.2 -F notes.md`, `gh release create v1.2
+  --notes-from-tag`, and `gh release create v1.2 --generate-notes`
+- **THEN** the reader reports the first three as unreadable, and both
+  hooks block them, as they block the same notes sent as `gh api -X POST
+  repos/o/r/releases -f body=notes`, a `body` sent to an endpoint the
+  reader does not read
+- **AND** it reports that the fourth sends no post, since GitHub writes
+  its notes
 
 #### Scenario: A command naming no gh post verb is no post
 

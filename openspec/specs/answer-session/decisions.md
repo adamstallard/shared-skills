@@ -38,6 +38,12 @@
   Holds while: setup suggests the rule and does not set it, and the rule allows direct pushes.
   Paths: .agents/skills/inquisitor/
 
+- **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
+  Because: igor has published no release, so no igor before that change is supported for such a clause to serve.
+  Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
+  Holds while: igor has published no release.
+  Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md
+
 ## Rejected
 
 - **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
