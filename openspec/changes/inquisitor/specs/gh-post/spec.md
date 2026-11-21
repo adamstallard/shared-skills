@@ -52,8 +52,8 @@ unreadable call.
 A command SHALL send no post when it **mentions** no **gh post verb**, one
 of the verbs the scenario *The gh post verbs are a closed list* gives. A
 command mentions one when its text, quoted or not, holds `gh` followed
-later by `pr` or `issue` and later by one of the post verbs that scenario
-gives for it, or `gh` followed by `api`, unless
+later by `pr`, `issue` or `discussion` and later by one of the post verbs
+that scenario gives for that word, or `gh` followed by `api`, unless
 that `gh api` is a call *A gh api call is a read only as a plain gh
 command* counts as a read.
 
@@ -62,9 +62,14 @@ command* counts as a read.
 - **WHEN** a hook asks about a command
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; and
-  a `gh api` call that can write
-- **AND** `pr`, `issue`, `api` and each verb count only as whole
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; `gh
+  discussion` with `create`, `edit` or `comment`; and a `gh api` call
+  that can write
+- **AND** the reader reads no `gh discussion` post, since gh marks those
+  commands a preview subject to change without notice, so both hooks block
+  as unreadable a line holding a `gh discussion` post verb, as they block a
+  `gh api` call with an `addDiscussionComment` mutation carrying a `body`
+- **AND** `pr`, `issue`, `discussion`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
   `--comment` holds one

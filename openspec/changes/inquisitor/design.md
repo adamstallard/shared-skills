@@ -1914,8 +1914,9 @@ there, who may have no write access to what the question concerns, though a
 logged decision needs that access. Naming the repository on the concerns
 line removes both failures. The session takes the line only when it names a
 place on the list the session's code already lets the model choose from (its
-verdict's `place`), so a crafted concerns line steers a miss push no further
-than a crafted thread could.
+verdict's `place`) and one the person can write to. A crafted thread can
+already steer `place` to any place on that list, so a crafted concerns line
+reaches nowhere new.
 
 A hash-only miss file needs no `said_by`, since only an account with push
 access can put it on the branch. What it still shows is under the

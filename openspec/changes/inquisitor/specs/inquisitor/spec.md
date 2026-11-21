@@ -2625,7 +2625,7 @@ more visible* allows, and the agent SHALL then tell the person why.
 - **THEN** the script refuses to push its log file to the questions branch
   of `o/web`
 
-#### Scenario: A picker question from private work stays off a public questions branch
+#### Scenario: A picker question from private work reaches a public questions branch only once confirmed
 
 - **WHEN** an agent working in the private `o/api` asks, through the
   picker, a question about the public `o/web`
@@ -3733,11 +3733,10 @@ unreadable, and SHALL post nothing from it, its name included.
 ### Requirement: A log file's repository keys and links are checked before use
 
 Filter 1 SHALL show as input labelled unreadable a file whose `repository`
-or `asked_from` is not `<owner>/<repo>` as the scenarios give, whose
-`asked_in` takes no form *A log file and a miss file have one format*
-gives, or that is an unhandled questions-branch log file with no
-`asked_from`; and as input, unlabelled, one whose `answer_link` takes no
-form the scenarios give. No reader or `log` command SHALL fetch, or pass to
+or `asked_from` is not `<owner>/<repo>` as the scenarios give it, or whose
+`answer_link` takes none of the forms the scenarios give; a file whose `asked_in` takes none of the
+forms *A log file and a miss file have one format* gives; and an unhandled
+questions-branch log file with no `asked_from`. No reader or `log` command SHALL fetch, or pass to
 GitHub, any such value.
 
 #### Scenario: The forms a repository key and an answer_link must take
@@ -4459,9 +4458,10 @@ recorded by hash only*.
 
 A miss file SHALL be pushed directly to `misses/` on the questions branch
 its question's file went to, or, for a question no file holds, the one
-that file would go to, unless *No record goes somewhere more visible than
-its source* bars it, an Igor pushing its worker's miss file. An
-answer session's misses go as the `answer-session` spec says.
+that file would go to, by whoever pushes it, an Igor pushing its worker's
+miss file included, unless *No record goes somewhere more visible than its
+source* bars it. An answer session places its own misses by the
+`answer-session` spec's rules instead.
 
 #### Scenario: A miss goes to the questions branch its question's file is on
 

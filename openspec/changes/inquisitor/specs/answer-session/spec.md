@@ -416,9 +416,9 @@ their answer shows that place.
 
 An agent's question SHALL concern what the inquisitor's concerns line
 after it names, found with markup reduced, and not what the session's
-model judges, when the line names a repository a subscription covers and
-the person has write access to, or, after `lore`, a configured lore
-repository. A post shown as one question SHALL be settled so only when
+model judges, when the line names a repository a subscription covers or,
+after `lore`, a configured lore repository, and the person has write
+access to it. A post shown as one question SHALL be settled so only when
 every question in it carries such a line and all name the same place. Any
 other line SHALL settle nothing.
 
@@ -442,11 +442,12 @@ other line SHALL settle nothing.
 #### Scenario: A line naming a place outside the closed set settles nothing
 
 - **WHEN** an agent's question is followed by `Concerns: o/secret`, which
-  no subscription covers or where the person's permission is below write
-  or cannot be read, or by `Concerns: lore o/other`, which the
-  configuration does not list
-- **THEN** the session's model judges what the question concerns, and the
-  session posts no `Inquisitor: ` reply to it by itself
+  no subscription covers, by `Concerns: lore o/other`, which the
+  configuration does not list, or by a line naming a place where the
+  person's permission is below write or cannot be read
+- **THEN** the session's model judges what the question concerns, and
+  posts no `Inquisitor: ` reply by itself, since the asking agent looks for
+  a reply's miss file only on the branch a concerns line names
 
 #### Scenario: A post of two sentence questions naming different repositories settles nothing
 
@@ -2520,13 +2521,14 @@ it or its `asked_in` links the question's message.
 
 ### Requirement: A handled file is pushed once its close takes effect
 
-The answer session SHALL push a handled file once its close takes
-effect: once the post leading to it has gone out, or, with nothing
-posted, once the person confirms the decline. It SHALL record the owed
-push in the state folder before the post or, with nothing posted, before
-the push, drop the record when the post never went out, and retry a failed
-push at each poll and each opening until it succeeds or the script
-refuses it for a reason that will not change.
+The answer session SHALL push a handled file once the post leading to it
+has gone out or, with nothing posted, once the person confirms the
+decline or, for a question with a category, whose answer may never be
+posted, the answer. It SHALL record the
+owed push in the state folder before the post or, with nothing posted,
+before the push, drop it if the post fails, and retry a failed push at
+each poll and opening until it succeeds or the `log` or `cite` command
+refuses it for good.
 
 #### Scenario: A failed post pushes no handled file
 
@@ -3473,8 +3475,8 @@ Where the questions branch is more visible than the question's thread
 and the miss is unconfirmed, the answer session SHALL push, after each
 reply it posts, by itself or for the person, a hash-only miss file backing
 that reply, as the inquisitor's *A hash-only miss file shows nothing but
-that it exists* defines one. It SHALL post an `Inquisitor: ` reply by itself only where it
-has a branch to push that reply's miss file to, and
+that it exists* defines one. It SHALL post an `Inquisitor: ` reply by itself only where the
+person can push that reply's miss file to a questions branch, and
 otherwise SHALL show the person the question.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed
