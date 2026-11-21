@@ -1326,7 +1326,7 @@ class ConsistencyReadChecklistTests(unittest.TestCase):
     def test_item_16_flags_a_record_entry_a_requirement_already_states(self):
         text = (pathlib.Path(spec_check.__file__).parent.parent / "consistency-read.md").read_text()
         items = re.findall(r"^(\d+)\. ", text.split("Then go through the checklist", 1)[1], re.M)
-        self.assertEqual(items, [str(n) for n in range(1, 19)])
+        self.assertEqual(items, [str(n) for n in range(1, 18)])
         item = re.search(r"^16\. (.*?)(?=^\S|\Z)", text, re.M | re.S).group(1)
         for words in ("Constraint or Rejected", "requirement or scenario already states",
                       "*because* sentence", "Rationale entry"):

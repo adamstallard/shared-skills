@@ -332,6 +332,25 @@ gh pr create --title "..." --body-file signed.md
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
 
+**A pull request body is written when someone other than its author is
+about to read it:** when you are told a reviewer is joining, or when a
+review is requested from someone else. Until then, since `gh pr create`
+needs a body, one signed line naming what the pull request implements is
+enough. For the new reader, a subagent that has not seen the work writes
+the body from whichever of the specs, decision records, code and
+`tasks.md` the repository has. It is an introduction for a first-time
+reader, naming the pull requests or changes this one builds on. Each new
+reader gets a body written afresh, never an update of the last one, since
+an update carries stale text forward. Nobody rewrites it for the merge,
+except in a repository that squash-merges, where the body becomes the
+commit message. Never point an agent's brief at a body, such as its lists
+of what is decided or open, as a record of what is settled: nobody keeps a
+body current.
+
+**The title is kept current.** The agent that pushes an implementation
+onto a pull request that held only a spec updates its title in the same
+turn, dropping wording such as "specification only".
+
 **A pull request body is cold-read at a hand-back,** not at each edit. A
 hand-back is `gh pr create` (not a draft, unless it requests a review),
 `gh pr ready`, `gh pr edit --add-reviewer`, or the GitHub MCP's equivalents;
@@ -347,9 +366,10 @@ it with `gh pr edit`, and hand back again.
 
 **After a hand-back,** a hook prints `current-state pass due for: ...`. Do
 that final pass at once, without asking first: fix any doc the pull request
-changes, and its body and title, that still describes work as unfinished or
-to come. Ask a person only before dropping a conclusion. A person now reads
-the body, so sign a body you change then with its cold read.
+changes, and its title, that still describes work as unfinished or to
+come. Ask a person only before deleting a conclusion the text states. The
+hook names the body too: rewrite it only when a new reader joins, as
+above, and then sign it without `--defer-cold-read`.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked

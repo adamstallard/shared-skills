@@ -163,9 +163,10 @@ yet.
   says names no scenario, change the tag to the scenario's current name, or
   delete it if the scenario is gone. Most such tags name a scenario the
   change removes or renames.
-- Before opening the implementation pull request, paste your change's part
-  of the output into its body, so the reviewer sees which test covers each
-  scenario. For each capability the change touches, that is the `###`
+- A pull request body is written only once a reviewer other than its
+  author joins, since nobody reads it before then. Whoever writes the
+  implementation pull request's body then pastes your change's part of the
+  output into it, so the reviewer sees which test covers each scenario. For each capability the change touches, that is the `###`
   heading, the `| Scenario | Tests |` and `| --- | --- |` lines, and the
   change's rows. It is already markdown.
 

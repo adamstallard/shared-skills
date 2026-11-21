@@ -100,7 +100,7 @@ the `renamed-block` scan still run.
 | `drift` | error, or check | A stacked change disagrees with what its dependencies now say. See [Stacked changes](#stacked-changes) |
 | `evolution` | error | A line in the change's files, or a line the branch changes in a decision record, records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped |
 | `kept` | error, or check | An entry in a `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read, as [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) describes |
-| `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move reasoning with evidence to a Rationale entry in the capability's decision record, and the rest to design.md (see [Decision records](#decision-records)) |
+| `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move reasoning with evidence to a Rationale entry in the capability's decision record, and cut the rest (see [Decision records](#decision-records)) |
 | `record` | error, or check | Error: a decision record departs from its form, such as a Rationale entry with no *Evidence*, or one whose title names no requirement in force or in an open change, or names one an open change removes or renames away (reported at the record and at the change's delta line); or a change holds its own `decisions.md`. A *Paths* entry the tree lacks is an error, or a check while an open change touches the capability, since its implementation may add it. Check: *Because* or *Lost because* runs past one sentence, or *Evidence* or *Lost because* links nothing |
 | `config` | error | `openspec/spec-check.yaml`, which sets where decision records live, holds a line that is not `key: value`, a key other than `decision-records`, a second `decision-records` line (the first stays in force), or a record path that breaks the rules in *Decision records*. The rest of the file is still read; with no usable `decision-records` line, records are at the default `openspec/specs/<capability>/decisions.md` |
 
@@ -281,7 +281,7 @@ that the author did it.
   `gh pr view` shows the body without comments, and an implementer builds from
   the spec. Comment to think out loud; amend to decide.
 - **Cut before adding.** A gap may be closed by removing the rule that
-  creates it. Remove a cut candidate (item 18 of consistency-read.md's
+  creates it. Remove a cut candidate (item 12 of consistency-read.md's
   checklist) when its finding's *Who decides* line names the author.
 - **A question only a person can decide** goes into design.md's *Open
   Questions*.
@@ -301,9 +301,7 @@ Whatever a test can express is a requirement with a scenario, including a
 rejection or constraint a test can check: to turn down an approach a test
 could catch, add a scenario that fails if the approach is used, under the
 requirement that approach would break. Reasoning with evidence goes in the
-record, not in design.md: later changes and their consistency reads read the
-record, but never an archived change's design.md, so an archived design.md
-binds no later change.
+record, which later changes and their consistency reads read.
 
 **Every entry needs evidence, never invented:** a failure (the bug or
 incident itself, linked; a link to its regression test may follow), a
@@ -312,15 +310,13 @@ the requirement's own included, is never Evidence: it shows the rule is
 enforced, not why it is needed. Every *Evidence* line and every
 *Lost because* line holds a link for each piece of evidence it names, and
 ends in a link: a URL, an issue or pull request, a commit, or a markdown
-link to a file. Reasoning without evidence, however sound, is not an entry:
-it goes in the change's design.md or a pull request description. When
-the change removes a requirement, with its scenarios, and has no evidence
-for removing it, the removal needs no design.md entry and no record entry.
-A removal with no evidence is easy to reverse, since whoever reverses it
-has no evidence to rebut, so it need not be written down in the spec,
-design.md or a record. The
-pull request description and the commit message still give a one-line
-reason for the deletion.
+link to a file. Reasoning without evidence, however sound, is not an
+entry, and no file of the change holds it beyond a requirement's one
+*because* sentence. Writing it down would protect nothing: whoever
+reverses such a decision has no evidence to rebut. For the same reason, a
+change that removes a requirement, with its scenarios, and has no
+evidence for removing it needs no entry. Its commit message gives a
+one-line reason for the deletion.
 
 Each entry is stated as it stands now, with no history:
 
@@ -340,9 +336,9 @@ Each entry is stated as it stands now, with no history:
 A rejection a requirement guards against (the rejected approach would fail
 that requirement's scenario) is written as that scenario. With evidence, its
 reasoning and Evidence go in the requirement's Rationale entry, created if
-there is none. Without, the reasoning goes in the change's design.md or a
-pull request description. Or the change may remove that one scenario,
-which then needs no entry either, for the same reason.
+there is none. Without evidence, the scenario stays and its reasoning is
+not written down, or the change removes the scenario, a removal that
+needs no entry either.
 
 A requirement's optional *because* sentence, one plain line inside or right
 after its SHALL statement, helps a reader. With no place for Evidence, it
@@ -362,13 +358,11 @@ it appears, while that person can still be asked.
 
 A pull request that finds that a piece of an entry's evidence has failed
 (its link no longer resolves, or it is disproved) removes that piece, and
-gives the reason for each removal in the pull request description and the
-commit message. Delete an entry when no sound evidence is left, as after
+gives the reason for each removal in the commit message. Delete an entry when no sound evidence is left, as after
 removing a *Lost because* line's last link, or when the entry no longer
 holds: its *Holds while* condition has ended, its *Lost because* no longer
-applies, or its requirement is gone. Give each deletion's reason in the pull request
-description and the commit message, never in the record or design.md, since
-it is history. Rewording an entry is not a deletion: it needs no reason, and
+applies, or its requirement is gone. Give each deletion's reason in the
+commit message, never in the record, since it is history. Rewording an entry is not a deletion: it needs no reason, and
 the entry keeps its evidence.
 
 ```markdown
@@ -452,24 +446,29 @@ wrap onto indented lines, with no blank line before a continuation.
 ## Decisions and open questions
 
 Write a decision as a testable requirement and scenario. Failing that,
-write it as a [decision record](#decision-records) when evidence supports
-it. Otherwise, write it either in design.md or in a pull request
-description. Removing a requirement, with no evidence for removing it,
-needs no design.md entry (see *Decision records*). design.md is archived with
-its change and never read again. It never restates a record entry, though
-it may link to one.
+write it as a [decision record](#decision-records) entry when evidence
+supports it. Otherwise it is not written down (see *Decision records*).
 
-design.md's *Decisions* section states once each
-decision the change did not write as a requirement, a scenario or a record
-entry: design choices that are not record material, and
-reasoning without the evidence a record entry needs. Its *Open Questions*
-section holds each undecided item. OpenSpec's design.md instructions name
-both sections; create design.md when the change has none. When a
-decision changes, rewrite its *Decisions* entry and keep no trace of how it
-was amended: git and pull request comments hold the history. proposal.md
-is not a place for decisions, nor for reasoning beyond its one-line reasons
-for the change: it keeps to the sections of OpenSpec's proposal template,
-and to the one or two pages OpenSpec's instructions ask for.
+**design.md holds only open questions for a person:** the questions an
+agent must not decide. Create it, with OpenSpec's *Open Questions* section,
+when the first one arises, and delete it when the last is answered,
+writing each answer as a requirement, a record entry or nothing. A need
+this change has of another open change, such as an interface the other
+must provide, goes in that change's issue body, opened if it has none:
+the issue body states the other change's current scope and is read before
+its work starts, and this change's design.md is a file the other change
+never reads.
+
+**proposal.md is a stub, written once and never regenerated:** a *Why* of
+at least 50 characters, a *What Changes* of one bullet, and any `Builds
+on:` lines. That is the least that keeps `openspec show`, `status` and
+`archive` quiet.
+
+**No agent builds a spec or code from proposal.md, from anything in
+design.md but its open questions, or from a pull request body,** since
+nobody keeps them current. Build from the specs, decision records, code and
+tasks.md, and point a subagent's brief at those. A finding in a review
+comment is still input: amend it into the spec.
 
 An `evolution` error marks each line of a change's files, and each line a
 branch changes in a decision record, that records history: an amendment
@@ -686,7 +685,7 @@ kept, fixes the other lines and deletes their entries, and signs again.
 
 ## Current-state passes
 
-When docs, or a pull request's body and title, may still describe an
+When docs, or a pull request's title, may still describe an
 earlier state, a hook prints `current-state pass due for: ...`, naming what
 to rewrite. Rewrite each to the state as it now is without asking first;
 ask a person only before dropping a conclusion, as `prose compact` does.
@@ -694,13 +693,15 @@ ask a person only before dropping a conclusion, as `prose compact` does.
 - **The implementation lands on a spec branch:** the commit hook prints it
   when a commit adds a file under a `src/` directory while the branch adds
   or edits an open change (on the base branch itself, every open change
-  counts). Rewrite the change's
-  proposal.md and design.md, and the pull request's body and title,
-  wherever they say "specification only", or "will" for what is now built.
+  counts). Update the pull request's title in the same turn as the push
+  wherever it says "specification only", or "will" for what is now built.
+  The hook's message also lists proposal.md, design.md and the body,
+  which this pass leaves alone: nobody keeps them current (see *Decisions
+  and open questions*), and a body is written only as prose's *Posting*
+  says.
 - **A change is archived:** the commit hook prints it when a commit moves
-  the change into `openspec/changes/archive/`, as `openspec archive` does. This is a safety
-  net behind item 15 of consistency-read.md, which already flags record
-  material in design.md. Move anything still in the change's design.md that
+  the change into `openspec/changes/archive/`, as `openspec archive` does.
+  If the change's design.md holds anything but open questions, move what
   belongs in a decision record into the record of each capability it
   concerns, under the rules of any record edit (see *Decision records*):
   - a Rationale entry for reasoning about one requirement, with its
@@ -721,15 +722,15 @@ ask a person only before dropping a conclusion, as `prose compact` does.
     duplicate asks across machines", with "Instead: duplicates are
     accepted").
 
-  Everything else stays in the archived design.md, such as how the design
-  was reached, rollout steps, overviews of the code, open questions, and
-  anything without Evidence or too slight for a later reader to act on. Then run `prose check` on each file you
-  changed, and compact any it reports as due.
+  Everything else stays in the archived design.md, including anything
+  without Evidence or too slight for a later reader to act on. Then run
+  `prose check` on each file you changed, and run `prose compact` on any
+  it reports as due.
 - **A pull request is handed back for review:** prose's hook prints it
   after the agent's hand-back, and the GitHub workflow as a notice when a
   hand-back leaves no change unread. Fix each doc the pull request changes,
-  and its body and title, wherever it still describes work as unfinished or
-  to come.
+  and the pull request's title, wherever it still describes work as unfinished or to come.
+  The notice names the body too: rewrite it only as prose's *Posting* says.
 
 ## Report
 
