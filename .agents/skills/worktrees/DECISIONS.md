@@ -5,54 +5,6 @@ entry is a decision, why it was made, and what was rejected.
 
 ---
 
-## Agents work on a detached HEAD, never a local branch
-
-**Decision.** SKILL.md has an agent create its worktree with `--detach` at
-`origin/<branch>`, or, for a new branch, at the origin branch it starts
-from. The agent commits on the detached HEAD and pushes every commit with
-`git push origin HEAD:refs/heads/<branch>`. It never creates a local branch.
-The hook lists a detached worktree on the same terms as one on a branch.
-
-**Why.** git lets a branch be checked out in one place only. A worktree
-holding a pull request's branch makes `gh pr checkout`, an IDE's "check out
-pull request", the person's own `git checkout` and another agent's worktree
-for the same branch all fail with `fatal: '<branch>' is already checked out
-at …`. Reviewing or running a pull request locally is common, and it
-happens while the agent is still working. A detached worktree holds no
-branch, so every one of those checkouts works. Removing a worktree once its
-work lands still matters, for disk and an uncluttered `git worktree list`,
-but not for freeing the branch.
-
-**Cost.** A commit on a detached HEAD is on no branch: only the worktree's
-HEAD reflog holds it, and removing the worktree deletes that reflog. So the
-agent pushes after every commit, and SKILL.md's removal steps check that
-`origin/<branch>` contains HEAD. `worktree-sweep.py check` and the hook
-refuse a tree holding a commit that removal would lose. A push to a
-branch that doesn't exist yet needs the full `refs/heads/<branch>`: from a
-detached HEAD, git refuses a short name it can't find on the remote.
-
-**Rejected: a local branch made with `--no-track`.** `--no-track` only
-kept an IDE, asked to check out the branch the agent's branch started from,
-from picking the agent's branch instead. The worktree still held the
-agent's branch, so checking that branch out anywhere else still failed.
-
-**Why the hook lists detached worktrees.** With every agent's worktree
-detached, a hook that required a branch would never list one after a push,
-and block mode would never fire.
-
-**A paused operation keeps a tree off the list.** The hook skips a tree
-whose git directory holds `rebase-merge`, `rebase-apply`, `MERGE_HEAD`,
-`CHERRY_PICK_HEAD`, `REVERT_HEAD`, `sequencer` or `BISECT_LOG`. Removing
-the tree would delete the paused operation. HEAD is detached during a
-rebase, and the reflog's `rebase (start)` entry counts as local work, so a
-tree stopped at an `edit` with HEAD still on origin passes every other
-check. `sequencer` stays while cherry-picks or reverts are queued, even
-after a conflict resolved with a plain `git commit` has removed
-`CHERRY_PICK_HEAD`. `worktree-sweep.py check` still says "Safe to remove"
-for such a tree, since removing it loses no commit, only the paused
-operation: the *Accepted cost* under *One judgement decides every remove
-command*.
-
 ## A locked worktree is listed only to the agent that just pushed from it
 
 **Decision.** SKILL.md has every agent create its worktree locked, with a
@@ -157,14 +109,18 @@ brought up to date with `git rebase` instead of a fast-forward logs a
 **Decision.** SKILL.md has an agent whose task ends with nothing committed
 in its worktree remove it in the same turn, after the same checks as *One
 judgement decides every remove command*, run through `worktree-sweep.py
-check`. It unlocks it if it locked it and removes it. If `check` says the
-tree isn't safe, the agent asks the user.
+check`. It unlocks it if it locked it and removes it. It then deletes the
+branch it created, once every commit the branch's tip and reflog hold is on
+a remote: deleting the branch deletes its reflog, which can be the only
+thing holding a commit the agent reset away. If `check` says the tree isn't
+safe, or the branch holds a commit that is on no remote, the agent asks the
+user.
 
 **Why.** Only the agent knows it has given up or found nothing to change.
 The hook can't tell its tree from one an agent is about to use, so it never
 lists one for the agent. The agent's own rule for removing landed work
 doesn't apply either, since nothing landed. Without this rule every
-abandoned attempt left a tree behind until someone noticed.
+abandoned attempt left a tree holding a branch until someone noticed.
 
 ## One judgement decides every remove command
 
