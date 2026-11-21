@@ -11,12 +11,22 @@ spec.
 ## 0. Measure before building
 
 Record each result that a requirement rests on as Evidence in its
-capability's decision record, and the rest in design.md: *What the hook
-relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
-before building* for 0.4, *Facts measured
-before building* for 0.5 to 0.14, 0.33, 0.35 and 0.36, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, and *What igor must provide* for 0.29. Also record
-any result that contradicts what design.md assumed. Numbers 0.22, 0.24, 0.27 and 0.32
+capability's decision record, and the rest in this design.md section:
+
+- *What the hook relies on, not yet measured*: 0.1 to 0.3;
+- *Configuration* and *Facts measured before building*: 0.4;
+- *Facts measured before building*: 0.5, 0.7 to 0.14, 0.33, 0.35 and 0.36;
+- *igor's handback marker*: 0.6;
+- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25, 0.26,
+  0.28, 0.30, 0.31, 0.34 and 0.37;
+- *What igor must provide*: 0.29.
+
+Record there too any result that contradicts what design.md assumed. In
+the same commit, rewrite each requirement and scenario that waits on that
+task to its result: drop its wait, and drop or restate a scenario written
+for before the result, such as *Nothing is relayed on GitHub before task
+0.21*. spec-trace fails CI on a scenario no test tags, and no test can
+check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27 and 0.32
 have no task, so that the other tasks keep their numbers.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -50,8 +60,9 @@ have no task, so that the other tasks keep their numbers.
       script tells an Igor's run by `IGOR_RUN`*)
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [ ] 0.11 GitHub's API gives a comment's or review's text and author.
-      Measured 2026-11-04 for an issue comment only: GraphQL's
+- [ ] 0.11 GitHub's API gives a comment's or review's text and author
+      (inquisitor spec: *The log command takes answered_by from the linked
+      comment*). Measured 2026-11-04 for an issue comment's author only: GraphQL's
       `IssueComment` has `author { login }`. Not measured: a review and a
       review comment, for which GitHub documents the same `author` through
       GraphQL's `Comment` interface
@@ -399,13 +410,13 @@ have no task, so that the other tasks keep their numbers.
         - only the newest answer counting among a question's files on a
           questions branch, by the order of the commits that added them
           (design.md: *The newest answer counts*);
-        - a file more private than where the result goes left out, its
-          visibility set by *A log or miss file is as private as its more
-          private repository*;
-        - during an Igor's run, a file about a repository other than the
-          item's shown as input (by `branch-search`, given the run's
-          item; design.md: *Questions-branch
-          files and `project:` entries in a run's search*).
+        - during an Igor's run, `branch-search`, given the run's item,
+          leaving out each file more private than the item (the file's
+          visibility set by *A log or miss file is as private as its
+          more private repository*) and showing a file about a
+          repository other than the item's as input (design.md:
+          *Questions-branch files and `project:` entries in a run's
+          search*).
       - It reports each source it did not search, and when a fetch last
         updated each clone's remote-tracking default branch.
 - [ ] 2.3b `branch-search`, which searches one repository's `questions`

@@ -45,8 +45,9 @@ the AI teammates of igor, a separate project; igor #211 tracks the role.
 
 design.md's *Decisions* gives the reason for each rule; its *Open Questions*
 lists what this change leaves unmeasured or needs from igor and other
-changes. What no test can check, such as constraints, rejected alternatives
-and evidence, is in each capability's `openspec/specs/<capability>/decisions.md`.
+changes. The change creates each capability's decision record,
+`openspec/specs/<capability>/decisions.md`, holding what no test can check,
+such as constraints, rejected alternatives and evidence.
 
 ## Capabilities
 

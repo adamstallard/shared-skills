@@ -1937,9 +1937,9 @@ For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer session SHALL write no
 discussion record or log file, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
-and the surface's ids for its thread and message. When a questions-branch
-file holds the question, a decline or an answer SHALL still push that
-file's handled file, naming that file by its name's hash.
+and the surface's ids for its thread and message. A questions-branch
+file holding the question SHALL still be closed by a handled file, which
+names it by the hash of its file name.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -2137,12 +2137,19 @@ from choosing what the code does beyond a closed set.
   outside them, or `none` when the model cannot tell; and, for a Linear
   or Discord question, `place_sure`, `yes` or `no`, whether the model is
   sure of `place`
-- **AND** the code acts on a message's fields once the model's turn on
-  it ends, a later accepted call's value replacing an earlier one's, and
-  a field that no accepted call for the message set counts as the
-  cautious one: `question` as
-  `unclear`, `category` as some category, unnamed, `filter` as `none`
-  (as is `1` with no `hit`), `place` as none and `place_sure` as `no`
+- **AND** the model judges a message in two turns: on the message, it
+  sets `question`, `category` and whichever of `place` and `place_sure`
+  the question has; then the code runs `search` with those and puts
+  filter 1's hits before the model, and on the hits it sets `filter` and
+  `hit`
+- **AND** the code acts on a turn's fields once the model's reply in that
+  turn ends, a later
+  accepted call's value replacing an earlier one's, and a field that no
+  accepted call in its turn set counts as the cautious one: `question` as
+  `unclear`, `category` as a category the code cannot name, so the
+  question is handled as one with a category, `filter` as `none` (as is
+  `1` with no `hit`), `place` as none and, for a Linear or Discord
+  question, `place_sure` as `no`
 
 #### Scenario: A verdict call sets what the code does
 

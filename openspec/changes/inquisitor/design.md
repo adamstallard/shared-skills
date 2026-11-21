@@ -1519,11 +1519,14 @@ Rationale entry of that title gives why.
 
 **The code puts each message to judge into the session's conversation as a
 prompt of its own, holding the message as quoted data, while the model is
-not answering the person.** The model answers it with two `record_verdict`
-calls: first `question` and `category`, and `place` and `place_sure`
-where the question has them, since `search` takes the question's
-category and place; then, shown filter 1's hits, `filter` and `hit`.
-The code acts on the accepted fields.
+not answering the person.** The model judges it in two turns, because
+filter 1's search, the script's `search` command, needs the question's
+category and place. In the first turn the model sets `question`,
+`category`, and the place fields that the spec's *record_verdict's fields
+are a closed list* gives the question. The code then runs `search` and
+puts filter 1's hits before the model as a second prompt, on which it sets
+`filter` and `hit`. That scenario also says how the code reads a turn
+with several `record_verdict` calls, or none.
 
 **If task 0.37 finds a mod cannot prompt its own model unattended, work on
 the mod stops, and the answer session is designed as a standalone UI,

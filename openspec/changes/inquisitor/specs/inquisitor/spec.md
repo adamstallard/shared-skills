@@ -1206,9 +1206,10 @@ SHALL count as no write access.
 Whoever logs an answer from a GitHub comment, whether the skill's script,
 an answer session or an Igor, SHALL record the comment's whole text word
 for word as the file's answer, never a paraphrase and never the answer
-text passed with the link. The one line left out is a `Re: ` line, which
-is dropped as *The answerer's confirmation can send a record somewhere
-more visible* says.
+text passed with the link. The only line that may be left out is the
+`Re: ` line naming the question a relay post answers, which *The
+answerer's confirmation can send a record somewhere more visible* drops
+when the record goes somewhere more visible.
 
 #### Scenario: A comment's whole text is recorded as the answer
 
@@ -1822,6 +1823,14 @@ SHALL ask nothing about one it lists as deferred.
   working, and the work can go on without the answer
 - **THEN** it goes on with the work, lists the question in no post, files no
   issue for it, and reports that the question waits for the person
+
+#### Scenario: With the person present, a way-of-working question is deferred only into the report
+
+- **WHEN** an agent in a session with the person in it has a question
+  about the person's way of working, and the work can go on without the
+  answer
+- **THEN** filter 2 lists it as deferred only in the agent's report,
+  never in a post or issue, and the report asks nothing about it
 
 ### Requirement: Two calls prove the filters ran
 
@@ -3093,16 +3102,30 @@ refusing one, it SHALL write nothing.
 ### Requirement: The log command records a linked GitHub comment's own text
 
 Outside Igor-worker mode, for a github.com `answer_link`, the `log` command
-SHALL read the linked comment through GitHub with the credentials of the
-person running the session and record it as *An answer logged from a comment
-is the comment's whole text* says, and SHALL write nothing and say why when
-it cannot read it.
+SHALL read the linked comment through GitHub with the `gh` login it runs
+under, and record it as *An answer logged from a comment is the comment's
+whole text* says. It SHALL write nothing and say why when it cannot read
+the comment.
 
 #### Scenario: A linked comment the script cannot read is not logged
 
 - **WHEN** the `log` command is given an answer whose `answer_link` names a
   comment GitHub does not return
 - **THEN** the command writes nothing and says why
+
+### Requirement: The log command takes answered_by from the linked comment
+
+Where the `log` command reads a linked comment, it SHALL record as
+`answered_by` the comment's author as GitHub returns it, ignoring any login
+the agent passed, because a crafted thread can steer the login an agent
+passes; with its session option, it records instead the person whose answer
+session runs it.
+
+#### Scenario: The answer's answered_by is the linked comment's author
+
+- **WHEN** the `log` command is given `answered_by: alice` and an
+  `answer_link` to a comment `mallory` wrote
+- **THEN** the file names `mallory` as `answered_by`
 
 ### Requirement: The log command in Igor-worker mode writes no answer
 
@@ -4189,6 +4212,9 @@ private repository* defines it; the agent SHALL tell the person why.
 - **WHEN** the lore repository is public and the repository the question
   concerns is private
 - **THEN** no pull request is opened, and the agent tells the person why
+- **AND** none is opened to promote a questions-branch file whose
+  `repository` is public and whose `asked_from` is private, since the
+  file is as private as its more private repository
 
 #### Scenario: A lore repository of unknown visibility counts as public
 
