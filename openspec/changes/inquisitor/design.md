@@ -2345,7 +2345,7 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35 and 0.37 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
@@ -2354,11 +2354,7 @@ building if they fail, until the repository's owner decides; so does task
 fails, the answer session is built as a standalone UI, not a mod. The
 rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
-measured, and the repository's owner decides then what to build for them.** The other tasks cover
-GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
-how the Linear relay posts a comment, how setup checks a relay's
-access to each channel, whether setup can read the GitHub links on a Linear team's issues to guess its repositories, and whether an asking agent's recorded `asked_in` URL
-is the one the answer session reads.
+measured, and the repository's owner decides then what to build for them.**
 
 Task 0.25 records how each surface reports two kinds of refusal of a relay
 post: one for its text, such as its length, and one for lack of permission.
@@ -2411,26 +2407,17 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### For the repository's owner to decide
 
-- **Which github-app calls does the post reader read?** A call it
-  can't read is reported unreadable, so the post hooks block it. The
-  gh-post spec (*The reader reads posts sent through the github-app skill
-  and gh api*) reads the script only at a literal path, written in the
-  call or assigned to `G`, the variable github-app's instructions keep the
-  path in. Its scenario *A quoted assignment to G sets it* reports
-  `G="$HOME/github_app.py"` as unreadable. The shared library on main
-  (`.agents/lib/gh-shell/gh_shell.py`, which task 1.1 builds gh-post on
-  and spec-check's hand-back hook already calls) also reads a path built
-  from a variable, such as `$D/github_app.py`, the path held in any
-  variable, and `--identity=<name>`. The options:
-  - The spec takes the library's reading and drops the `$HOME` case from
-    that scenario. Recommended: a literal path proves no more about which
-    script runs, since any file named `github_app.py` passes, and both
-    hooks then read a call one way.
-  - Task 1.3, which lists every change to the library's behaviour,
-    narrows the library. spec-check's hand-back hook then checks fewer
-    hand-backs.
-  - gh-post gets its own narrower check, and the library reads one call
-    two ways for two hooks.
+- **Cut *An answer typed on another surface is input until a decision
+  document records it*?** *Any other answer is input* already makes an
+  answer read in a chat or tracker message input, and filter 1 already
+  counts a decision document that records it. A bullet in section 10 of
+  issue adamstallard/igor#247 cites the requirement by name, so cutting
+  it means making that bullet cite *Any other answer is input*. The
+  options:
+  - Cut it and reword that bullet. Recommended: the spec is shorter and
+    loses no behaviour.
+  - Keep it, as the one rule that names the `accepted` decision record
+    igor's scribe writes as what makes such an answer count.
 
 ### What other changes must provide
 

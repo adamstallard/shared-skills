@@ -211,9 +211,7 @@ The answer session SHALL take as a question's **asked time** the time
 its service gives for posting the message the question is shown from.
 For a review request, an assignment, or a questions-branch file shown as
 a question itself, not from the message its `asked_in` links, it SHALL
-take the time of the poll on this machine that first found it, because a
-commit's dates are set by its committer, and no task measures GitHub's
-or Linear's times for requests and assignments.
+take the time of the poll on this machine that first found it.
 
 #### Scenario: A message's asked time is its posting time
 
@@ -294,15 +292,7 @@ terminal, so its lock does not mark it as a background session.
 **the team's lore repository** and **more visible** SHALL be as the
 inquisitor's spec defines them, and the session's model SHALL judge what
 a question concerns as that spec has an agent judge it, except where a
-concerns line or a mapped channel's default places it. On GitHub,
-when it can't tell, the repository the question concerns SHALL be the
-one holding the question's thread.
-
-#### Scenario: A GitHub question whose subject is unclear concerns its thread's repository
-
-- **WHEN** a question in an issue of `o/web` gives the session's model no
-  way to tell which repository it concerns
-- **THEN** the repository the question concerns is `o/web`
+concerns line or a mapped channel's default places it.
 
 #### Scenario: The model judges what a question concerns as an agent does
 
@@ -756,13 +746,6 @@ The answer session SHALL open when the person types `/answer` in a
 Claude Code session that has the skill and whose tools are restricted,
 or runs `answer`.
 
-#### Scenario: The answer command starts an answer session
-
-- **WHEN** the person runs `answer`, setup's `~/.local/bin/answer`, whose
-  second line is `# written by inquisitor answer-session setup`
-- **THEN** Claude Code starts named `Answers`, in its fullscreen layout,
-  and opens the answer session
-
 #### Scenario: Typing /answer in a restricted session opens the answer session
 
 - **WHEN** the person types `/answer` in a Claude Code session that has the
@@ -832,9 +815,10 @@ unanswered one of these, and nothing else:
 
 ### Requirement: A log file named only by input answers shows the newest beside it
 
-A log file named only by
-answer files that do not count as decisions SHALL be shown with the newest of those
-answer files beside it, as input.
+A log file named by answer files none of which can be its answer under
+*A named file's answer is the newest answer file naming it*, because none
+would count or none is by an account that rule accepts, SHALL be shown
+with the newest of those answer files beside it, as input.
 
 #### Scenario: A log file named only by input answers is shown with the newest
 
@@ -1852,8 +1836,7 @@ that reply and keeping a held-back answer pending.
 The answer session SHALL keep its working state per machine in the state
 folder, as *The state folder holds all working state* lists, except each
 lore repository's questions branch, which it fetches into that
-repository's configured clone. Filter 1 SHALL search nothing in the
-state folder but the session's clones of subscribed repositories. A discussion
+repository's configured clone. A discussion
 record SHALL be deleted once its question is
 answered by the person, answered or handled for them, or closed; a pending answer
 outlives it.
@@ -1877,12 +1860,6 @@ outlives it.
   subscribed repository's questions and default branches (a lore
   repository's questions branch is fetched into its configured clone), and
   the lock
-
-#### Scenario: Filter 1 never searches the state folder
-
-- **WHEN** a discussion record in the state folder holds text that
-  answers a later question
-- **THEN** filter 1's search for that question shows no hit from it
 
 #### Scenario: A question set aside on one machine is new on another
 
@@ -2883,13 +2860,6 @@ its question in a Re line* requires one.
 - **THEN** the relay posts a recorded answer naming the question, and no
   miss is logged, as for any person's question
 
-#### Scenario: A reply since the question stops an automatic post
-
-- **WHEN** the answer session is about to post a recorded answer, and the
-  thread has a new reply since the question
-- **THEN** it posts nothing, and shows the question and the reply to the
-  person
-
 ### Requirement: A recorded answer posted by itself links filter 1's hit and quotes no answer
 
 In a recorded answer the answer session posts by itself, the URL SHALL
@@ -2909,6 +2879,9 @@ write none of the post.
 - **THEN** the relay posts the fixed recorded answer, that file's URL on
   its `Recorded in: ` line and no answer quoted, and a miss is logged as
   *Filter 1's answer by itself to an agent's question logs a miss* says
+- **AND** a file's URL is `https://github.com/<owner>/<repo>/blob/<branch>/<path>`,
+  `<branch>` being the branch filter 1 read it on, so the asking agent
+  checks that path on that branch
 
 #### Scenario: A log file hit links the file, not its recorded_in
 

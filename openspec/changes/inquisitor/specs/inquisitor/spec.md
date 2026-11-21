@@ -3245,10 +3245,9 @@ for each key (design.md: *An answer file names every file it answers*).
 
 A later Igor run SHALL know the answered file only from the Igor's handback
 record, one per handback, never from the comment. That record SHALL hold
-only each posted question's hash; its concerns line, where the Igor's miss
-check runs, or that it had none; the repository its file went to; and,
-if a file was pushed, its name's 6-hex-digit suffix and date. Without
-them, or if not exactly one file on that repository's questions branch
+each posted question's hash; its concerns line, or that it had
+none; the repository its file went to; and, if a file was pushed, its name's 6-hex-digit suffix and date;
+and no question's text. Without that suffix and date, or if not exactly one file on that repository's questions branch
 has them, the Igor SHALL write no `answers`.
 
 #### Scenario: The Igor's handback record holds no question text
@@ -3513,8 +3512,8 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   answers* sets; and a citation file never holds `asked_from`
 - **AND** of the files that the Igor's worker or the Igor's own inquisitor
   run reports, the Igor pushes none holding a key such a run may not write
-  (`asked_from`, `asked_in`, an answer, `answers`, `handled`, `closes` or
-  `said_by`),
+  (`asked_from`, `asked_in`, an `## Answer` section, `authority`,
+  `answers`, `handled`, `closes` or `said_by`),
   and no hash-only miss file
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
@@ -3640,6 +3639,8 @@ several; else `message` and the asking message's URL.
 - **THEN** the hash takes `file`, an LF and that path
 - **AND** were the question in two log files on that branch, as when
   two items asked it, the hash would take the path first in byte order
+- **AND** an Igor's worker takes the path from its Igor's `branch-search`
+  hits, and writes no miss file when none holds the question
 - **AND** for a declined Linear message with no log file, the hash takes
   `message`, an LF and the message's URL
 

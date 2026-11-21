@@ -308,19 +308,26 @@ sends no post.
 
 ### Requirement: The reader reads posts sent through the github-app skill and gh api
 
-The reader SHALL read a call of the github-app skill's script, in the
-forms its scenarios list, as the `gh` command it runs, judging its line
-as if that `gh` command stood in the call's place and the line held no
-`G` assignment. The script's path SHALL be a literal word ending in
-`/github_app.py`, written in the call or in the last assignment to `G`
-before the call. A line that mentions a gh post verb and runs `python3 $G` with `G`
-unassigned SHALL be unreadable.
+The reader SHALL find a call of the github-app skill's script with the
+shared library's functions its scenario names, and read it as the command
+the script runs. It SHALL judge the line as if that command stood in the
+call's place and the assignment naming the script were gone, so
+`G=<path>; python3 "$G" gh …` is one whole gh command. A path held in a
+variable counts as a literal one does: a literal path proves no more
+about which script runs, since any file named `github_app.py` passes.
 
 #### Scenario: A post sent through the github-app skill is read
 
 - **WHEN** a hook asks about `python3 /abs/github_app.py gh pr create
-  --body-file body.md`
-- **THEN** the reader returns the file's text as the body
+  --body-file body.md`, about `G="$HOME/github_app.py"; python3 "$G"
+  --identity bot gh pr comment 5 --body-file body.md`, and about `python3
+  $D/github_app.py --identity=bot run -- gh pr comment 5 --body-file
+  body.md`
+- **THEN** the reader returns the file's text as each one's body
+- **AND** a call is what `app_command` in `.agents/lib/gh-shell/gh_shell.py`
+  reads as one, after any leading assignments, with the variables
+  holding the script's path tracked by `app_assignments` and forgotten by
+  `forget_scripts` in `.agents/lib/gh-shell/handbacks.py`
 
 #### Scenario: Another script given gh's arguments is unreadable
 
@@ -339,33 +346,15 @@ unassigned SHALL be unreadable.
   gh issue post only as a whole command line* and *A gh api write read
   from a file is read only as a whole command line*
 
-#### Scenario: The github-app script with an identity is read
-
-- **WHEN** a hook asks about `G=/abs/github_app.py && python3 "$G"
-  --identity bot gh pr comment 5 --body-file c.md`
-- **THEN** the reader returns the file's text as the body
-- **AND** the reader reads this form only when the script runs `gh pr`,
-  `gh issue` or `gh api`, either directly
-  or after `run --`
-- **AND** `--identity <name>` may come before `gh` or `run`
-- **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
-  `G=<path> &&` does
-
-#### Scenario: A quoted assignment to G sets it
-
-- **WHEN** a hook asks about `G="/abs/github_app.py"; python3 "$G" gh pr
-  comment 5 --body-file c.md`, and about the same command with
-  `G="$HOME/github_app.py"`
-- **THEN** the reader reads the first and reports the second as
-  unreadable
-
-#### Scenario: The github-app script as an unset G is unreadable
+#### Scenario: The github-app script through an unassigned variable is unreadable
 
 - **WHEN** a hook asks about `python3 "$G" gh pr comment 5 --body-file
-  c.md`, or the same with `$G` unquoted, and the command assigns `G`
-  nowhere
-- **THEN** the reader reports the command as unreadable, and the block
-  message says to set `G` in the same command or write the script's path
+  c.md` where the command assigns `G` nowhere, and about
+  `G=/abs/github_app.py; unset G; python3 "$G" gh pr comment 5
+  --body-file c.md`
+- **THEN** the reader reports each command as unreadable, and the block
+  message says to assign the variable in the same command or write the
+  script's path
 
 #### Scenario: A gh read through an unset G is no post
 
@@ -407,7 +396,7 @@ other `gh` followed by `api` SHALL count as mentioning a gh post verb.
 A `gh api` call holding a word that is not literal SHALL be unreadable,
 except an endpoint holding `?` or gh's `{owner}`, `{repo}` and
 `{branch}` placeholders, which the shell cannot turn into a flag or a
-field, and the github-app form's `$G`.
+field, and the github-app call's own words, such as `$G`.
 
 #### Scenario: A gh api call the reader cannot see whole is unreadable
 

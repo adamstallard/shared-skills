@@ -282,6 +282,12 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       `true`; which app user is an Igor's is not measured. On Linear, *A handback is an Igor's comment holding igor's
       marker* is built only once this is measured. If
       no such form exists, no Linear comment is a handback for good
+- [ ] 0.39 Whether Claude Code puts an `agentId` on a subagent's or a
+      forked conversation's call to a mod's tool. If not, nothing refuses
+      such a call: its `propose_reply` draft still lands only in the
+      prompt box, and its `record_verdict` call can still only pick among
+      the actions the code offers (answer-session spec: *Claude's draft
+      goes to the prompt box, never to a post*)
 
 ## 1. Shared post reader
 
@@ -300,11 +306,12 @@ check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
       to be blocked: change it to expect the case let through. Only that
       item lets through what prose's hook blocks today; prose's hook
       ignores `gh api`, so the `gh api` items are new checks for it.
-      - It reads `python3 <github-app script> gh pr|issue|api …` posts,
-        including `python3 $G …` only when the same command assigns `G`,
-        and judges a line holding such a call exactly as the same line
-        with the `gh` call made directly and no `G` assignment; prose's
-        reader blocks such posts today.
+      - It reads a call of github-app's script with the library's
+        `app_command`, `app_assignments` and `forget_scripts`, as the
+        `gh-post` spec's *The reader reads posts sent through the
+        github-app skill and gh api* says, and judges a line holding such a call exactly as the same
+        line with the command made directly; prose's reader blocks such
+        posts today.
       - It counts a `gh api` call as mentioning a gh post verb only when
         the call can write, as the `gh-post` spec's *A gh api call writes
         by its method, fields, input or a mutation* says: `-X` or
