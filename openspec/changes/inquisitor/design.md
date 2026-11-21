@@ -722,6 +722,16 @@ title's readability*; *A gh pr or gh issue title is read only as a literal
 word*. prose's hook checks only that a title is readable, since a one-line
 title can't carry a footer.
 
+#### A hook payload that is not JSON passes the post hook
+
+**Rule:** inquisitor spec, *The post hook vets what the shared post reader
+returns*.
+
+**Why:** the host, not the agent, writes the hook's input, so a payload
+that is not JSON means the host is broken, never that an agent crafted a
+post. Blocking such payloads would block every Bash and GitHub MCP call
+until the host is fixed.
+
 #### The post hook blocks a reserved prefix on GitHub
 
 **Rule:** inquisitor spec, *The post hook vets what the shared post reader
@@ -2311,10 +2321,12 @@ The task each bullet names measures its fact before anything is built (tasks 0.1
 what the spec does if the fact is false. Task 0.12 is measured (*What task
 0.12 measured*). Task 0.11 asks whether GitHub's API gives a comment's or
 review's text and author, which *The log command takes answered_by from the
-linked comment* relies on. Only an issue comment's author is measured, and
-tasks.md records how. For a review and a review comment, GitHub documents
-the same `author` field, so the spec states no fallback; if a measurement
-finds the field missing, that requirement needs one before it is built.
+linked comment* relies on. Of these, only an issue comment's author is
+measured, and tasks.md records how. If GitHub gives no author for a review
+or a review comment, that requirement needs another source for
+`answered_by` before it is built. The spec names none, since GitHub
+documents the same `author` field for both (the inquisitor record's
+*Rationale: The log command records a linked GitHub comment's own text*).
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2676,6 +2688,20 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
+
+### Undecided
+
+- **Should an Igor's comment on a Linear item count as a handback?** An Igor
+  also claims Linear items delegated to it, but only a GitHub App's comment
+  counts as a handback (answer-session spec: *A handback is an igor- App's
+  comment holding igor's marker*). A handback that mentions no one reaches
+  the item's assignee. An Igor's Linear comment is instead an ordinary bot
+  message, which reaches only the first person it mentions (*Whom a message
+  reaches is set by its mentions*), so one that mentions no one reaches no
+  one and its question waits unseen. The options: define a Linear handback,
+  by the Igor's Linear app user and igor's marker, with a task measuring how
+  a Linear comment shows that user; or state that an Igor hands back only on
+  GitHub. The repository's owner decides.
 
 ### Left to implementation
 

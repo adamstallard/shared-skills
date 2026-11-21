@@ -3126,6 +3126,13 @@ session runs it.
   `answer_link` to a comment `mallory` wrote
 - **THEN** the file names `mallory` as `answered_by`
 
+#### Scenario: With its session option, answered_by is the session's person
+
+- **WHEN** the answer session's `log` call, with its session option, links
+  a relay post the person's GitHub relay App wrote
+- **THEN** the file names as `answered_by` the configuration's `login`,
+  the person whose answer session runs it, not the App
+
 ### Requirement: The log command in Igor-worker mode writes no answer
 
 In Igor-worker mode the `log` command SHALL read no comment and write no

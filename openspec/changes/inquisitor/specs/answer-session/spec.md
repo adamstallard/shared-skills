@@ -3435,8 +3435,8 @@ SHALL be the first of these that applies: the repository of the branch it
 is pushed to, once the person confirms sending it somewhere more visible;
 the most private `asked_from` of the questions-branch files holding its
 question; its GitHub thread's repository; off GitHub, the repository the
-question concerns or, for a group's question, the lore repository
-serving it.
+question concerns or, for a collective's question, its collective's lore
+repository.
 
 #### Scenario: A confirmed record names its own branch's repository
 
@@ -3493,8 +3493,8 @@ A miss on questions-branch files SHALL hold the `repository` they all
 hold, or none when none of them holds one; when their `repository` keys
 differ, one file lacking the key included, the answer session SHALL write
 no miss file and SHALL tell the person why. Any other miss SHALL hold as
-`repository` the repository the question concerns, or none for a group's
-question, such as an organization's.
+`repository` the repository the question concerns, or none for a
+collective's question.
 
 #### Scenario: A miss on files sharing a repository holds it
 
@@ -3505,9 +3505,16 @@ question, such as an organization's.
 #### Scenario: Files naming different repositories get no miss
 
 - **WHEN** two questions-branch files hold a question, one with
-  `repository: "o/api"` and the other with `repository: "o/web"`, and the
-  person declines it for the inquisitor
+  `repository: "o/api"` and the other with `repository: "o/web"` or with
+  no `repository`, and the person declines it for the inquisitor
 - **THEN** no miss file is written, and the person is told why
+
+#### Scenario: A miss on a thread question holds the repository it concerns
+
+- **WHEN** the person declines for the inquisitor a question about
+  `o/api` asked in an issue of `o/web`, which no questions-branch file
+  holds
+- **THEN** the miss file holds `repository: "o/api"`
 
 ### Requirement: The answer session writes no miss it cannot place privately
 
