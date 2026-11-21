@@ -271,6 +271,12 @@ GitHub channel, SHALL have one poll position of its own: the
   10:04
 - **THEN** that team's poll position is 10:04
 
+#### Scenario: The notifications feed's poll position is its last Last-Modified
+
+- **WHEN** GitHub's last notifications response had `Last-Modified` 10:06,
+  and the newest notification in it was updated at 10:02
+- **THEN** the notifications feed's poll position is 10:06
+
 ### Requirement: A thread copy is a question shown from a thread
 
 The answer session SHALL count as a **thread copy** a question it shows
@@ -1898,12 +1904,13 @@ On opening, the answer session SHALL show the question last on screen,
 even after Claude Code restarted, unless it has since been answered or has
 a category; then it SHALL show the next in the queue.
 
-#### Scenario: Reopening lands on the same question unless it was answered
+#### Scenario: Reopening lands on the same question unless it was answered or has a category
 
 - **WHEN** the person closes Claude Code with a question on screen, starts
   it again, and opens the answer session
-- **THEN** the answer session shows that question, or, if it was since
-  answered from another machine, the next in the queue
+- **THEN** the answer session shows that question, or the next in the
+  queue if it was since answered from another machine, or has a category
+  and so was kept only in memory
 
 ### Requirement: A question with a category leaves no readable record on disk
 

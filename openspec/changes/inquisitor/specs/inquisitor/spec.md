@@ -2056,9 +2056,12 @@ no further setting, and neither hook SHALL spend a verdict record.
 
 #### Scenario: The hooks are on once installed, and spend no record
 
-- **WHEN** the skill is installed with no further setting, and an agent
-  asks a vetted question through the picker twice within 2 hours
-- **THEN** the picker hook runs on both calls and lets both through
+- **WHEN** the skill is installed with no further setting, and within the
+  2 hours a verdict record lasts, an agent asks a vetted question through
+  the picker twice and posts another vetted question in a GitHub comment
+  twice
+- **THEN** each hook runs on both of its calls and lets both through, the
+  first call having used up no verdict record
 
 ### Requirement: Questions in posts pass the same filters
 

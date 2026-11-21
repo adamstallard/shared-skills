@@ -489,7 +489,7 @@ person it gives their own login, a self-tag that notifies no one (scenario
 
 **Rule:** inquisitor spec, *A question no candidate can decide turns to the
 session's login*. The login is tagged only on a post going out as someone
-else, since a self-tag sends no notification.
+else, since a self-tag sends no notification (task 0.38 measures this).
 
 ### Hooks and verdict records
 
@@ -1084,8 +1084,9 @@ flag on the whole execution on the item, not one worker's part of it (igor
 PR #216's decision 22).
 
 **Why** the script says so whenever it acts on the variable: a repository
-can set it in a person's session, through committed Claude Code settings or
-an `.envrc`; lore would then go unsearched and nothing logged to a lore
+can set `IGOR_RUN` in a person's session, through the `env` key of committed
+Claude Code settings or a direnv `.envrc`; lore would then be searched only
+through `igor lore-search`, which a person's session lacks, and nothing logged to a lore
 repository, and without the message the person could not tell why.
 
 *Ruled out by a scenario:* treating every session with no person in it as
@@ -2113,9 +2114,9 @@ handled file's is*; inquisitor spec, *A log file and a miss file have one
 format*.
 
 The fixed `said` of an automatic miss lets a review of misses tell the
-session's judgement from a person's word. Every miss file but a hash-only
-one names in `asked_by` the account that posted the question, so a review
-of misses shows which asker keeps asking what it should have filtered.
+session's judgement from a person's word. Where a miss file names in
+`asked_by` the account that posted the question, a review of misses can
+show which asker keeps asking what it should have filtered.
 `asked_by` reveals nothing new: the account already shows on the question
 in its thread. A miss on questions-branch files copies their `asked_from` and
 `repository` so it is as private as they are and about the same thing;
@@ -2339,6 +2340,11 @@ gives its result, and a review and a review comment are still to measure.
   variable?** (task 0.36) No environment variable opens the answer session,
   because such a session could not set one. If it can, the repository's
   owner decides whether one may.
+- **Does a self-tag notify no one?** (task 0.38) When no candidate can
+  decide a question, the script tags the configured login only on a post
+  going out as another account, such as a GitHub App. If a comment that
+  tags the login posting it notifies that login, the repository's owner
+  decides whether a post going out as the configured login tags it too.
 
 ### Facts the answer session relies on
 

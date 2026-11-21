@@ -14,8 +14,8 @@ Record each result that a requirement rests on as Evidence in its
 capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
-before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, *Facts measured before building* for 0.33, 0.35 and 0.36, and *What igor must provide* for 0.29. Record a result
+before building* for 0.5 to 0.14, 0.33, 0.35, 0.36 and 0.38, *Facts the answer session relies on*
+for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31, 0.34 and 0.37, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 0.32 are unused.
 
@@ -92,7 +92,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       parent's id; and an app user's comment has `user.app` `true` and a
       null `botActor`, the 5 test comments among the team's 77, the other
       72 having `user.app` `false`. Not measured: mentions of the person or the relay,
-      and anything read with the person's key
+      anything read with the person's key, and that no person's account
+      can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
       of the person's user id and a reply to the relay's message, and edit
@@ -279,6 +280,13 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       record it and stop building the mod: the answer session is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
       for the owner's approval
+- [ ] 0.38 That GitHub notifies no one of a comment that tags the login
+      posting it. If it notifies that login, record it and stop building
+      *A question no candidate can decide turns to the session's login*
+      until the repository's owner decides whether a post going out as the
+      configured login tags that login, in place of asking through the
+      picker (with a person in the session) or posting untagged (with
+      none)
 
 ## 1. Shared post reader
 

@@ -489,8 +489,9 @@ verb. Otherwise the line SHALL be unreadable. Input reaching `python`,
 
 #### Scenario: Input may reach one gh command that uses no post verb
 
-- **WHEN** a hook asks about `cat c.md | gh pr view 5`, and about `cat
-  c.md | gh pr edit 5 --add-label spec`
+- **WHEN** a hook asks about `cat c.md | gh pr view 5 && gh pr edit 5
+  --add-label spec`, and about `cat c.md | gh pr edit 5 --add-label spec`,
+  whose input reaches the post verb `pr edit`
 - **THEN** the reader reports the first as sending no post and the second
   as unreadable
 
