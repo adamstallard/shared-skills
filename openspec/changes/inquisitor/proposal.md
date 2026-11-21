@@ -99,9 +99,13 @@ None.
   - counts a `gh api` call as a possible post only when it can write, by its
     method, fields, input or a GraphQL mutation; prose's hook ignores
     `gh api` today.
-  - reads a `gh api` write that takes a field from a file only when it is
-    the whole command line, because an earlier command in the line could
+  - blocks a `gh api` write to an issue or pull request endpoint, or a
+    `gh api graphql` call, that takes a field from a file, unless it is the
+    whole command line, because an earlier command in the line could
     rewrite the file.
+  - lets through unread a `gh api` write to any other endpoint, or a
+    GraphQL mutation that posts no issue or pull request text, as
+    `gh release` and `gh discussion` pass.
   - keeps reading an unquoted `--body` or `-b` of one plain word, such as
     `--body hi`.
   - reads `gh pr` and `gh issue` posts as prose's hook does today, and lets

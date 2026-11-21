@@ -2186,22 +2186,16 @@ line.
 - **WHEN** a subagent of the session's model calls `propose_reply`, and
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
-- **AND** a subagent's call that arrives with no `agentId`, which task
-  0.26 checks for, is taken as the main conversation's, as *A call with
-  no agentId is the main conversation's* shows, so its draft lands only
-  in the prompt box, where the person sees it before anything is sent
+- **AND** a call with no `agentId` is taken as the main conversation's. If
+  a subagent's call can arrive without one, which task 0.26 measures, its
+  draft still lands only in the prompt box, where the person sees it
+  before anything is sent
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
 - **WHEN** a side conversation Claude Code forks, such as the one that
   guesses the next prompt, calls `propose_reply` with an `agentId`
 - **THEN** the call is refused, leaving the prompt box unchanged
-
-#### Scenario: A call with no agentId is the main conversation's
-
-- **WHEN** `propose_reply` is called with no `agentId`
-- **THEN** the tool takes the call as the main conversation's, and puts
-  its draft in the prompt box
 
 #### Scenario: A draft fills the record's URL for a filter 1 decline
 

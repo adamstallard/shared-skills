@@ -317,8 +317,10 @@ have no task, so that the other tasks keep their numbers.
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following, with tests for each in
       prose's and the library's tests. prose's existing tests pass
-      unchanged, except any test expecting a case of the first two items
-      below to be blocked: change it to expect the case let through.
+      unchanged, except any test expecting a case of the first item below
+      to be blocked: change it to expect the case let through. Only that
+      item lets through what prose's hook blocks today; prose's hook
+      ignores `gh api`, so the `gh api` items are new checks for it.
       - It reads `python3 <github-app script> gh pr|issue|api …` posts,
         including `python3 $G …` only when the same command assigns `G`,
         and judges a line holding such a call exactly as the same line
@@ -345,14 +347,14 @@ have no task, so that the other tasks keep their numbers.
         `comments[][body]` fields, and every `body` argument of the
         GraphQL mutations that post text to an issue or pull request. A
         field taken from a file, by `@<file>` or `--input`, is readable
-        only when that write is the whole command line. Any other mutation
-        is no post, or unreadable when it has a `body` (design.md: *The
-        reader reads gh api writes, REST and GraphQL*).
+        only when that write is the whole command line. A write to an
+        endpoint other than an issue's or pull request's, or a mutation
+        off that list, is no post (design.md: *The reader
+        reads gh api writes, REST and GraphQL*).
       - It reports whether a post creates an issue.
-      - It blocks as unreadable a `gh api` call that writes, as the
-        `gh-post` spec's *A gh api call writes by its method, fields,
-        input or a mutation* says, whose body it can't read, a GraphQL query it can't parse,
-        and a review whose comments it can't read.
+      - It blocks as unreadable a `gh api` write to an endpoint or
+        mutation it reads whose body it can't read, a GraphQL query it
+        can't read or parse, and a review whose comments it can't read.
       - It keeps prose's reader's block, as unreadable, on a command
         other than a data command that names `gh` in its arguments, such
         as `sh -c`, on a line that mentions a gh post verb (gh-post spec:

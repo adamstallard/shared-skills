@@ -657,22 +657,31 @@ reader cannot tell which script it runs; that costs only a rewrite.
 (gh-post spec: *The reader reads posts sent through the github-app skill and
 gh api*, scenario *A gh api call through the github-app script is judged as a
 direct one*), and blocking the script after any other command (scenario *A gh
-api call through the github-app script after cd is read*).
+api body given in the command is read in a longer line*, which holds for the
+script in place of `gh`).
 
 #### The reader reads gh api writes, REST and GraphQL
 
 **Rule:** gh-post spec, *The reader reads a gh api write to an issue or pull
 request*; *A gh api write read from a file is read only as a whole command
-line*; *The reader reads GraphQL posts and blocks a gh api write it can't
-read*.
+line*; *The reader reads GraphQL posts and blocks an unreadable body sent
+to issues or pull requests*.
 
-**Why:** otherwise a `gh api` comment would skip both hooks, while reads and
-writes that send no text, such as label edits, pass. A GraphQL mutation is a
-write like a REST one. The hook reads a file, given by `@<file>` or
-`--input`, before the line runs, so an earlier command on the line, such as
-`printf 'unsigned' > c.md`, can replace a signed body with one the hook never
-saw, as it can a `--body-file`; a field given in the command cannot be
-rewritten.
+**Why:** without these rules, a `gh api` comment would skip both hooks.
+Reads and writes that send no text, such as label edits, still pass. A
+GraphQL mutation is a write like a REST one. A write to an endpoint other
+than an issue's or pull request's, or a mutation off the reader's list,
+such as release notes or a discussion comment, passes unread, as `gh
+release` and `gh discussion` do. The hooks guard issue, pull request and
+comment posts, so text sent elsewhere passes unread whichever gh command
+sends it.
+
+Both hooks read a file, given by `@<file>` or `--input`, before the line
+runs. An earlier command on the line, such as `printf 'unsigned' > c.md`,
+could then replace a signed body with one the hooks never saw, as it could
+a `--body-file`; for GraphQL it could also swap the query for another
+mutation. So such a write is read only as the whole command line. A field
+given in the command cannot be rewritten.
 
 *Ruled out by a scenario:* reporting every GraphQL mutation as unreadable,
 which blocks writes that send no text (scenario *A GraphQL mutation with no
@@ -1372,12 +1381,13 @@ file of a Discord-relayed answer is a decision*).
 **github-app is to hand a relay identity's token to no command that can
 print it.** Short of reading the relay's key from the keychain (the first
 Constraint under *Recorded*), an agent can then post as the relay only
-through a github-app command, which the post hooks read as they read the
-same `gh` call made directly. github-app must
+through a github-app command, which the post hooks treat as the same `gh`
+call made directly: read in the common post forms, unread in any other.
+github-app must
 still give the answer session a command to post as the relay: the answer
 session runs it as a host command, outside any hook (answer-session spec:
 *A relay post is posted by a host command, unvetted*), while an agent that
-runs it is vetted like any other post. Which github-app commands print the
+runs it meets the post hooks as above. Which github-app commands print the
 token today, its `gh` command among them, is in the Evidence of the second
 Constraint under *Recorded*. This change ships first and asks github-app
 for the refusal in shared-skills #96; until github-app makes it, that
@@ -2303,18 +2313,6 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-### For a person to decide
-
-- **Should a `gh api` write whose body goes to an endpoint or mutation the
-  reader does not read stay unreadable?** The gh-post spec blocks it
-  (scenario *A gh api write with a body it does not read is unreadable*),
-  so release notes and discussion comments sent through `gh api` are
-  blocked while `gh release` and `gh discussion` pass unread. Options: (a)
-  keep the block, failing closed on a `gh api` body the reader cannot
-  place, since `gh api` is a common way agents post; (b) let such a call
-  through unread, as `gh release` and `gh discussion` are. Recommended:
-  (a).
-
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built (tasks 0.1 to
@@ -2683,8 +2681,7 @@ to its 149.
 
 - **The github-app skill must hand a relay identity's token to no command
   that can print it,** its `gh` command included, while leaving the answer
-  session a command to post as the relay whose posts the post hooks vet
-  when an agent runs it. Issue
+  session a command to post as the relay. Issue
   adamstallard/shared-skills#96 tracks it. Its spec, in a pull request
   stacked on this one, starts once this change's spec is approved, and its
   implementation follows this change's. This change does not wait for it:

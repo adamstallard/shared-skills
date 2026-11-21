@@ -196,11 +196,9 @@ between them later is cheap; the agent chooses one.
 
 A rhetorical question outside a post, one the agent would have put to the
 picker or in its report, SHALL be rewritten there as a statement with
-nothing recorded: the agent passes it to neither call, and if the first call
-already took it, runs the first call again without it, since the second call
-refuses a question left without a verdict. Only a rhetorical question in a
-post gets the `decided` verdict naming the post (design.md: *Questions in
-posts*).
+nothing recorded: the agent passes it to neither of the script's two calls,
+and if the first call already took it, runs the first call again without
+it, since the second call refuses a question left without a verdict.
 
 #### Scenario: A rhetorical question meant for the picker is rewritten with nothing recorded
 
@@ -2765,12 +2763,6 @@ Igor's run, the agent SHALL report that the question is not yet logged.
   outside any answer session
 - **THEN** no log file is pushed to the questions branch of `o/lore`,
   since nobody confirmed sending the record there
-
-#### Scenario: Filter 1 finds no file for the unanswered question
-
-- **WHEN**, before anyone answers, another agent's filter 1 searches the
-  questions branch of `o/lore` for the same question
-- **THEN** the search shows no file for it
 
 #### Scenario: An Igor pushes no file for such a handback question
 
