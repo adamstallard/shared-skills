@@ -50,6 +50,12 @@ inquisitor's, or that spec's, *Title*:
 - **The session's model** is the model of the Claude Code session the
   answer session runs in, which judges questions and drafts replies.
 - **Task 0.N** is that task in this change's tasks.md.
+- **What the question concerns**, **the repository the question
+  concerns**, **the team's lore repository** and **more visible** are as
+  the inquisitor's spec defines them, and the session's model judges what
+  a question concerns as that spec has an agent judge it, except where a
+  concerns line or *A channel's repositories place its questions* places
+  it.
 - A **discussion** is the person's exchange with the session's model about
   one question, and its **discussion record** the copy of both
   sides' messages kept in the state folder (*Local state is per machine,
@@ -118,12 +124,6 @@ once the person confirms.
 - **WHEN** the answer session posts filter 4's reply by itself on an
   agent's question
 - **THEN** the post is filter 4's fixed text, none of it the person's
-
-#### Scenario: An automatic post on a decline waits for confirmation
-
-- **WHEN** the person declines an agent's question for the inquisitor,
-  picks filter 3, and has not yet confirmed the post shown
-- **THEN** nothing is posted
 
 ### Requirement: A question's thread is where a reply to it goes
 
@@ -285,19 +285,6 @@ terminal, so its lock does not mark it as a background session.
   answer session takes the lock
 - **THEN** its lock records it as a foreground session, and a second
   session's refusal names it as one
-
-### Requirement: Terms of the inquisitor's spec are judged as that spec has them
-
-**What the question concerns**, **the repository the question concerns**,
-**the team's lore repository** and **more visible** SHALL be as the
-inquisitor's spec defines them, and the session's model SHALL judge what
-a question concerns as that spec has an agent judge it, except where a
-concerns line or a mapped channel's default places it.
-
-#### Scenario: The model judges what a question concerns as an agent does
-
-- **WHEN** a question in an `o/web` issue asks about code in `o/api`
-- **THEN** the repository it concerns is `o/api`
 
 ### Requirement: A Linear or Discord question is placed by what it concerns
 
@@ -1678,8 +1665,8 @@ the relay identity that posted it, found by the id the state folder keeps
 or, where this machine lacks it, in the question's thread. The edit SHALL
 keep the `Re: ` line, any `question <n>: ` naming which of the post's
 questions it answers, and a `User says: ` or `User asks: ` prefix; an
-automatic post's prefix becomes `User says: `. The edit is scanned as a
-new post is.
+automatic post's prefix, `Recorded answer: ` or `Inquisitor: `, becomes
+`User says: `.
 
 #### Scenario: An answer is edited in place
 
@@ -2449,8 +2436,7 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 When a decline, a `Recorded answer: ` post, an `Inquisitor: ` reply or an
 answer to a question with a category takes a question off the queue, the
-session SHALL push, only through the `log` command's session option, a
-**handled file** for each unanswered
+session SHALL push a **handled file** for each unanswered
 questions-branch log file that holds the question and that no handled
 file names. A file holds the question when the question was shown from
 it or its `asked_in` links the question's message.
@@ -2459,9 +2445,8 @@ it or its `asked_in` links the question's message.
 
 - **WHEN** the answer session's own filter 2, 3 or 4 reply goes out on a thread
   copy an unanswered log file holds
-- **THEN** a handled file naming that log file is pushed through the
-  `log` command's session option
-- **AND** it does the same for a `Recorded answer: ` post and for any
+- **THEN** a handled file naming that log file is pushed
+- **AND** the session does the same for a `Recorded answer: ` post and for any
   decline, agreeing included, with a thread or without, being the only
   writer of handled files under the inquisitor's *Only an answer session
   writes a handled file*

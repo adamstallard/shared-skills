@@ -326,8 +326,9 @@ about which script runs, since any file named `github_app.py` passes.
 - **THEN** the reader returns the file's text as each one's body
 - **AND** a call is what `app_command` in `.agents/lib/gh-shell/gh_shell.py`
   reads as one, after any leading assignments, with the variables
-  holding the script's path tracked by `app_assignments` and forgotten by
-  `forget_scripts` in `.agents/lib/gh-shell/handbacks.py`
+  holding the script's path tracked by `app_assignments` in that file,
+  and dropped by `forget_scripts` in `.agents/lib/gh-shell/handbacks.py`
+  once a command such as `unset` or `source` may change them
 
 #### Scenario: Another script given gh's arguments is unreadable
 

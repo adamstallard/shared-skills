@@ -19,7 +19,7 @@ task names, or else the place listed here:
 - *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25,
-  0.28, 0.30, 0.31, 0.34, 0.35 and 0.37;
+  0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39;
 - igor issue #247's body, since its result is a fact about igor's host:
   0.29.
 
@@ -28,8 +28,8 @@ the same commit, rewrite each requirement and scenario that waits on that
 task to its result: drop its wait, and drop or restate a scenario written
 for before the result, such as *Nothing is relayed on GitHub before task
 0.21*. spec-trace fails CI on a scenario no test tags, and no test can
-check such a scenario once the task is done. Numbers 0.22, 0.24, 0.27, 0.32 and
-0.36 have no task, so that the other tasks keep their numbers.
+check such a scenario once the task is done. Numbers 0.22, 0.24, 0.26, 0.27, 0.32
+and 0.36 have no task, so that the other tasks keep their numbers.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens

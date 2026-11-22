@@ -198,12 +198,19 @@ it, since the second call refuses a question left without a verdict.
 ### Requirement: An agent's own choice goes in the work's decision document or its report
 
 Under filters 3 and 4, a rhetorical question excepted, the agent SHALL
-record its choice and why in the decision document about the question's
-subject in the repository the question concerns, such as the current
-change's spec, or, for a way-of-working question, in that person's memory
-or user-level `CLAUDE.md`; where none fits, only in its report. It SHALL
-push no file for its own choice to a questions branch, so a choice in no
-decision document stops no later agent's question.
+record its choice and why, leaving out context more private than what
+the question concerns, in the decision document about the question's
+subject in the repository the question concerns, or, for a way-of-working question, in the memory or
+user-level `CLAUDE.md` of the person whose way of working it is; where
+none fits, only in its report. It SHALL push no file
+for its choice to a questions branch.
+
+#### Scenario: An agent's choice on a way-of-working question goes to the person's memory
+
+- **WHEN** the agent decides, under filter 4, a question about how the
+  person likes commit subjects worded
+- **THEN** it records its choice and reason in that person's memory or
+  user-level `CLAUDE.md`, and pushes nothing to a questions branch
 
 #### Scenario: An agent's choice with no document goes only in its report
 
@@ -213,6 +220,15 @@ decision document stops no later agent's question.
   nothing to a questions branch
 - **AND** a later agent with the same question finds no record of the
   choice, and judges the question under filters 3 and 4 itself
+
+#### Scenario: An agent's choice leaves out more private context
+
+- **WHEN** an agent working on a change in a public repository decides
+  there, under filter 4, a question about that repository, and its reason is how a
+  private backend handles a request
+- **THEN** the change's spec, where it records the choice, gives the reason
+  as what some private backend might do, and does not name the backend or
+  quote its code
 
 #### Scenario: A choice about a question with a category says only what its rules allow
 
@@ -1291,23 +1307,6 @@ search*).
 - **AND** a file about the organization, holding no `repository`, is not
   about another repository, so this rule leaves it to the other checks
 
-### Requirement: An answer typed on another surface is input until a decision document records it
-
-An answer typed directly on another surface, such as Discord, Slack or
-Linear, SHALL be input until a decision document that *Only an answer with
-authority stops a question* counts records it, such as the `accepted` record
-igor's scribe writes at the path igor PR #202 sets, which filter 1 searches
-in the repository the question concerns and in the lore repository
-(design.md: *igor-dependent rules state the end state*).
-
-#### Scenario: An answer given in a Discord thread is input until the scribe records it
-
-- **WHEN** the agent reads a maintainer's answer in a Discord thread, with a
-  tool outside filter 1's search, and no decision document that filter 1
-  counts records that answer
-- **THEN** any log file it pushes for the answer holds `authority: input`,
-  and it does not treat the question as answered
-
 ### Requirement: A hit that is not an answer is shown as labelled, quoted input
 
 Every hit the search shows that is not an answer SHALL be shown to the
@@ -1685,7 +1684,7 @@ SHALL hand back surviving questions, prepared.
 ### Requirement: A session with no person in it asks in a post, a handback or nowhere
 
 A session with no person in it SHALL NOT use the picker. An Igor worker
-SHALL ask only through its Igor, and in a flagged run asks no one. Any other
+SHALL ask only through its Igor. Any other
 such session SHALL ask in a post if the script finds its `gh` can comment
 where the question goes (task 0.9), tagged as *A question in a post tags
 one person who can decide, if there is one* and *A question no candidate
@@ -1728,11 +1727,10 @@ ask no question; what the Igor does with the question is igor PR #216's.
 - **THEN** igor counts the run flagged, and the Igor's handback comment
   asks no question (design.md: *A flagged run asks nothing and pushes nothing*)
 
-### Requirement: A way-of-working or sensitive question is held back, not asked
+### Requirement: A way-of-working question is held back, not asked
 
-With no person in the session, *A session with no person in it holds back a
-question with a category* governs a question with a category, an Igor
-worker's included, and a way-of-working question SHALL NOT be asked: the
+With no person in the session, a way-of-working question SHALL NOT be
+asked: the
 session reports that it waits for the person, and stops only if the work
 needs the answer. In any session, filter 2 SHALL defer a way-of-working
 question only into the agent's report, never a post or issue, and a report
@@ -3294,22 +3292,6 @@ Igor's handback record, never matching by the comment's text (design.md:
   does not hold
 - **THEN** the Igor pushes nothing for it
 
-### Requirement: An agent's own choice is written at the question's privacy
-
-An agent's own choice under filter 3 or 4 SHALL be written, in a decision
-document or its report, at the privacy of what the question concerns, as
-*A question is written at the privacy of what it concerns* requires of a
-question.
-
-#### Scenario: An agent's choice leaves out more private context
-
-- **WHEN** an agent working in a public repository decides there, under
-  filter 4, a question about that repository, and its reason is how a
-  private backend handles a request
-- **THEN** the change's spec, where it records the choice, gives the reason
-  as what some private backend might do, and does not name the backend or
-  quote its code
-
 ### Requirement: A person's answer is recorded in their words or not at all
 
 A person's answer SHALL be recorded in their words or not at all (design.md:
@@ -4415,9 +4397,10 @@ open, since the answer session answers such a post by number.
 ### Requirement: A question that should not have been asked is logged as a miss
 
 When a person says, in any words, a question did not need asking, the agent
-SHALL log a **miss**, in the format *A log file and a miss file have one
+SHALL log a **miss**, a miss file in the format *A log file and a miss file have one
 format* states, recording at the question's privacy the question, the filter
-that should have stopped it, and what the person said.
+that should have stopped it, and what the person said, unless a rule of this
+spec writes none for it.
 
 #### Scenario: "That was obvious" is logged against a filter
 

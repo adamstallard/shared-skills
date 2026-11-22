@@ -961,8 +961,9 @@ is refused*).
 
 #### An answer typed on another surface counts only through a decision document
 
-**Rule:** inquisitor spec, *An answer typed on another surface is input
-until a decision document records it*.
+**Rule:** inquisitor spec, *Any other answer is input, kept only in its log
+file*, until a decision document that *Only an answer with authority stops
+a question* counts records it.
 
 A linked answer is only a github.com comment or review, since only there does the `log` command fetch the comment's own text, so an answer typed
 directly on Linear or Discord can't be one. An answer typed in the answer
@@ -2407,17 +2408,18 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### For the repository's owner to decide
 
-- **Cut *An answer typed on another surface is input until a decision
-  document records it*?** *Any other answer is input* already makes an
-  answer read in a chat or tracker message input, and filter 1 already
-  counts a decision document that records it. A bullet in section 10 of
-  issue adamstallard/igor#247 cites the requirement by name, so cutting
-  it means making that bullet cite *Any other answer is input*. The
-  options:
-  - Cut it and reword that bullet. Recommended: the spec is shorter and
-    loses no behaviour.
-  - Keep it, as the one rule that names the `accepted` decision record
-    igor's scribe writes as what makes such an answer count.
+- **Cut the input case of *An unnumbered Inquisitor reply covers its
+  whole post*?** Its second sentence makes an unnumbered reply input when
+  the post lists more than one question, or lists one and asks another
+  outside the list. Such a reply counts only with a miss file named for
+  it, only an answer session names a miss file for a reply, and the
+  answer session numbers its replies to such a post, so no flow in the
+  spec reaches the case. Cutting it changes behaviour: such a reply would
+  cover every question in the post. The options:
+  - Cut that sentence and the scenario *An unnumbered reply to a post of
+    several listed questions is input*. Recommended: the spec is shorter,
+    and the case needs a miss file no writer makes.
+  - Keep it, as a guard should another writer of miss files appear.
 
 ### What other changes must provide
 
