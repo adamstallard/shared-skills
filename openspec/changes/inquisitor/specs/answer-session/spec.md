@@ -537,13 +537,14 @@ the person there, with a token that skill holds.
 
 ### Requirement: Setup checks each relay identity before its channels are used
 
-Setup SHALL check, showing failures and fixes: each relay identity, by its
-skill's check; on Discord, that `messageContent` is `true`; and posting in
-each subscribed channel. A channel is **on** while its identity's and
-posting's last checks passed, else **off**. Where posting permission is
-unreadable (task 0.20), a channel SHALL stay on, not checked, until any
-post there is refused. An off channel SHALL be neither read nor posted
-in; each opening SHALL rerun any check that failed or never ran.
+Setup SHALL check, showing failures and fixes: each relay identity by
+its skill's check; on Discord, that `messageContent` is `true`; and
+posting in each subscribed channel. A channel is **on** while its
+identity and posting checks last passed, else **off**. A channel whose
+posting permission no check can read (task 0.20) SHALL stay on, shown
+not checked, until a post there is refused for permission. An off
+channel SHALL not be read or posted in; each opening SHALL rerun failed
+and unrun checks.
 
 #### Scenario: Refused member search does not fail setup
 
@@ -582,10 +583,10 @@ in; each opening SHALL rerun any check that failed or never ran.
   subscribed team, and the relay's own check passes
 - **THEN** setup shows the team's posting check as not checked, never as
   passed, and the team counts as on
-- **AND** once Linear refuses a relay post there, the refusal counts as a
-  failed posting check: the post is handled as *A failed relay post is
-  reported to the person* says, and the team stays off until the relay's
-  own check passes at a later opening
+- **AND** once Linear refuses a relay post there for lack of permission,
+  the refusal counts as a failed posting check: the post is handled as *A failed relay post is
+  reported to the person* says, and the team stays off until the next
+  opening
 
 ### Requirement: Setup opens on an incomplete configuration
 
@@ -1598,13 +1599,13 @@ automatic post's prefix, `Recorded answer: ` or `Inquisitor: `, becomes
 
 ### Requirement: An edit to a questions-branch answer pushes a new log file
 
-When an edit leaves a `User says: ` answer to a questions-branch log
-file's question, the answer session SHALL push a new log file if that
-file is unanswered or answered only by answer files it pushed for this
-relayed answer's earlier texts. The new file holds the earlier answer
-file's question, or the question the person saw if there is none, and
-names the log file in `answers` unless that log file is itself the
-earlier answer, pushed with no `answers`. The newest file counts.
+When an edit leaves a `User says: ` answer to a question with no
+category in a questions-branch log file, the answer session SHALL push a
+new log file if that file is unanswered or answered only by the
+session's answer files for this answer's earlier texts. The new file
+holds the earlier answer file's question, or with none the question the
+person saw, and names the log file in `answers` unless that log file is
+itself the earlier answer. The newest file counts as the answer.
 
 #### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
 
@@ -2432,21 +2433,19 @@ instructions.
 
 ### Requirement: The README warns that a relay's token can be printed
 
-While github-app hands a relay identity's token to a command that can
-print it, the inquisitor's README SHALL say that any agent on the person's
-machine can print that token and post `User says: ` unseen by the post
-hook; once github-app hands the token to no such command, the README SHALL
-not say so.
+For each of github-app and linear-app that hands a relay identity's token
+to a command that can print it, the inquisitor's README SHALL say that any
+agent on the person's machine can print that token and post `User says: `
+unseen by the post hooks.
 
 #### Scenario: The README warns that a relay's token can be printed
 
-- **WHEN** the README is checked while a github-app command can print a
-  relay identity's token, as its `token` command does, or its `gh` command
-  does when an agent runs `gh auth token` through it
-- **THEN** it says any agent on the person's machine can print that token
-  and post `User says: ` unseen by the post hook
-- **AND** once github-app hands a relay identity's token to no command that
-  can print it, the README holds no such warning
+- **WHEN** the README is checked while github-app's `token` command, or
+  its `gh` command through `gh auth token`, and linear-app's `token` or
+  `headers` command can print a relay identity's token
+- **THEN** it says, for GitHub and for Linear, that any agent on the
+  person's machine can print that token and post `User says: ` unseen by
+  the post hooks
 
 ### Requirement: The person can decline to answer
 

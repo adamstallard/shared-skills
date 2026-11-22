@@ -641,8 +641,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       advisory is published, reviewing misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
-      blocked picker or post, and, while github-app gives out a relay's
-      token, the warning that any agent can take it (answer-session spec:
+      blocked picker or post, and, while github-app or linear-app hands
+      a relay's token to a command that can print it, the warning that any
+      agent can print it and post `User says: ` (answer-session spec:
       *The README warns that a relay's token can be printed*).
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook

@@ -240,13 +240,13 @@ prefix that the answer session did not make would mislead the answer
 session about that thread. Any agent on the person's machine can make such
 a post: on Linear or Discord through the relay's own skill, which nothing
 checks (answer-session spec: *A reserved prefix outside the answer session
-is checked only on GitHub*), and on GitHub with a printed relay token. The
-person is accountable for every such post (*The person answers for what
-their relay posts*). The answer-session decision record accepts the GitHub
-path in *Constraint: Until github-app hands a relay identity's token to no
-command that can print it, any agent on the person's machine can print a
-relay App's token and post `User says: ` with a plain HTTP call no post hook
-sees*.
+is checked only on GitHub*), and on GitHub or Linear with a printed relay
+token. The person is accountable for every such post (*The person answers
+for what their relay posts*). The answer-session decision record accepts
+the printed-token path in *Constraint: While github-app or linear-app hands a relay
+identity's token to a command that can print it, any agent on the person's
+machine can print that token and post `User says: ` with a plain HTTP call
+no post hook sees*.
 
 ### What the answer session does by itself
 
@@ -2394,10 +2394,11 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### What other changes must provide
 
-- **github-app still hands a relay identity's token to commands that can
-  print it.** adamstallard/shared-skills#96's body states what github-app
-  must change. Until it does, *The README warns that a relay's token can be
-  printed* keeps the README's warning.
+- **github-app and linear-app still hand a relay identity's token to
+  commands that can print it.** adamstallard/shared-skills#96's body
+  states what github-app must change, and #112's what linear-app must. Until each does, *The README
+  warns that a relay's token can be printed* keeps its warning for that
+  skill.
 
 ### Outside this change
 
@@ -2412,23 +2413,17 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### For a person to decide
 
-- **Does the README warn that the Linear relay's token can be printed?**
-  The answer-session spec's *The README warns that a relay's token can be
-  printed* and the matching Constraint in its decision record cover only
-  github-app. The answer session holds the Linear relay's token only in
-  memory (*The Linear relay's token stays in memory*), but gets it from
-  linear-app's `token` command, which prints it to any caller. So any
-  agent on the person's machine can forge the person's answer on Linear,
-  posting `User says: ` with a plain HTTP call, and since the answer
-  session needs that command, the exposure is permanent. Options:
-  (a) extend the README warning and the Constraint to Linear for good,
-  where github-app's last only until #96 lands; (b) also ask linear-app
-  for a way to hand the token over that no agent can print, as github-app
-  is asked; (c) leave Linear out of the warning, as the record's first
-  Constraint accepts that an agent can read a relay's key from the
-  keychain. Recommended: (a). It makes the README
-  true at the cost of one clause, and the first Constraint in the record
-  already accepts that an agent set on forging can do so.
+- **Cut *The answer session polls GitHub's notifications* for now?** Task
+  0.15 checks whether notifications report every GitHub mention, relay
+  reply, review request and assignment. Until it shows they do, *Until
+  notifications are measured, the poll reads every GitHub question source*
+  reads all of those directly, so reading notifications too finds nothing
+  new. Options: (a) cut the requirement, its Rationale entry, the
+  `Last-Modified` time the state folder keeps for it and the notifications
+  wording in the scenarios of *Until notifications are measured, …*, and
+  have task 0.15 add the rule back if notifications prove complete;
+  (b) keep it. Recommended: (a), since it shortens the spec and loses no
+  question while the full read runs.
 
 ### Left to implementation
 

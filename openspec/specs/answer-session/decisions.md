@@ -2,17 +2,17 @@
 
 ## Constraints
 
-- **Constraint: The inquisitor's GitHub post hook and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
+- **Constraint: The inquisitor's GitHub post hook and the refusals asked of github-app and linear-app, to hand a relay identity's token to no command that can print it, guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
   Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
-  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/
+  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
-- **Constraint: Until github-app hands a relay identity's token to no command that can print it, any agent on the person's machine can print a relay App's token and post `User says: ` with a plain HTTP call no post hook sees.**
-  Because: the inquisitor asks github-app for that refusal and ships without it; the refusal would close the skill's own commands, though not the keychain path the constraint above accepts.
-  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); and with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token
-  Holds while: github-app hands a relay identity's token to a command that can print it.
-  Paths: .agents/skills/github-app/
+- **Constraint: While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
+  Because: the inquisitor asks github-app (adamstallard/shared-skills#96) and linear-app (adamstallard/shared-skills#112) to hand the token to no such command, and ships without either; each change would close its skill's own commands, though not the keychain path the constraint above accepts.
+  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
+  Holds while: github-app or linear-app hands a relay identity's token to a command that can print it.
+  Paths: .agents/skills/github-app/, .agents/skills/linear-app/
 
 - **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
   Because: the only layout the answer session's prototype has been built and used in is the fullscreen one, so no other layout has a design to build from, and `/answer` typed in another layout shows the session there as it comes, untried.
