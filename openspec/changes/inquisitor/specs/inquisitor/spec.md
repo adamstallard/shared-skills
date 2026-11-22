@@ -38,10 +38,11 @@ repository* to a different one, which holds the Igor's configuration; in
 this spec *lore repository* always means the one holding the entries.
 
 *A questions branch* is a repository's orphan branch `questions`. It holds
-every question and miss file about that repository; a lore repository's
+every log and miss file about that repository; a lore repository's
 also holds the files about its collective's questions, and its citation
-files. *A questions-branch file* is a file on one, and *an
-answer file* is one holding an answer, whether or not it lists, in
+files. *A questions-branch file* is a file on one; *a
+log file* is one logging a question, *a question file* is a log file
+holding no answer, and *an answer file* is a log file holding an answer, whether or not it lists, in
 `answers`, earlier files there that logged the question unanswered. A log
 file is *unanswered* when it holds no answer and no answer file is its
 answer, as *A named file's answer is the newest answer file naming it*
@@ -673,17 +674,13 @@ the last fetch*).
 - **WHEN** `gh` cannot reach GitHub during the search
 - **THEN** the search output says the repository's issues were not searched
 
-#### Scenario: A clone's unknown change time is said
+#### Scenario: A clone's last fetch is shown, or said to be unknown
 
-- **WHEN** a configured lore clone has no reflog entry for its
-  remote-tracking default branch
-- **THEN** the search output says its last change time is unknown
-
-#### Scenario: A clone's last change is shown
-
-- **WHEN** a configured lore clone's remote-tracking default branch was last
-  updated by a fetch 30 days ago
-- **THEN** the search output gives that date beside the clone's results
+- **WHEN** one configured lore clone's remote-tracking default branch was
+  last updated by a fetch 30 days ago, and another's has no reflog entry
+  to date its last fetch
+- **THEN** the search output gives that date beside the first clone's
+  results, and says the second's last fetch time is unknown
 
 ### Requirement: The search command runs filter 1 alone for the answer session
 
@@ -847,8 +844,11 @@ another repository is input* and leave out each file the item's visibility hides
 - **WHEN** `branch-search` prints a hit
 - **THEN** an input's `reason` is one of `unconfirmed`, `unanswered`,
   `miss`, `superseded` and `unreadable`
-- **AND** `landed` is `true`, `false`, or `null` for a file whose
-  `recorded_in` pins no commit
+- **AND** `landed` is `true` when the file's pinned commit has landed, as
+  *An answer recorded on a work branch counts for other work once it
+  lands* defines, so the file counts for every reader,
+  `false` when it does not or the script cannot check, and `null` for a
+  file whose `recorded_in` pins no commit
 
 #### Scenario: Given a run's item, the branch search applies the run's rules
 
@@ -864,26 +864,6 @@ another repository is input* and leave out each file the item's visibility hides
 - **WHEN** `branch-search` cannot fetch the repository's questions branch
 - **THEN** it exits with an error and prints no `hits`, so a caller reports
   the branch as not searched
-
-### Requirement: A decision hit that has not landed counts only where its commit is
-
-`landed` SHALL be `null` for a file whose `recorded_in` pins no commit;
-otherwise `true` when *An answer recorded on a work branch counts for
-other work once it lands* counts the file for every reader, and `false`
-when it does not or the script cannot check. A caller SHALL treat a
-`decision` hit whose `landed` is `false` as that requirement treats a
-file that has not landed: as input, labelled as not yet merged, unless
-the caller's branch contains the pinned commit.
-
-#### Scenario: A squash-merged decision has landed, and an unmerged one counts only on its branch
-
-- **WHEN** `branch-search` prints two `decision` hits, one whose pull
-  request was squash-merged with the document on the default branch, and
-  one whose pinned commit is only on an open pull request's branch
-- **THEN** the first has `landed: true`, and the second `landed: false`
-- **AND** a caller whose branch lacks the second's commit takes it as
-  input, labelled as not yet merged, and one whose branch contains it
-  counts it
 
 ### Requirement: The Igor reads questions branches with the script
 
@@ -2552,8 +2532,7 @@ before the next file it pushes to that branch, keeping it pending until then. Th
 ### Requirement: The answer session's files are never kept pending
 
 The answer session SHALL pass the `log` and `cite` commands' session
-option on every push. With it, the command, which accepts the option
-from any caller, SHALL fetch and push again when the branch moved, keep
+option on every push. With it, the command SHALL fetch and push again when the branch moved, keep
 no pending copy of a file it cannot push, and tell the session why the
 push failed, leaving the file's retry to the session's owed push, which
 the answer-session spec sets for each kind of file.

@@ -478,8 +478,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         a handled file on every close of a questions-branch file*). It is
         written only through the command's session option, which only the
         answer session passes; a `handled` or `closes` key, or a hash-only
-        miss file, is refused without it; the command does not check its
-        caller.
+        miss file, is refused without that option.
       - Each answer is written in quote lines (design.md: *A log file's
         answer is written as quote lines*):
         - with a github.com `answer_link`, read from the linked comment

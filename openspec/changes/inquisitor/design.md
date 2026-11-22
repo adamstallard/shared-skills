@@ -1410,9 +1410,6 @@ would poll, post and push twice. The session holding the lock checks it by
 its session id, not its name, because every session the `answer` command
 starts is named `Answers`.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: A TLA+
-model of the answer session's owed pushes and lock*.
-
 #### Two commands open the answer session
 
 **Rule:** answer-session spec, *Two commands open an answer session*;
@@ -1690,8 +1687,8 @@ one included, stop the file it names being shown as unanswered.
 **Rule:** inquisitor spec, *The log command withholds a link where it would
 leak*; *A log or miss file is as private as its more private repository*;
 *The answerer's confirmation can send a record somewhere more visible*;
-answer-session spec, *No answer file goes somewhere more visible than its
-thread unconfirmed*; *A recorded answer is posted by itself only when no
+answer-session spec, *The preview warns before a record goes somewhere
+more visible*; *A recorded answer is posted by itself only when no
 more private than its thread*.
 
 **Why:** the URL would point the readers of a more visible questions branch
@@ -1808,13 +1805,14 @@ a person's since the answer session cannot tell the two apart.
 #### Filters 2 to 4 judge every incoming question
 
 **Rule:** answer-session spec, *Filters 2 to 4 judge every incoming
-question*; *Filters 2 to 4 only suggest a verdict on other questions*; *An
+question*; *A clear filter 2 to 4 failure gets its fixed reply by
+itself*; *Filters 2 to 4 only suggest a verdict on other questions*; *An
 automatic post's text is fixed by the answer session*.
 
 *Ruled out by a scenario:* only suggesting a verdict, so the person handles
 every deferrable or cheap agent's question by hand (answer-session spec:
-*Filters 2 to 4 judge every incoming question*, scenario *A deferrable agent's
-question is handled for the person*).
+*A clear filter 2 to 4 failure gets its fixed reply by itself*, scenario
+*A deferrable agent's question is handled for the person*).
 
 #### A question another skill requires carries a line the answer session matches
 
@@ -2388,6 +2386,26 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+
+### Behaviour a person must choose
+
+- **Can the person relay an answer unrecorded from the answer session's
+  preview?** When an answer's record would go to a questions branch more
+  visible than its thread, the preview offers three things: confirm the
+  record there (*The preview warns before a record goes somewhere more
+  visible*), reword the answer, or move the record to another subscribed
+  or lore repository (*The person can pick another place in the
+  preview*). Rewording still records the answer on that branch, and
+  often no other repository fits, so the person cannot relay the answer
+  without its record reaching readers the thread lacks. An agent asking
+  through the host's question tool, by contrast, records nothing when the
+  person answers that it is not to be recorded, and the answer session
+  relays a question with no place unrecorded. Options: (a) the preview
+  also offers relaying the answer unrecorded, except for a question a
+  questions-branch file holds, whose file only an answer file closes;
+  (b) keep it as it is, and the person relays such an answer by hand.
+  Recommended: (a), which matches the asking agent's case and the
+  no-place case.
 
 ### What other changes must provide
 

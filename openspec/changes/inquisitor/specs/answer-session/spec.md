@@ -21,7 +21,8 @@ inquisitor's, or that spec's, *Title*:
   answered; 2, deferrable; 3, not a real question; 4, cheap to reverse
   (the inquisitor's *Every question passes four filters before a person
   sees it*). Filters 2 to 4 each have a fixed `Inquisitor: ` text, given
-  in the scenarios of *Filters 2 to 4 judge every incoming question*.
+  in the scenarios of *A clear filter 2 to 4 failure gets its fixed reply
+  by itself*.
 - A question's **category** is `vulnerability`, `secret` or `personal` (the
   inquisitor's *Some questions are recorded by hash only*).
 - An **Igor** is one of the igor project's AI teammates, and an **Igor
@@ -116,7 +117,7 @@ An **automatic post** is a relay post starting `Recorded answer: ` or
 person, except the `Recorded in: ` URL the person gives in a filter 1
 reply. The answer session SHALL post an automatic post by itself only as
 *Filter 1 posts a recorded answer by itself in the question's thread* or
-*Filters 2 to 4 judge every incoming question* allows, and otherwise only
+*A clear filter 2 to 4 failure gets its fixed reply by itself* allows, and otherwise only
 once the person confirms.
 
 #### Scenario: An automatic post holds no words the person wrote
@@ -1013,8 +1014,7 @@ set by its mentions* says (igor #229).
 
 A log file whose `asked_in` links a thread message this machine's polls
 have read SHALL follow that message by exact link, taking whatever the answer
-session decides about it, and is never shown on its own. An Igor's log
-file follows only *An Igor's log file follows its own handback comment*.
+session decides about it, and is never shown on its own.
 
 #### Scenario: A questions-branch file follows the message it links
 
@@ -1389,15 +1389,6 @@ relay by hand.
   its question leaves this machine's queue, and the person is told the
   asker has not got it and shown its text to relay by hand
 
-#### Scenario: Another machine asks again while an answer is pending
-
-- **WHEN** one machine holds an answer as answered, not relayed, and
-  another reads the question's thread, which holds no relay post naming
-  the question
-- **THEN** the other machine shows the question as unanswered and asks
-  it as usual, while the first tells its person the asker has not got the
-  answer and shows its text to relay by hand
-
 ### Requirement: A pending answer whose channel was off returns to the queue
 
 An answer kept because its channel was off, or because a post refused
@@ -1497,8 +1488,8 @@ When a questions-branch question has no thread, or its channel here is
 off or unsubscribed, the answer file, with no `answer_link`, SHALL be
 pushed as an owed push without fetching the thread, once the answer is
 confirmed or its refused relay post turns the channel off; unless the
-question has a category or *No answer file goes somewhere more visible
-than its thread unconfirmed* withholds it. An answer with no thread is not
+question has a category or its more visible record awaits confirmation
+(*The preview warns before a record goes somewhere more visible*). An answer with no thread is not
 kept pending.
 
 #### Scenario: An answer to a questions-branch question is logged at once
@@ -1788,8 +1779,8 @@ names it only by a hash (inquisitor spec: *A handled file's keys*).
 The answer session SHALL hold a lock, the state folder's file `lock`,
 naming its session's id, name, start and if it is a background one;
 refresh it at least every 30 seconds, stale after 2 minutes
-unrefreshed; and write it atomically, taking it only when absent, stale,
-unparsable or taken over. A session SHALL open none while another holds
+unrefreshed; and take it only when absent, stale or unparsable, or on a
+takeover. A session SHALL open no answer session while another holds
 a fresh lock, but say which holds it and how to reach it, offering a
 takeover. Before each poll, post and push, it SHALL close if the lock
 names another.
@@ -1818,11 +1809,6 @@ names another.
   without asking
 - **AND** a live session's lock, refreshed at least every 30 seconds, never
   goes 2 minutes unrefreshed
-
-#### Scenario: A crash while writing the lock leaves a whole lock
-
-- **WHEN** a session crashes while replacing a stale lock
-- **THEN** the lock file holds either the old lock or the new one, whole
 
 #### Scenario: A lock that cannot be parsed is replaced on opening
 
@@ -1877,8 +1863,8 @@ The answer session SHALL give the model `propose_reply`, a tool putting
 a draft reply, or an edited relay post's text, in the prompt box; it
 SHALL post nothing, refuse a call with an `agentId`, and take a call
 without one as the main conversation's. The model's context SHALL tell
-it to use the tool for drafts, for the more public of the thread's
-readers and the question's repository's. A filter 1 decline's draft MAY
+it to draft with the tool, writing for whichever is wider: the thread's
+readers or the question's repository's. A filter 1 decline's draft MAY
 fill in only the record's URL, on the fixed post's `Recorded in: `
 line.
 
@@ -1951,8 +1937,8 @@ from choosing what the code does beyond a closed set.
   `personal` and `none`; `filter`, the filter that clearly stops the
   question, `1` to `4`, or `none`, with `hit` only for `1`, the number
   of the filter 1 hit with authority that answers it, among those the code
-  listed; for a question whose place neither a `Concerns: ` line nor a
-  questions-branch file holding it already fixes, `place`, one of the
+  listed; `place`, unless a concerns line that settles the question or a
+  questions-branch file holding it already fixes its place: one of the
   places the code listed (each subscribed repository and each configured
   lore repository, with a mapped channel's default places marked),
   `other` for a repository or collective outside them, or `none` when the model cannot
@@ -2132,32 +2118,15 @@ the `repository` and `asked_from` a miss would have.
   person cannot push to the questions branch of what it concerns
 - **THEN** the answer is relayed in its thread, and no log file is pushed
 
-### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
-
-When the questions branch an answer file would go to is more visible
-than the answer's thread, ranked as the inquisitor's *No record goes
-somewhere more visible than its source* ranks one, the answer session
-SHALL post and push nothing, even for a reworded answer, until the
-person confirms the record.
-
-#### Scenario: An answer is not posted without its record
-
-- **WHEN** an organization question asked in an issue of the private
-  `o/api` has no file, its record would go to a public lore repository's
-  questions branch, and the person answers it from that issue without
-  confirming the preview's warning
-- **THEN** nothing is posted and no file is pushed, the question stays in
-  the queue, and the person may reword the answer and confirm it
-
 ### Requirement: The preview shows where an answer will be recorded
 
 Before the person confirms an answer, or a decline that logs a miss, its
 preview SHALL show which questions branch will hold the record and its
 visibility, or that nothing will be recorded and why, and, if the
-question has no thread, that the asker gets nothing. For a log file an
-Igor pushed to a branch more private than its worker's item, it says
-instead that the worker's run gets the answer (*The preview says when an
-answer also reaches a more visible item's run*).
+question has no thread, that the asker gets nothing. For a log file with
+no `asked_in` whose `asked_from` is more visible than its branch, it says
+instead that an Igor's run on an item there gets the answer (*The preview says when an answer
+also reaches a more visible item's run*).
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2178,10 +2147,11 @@ answer also reaches a more visible item's run*).
 
 When the questions branch is more visible than the question's thread or,
 when it has no thread, than the file it came from, the preview SHALL
-warn, naming both, and let the person confirm the record or reword an
-answer. A decline that posts a reply may instead push a hash-only miss
-backing it, and one that posts nothing then logs no miss (*The answer
-session writes no miss it cannot place privately*).
+warn, naming both, and let the person confirm the record or reword the
+answer for its readers; nothing SHALL be posted or pushed for it until
+then. A decline that posts a reply may push a hash-only miss instead,
+and one that posts nothing logs no unconfirmed miss (*The answer session
+writes no miss it cannot place privately*).
 
 #### Scenario: The preview warns before a record more visible than its thread
 
@@ -2190,6 +2160,8 @@ session writes no miss it cannot place privately*).
 - **THEN** the preview warns that the record on the questions branch of
   `o/web` is public and that Discord thread is not, and offers confirming
   the answer with the record or rewording it
+- **AND** until the person confirms, nothing is posted, no file is
+  pushed, and the question stays in the queue
 
 #### Scenario: A decline's preview shows where its miss will be recorded
 
@@ -2340,14 +2312,6 @@ it or its `asked_in` links the question's message.
   questions-branch files hold
 - **THEN** the answer session pushes two handled files, each naming one
   of them
-
-#### Scenario: A thread copy declined with nothing posted shows again elsewhere
-
-- **WHEN** on one machine the person declines, with nothing to answer, a
-  thread copy a questions-branch file holds
-- **THEN** a handled file closes the questions-branch file, the thread
-  copy stays closed on that machine whatever its thread holds, and
-  another machine shows the thread copy, for the person to decline again
 
 #### Scenario: Dropping a pending answer pushes no handled file
 
@@ -2695,18 +2659,16 @@ pass any other question in a private file.
 
 When an answer with authority is recorded for a question read from its
 thread, the answer session SHALL answer it by itself, whoever asked,
-unless *A recorded answer is posted by itself only when no more private
-than its thread*, *A Linear or Discord question in doubt gets no
-automatic reply* or the question's category forbids it, posting through
+unless its category, *A recorded answer is posted by itself
+only when no more private than its thread*, *A Linear or Discord question
+in doubt gets no automatic reply* or *No automatic post repeats one in
+its chain of replies* bars it, posting through
 the relay
 
 ```
 Recorded answer: see the record below.
 Recorded in: <the URL of where the answer is recorded>
 ```
-
-followed by its `Re: ` line where *A GitHub or Linear relay post names
-its question in a Re line* requires one.
 
 #### Scenario: A relayed question gets a recorded answer by itself
 
@@ -2777,6 +2739,9 @@ more private repository* defines it, stands in for its repository's.
   document in a private repository
 - **THEN** nothing is posted by itself; the question is shown with the
   recorded answer beside it
+- **AND** nothing is posted by itself when the answering record is a log
+  file on a public repository's questions branch whose `asked_from` names
+  a private repository, since the file is as private as that repository
 
 #### Scenario: A private record is shown, not posted, in a Linear thread
 
@@ -2813,8 +2778,6 @@ The person may agree to a recorded answer shown beside a question: a
 decline under the second reason with filter 1, naming that record, which
 the answer session SHALL handle exactly as *Declining for the inquisitor
 posts the picked filter's reply* and the requirements after it say.
-Agreeing takes no note, so its miss's `said` is
-`the inquisitor should have handled it`.
 
 #### Scenario: Agreeing on a question with no thread is a filter 1 decline
 
@@ -2942,11 +2905,23 @@ that replies to no relay post.
 ### Requirement: Filters 2 to 4 judge every incoming question
 
 The session's model SHALL judge each question filter 1 did not stop
-against filters 2 to 4, sending an unclear case to the person. When an
-agent's question with no category, whose place a concerns line
-settles, clearly fails one of them where the relay can post in its thread, the answer session SHALL itself post the
-filter's fixed text, log its miss, and list the question as handled (*A
-handled file closes a questions-branch question*).
+against filters 2 to 4, sending an unclear case to the person.
+
+#### Scenario: An unclear case goes to the person
+
+- **WHEN** the model can't tell whether an agent's question can wait
+- **THEN** nothing is posted by itself, no miss is logged, and the
+  question is shown to the person as an ordinary unanswered question
+
+### Requirement: A clear filter 2 to 4 failure gets its fixed reply by itself
+
+When an agent's question whose place a concerns line settles clearly
+fails filter 2, 3 or 4, and the relay can post in its thread, the answer
+session SHALL post the filter's fixed text there by itself, log its miss
+and list the question as handled, unless *No automatic post repeats one
+in its chain of replies*, *A question with a person-required line gets
+no filter 2 to 4 reply* or *An automatic Inquisitor reply goes out only
+with a miss file* bars it.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
@@ -2966,12 +2941,6 @@ handled file closes a questions-branch question*).
   Take the option that has merit, and record what you chose and why.` on
   the first, and `Inquisitor: filter 4, cheap to reverse. Pick one, and
   record what you chose and why.` on the second
-
-#### Scenario: An unclear case goes to the person
-
-- **WHEN** the model can't tell whether an agent's question can wait
-- **THEN** nothing is posted by itself, no miss is logged, and the
-  question is shown to the person as an ordinary unanswered question
 
 #### Scenario: A thread's text cannot choose the words posted
 
@@ -3198,21 +3167,14 @@ when any of these holds:
   than its thread (with no thread, than the questions-branch file it was
   shown from), and the person has not confirmed that miss.
 
-#### Scenario: No place for the miss means no miss file
+#### Scenario: No miss goes outside the session's places or to a branch closed to the person
 
-- **WHEN** the answer session would log a miss for an agent's question
-  about an
-  organization no configured lore repository serves, or about no
-  repository or collective
+- **WHEN** the person declines, for filter 3, an agent's question that
+  concerns nothing listed: no repository or collective; `o/api`, which no
+  subscription covers; or `o/web`, whose questions branch the person
+  cannot push to
 - **THEN** no miss file is written, the person is told why, and the
   question still closes
-
-#### Scenario: No miss goes to a repository outside the session's places or closed to the person
-
-- **WHEN** the person declines, for filter 3, an agent's question in an
-  issue of `o/web` that concerns `o/api`, which no subscription covers,
-  or concerns `o/web`, whose questions branch the person cannot push to
-- **THEN** no miss file is written, and the person is told why
 
 #### Scenario: A question with a category gets no miss
 

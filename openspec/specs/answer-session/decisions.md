@@ -40,10 +40,10 @@
 
 ## Rejected
 
-- **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
-  Facing: [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md) says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer session has such requirements: a push it owes after a post survives a crash and is retried, and a crash while it writes its lock leaves the old lock or the new one whole.
-  Lost because: little is left to interleave, since each push is recorded as owed before its post and each crash outcome is accepted: a crash before an answer or miss push's post URL or reply id is saved drops that push, so at worst the answer stays pending for the person to post again, or the asker takes the reply as input with no file backing it; a crash that stops a handled or citation push's post still leaves the push to be made, since only a failed post drops it, so at worst the person meets the question again in its thread copy, which the thread keeps open, or a citation counts one lore use too many; the lock is replaced by a rename, which leaves the old file or the new one whole, https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html; and two machines' pushes to one questions branch cannot overwrite each other, since git refuses a push that would drop the other's commit, https://git-scm.com/docs/git-push
-  Instead: scenarios state every other crash and two-machine case, and tests check them.
+- **Rejected: A TLA+ model of the answer session's owed pushes.**
+  Facing: [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md) says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer session has such requirements: a push it owes after a post survives a crash and is retried.
+  Lost because: every outcome a model would find is already accepted: each push is recorded as owed before its post; a crash before the answer push's post URL, or the miss push's reply id, is saved drops that push, so at worst the answer stays pending for the person to post again, or the asker, finding no miss file behind the reply, takes it as input; a crash after a handled or citation push's post leaves the push owed, to be made after the restart, so at worst the person meets the question again until then, or a citation pushed again counts one lore use too many; and two machines' pushes to one questions branch cannot overwrite each other, since git refuses a push that would drop the other's commit, https://git-scm.com/docs/git-push
+  Instead: these gaps are accepted, and scenarios state the crash and two-machine cases the answer session handles.
   Paths: .agents/skills/inquisitor/
 
 ## Rationale
