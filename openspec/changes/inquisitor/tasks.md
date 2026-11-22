@@ -16,9 +16,10 @@ task names, or else the place listed here:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
+- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11, 0.15 and
+  0.33;
 - *igor's handback marker*: 0.6 and 0.38;
-- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25,
+- *Facts the answer session relies on*: 0.16 to 0.21, 0.23, 0.25,
   0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39;
 - igor issue #247's body, since its result is a fact about igor's host:
   0.29.
@@ -88,9 +89,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the person's `gh` login, for a mention, a review request, an
       assignment and a later comment in a thread the person was mentioned
       in, and that a conditional request answered `304` does not count
-      against the rate limit. Until then the answer session reads every
-      source (answer-session spec: *Until notifications are measured, the
-      poll reads every GitHub question source*)
+      against the rate limit. If notifications report all of them, a
+      later change may poll notifications in place of part of what the
+      poll reads (answer-session spec: *The poll reads every GitHub
+      question source*); the `304` result settles whether conditional
+      requests save anything (design.md: *How does the GitHub poll stay
+      inside the rate limit?*)
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
@@ -163,8 +167,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - task 6.4's GitHub relaying, which is every requirement that posts
         through the relay on GitHub and needs that question state;
       - on GitHub, each rule that reads a `[bot]` author login: *A
-        handback is an Igor's comment holding igor's marker* and *An
-        agent's question comes from a bot account or a log file*;
+        handback is an Igor's comment holding igor's marker*, *An
+        agent's question comes from a bot account or a log file* and *A
+        relayed question is a person's question*;
       - on GitHub, the rules that must tell whether an agent or a person
         asked:
         *Whom a message reaches is set by its mentions*, *Each item of a
@@ -186,8 +191,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       follows its own handback comment*), equals character for character
       the URL the answer session builds from what it polls, on GitHub,
       Linear and Discord. Compare an issue comment's URL with a pull
-      request comment's, `html_url` with the notifications API's URL,
-      `discord.com` with `discordapp.com`, and a Linear URL before and
+      request comment's, `discord.com` with `discordapp.com`, and a Linear URL before and
       after the issue is renamed. Where they differ, define one canonical
       form, which both sides write and compare. Record too whether Linear
       and Discord return a posted question's words unchanged. Whether they
@@ -795,9 +799,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       and the optional step that creates a lore repository, its clone and its
       configuration entry (design.md: *Setup checks direct pushes, and can
       create a lore repository*)
-- [ ] 6.3 Polling: the four sources, only while open, the catch-up on
-      opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
-      requests, poll positions, the questions and default branches of
+- [ ] 6.3 Polling: the four question sources (answer-session spec: *A
+      question asked of the person comes from one of four sources*), only
+      while open, the catch-up on opening, 60 seconds, poll positions, the
+      questions and default branches of
       every subscribed repository and configured lore repository. The
       `search` command reads only these fetched branches, and issues only
       of these repositories (answer-session spec: *The answer session's

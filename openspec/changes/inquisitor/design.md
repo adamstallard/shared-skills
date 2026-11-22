@@ -1371,19 +1371,16 @@ file of a Discord-relayed answer is a decision*).
 #### The answer session polls, only while it is open
 
 **Rule:** answer-session spec, *The answer session polls only while it is
-open*; *The answer session polls GitHub's notifications*; *The
-answer session reads with the person's credentials, except on Discord*;
-*Local state is per machine, in the state folder*; *The answer session's
-filter 1 reads only subscribed and lore repositories*; *Until
-notifications are measured, the poll reads every GitHub question source*.
-Task 0.15 also checks that a mention subscribes the person to its thread,
-so later replies there, the relay's included, arrive as notifications.
+open*; *The answer session reads with the person's credentials, except
+on Discord*; *Local state is per machine, in the state folder*; *The
+answer session's filter 1 reads only subscribed and lore repositories*;
+*The poll reads every GitHub question source*.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rationale: Until
-notifications are measured, the poll reads every GitHub question source*
-and *Rationale: The answer session polls only while it is open*, and the
-*Rationale* entries named by the other titles above, except *Local state
-is per machine, in the state folder*, whose reasons follow.
+*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rationale: The
+poll reads every GitHub question source* and *Rationale: The answer
+session polls only while it is open*, and a *Rationale* entry for each
+other requirement the **Rule:** line names, except *Local state is per
+machine, in the state folder*, whose reasons follow.
 
 #### Local state is per machine, in the state folder
 
@@ -2331,7 +2328,7 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
+**Tasks 0.16 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
@@ -2413,17 +2410,21 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### For a person to decide
 
-- **Cut *The answer session polls GitHub's notifications* for now?** Task
-  0.15 checks whether notifications report every GitHub mention, relay
-  reply, review request and assignment. Until it shows they do, *Until
-  notifications are measured, the poll reads every GitHub question source*
-  reads all of those directly, so reading notifications too finds nothing
-  new. Options: (a) cut the requirement, its Rationale entry, the
-  `Last-Modified` time the state folder keeps for it and the notifications
-  wording in the scenarios of *Until notifications are measured, …*, and
-  have task 0.15 add the rule back if notifications prove complete;
-  (b) keep it. Recommended: (a), since it shortens the spec and loses no
-  question while the full read runs.
+- **How does the GitHub poll stay inside the rate limit?** *The poll
+  reads every GitHub question source* makes at least three requests per
+  subscribed repository every 60 seconds, plus one per open pull request
+  for its reviews, against the 5,000 requests an hour the person's `gh`
+  login shares with their agents: about 27 repositories use it all before
+  counting pull requests. Nothing says what a poll does when GitHub
+  refuses it for the rate limit. Options: (a) read with conditional
+  requests, sending each list's last `ETag`; GitHub documents that an
+  authorised request answered `304` does not count, and task 0.15
+  measures it, so if a `304` does count, (a) saves nothing; (b) poll
+  GitHub less often as subscriptions grow; (c) accept the cost, with a
+  rule that a refused poll keeps its poll positions and waits for
+  GitHub's reset time. Recommended: (a), since it keeps most of the
+  hourly limit free for the person's other `gh` use; (c)'s rule is
+  wanted with any option.
 
 ### Left to implementation
 

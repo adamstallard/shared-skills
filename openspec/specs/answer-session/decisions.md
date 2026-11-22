@@ -48,10 +48,6 @@
 
 ## Rationale
 
-- **Rationale: The answer session polls GitHub's notifications.**
-  Polling notifications costs little while nothing changes: a conditional request that finds nothing new does not count against the rate limit, and GitHub's `X-Poll-Interval` header sets how long to wait. Task 0.15 checks that the endpoint behaves as documented; if it does not, this reason fails.
-  Evidence: GitHub's notifications API documents conditional requests and `X-Poll-Interval`, https://docs.github.com/en/rest/activity/notifications
-
 - **Rationale: The answer session reads with the person's credentials, except on Discord.**
   Reading with the person's own logins keeps a relay's token to the right to post, and reads nothing the person reads under a bot's name. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts.
   Evidence: Discord's Community Guidelines, which its Terms of Service incorporate, say "Do not use self-bots or user-bots. Each account must be associated with a human, not a bot.", https://discord.com/terms/guidelines
@@ -62,11 +58,9 @@
 
 - **Rationale: The answer session polls only while it is open.**
   The skill runs nothing while the answer session is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the session is closed would be lost. Polling needs neither, and catches up on what came while the session was closed when it next opens.
-  Each poll also fetches every questions branch it reads, a fetch each, since a push to a branch creates no notification.
   Evidence: GitHub delivers each webhook to a payload URL as an HTTP request, https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks
   Evidence: Linear's webhooks need a publicly reachable HTTPS URL, https://linear.app/developers/webhooks
   Evidence: Discord's gateway is a persistent WebSocket connection, https://discord.com/developers/docs/events/gateway
-  Evidence: none of GitHub's notification reasons is a push to a branch, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
 
 - **Rationale: The session's model has no shell, no writing tool and no web fetch.**
   The threat is a crafted message in a subscribed channel steering the model into posting, or recording a decision, as the person. A hook that reads a tool call's command line cannot stop a model that has a shell: `eval`, an encoded string, a script it writes, `python3 -c` or `curl` with a token from the keychain each runs what the hook never reads, which is why the post hooks guard only against accidents (this record's first Constraint). A model with no shell and no tool that posts or writes can do none of it, so the worst an injection can do is propose a reply the person sees and confirms, or pick one of `record_verdict`'s fixed values. General web fetch is left out too, since a crafted message could have the model fetch an attacker's URL carrying private text from another thread. Claude Code must enforce the restriction itself, since a hook would bring back the same gap; task 0.34 measures how.
@@ -88,8 +82,8 @@
   Evidence: Discord documents `bot` on its user object, https://discord.com/developers/docs/resources/user#user-object
   Evidence: the 2026-11-19 measurements, recorded in tasks 0.16 and 0.17, [tasks.md](../../changes/inquisitor/tasks.md)
 
-- **Rationale: Until notifications are measured, the poll reads every GitHub question source.**
-  The poll reads each subscribed repository's issues, pull requests and their comments, so it costs rate-limited requests for every subscribed repository, each repository of a subscribed owner included, a cost accepted until task 0.15 shows notifications alone suffice. Without them a question could be missed: GitHub notifies a person only for a thread they take part in, watch or are asked to review, so a mention of their relay, the bot account that posts for them and that an asker may tag in place of the person, in a thread they never joined reaches them through no notification.
+- **Rationale: The poll reads every GitHub question source.**
+  The poll reads each subscribed repository's issues, pull requests and their comments, so it costs rate-limited requests for every subscribed repository, including every repository of a subscribed owner, such as an organization. Reading notifications alone could miss a question: unless the person watches the whole repository, GitHub notifies them only for a thread they take part in or are asked to review. Their relay is the bot account that posts for them, which an asker may tag in place of the person, and a mention of it in a thread the person never joined reaches them through no notification.
   Evidence: GitHub's notification reasons, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
   Evidence: the REST rate limit these reads count against, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
 

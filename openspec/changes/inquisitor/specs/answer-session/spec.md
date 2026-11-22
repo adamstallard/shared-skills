@@ -1196,36 +1196,21 @@ of every subscribed repository and configured lore repository.
   its answer session open
 - **THEN** no channel or questions branch is polled
 
-### Requirement: The answer session polls GitHub's notifications
+### Requirement: The poll reads every GitHub question source
 
-On GitHub the answer session SHALL read notifications conditionally,
-sending the last notifications response's `Last-Modified` time as
-`If-Modified-Since`, and SHALL skip that read at any poll sooner than that
-response's `X-Poll-Interval`.
+At each GitHub poll the answer session SHALL read, since its poll
+position, each subscribed repository that is on: its new issues and pull
+requests, its new comments, reviews and review-thread comments on any of
+them, and its review requests and assignments naming the person.
 
-#### Scenario: GitHub's poll interval is honoured
+#### Scenario: A review request, a review-thread reply and a comment on an old issue are found
 
-- **WHEN** GitHub's last notifications response set `X-Poll-Interval: 120`
-- **THEN** the answer session waits at least 120 seconds before reading the
-  notifications endpoint again, and sends the `Last-Modified` time it
-  received
-
-### Requirement: Until notifications are measured, the poll reads every GitHub question source
-
-Unless task 0.15 has shown that notifications report every GitHub
-mention, relay reply, review request and assignment (the first three
-question sources), the answer session SHALL also read, at each GitHub
-poll and since its poll position, each subscribed repository's new issues
-and pull requests, their comments, reviews and review-thread comments,
-and the review requests and assignments naming the person.
-
-#### Scenario: A review request and a review-thread reply are found without notifications
-
-- **WHEN** task 0.15 has not shown that, and since the last poll a pull
-  request in a subscribed repository requested the person's review, and
-  someone replied in one of its review threads to a relay post, with
-  neither reported as a notification
-- **THEN** the answer session shows both as questions asked of the person
+- **WHEN** since the last poll a pull request in a subscribed repository
+  requested the person's review, someone replied in one of its review
+  threads to a relay post, and someone mentioned the person in a new
+  comment on an issue opened a month earlier
+- **THEN** the answer session shows all three as questions asked of the
+  person
 
 ### Requirement: The answer session reads with the person's credentials, except on Discord
 
@@ -1239,8 +1224,8 @@ and post, in the channels it has been added to.
 
 #### Scenario: Reading uses the person's gh login and posting the relay
 
-- **WHEN** the answer session reads a subscribed repository's
-  notifications, then relays an answer there
+- **WHEN** the answer session reads a subscribed repository's issues,
+  then relays an answer there
 - **THEN** it reads through the person's `gh` login, and posts as the
   GitHub relay identity
 
@@ -1397,9 +1382,9 @@ user of the machine can read.
 
 ### Requirement: A failed relay post is reported to the person
 
-When a surface refuses a relay post or its command fails, the answer
-session SHALL tell the person why nothing was posted, as the surface or
-skill says. A failed question to the asker SHALL leave its question as
+When a surface refuses a relay post or its edit, or the relay identity's
+command fails, the answer session SHALL tell the person why nothing was posted or
+changed, as the surface or skill says. A failed question to the asker SHALL leave its question as
 it was, and a failed automatic post SHALL leave its question shown as
 unanswered; a failed answer stays pending (*An answer that cannot reach
 its thread is kept pending*).
@@ -1599,8 +1584,8 @@ automatic post's prefix, `Recorded answer: ` or `Inquisitor: `, becomes
 
 ### Requirement: An edit to a questions-branch answer pushes a new log file
 
-When an edit leaves a `User says: ` answer to a question with no
-category in a questions-branch log file, the answer session SHALL push a
+When an edit the surface accepts leaves a `User says: ` answer to a
+questions-branch log file's question that has no category, the answer session SHALL push a
 new log file if that file is unanswered or answered only by the
 session's answer files for this answer's earlier texts. The new file
 holds the earlier answer file's question, or with none the question the
@@ -1772,9 +1757,7 @@ outlives it.
 - **WHEN** the answer session saves its working state
 - **THEN** it writes only to the state folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
-  record, each channel's poll position, the `Last-Modified` time of the
-  last response from GitHub's notifications endpoint,
-  each check's last result, relay post ids, the question on screen, the
+  record, each channel's poll position, each check's last result, relay post ids, the question on screen, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
   subscribed repository's questions and default branches (a lore
@@ -2927,13 +2910,13 @@ question concerns* says.
 ### Requirement: No automatic post repeats one in its chain of replies
 
 The answer session SHALL NOT make by itself an automatic post whose
-text, apart from its `Re: ` line and any `question <n>: ` number, is the same
-as an earlier automatic post's in the chain of replies of the question it
-would answer: such a repeat goes to the person. A question's **chain of
-replies** is the question, the relay post it replies to, the question
-that post names by its
-`Re: ` line or, on Discord, by replying, and so on back to a question
-that replies to no relay post.
+text, apart from its `Re: ` line, `question <n>: ` number and
+`The person chose this filter.` line, matches an earlier automatic
+post's in the question's chain of replies, but shows the person the
+question. A question's **chain of replies** is the question, the relay
+post it replies to, the question that post names by its `Re: ` line or,
+on Discord, by replying, and so on back to a question that replies to no
+relay post.
 
 #### Scenario: A repeated automatic post goes to the person
 
