@@ -1260,8 +1260,9 @@ grouping supersedes still answers the file it names.
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
 An answer file SHALL stop counting for its own question once a newer answer
-file that would count names the same file, and SHALL be shown as input, labelled as
-superseded. It SHALL still supersede the older files in its hash group,
+file becomes the answer of the file both name (*A named file's answer is
+the newest answer file naming it*), and SHALL be shown as input, labelled
+as superseded. It SHALL still supersede the older files in its hash group,
 which can leave that group with no answer that counts (design.md: *`answers`
 decides a named file's answer; the search groups by hash*).
 
@@ -3662,14 +3663,6 @@ file.
   shows the file
 - **AND** a reader that processes miss files accepts this file, reading no
   key from it
-
-#### Scenario: A hash-only miss file on a lore repository backs an organization's question
-
-- **WHEN** the question is about the organization, and the hash-only miss
-  file is on the team's lore repository's questions branch
-- **THEN** it backs an `Inquisitor: ` reply to that question, since pushing
-  there takes write access to
-  the lore repository, which is what a collective's question concerns
 
 ### Requirement: A log file is read by its frontmatter and its body's end
 

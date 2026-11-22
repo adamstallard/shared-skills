@@ -421,8 +421,8 @@ Any other post SHALL be one question, with no number.
 
 ### Requirement: A deferred item is numbered but not shown
 
-An item of an open-questions section that begins with a deferral label,
-one of those the inquisitor's *A question in a post is a listed item or a
+An item of an open-questions section begun by a deferral label, one of
+those the inquisitor's *A question in a post is a listed item or a
 sentence ending in a question mark* lists, such as "Not in this change",
 SHALL keep its place in the numbering but SHALL NOT be shown as a
 question, since the asking agent listed it as not done rather than asking
@@ -1292,9 +1292,9 @@ a relay post SHALL name its question by replying to it.
 
 ### Requirement: An answer whose own last line starts with Re is reworded, not posted
 
-The answer session SHALL NOT post an answer whose own last line starts
-with `Re: `, which a reader would take for the line naming a question, and
-SHALL ask the person to reword it.
+The answer session SHALL NOT post an answer, or an edit of a relay post,
+whose own last line starts with `Re: `, which a reader would take for the
+line naming a question, and SHALL ask the person to reword it.
 
 #### Scenario: An answer ending in its own Re line is sent back for rewording
 
@@ -2064,8 +2064,7 @@ with its `Re: ` line where *A GitHub or Linear relay post names its
 question in a Re line* requires one. The model SHALL draft both
 added lines for the more public of the thread's audience and the
 readers of the repository the question concerns, and the session SHALL
-post the `Discussion: ` line as one line, each line break in it made a
-space.
+post each of them as one line, each line break in it made a space.
 
 #### Scenario: A rephrasing is drafted for the more public audience
 
@@ -2144,11 +2143,14 @@ the `repository` and `asked_from` a miss would have.
 
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
-When the questions branch the answer file would go to is more visible than
-the thread the answer is given in, ranked as the inquisitor's *No record
-goes somewhere more visible than its source* ranks one, the answer session SHALL post the answer and push its answer file only
-once the person confirms the preview's warning. Until then it SHALL post
-nothing; a reworded answer needs the same confirmation.
+When the questions branch an answer file would go to is more visible
+than the answer's thread, ranked as the inquisitor's *No record goes
+somewhere more visible than its source* ranks one, the answer session
+SHALL post and push nothing, even for a reworded answer, until the
+person confirms the record. Where a questions-branch file holds the
+question, fixing its place, the person may instead relay the answer with
+no answer file; the asker then logs the relay post, a bot's comment, as
+`input`.
 
 #### Scenario: An answer is not posted without its record
 
@@ -2158,6 +2160,15 @@ nothing; a reworded answer needs the same confirmation.
   confirming the preview's warning
 - **THEN** nothing is posted and no file is pushed, the question stays in
   the queue, and the person may reword the answer and confirm it
+
+#### Scenario: A questions-branch question's answer is relayed with no record
+
+- **WHEN** an agent's Discord message asks a question about the public
+  `o/web` that its log file on `o/web`'s questions branch holds, and in
+  the preview the person picks relaying the answer with no record
+- **THEN** the relay posts the answer in that Discord thread, and the
+  session pushes no answer file and no handled file, so the log file
+  stays unanswered until the asker's answer file names it
 
 ### Requirement: The preview shows where an answer will be recorded
 
@@ -2393,8 +2404,8 @@ retried* stops it.
 
 The answer session SHALL record each miss or citation file it pushes as
 an owed push before the post leading to it or, with nothing posted,
-before the push; drop it if the post fails or, for a miss file, which is
-named by a hash of its reply's surface and id, if that id was not saved; and retry it
+before the push; drop it if the post fails or, for a miss file named by
+its reply's id, if a crash kept that id from the state folder; and retry it
 at each poll and opening until it succeeds or *An owed push refused for
 good is not retried* stops it.
 
@@ -2625,6 +2636,12 @@ The person SHALL be able to reopen, on the machine where they declined
 it, a thread copy declined with nothing posted, which puts it back in
 their queue, and SHALL NOT be offered any other declined question to
 reopen; one declined with a post is changed by editing that post.
+
+#### Scenario: A thread copy declined with nothing posted is reopened
+
+- **WHEN** the person declined a thread copy with nothing posted, and
+  reopens it on that machine
+- **THEN** it is back in their queue
 
 #### Scenario: A question declined with a post is not reopened
 
