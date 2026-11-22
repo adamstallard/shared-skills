@@ -226,17 +226,6 @@ take the time of the poll on this machine that first found it.
   `asked_in` whose adding commit is dated 1970
 - **THEN** each of the three questions has the asked time 09:30
 
-### Requirement: A poll position marks the newest message a poll read
-
-A channel's **poll position** SHALL be the time of the newest message its
-last poll read.
-
-#### Scenario: A channel's poll position is its newest message read
-
-- **WHEN** a Linear team's last poll read messages up to one posted at
-  10:04
-- **THEN** that team's poll position is 10:04
-
 ### Requirement: The state folder is under the XDG state home
 
 The answer session's **state folder** SHALL be
@@ -406,9 +395,9 @@ for such a question.
 The answer session SHALL treat each item of a post's open-questions
 section, as the inquisitor's *A question in a post is a listed item or a
 sentence ending in a question mark* defines one, as its own question,
-numbered from 1 by its position among the post's such items. Where a post
-is shown as several questions, a relay post about one SHALL hold
-`question <n>: ` right after its reserved prefix, and never its words.
+numbered from 1 by its position among the post's such items. A relay post
+about any question of such a post SHALL hold `question <n>: `, its
+number, right after its reserved prefix, and never the question's words.
 Any other post SHALL be one question, with no number.
 
 #### Scenario: Each listed question is shown and answered by itself
@@ -1135,13 +1124,13 @@ as it was.
 ### Requirement: The answer session polls only while it is open
 
 The answer session SHALL poll only while it is open, and nothing SHALL
-poll while none is open. It SHALL poll each channel that
-is on when it opens and about every 60 seconds after, for everything
-since its poll position, or the last 14 days without one, saving each
-poll position in the state folder, and at each poll SHALL fetch the
-questions branch, and the default branch that filter 1's decision
-documents and lore entries are on, of every subscribed repository and
-configured lore repository.
+poll while none is open. It SHALL poll each channel that is on, at
+opening and about every 60 seconds after, for everything since its
+**poll position**, the time of the newest message its last poll read,
+or, with none saved, the last 14 days, saving each poll position in the
+state folder.
+At each poll it SHALL fetch the questions branch and the default branch
+of every subscribed repository and configured lore repository.
 
 #### Scenario: Opening catches up
 
@@ -1386,25 +1375,19 @@ off (*Setup checks each relay identity before its channels are used*).
 
 The answer session SHALL keep a confirmed answer that cannot be posted
 in its thread as **answered, not relayed**, on this machine's **pending
-list**, together with the thread it must go to: when its channel is off
-or not read on this machine, or its post is refused or fails, or is held
-back because the fetch before posting found a reply the person has not
-seen (*The thread is read again before a question is shown and before a
-post*).
+list**, with the thread it must go to, when its channel is off or not
+subscribed on this machine, its post is refused or fails, or the fetch before
+posting found a reply the person has not seen. It SHALL tell only the
+person that the asker has not got such an answer, and show its text to
+relay by hand.
 
 #### Scenario: A refused answer is kept pending
 
 - **WHEN** the person confirms an answer and Discord refuses the relay
   post, as for lack of permission
 - **THEN** the answer session keeps the answer as answered, not relayed,
-  its question leaves this machine's queue, and the person is told as
-  *Only the person is told an answer is pending* says
-
-### Requirement: Only the person is told an answer is pending
-
-For each answer it keeps pending, the answer session SHALL tell the
-person that the asker has not got it, and show its text for them to
-relay by hand.
+  its question leaves this machine's queue, and the person is told the
+  asker has not got it and shown its text to relay by hand
 
 #### Scenario: Another machine asks again while an answer is pending
 
@@ -2389,8 +2372,9 @@ is out; with nothing posted, once the person confirms the decline;
 and for a question with a category, whose answer may never be posted,
 once the person confirms the answer. It SHALL record the owed push before
 the post or, with nothing posted, before the push; drop it if the post
-fails or the thread shows it never went out; and retry it at each poll
-and opening until it succeeds or is refused for good.
+fails; and retry it at each poll
+and opening until it succeeds or *An owed push refused for good is not
+retried* stops it.
 
 #### Scenario: A failed post pushes no handled file
 
@@ -2409,9 +2393,10 @@ and opening until it succeeds or is refused for good.
 
 The answer session SHALL record each miss or citation file it pushes as
 an owed push before the post leading to it or, with nothing posted,
-before the push; drop it if the post fails, if the thread shows it never
-went out, or, for a miss file, if its reply's id was not saved; and retry
-it at each poll and opening until it succeeds or is refused for good.
+before the push; drop it if the post fails or, for a miss file, which is
+named by a hash of its reply's surface and id, if that id was not saved; and retry it
+at each poll and opening until it succeeds or *An owed push refused for
+good is not retried* stops it.
 
 #### Scenario: A miss or citation owed when the session stopped is pushed later
 
@@ -3156,15 +3141,13 @@ repository.
   file holds and the lore repository `o/lore` serves
 - **THEN** the miss file holds `asked_from: "o/lore"` and no `repository`
 
-#### Scenario: A miss on a Linear question holds the thread's URL
+#### Scenario: A miss on a Linear question holds the asking message's URL
 
 - **WHEN** the person's decline for the inquisitor is of a question about
   the private `o/api` asked in a Linear thread
 - **THEN** the miss file holds `repository: "o/api"`, `asked_from:
-  "o/api"` and, as `asked_in`, the Linear thread's URL, which the
-  inquisitor's *A log file and a miss file have one format* allows, so it
-  counts as private by the inquisitor's *A log or miss file is as private
-  as its more private repository*
+  "o/api"` and, as `asked_in`, the asking message's URL, which the
+  inquisitor's *A log file and a miss file have one format* allows
 
 ### Requirement: A miss holds the repository its question concerns
 

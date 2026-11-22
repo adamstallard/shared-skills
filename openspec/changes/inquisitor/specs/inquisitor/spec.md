@@ -2541,9 +2541,8 @@ The answer session SHALL pass the `log` and `cite` commands' session
 option on every push. With it, the command, which accepts the option
 from any caller, SHALL fetch and push again when the branch moved, keep
 no pending copy of a file it cannot push, and tell the session why the
-push failed, leaving the file's retry to the session's owed push (answer-session spec: *A
-questions-branch answer's file is pushed after its post*; *A handled file
-is pushed once its close takes effect*).
+push failed, leaving the file's retry to the session's owed push, which
+the answer-session spec sets for each kind of file.
 
 #### Scenario: A file the answer session cannot push leaves no pending copy
 
@@ -2948,9 +2947,10 @@ access* and its `answered_by` as the `log` command would, and adds
 - **THEN** the worker pushes nothing, and its report
   holds a new log file, beside the unanswered one, holding the question and
   an `answer_link` to that comment, and no answer
-- **AND** the Igor, pushing the file, writes the answer, its `authority` and
-  any `answered_by`, as *A worker logs no answer, and its Igor writes it
-  from the comment* says
+- **AND** the Igor, pushing the file, writes the comment's text as its
+  answer, an `authority` and `answered_by` as the `log` command would give
+  for that comment's author, and `answers` naming the handback question's
+  log file
 
 ### Requirement: No log file records a flagged run's question
 
@@ -3514,8 +3514,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   no note from the person, is the fixed text the `answer-session` spec
   gives for that case, and `asked` is the day the question was asked
 - **AND** a questions-branch miss file for a question asked in a Linear or
-  Discord thread holds that thread's URL as `asked_in`, which nothing
-  fetches; it makes the file private, as *A log or miss file is as
+  Discord thread holds the asking message's URL as `asked_in`, which
+  makes the file private, as *A log or miss file is as
   private as its more private repository* sets
 
 #### Scenario: What a log file's body holds
@@ -3983,10 +3983,9 @@ category met once, marked if a question of it stopped the worker.
 - **AND** the flag does not say which stopped question had which category,
   and a stopped question with no category adds nothing to it
 
-#### Scenario: An Igor worker's vulnerability question is asked nowhere
+#### Scenario: An Igor worker's vulnerability or personal question is asked nowhere
 
-- **WHEN** an Igor worker, holding no credential that can write the
-  repository's private security advisory, has a question with the category
+- **WHEN** an Igor worker has a question with the category
   `vulnerability` or `personal`, and the work needs the answer
 - **THEN** it asks the question nowhere, its handback comment included,
   stops the work needing the answer, and its report holds igor's flag

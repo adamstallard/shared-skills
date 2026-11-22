@@ -2407,21 +2407,32 @@ A refusal the session cannot sort into either kind waits for the person.
   record; one typed in the answer session and relayed there counts through its
   answer file.
 
-### Cuts that remove behaviour
+### For the repository's owner to decide
 
-- **Should an owed handled, miss or citation push still be dropped when
-  the thread shows its post never went out?** (answer-session: *A handled
-  file is pushed once its close takes effect*; *A miss or citation file's
-  push is owed and retried as a handled file's is*.) The rule stands until
-  decided. Keeping it means the session reads the thread after a crash to
-  find whether a post went out, which it no longer does for answer files,
-  and the rule needs a scenario. Cutting it means a crash between
-  recording the push and posting pushes the file anyway: a handled file
-  closes its questions-branch file while the thread copy stays open, so
-  the person handles the question again; a citation counts one lore use
-  too many; a miss file, whose reply id was never saved, is dropped
-  either way. Recommended: cut, since each outcome is a re-ask or an
-  overcount the records already accept.
+- **Can the person relay an answer without a record more visible than its
+  thread?** (answer-session: *No answer file goes somewhere more visible
+  than its thread unconfirmed*; *The preview warns before a record goes
+  somewhere more visible*.) The preview offers only confirming the record
+  or rewording the answer. For a question a questions-branch file holds,
+  the person cannot pick another place, since its answer file must close
+  that file on its own branch. So they must confirm a record on a branch
+  more visible than the thread, or not answer, and the spec does not say
+  so. Options: (a) state that no unrecorded relay exists for such a
+  question, so the person rewords, declines, or answers outside the
+  session; (b) let the person relay the answer with no answer file,
+  leaving the questions-branch file unanswered. Recommended: (a), since
+  the question's own file already shows the question at that branch's
+  visibility, and (b) would leave a file answered in its thread but
+  unanswered on its branch.
+- **Should the session stop naming a relayed question's bot account?**
+  (answer-session: *A relayed question is a person's question*, its
+  sentence on the bot's name and the scenario *A relayed question is shown
+  as from its relay bot's account*.) Screens are left to the approved
+  prototype, so the sentence and scenario fix a screen detail. Cutting
+  them also drops the stated rule that no check treats that name as
+  proof of who asked, which no other rule needs, since nothing checks the
+  name.
+  Recommended: cut.
 
 ### Left to implementation
 
