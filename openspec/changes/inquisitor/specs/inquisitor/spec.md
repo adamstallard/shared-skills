@@ -41,7 +41,8 @@ this spec *lore repository* always means the one holding the entries.
 every log and miss file about that repository; a lore repository's
 also holds the files about its collective's questions, and its citation
 files. *A questions-branch file* is a file on one; *a
-log file* is one logging a question, *a question file* is a log file
+log file* is one logging a question, which a handled file, one closing a
+question file, is not; *a question file* is a log file
 holding no answer, and *an answer file* is a log file holding an answer, whether or not it lists, in
 `answers`, earlier files there that logged the question unanswered. A log
 file is *unanswered* when it holds no answer and no answer file is its
@@ -2017,10 +2018,10 @@ no further setting, and neither hook SHALL spend a verdict record.
 A `PreToolUse` hook, the **post hook**, SHALL block a post holding a
 question with no verdict, or whose most recent verdict is neither `ask` nor
 `deferred`, or is over 2 hours old, or any question when it cannot read
-its verdict records. A `deferred` verdict less
-than 2 hours old SHALL pass only a question that tags no one and is an item
-of an open-questions section or in a post that creates an issue, as the
-shared post reader reports it; anywhere else it needs an `ask` verdict.
+its verdict records. A recent `deferred` verdict SHALL pass only a
+question that tags no one and either is in a post creating an issue or is
+an item under a deferral label, as the shared post reader reports it;
+anywhere else it needs an `ask` verdict.
 
 #### Scenario: A post with an unvetted question is blocked
 
@@ -2051,15 +2052,15 @@ shared post reader reports it; anywhere else it needs an `ask` verdict.
 
 #### Scenario: A deferred question may be listed in a post
 
-- **WHEN** a post lists, under "Still open" or "Not in this change", a
+- **WHEN** a post lists, under the deferral label "Not in this change", a
   question whose most recent verdict is `deferred`, recorded within 2
   hours, and the item tags no one
 - **THEN** the hook lets the post through
 
 #### Scenario: A deferred question that tags a person is blocked
 
-- **WHEN** a post lists, under "Still open", a question whose most recent
-  verdict is `deferred`, and the item tags `@alice`
+- **WHEN** a post lists, under "Not in this change", a question whose most
+  recent verdict is `deferred`, and the item tags `@alice`
 - **THEN** the hook blocks the post, and says the question needs an `ask`
   verdict
 
@@ -2356,7 +2357,8 @@ nothing and say so.
 #### Scenario: A message to an audience of unknown width is not sent headless
 
 - **WHEN** a session with no person in it would ask a question about a
-  private repository in a Discord channel whose audience it cannot tell
+  private repository in another repository whose visibility it cannot
+  read
 - **THEN** it does not post the question, and reports that it did not
 
 #### Scenario: A Linear or Discord message goes to no wider an audience
@@ -2600,14 +2602,6 @@ question is unlogged.
   outside any answer session
 - **THEN** no log file is pushed to the questions branch of `o/lore`,
   since nobody confirmed sending the record there
-
-#### Scenario: An Igor pushes no file for such a handback question
-
-- **WHEN** an Igor worker asks, in its handback comment on an issue of the
-  private `o/api`, a question about the organization `o`, and `o/lore` is
-  public
-- **THEN** the worker's report holds that question's file, as for any
-  question, and its Igor pushes that file nowhere
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 

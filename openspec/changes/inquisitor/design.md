@@ -2279,7 +2279,11 @@ documents the same `author` field for both (the inquisitor record's
   answer in a post and every issue's decision block (the start of its body
   before its first heading, or its first section whose heading starts with
   "Decision", which the spec counts as a decision document) counts as input,
-  and a post's question tags no one.
+  and a post's question tags no one. The task also asks whether the read
+  works when `<login>` is an App's `<slug>[bot]`. If not, a pull request
+  or issue that a github-app App authored never has an author with write
+  access, so the decisions committed on its branch and its decision block
+  count only as input.
 - **Can the script learn which login a post goes out as?** (task 0.7) A post
   sent with the github-app skill goes out with a token only the posting
   command holds, which hides it from the script. If not, the script treats
@@ -2403,6 +2407,35 @@ A refusal the session cannot sort into either kind waits for the person.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
+
+### For a person to decide
+
+- **Which log file holds which item of a post that lists several
+  questions?** Each listed item is logged as its own file, and every one of
+  those files has the post's URL as `asked_in`. So the answer session takes
+  every one of those files as logging each item (*A handled file closes a
+  questions-branch question*). Answering item 2 names all of them in
+  `answers`, and declining item 1 closes all of them. A miss on item 3 is
+  named after the first of those files in byte order, as a miss on item 1
+  is, so its push is dropped as a duplicate. An Igor handback asking
+  several questions hits the same problem. Options: (a) a file holds an
+  item only when its `asked_in` links the post and its question's hash
+  equals the item's hash, as the post hook and an Igor's handback record
+  already tie a posted item to its vetted question; (b) the log file records the item's number beside `asked_in`;
+  (c) no file holds an item of a post with several items, so each file is
+  shown on its own beside the thread copies. Recommended: (a). It adds no
+  key, and the hash is an exact identity, not a text match.
+- **Whom does a bot's post reach when its items tag different people?**
+  Each question tags its own decider, and an agent asks all the questions
+  of one question round in one post. Under *Whom a message reaches is set
+  by its mentions*, a bot's post that tags `@maya` on item 1 and `@alice`
+  on item 2 reaches only Maya's session, never Alice's.
+  Options: (a) apply the first-mention rule to each item by its own tag
+  line, so each session shows only the items that reach its person; (b)
+  the asking agent posts one post per tagged person; (c) keep the rule,
+  and accept that later people miss their items. Recommended: (a). Each
+  item then reaches exactly one person's session, and agents post as
+  they do now.
 
 ### Left to implementation
 

@@ -38,8 +38,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `questions[].options[].label`, and how many questions one picker call
       takes
 - [ ] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
-      for a caller without push access, or fails in a way the script can tell
-      from "no access"
+      for a caller without push access and when `<login>` is an App's
+      `<slug>[bot]`, or fails in a way the script can tell from "no access"
 - [ ] 0.5 The GitHub login of the last person to commit to a file can be
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
@@ -587,9 +587,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       question with a category*); blocks a post with a
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
-      question less than 2 hours old that tags no one in an open-questions
-      section or a new issue; and blocks every other unvetted question
-      (inquisitor spec: *Questions in posts pass the same filters*)
+      question less than 2 hours old that tags no one under a deferral
+      label or in a new issue; blocks an item under a deferral label
+      without a `deferred` verdict, even with `ask` (*An item listed as
+      deferred needs a deferred verdict*); and blocks
+      every other unvetted question (inquisitor spec: *Questions in posts
+      pass the same filters*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -910,7 +913,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       to a recorded answer is a filter 1 decline*), as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
-      person cites a lore entry by naming it as a filter 1 record*)
+      person's cite of an active entry in scope pushes a citation file*)
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's

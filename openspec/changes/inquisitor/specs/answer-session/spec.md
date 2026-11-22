@@ -1019,7 +1019,9 @@ set by its mentions* says (igor #229).
 
 A log file whose `asked_in` links a thread message this machine's polls
 have read SHALL follow that message by exact link, taking whatever the answer
-session decides about it, and is never shown on its own.
+session decides about it, and is never shown on its own; an Igor's log
+file instead follows its handback comment, as *An Igor's log file follows
+its own handback comment* says.
 
 #### Scenario: A questions-branch file follows the message it links
 
@@ -1367,8 +1369,7 @@ session SHALL tell the person why nothing was posted, as the surface or
 skill says. A failed question to the asker SHALL leave its question as
 it was, and a failed automatic post SHALL leave its question shown as
 unanswered; a failed answer stays pending (*An answer that cannot reach
-its thread is kept pending*). A refused post can also turn its channel
-off (*Setup checks each relay identity before its channels are used*).
+its thread is kept pending*).
 
 #### Scenario: A failed question to the asker or automatic post leaves its question unanswered
 
@@ -2362,6 +2363,16 @@ folder.
 - **THEN** it pushes the file at its next opening, or retries it at each
   poll and opening until it succeeds
 
+#### Scenario: A reply's miss file is pushed after the reply
+
+- **WHEN** the answer session posts an `Inquisitor: ` reply
+- **THEN** it takes the reply's id from the surface's response and then
+  pushes the miss file that id names, as the inquisitor's *Every miss file
+  is named by one hash* says
+- **AND** if the session stopped before saving the reply's id, the miss
+  file's push is dropped, and the asker takes the reply as input, since
+  only a miss file backs an automatic reply
+
 ### Requirement: The person answers for what their relay posts
 
 The inquisitor skill's instructions SHALL say that the person is
@@ -2820,22 +2831,16 @@ automatic reply does not apply here: it binds the agent the reply reaches.
   `o/api` in an `o/api` thread, the session posts the recorded answer but
   pushes no citation file, since `o/lore` is more visible than `o/api`
 
-### Requirement: A person cites a lore entry by naming it as a filter 1 record
+### Requirement: A person's cite of an active entry in scope pushes a citation file
 
-The answer session SHALL count a person as one who **cites** a lore
-entry when they name it as the record of a decline under the second
-reason with filter 1, agreeing to a recorded answer shown beside the
-question included.
-
-#### Scenario: Declining with filter 1 and a lore entry cites it
-
-- **WHEN** the person's filter 1 decline of a question with no category,
-  in a private repository's GitHub thread, names as the record an
-  `active` entry of a private lore repository whose scope covers the
-  question
-- **THEN** the relay posts the `Recorded answer: ` reply whose
-  `Recorded in: ` line names that entry, and a citation file for it is
-  pushed
+A person **cites** a lore entry by naming it as the record of a filter 1
+decline under the second reason of *The person can decline to answer*,
+or by agreeing to a recorded answer shown beside the question. Each cite
+of an `active` entry in scope (the inquisitor's *Filter 1 hides every
+lore entry outside the question's scope*) SHALL push one citation file
+through the inquisitor's script, unless *A lore
+entry that stops a question gets a citation file* bars it; any other
+cite SHALL push nothing.
 
 #### Scenario: A filter-1 decline with no thread still cites its entry
 
@@ -2844,15 +2849,6 @@ question included.
   private lore repository
 - **THEN** nothing is posted, the recorded answer is shown, and a citation
   file for that entry is pushed
-
-### Requirement: A person's cite of an active entry in scope pushes a citation file
-
-Each cite of an entry that is `active` and in scope for the question, as
-the inquisitor's *Filter 1 hides every lore entry outside the question's
-scope* defines scope, SHALL push one citation file, whether or not a miss
-is pushed with it, through the inquisitor's script under *A lore entry
-that stops a question gets a citation file*. Citing any other entry
-pushes nothing.
 
 #### Scenario: Citing an inactive, out-of-scope or more visible entry sends none
 
@@ -3059,23 +3055,6 @@ person's question.
   with any filter, or agrees to a recorded answer or a suggested verdict
   shown beside it
 - **THEN** no miss file is pushed, hash-only or readable
-
-#### Scenario: A second machine posts no second reply
-
-- **WHEN** the answer session on a second machine polls a thread that
-  already holds the first machine's `Inquisitor: ` reply to a question
-- **THEN** it takes the question as handled (*The thread is the durable
-  record of an answer*): it does not judge it, posts nothing and logs no
-  miss
-
-#### Scenario: A reply's miss file is pushed after the reply
-
-- **WHEN** the answer session posts an `Inquisitor: ` reply
-- **THEN** it takes the reply's id from the surface's response and then
-  pushes the miss file that id names, as the inquisitor's *Every miss file
-  is named by one hash* says
-- **AND** if the session stopped before saving the reply's id, the miss
-  file's push is dropped, and the asker takes the reply as input
 
 ### Requirement: A miss records who judged it and where it was asked from
 
