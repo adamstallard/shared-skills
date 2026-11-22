@@ -60,7 +60,7 @@ the repository it was asked from (*A collective's question is bounded by
 the repository it was asked from* defines that repository, and *The team's
 lore repository is the most specific one that serves* picks among
 several). When the answer session reads a collective's question on Linear
-or Discord, where no repository was asked from, the `answer-session`
+or Discord, where no repository holds the thread, the `answer-session`
 spec's *A channel's repositories place its questions* and *A Linear or
 Discord question is placed by what it concerns* pick the team's lore
 repository.
@@ -2146,6 +2146,19 @@ code, `>` lines or prose's footer.
   footer, such as `prose ✓ 3f2a91`, as its last line
 - **THEN** the hook finds the same questions and lets the post through
 
+### Requirement: An item listed as deferred needs a deferred verdict
+
+The post hook SHALL pass an item of a section begun by a deferral label
+only with a `deferred` verdict, since the `answer-session` spec's *A
+deferred item is numbered but not shown* never shows it to the person.
+
+#### Scenario: A question with an ask verdict listed as deferred is blocked
+
+- **WHEN** a post lists, under "Not done", a question whose most recent
+  verdict is `ask`
+- **THEN** the hook blocks the post, and says that a question the post
+  asks belongs under a question label such as "Open questions"
+
 ### Requirement: The post hook vets what the shared post reader returns
 
 The post hook SHALL vet the body that the shared post reader (the
@@ -2783,10 +2796,19 @@ person's agent memory or user-level `CLAUDE.md`, never a committed one.
 When filter 1 stops a question with a lore entry, the agent SHALL push a
 citation file to the entry's lore repository's questions branch, unless:
 the question has a category; the lore repository is more visible than the
-question's repository or, for a collective's, the one it was asked from;
-or *No worker or Igor-started run pushes to a questions branch* or *An
+repository the question concerns or, for a collective's question, the
+repository it was asked from; or *No worker or
+Igor-started run pushes to a questions branch* or *An
 answer session's automatic reply is a verdict, not a person's answer*
 bars it.
+
+#### Scenario: A collective's question from Discord cites no public lore entry
+
+- **WHEN** filter 1, in an answer session, stops a collective's question
+  asked in a Discord thread with an entry of a public lore repository
+- **THEN** no citation file is pushed, since a collective's question
+  asked in a Linear or Discord thread counts as asked from a private
+  repository
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -3079,8 +3101,8 @@ the `log` command SHALL refuse a call without its session option, since a
 link only the answer session makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
 the text the answer session says it relayed, save a Linear relay post's
-`Re: ` line, which *The answerer's confirmation can send a record
-somewhere more visible* drops.
+`Re: ` line, which the log file drops once the person confirms a record
+more visible than the thread.
 
 #### Scenario: A Discord answer link without the session option is refused
 
@@ -3568,6 +3590,10 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   question tags `alice`, and the question's hash, which drops tag lines,
   still matches the hash vetted before the tag line was added (*Adding
   the tag line keeps the vetted hash*)
+- **AND** a related-decision line or person-required line after the
+  question (*A related-decision line is one URL on a line of its own*,
+  *A question another skill requires carries a person-required line*)
+  stays in `## Question` too
 
 ### Requirement: Every miss file is named by one hash
 
@@ -3613,6 +3639,19 @@ several; else `message` and the asking message's URL.
 - **WHEN** a person says that a picker question, never logged and asked
   in no message, did not need asking
 - **THEN** no miss file is written
+
+### Requirement: Only the answer session's log call names a miss by a reply's id
+
+The `log` command SHALL name a miss file by a reply's id only when called
+with its session option, so that a crafted thread cannot steer an agent
+into backing a forged `Inquisitor: ` reply, which counts only with its
+miss file.
+
+#### Scenario: The log command refuses a reply-id miss without its session option
+
+- **WHEN** an agent calls the `log` command, without its session option,
+  for a miss named by a GitHub reply's `node_id`
+- **THEN** it refuses, and writes nothing
 
 ### Requirement: An Igor's worker writes a miss file only for a question a hit holds
 

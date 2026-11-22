@@ -81,9 +81,9 @@ The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `,
 which the skill's instructions reserve for its posts. On GitHub, this
-requirement and every one that posts through the relay
-wait on task 0.21, and the three GitHub replies backed by a miss file
-named by the reply's `node_id` wait on task 0.31 as well.
+requirement and every one that posts through the relay are built only
+once task 0.21 is measured, and any GitHub reply whose miss file is
+named by the reply's `node_id` only once task 0.31 is too.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -1499,7 +1499,7 @@ pushed as an owed push without fetching the thread, once the answer is
 confirmed or its refused relay post turns the channel off; unless the
 question has a category or *No answer file goes somewhere more visible
 than its thread unconfirmed* withholds it. An answer with no thread is not
-kept pending. No other answer SHALL push a file before its relay post.
+kept pending.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
@@ -2061,18 +2061,9 @@ Discussion: <the discussion in one sentence>
 ```
 
 with its `Re: ` line where *A GitHub or Linear relay post names its
-question in a Re line* requires one. The model SHALL draft both
-added lines for the more public of the thread's audience and the
-readers of the repository the question concerns, and the session SHALL
-post each of them as one line, each line break in it made a space.
-
-#### Scenario: A rephrasing is drafted for the more public audience
-
-- **WHEN** the person answers, in a public repository's thread, a
-  rephrased question about a private repository
-- **THEN** the model drafts the `Rephrased question: ` and `Discussion: `
-  lines naming nothing of the private repository that the thread's
-  readers cannot read
+question in a Re line* requires one. The session SHALL post the
+`Rephrased question: ` and `Discussion: ` lines as one line each, with
+every line break made a space.
 
 #### Scenario: A Discussion line is posted as one line
 
@@ -2178,8 +2169,8 @@ answer also reaches a more visible item's run*).
 #### Scenario: The preview says when nothing will be recorded
 
 - **WHEN** the person is about to confirm an answer to a question with no
-  thread that has a category, or whose questions branch they cannot push
-  to
+  thread, and the question has a category or the person cannot push to
+  the questions branch of what it concerns
 - **THEN** the preview says the answer will not be recorded, why, and
   that the asker will not receive it
 
@@ -2390,12 +2381,11 @@ retried* stops it.
 
 ### Requirement: A miss or citation file's push is owed and retried as a handled file's is
 
-The answer session SHALL record each miss or citation file it pushes as
-an owed push before the post leading to it or, with nothing posted,
-before the push; drop it if the post fails or, for a miss file named by
-its reply's id, if a crash kept that id from the state folder; and retry it
-at each poll and opening until it succeeds or *An owed push refused for
-good is not retried* stops it.
+The answer session SHALL record, drop and retry each miss or citation
+file's push as *A handled file is pushed once its close takes effect* does
+a handled file's, and also drop the owed push of a miss file named by
+its reply's id when a crash lost that id before it reached the state
+folder.
 
 #### Scenario: A miss or citation owed when the session stopped is pushed later
 
@@ -2933,11 +2923,11 @@ question concerns* says.
 ### Requirement: No automatic post repeats one in its chain of replies
 
 The answer session SHALL NOT make by itself an automatic post whose
-text, apart from its `Re: ` line, is the same as an earlier automatic
-post's in the chain of replies of the question it would
-answer: such a repeat goes to the person, as an ordinary question. A
-question's **chain of replies** is the question, the relay post
-(automatic or not) it replies to, the question that post names by its
+text, apart from its `Re: ` line and any `question <n>: ` number, is the same
+as an earlier automatic post's in the chain of replies of the question it
+would answer: such a repeat goes to the person. A question's **chain of
+replies** is the question, the relay post it replies to, the question
+that post names by its
 `Re: ` line or, on Discord, by replying, and so on back to a question
 that replies to no relay post.
 
