@@ -16,8 +16,7 @@ task names, or else the place listed here:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11, 0.15 and
-  0.33;
+- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
 - *igor's handback marker*: 0.6 and 0.38;
 - *Facts the answer session relies on*: 0.16 to 0.21, 0.23, 0.25,
   0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39;
@@ -85,16 +84,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the home directory igor gives it rather than in its environment;
       if it can, the login is a breach to report to igor (design.md:
       *An Igor worker asks only through its Igor*)
-- [ ] 0.15 Which reasons GitHub's notifications endpoint gives, read with
-      the person's `gh` login, for a mention, a review request, an
-      assignment and a later comment in a thread the person was mentioned
-      in, and that a conditional request answered `304` does not count
-      against the rate limit. If notifications report all of them, a
-      later change may poll notifications in place of part of what the
-      poll reads (answer-session spec: *The poll reads every GitHub
-      question source*); the `304` result settles whether conditional
-      requests save anything (design.md: *How does the GitHub poll stay
-      inside the rate limit?*)
+- [ ] 0.15 That a conditional request answered `304`, sent with the
+      person's `gh` login, does not count against the rate limit, as
+      GitHub documents (answer-session spec: *The poll reads every GitHub
+      question source*). If it does count, the `ETag`s save none of the
+      limit, and a person with many subscriptions meets the rate-limit
+      wait more often, with their agents' `gh` calls refused too until
+      the reset; the repository's owner then decides whether the poll
+      changes
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
@@ -801,7 +798,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       create a lore repository*)
 - [ ] 6.3 Polling: the four question sources (answer-session spec: *A
       question asked of the person comes from one of four sources*), only
-      while open, the catch-up on opening, 60 seconds, poll positions, the
+      while open, the catch-up on opening, 60 seconds, poll positions,
+      `ETag`s and the wait after a rate-limit refusal (*The poll reads
+      every GitHub question source*), the
       questions and default branches of
       every subscribed repository and configured lore repository. The
       `search` command reads only these fetched branches, and issues only

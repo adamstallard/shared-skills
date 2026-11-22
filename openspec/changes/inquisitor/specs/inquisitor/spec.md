@@ -936,11 +936,12 @@ leave the reply input.
 
 The Igor SHALL run a worker's `miss-check` only on the repository its
 handback record's concerns line names for the question the reply
-answers, leaving the reply input for any other, because a steered worker
-could name one where an attacker can push a backing miss file. It SHALL
-take that question from the reply's `Re: ` line, which must link the
-Igor's handback, and any `question <n>: `, the nth in the record's posted
-order; else the reply stays input.
+answers, because a worker steered by its thread could name one where an
+attacker can push a miss file backing the reply. That question is the
+one the record numbers `<n>` for a reply holding `question <n>: `, or
+the record's only question for a reply holding none; with no such
+question, or a `Re: ` line linking no handback of the Igor's, the reply
+stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
@@ -3024,9 +3025,10 @@ the comment.
 Where the `log` command reads a linked comment, it SHALL record as
 `answered_by` the comment's author as GitHub returns it, ignoring any login
 the agent passed, because a crafted thread can steer the login an agent
-passes, and SHALL write `authority: input` when that author is a bot
-account. With its session option, it SHALL record as `answered_by`, whether
-or not it reads a comment, the person whose answer session runs it.
+passes, and, without its session option, SHALL write `authority: input`
+when that author is a bot account. With its session option (*Only an
+answer session writes a handled file*), it SHALL record as `answered_by`
+the person whose answer session runs it.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3041,7 +3043,8 @@ or not it reads a comment, the person whose answer session runs it.
 - **WHEN** the answer session's `log` call, with its session option, links
   a relay post the person's GitHub relay App wrote
 - **THEN** the file names as `answered_by` the configuration's `login`,
-  the person whose answer session runs it, not the App
+  the person whose answer session runs it, not the App, and the App's
+  bot account does not make the answer `authority: input`
 
 ### Requirement: The log command in Igor-worker mode writes no answer
 
@@ -3209,21 +3212,25 @@ for each key (design.md: *An answer file names every file it answers*).
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
 A later Igor run SHALL know the answered file only from the Igor's
-handback record, never from the comment. That record
-SHALL hold, for each posted question, its hash; its concerns line (*An
-Igor writes the concerns line of a question in its handback*), or that it
-had none; the repository its file went to; and any pushed file's date
-and suffix; and no question's text. Without exactly one file with
-that date and suffix on that repository's questions branch, the Igor
-SHALL write no `answers`.
+handback record. That record SHALL hold, for each
+posted question, its number as *A numbered Inquisitor reply is about the
+item at that number* counts, its hash, its concerns line or that it
+had none, the repository its file went to, and any pushed file's date
+and suffix, but no question's text. Unless exactly one file on that
+repository's questions branch has that date and suffix, the Igor SHALL
+write no `answers`.
 
 #### Scenario: The Igor's handback record holds no question text
 
 - **WHEN** an Igor posts a handback asking a question about `o/api` and
   pushes its file to the questions branch of `o/api`
-- **THEN** its handback record holds the question's hash, its concerns
-  line, `o/api`, and the file name's suffix and date, and not the
+- **THEN** its handback record holds the question's number, its hash, its
+  concerns line, `o/api`, and the file name's suffix and date, and not the
   question's text
+- **AND** in a handback whose open-questions section lists a deferred
+  item, one begun by a label such as "Not in this change", before that
+  question, the question's number is 2, since a deferred item
+  keeps its place in the numbering
 
 #### Scenario: A later run finds the file by the Igor's record
 

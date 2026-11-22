@@ -52,10 +52,6 @@
   Reading with the person's own logins keeps a relay's token to the right to post, and reads nothing the person reads under a bot's name. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts.
   Evidence: Discord's Community Guidelines, which its Terms of Service incorporate, say "Do not use self-bots or user-bots. Each account must be associated with a human, not a bot.", https://discord.com/terms/guidelines
 
-- **Rationale: An answer is relayed as the person's words.**
-  A relay post is the person's own answer, so it carries no header naming an agent, session or project as its author. discord-bot already posts that way: its `post` adds a header only when `--agent`, `--session` or `--project` is given, so the relay passes none of them and needs no new option.
-  Evidence: `header()` in discord-bot's script, https://github.com/adamstallard/shared-skills/blob/90a0237/.agents/skills/discord-bot/scripts/discord_bot.py
-
 - **Rationale: The answer session polls only while it is open.**
   The skill runs nothing while the answer session is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the session is closed would be lost. Polling needs neither, and catches up on what came while the session was closed when it next opens.
   Evidence: GitHub delivers each webhook to a payload URL as an HTTP request, https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks
@@ -83,9 +79,10 @@
   Evidence: the 2026-11-19 measurements, recorded in tasks 0.16 and 0.17, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: The poll reads every GitHub question source.**
-  The poll reads each subscribed repository's issues, pull requests and their comments, so it costs rate-limited requests for every subscribed repository, including every repository of a subscribed owner, such as an organization. Reading notifications alone could miss a question: unless the person watches the whole repository, GitHub notifies them only for a thread they take part in or are asked to review. Their relay is the bot account that posts for them, which an asker may tag in place of the person, and a mention of it in a thread the person never joined reaches them through no notification.
+  The poll reads each subscribed repository's issues, pull requests and their comments, so it costs rate-limited requests for every subscribed repository, including every repository of a subscribed owner, such as an organization. Reading notifications alone could miss a question: unless the person watches the whole repository, GitHub notifies them only for a thread they take part in or are asked to review. Their relay is the bot account that posts for them, which an asker may tag in place of the person, and a mention of it in a thread the person never joined reaches them through no notification. The full read makes at least three requests per repository each minute, for its issues and pull requests, their comments and their review-thread comments, plus one per open pull request for its reviews, against 5,000 an hour that the person's `gh` login shares with their agents: about 27 repositories use it all before counting pull requests. So each list is read with its last `ETag`, since GitHub documents that a `304` does not count against the limit (task 0.15 checks it), and a refused poll waits for the reset time instead of retrying.
   Evidence: GitHub's notification reasons, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
-  Evidence: the REST rate limit these reads count against, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+  Evidence: the REST rate limit these reads count against, which GitHub documents as 5,000 requests an hour for a user, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+  Evidence: GitHub documents that a conditional request answered `304` while correctly authorised does not count against the primary rate limit, and that a request refused for it should not be retried before the `x-ratelimit-reset` time, https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
 
 - **Rationale: The answer session's filter 1 reads only subscribed and lore repositories.**
   Decision documents and questions-branch files are files, so searching them needs a copy on the machine, and the session keeps a copy fresh only of each subscribed repository and each configured lore repository. Issues need no copy, since they are read live, but those reads also use the person's credentials. Any other repository a question names is chosen by the question's own text, so fetching its files or reading its issues would let a crafted question choose which repository, a private one included, the session reads with the person's credentials and puts before the model. So one closed set covers everything filter 1 reads in the session. The session acts on a closed set of places elsewhere too (*A concerns line settles what an agent's question concerns*), because untrusted text may only pick among what the code already offers (*Rationale: The model's judgements reach the session's code only through record_verdict*). A question the limit leaves unstopped still comes to the person, so the limit costs a recorded answer from that repository, never the question.
@@ -113,10 +110,6 @@
 - **Rationale: A question with a person-required line gets no filter 2 to 4 reply.**
   The session finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text unchanged, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
-
-- **Rationale: The person runs the session, and a relay identity posts for them.**
-  A relay identity is the bot of a skill the person already uses, so posting for them needs no service running beside the session: on Discord, discord-bot's script makes its API calls on each run and exits.
-  Evidence: [discord-bot's SKILL.md](../../../.agents/skills/discord-bot/SKILL.md)
 
 - **Rationale: The Linear relay's token stays in memory.**
   A token passed in a command's arguments would be readable by every user of the host, since each process's command line is.

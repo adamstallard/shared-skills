@@ -75,8 +75,8 @@ inquisitor's, or that spec's, *Title*:
   item, or as one sentence of the question that the post's sentences
   outside the section make (*Question sentences outside a post's list are
   one more question*; the inquisitor's *A question's text and hash are
-  built one way*). Every file of such a post links the same post, so
-  only there does the link alone not tell them apart.
+  built one way*). A log file also holds a question shown from it, and
+  a **questions-branch question** is one that a log file holds.
 
 Any other term is defined in the requirement that sets the term's rule;
 a requirement before that one may already use the term.
@@ -1199,9 +1199,30 @@ of every subscribed repository and configured lore repository.
 ### Requirement: The poll reads every GitHub question source
 
 At each GitHub poll the answer session SHALL read, since its poll
-position, each subscribed repository that is on: its new issues and pull
-requests, its new comments, reviews and review-thread comments on any of
-them, and its review requests and assignments naming the person.
+position, each subscribed repository: its new issues and pull requests,
+its new comments, reviews and review-thread comments, and its review
+requests and assignments naming the person. Each request SHALL send the
+`ETag` of its list's last response, `304` meaning nothing new. When
+GitHub refuses a request for its rate limit, the session SHALL keep
+every poll position and ETag and wait for the reset time, telling the
+person once.
+
+#### Scenario: An unchanged list is read with its ETag
+
+- **WHEN** a poll requests a subscribed repository's issue list with the
+  `ETag` of its last answer, and GitHub answers `304`
+- **THEN** the answer session finds nothing new in that list and keeps
+  its poll position and `ETag`
+
+#### Scenario: A poll refused for the rate limit waits for the reset
+
+- **WHEN** GitHub refuses a poll's request for the rate limit, giving a
+  reset time 20 minutes later
+- **THEN** the answer session sends none of the poll's other requests,
+  keeps every poll position and `ETag`, even of the lists read before the
+  refusal, since a repository's poll position is one time for all its
+  lists, tells the person once that GitHub is not polled until then, and
+  polls GitHub next after that time
 
 #### Scenario: A review request, a review-thread reply and a comment on an old issue are found
 
@@ -1421,9 +1442,9 @@ An answer kept because its channel was off, or because a post refused
 for permission turned its channel off, SHALL return to the queue, kept,
 once setup's check of posting there passes, and SHALL be posted only once
 the person confirms it again. Where no check can read posting rights
-(task 0.20), the answer SHALL return once setup, at the next opening,
-reruns the relay identity's own check and it passes, and the posting
-check SHALL still show as not checked.
+(task 0.20), if the relay identity's own check last passed, the next
+opening SHALL return the answer and turn the channel back on, its
+posting check shown as not checked.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
@@ -1434,11 +1455,10 @@ check SHALL still show as not checked.
 
 #### Scenario: Where no check reads posting rights, the identity's own check returns the answer
 
-- **WHEN** no check can read posting rights in an off channel holding a
-  pending answer, and the relay identity's own check passes at the next
-  opening
-- **THEN** the answer returns to the queue, kept, and setup still shows
-  the posting check as not checked
+- **WHEN** a pending answer's thread is in an off channel where no check
+  can read posting rights, and the relay identity's own check last passed
+- **THEN** at the next opening the answer returns to the queue, kept,
+  and setup still shows the posting check as not checked
 
 ### Requirement: A pending answer that no check returns waits for the person
 
@@ -1757,7 +1777,7 @@ outlives it.
 - **WHEN** the answer session saves its working state
 - **THEN** it writes only to the state folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
-  record, each channel's poll position, each check's last result, relay post ids, the question on screen, the
+  record, each channel's poll position, each GitHub list's `ETag`, each setup check's last result, relay post ids, the question on screen unless it has a category, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
   subscribed repository's questions and default branches (a lore
@@ -2321,8 +2341,7 @@ When a decline, a `Recorded answer: ` post, an `Inquisitor: ` reply or an
 answer to a question with a category takes a question off the queue, the
 session SHALL push a **handled file** for each unanswered
 questions-branch log file that holds the question and that no handled
-file names. A file holds the question when the question was shown from
-it or the file holds its thread copy.
+file names.
 
 #### Scenario: An automatic reply pushes a handled file
 

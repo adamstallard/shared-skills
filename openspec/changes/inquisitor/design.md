@@ -1325,9 +1325,8 @@ and a test pinned to an igor commit checks that copy (task 2.8).
 
 **Discord is in the first version, through the `discord-bot` skill of
 shared-skills PR #1, merged,** because the skill's bot can post for the
-person without any service running beside the session (the answer-session decision record's
-*Rationale: The person runs the session, and a relay identity posts for
-them*).
+person without any service running beside the session: its script
+makes its API calls on each run and exits.
 
 #### On Discord one identity both reads and relays
 
@@ -2407,24 +2406,6 @@ A refusal the session cannot sort into either kind waits for the person.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
-
-### For a person to decide
-
-- **How does the GitHub poll stay inside the rate limit?** *The poll
-  reads every GitHub question source* makes at least three requests per
-  subscribed repository every 60 seconds, plus one per open pull request
-  for its reviews, against the 5,000 requests an hour the person's `gh`
-  login shares with their agents: about 27 repositories use it all before
-  counting pull requests. Nothing says what a poll does when GitHub
-  refuses it for the rate limit. Options: (a) read with conditional
-  requests, sending each list's last `ETag`; GitHub documents that an
-  authorised request answered `304` does not count, and task 0.15
-  measures it, so if a `304` does count, (a) saves nothing; (b) poll
-  GitHub less often as subscriptions grow; (c) accept the cost, with a
-  rule that a refused poll keeps its poll positions and waits for
-  GitHub's reset time. Recommended: (a), since it keeps most of the
-  hourly limit free for the person's other `gh` use; (c)'s rule is
-  wanted with any option.
 
 ### Left to implementation
 
