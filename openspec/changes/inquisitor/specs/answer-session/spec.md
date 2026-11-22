@@ -438,6 +438,23 @@ Any other post SHALL be one question, with no number.
   asking agent's first call of the inquisitor script counts each sentence, and a relay post about it
   holds no number
 
+### Requirement: A deferred item is numbered but not shown
+
+An item of an open-questions section that begins with a deferral label,
+one of those the inquisitor's *A question in a post is a listed item or a
+sentence ending in a question mark* lists, such as "Not in this change",
+SHALL keep its place in the numbering but SHALL NOT be shown as a
+question, since the asking agent listed it as not done rather than asking
+it.
+
+#### Scenario: A deferred item is not shown as a question
+
+- **WHEN** an agent's comment tagging the person lists two items under
+  "Not in this change", then one under "Open questions" followed by a
+  concerns line that settles it
+- **THEN** the answer session shows only the last item, as question 3,
+  and posts no `Inquisitor: ` reply to either deferred item
+
 ### Requirement: Question sentences outside a post's list are one more question
 
 In a post with an open-questions section, the sentences ending in `?`
@@ -1114,8 +1131,8 @@ as it was.
 
 #### Scenario: A later message in an answered or declined thread is a new question
 
-- **WHEN** a question in a GitHub issue follows a relay post there, so the
-  asker's later comments reply to that post; the person answered the
+- **WHEN** a question in a GitHub issue is the asker's next comment after
+  a relay post there, so it replies to that post; the person answered the
   question, or declined it with filter 2's reply posted or with nothing
   posted; and then the asker comments again without a mention, or someone
   mentions the person there
@@ -1795,12 +1812,6 @@ outlives it.
   repository's branches are fetched into its configured clone), and
   the lock
 
-#### Scenario: A question set aside on one machine is new on another
-
-- **WHEN** a question the person set aside on one machine reaches the
-  answer session on another
-- **THEN** the other machine shows it as new
-
 ### Requirement: Reopening shows the question last on screen
 
 On opening, the answer session SHALL show the question last on screen,
@@ -2201,14 +2212,6 @@ the `repository` and `asked_from` a miss would have.
   `record_verdict` and the person picks none in the preview, or the
   person cannot push to the questions branch of what it concerns
 - **THEN** the answer is relayed in its thread, and no log file is pushed
-
-#### Scenario: A late answer on another machine answers a closed file
-
-- **WHEN** the person declined with nothing to answer, on one machine, a
-  thread copy a questions-branch file holds, then answers that thread
-  copy on another machine
-- **THEN** the answer is relayed in the thread, and a log file naming the
-  closed file in `answers` is pushed
 
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
@@ -2731,10 +2734,8 @@ that is only input stops nothing.
 
 ### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
 
-The answer session's clones, of each subscribed repository's default
-and questions branches and each configured lore repository, SHALL be the
-only repositories `search` reads (inquisitor spec:
-*The search command runs filter 1 alone for the answer session*). A
+`search` reads only the answer session's clones (inquisitor spec: *The
+search command runs filter 1 alone for the answer session*). A
 question placed `other` SHALL go unsearched, shown as such, because a
 `global` lore entry, applying everywhere, may contradict an unread
 repository's rules; any other question with no place SHALL be
@@ -3162,8 +3163,6 @@ branch of what it concerns*.
 - **THEN** it takes the question as handled (*The thread is the durable
   record of an answer*): it does not judge it, posts nothing and logs no
   miss
-- **AND** if both machines replied before either read the other's reply,
-  each reply has its own miss file, named by its own id
 
 #### Scenario: A reply's miss file is pushed after the reply
 

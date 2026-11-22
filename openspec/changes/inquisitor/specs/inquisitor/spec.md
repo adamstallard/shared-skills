@@ -233,13 +233,6 @@ for its choice to a questions branch.
   as what some private backend might do, and does not name the backend or
   quote its code
 
-#### Scenario: A choice about a question with a category says only what its rules allow
-
-- **WHEN** the agent decides, under filter 4, a question with a category
-- **THEN** its report says of the choice only what *A question with a
-  category is asked only of the person or in its advisory* and *A session
-  with no person in it holds back a question with a category* allow
-
 ### Requirement: A question another skill requires skips filters 2 and 4
 
 A question that another installed skill requires a person to decide SHALL
@@ -365,9 +358,9 @@ and no citation file SHALL be pushed.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
-- **WHEN** an agent working in no git repository has a question about none,
-  and two configured lore repositories hold matching `active` entries, one
-  scoped `global` and one `project:api`
+- **WHEN** an agent working in no git repository has a question about no
+  repository or collective, and two configured lore repositories hold
+  matching `active` entries, one scoped `global` and one `project:api`
 - **THEN** filter 1 shows only the `global` entry, and when it stops the
   question with that entry, the agent pushes no citation file
 
@@ -523,21 +516,17 @@ repository keys and links are checked before use*.
 
 ### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
 
-The comment an Igor posts through its own code to hand an item back SHALL
-NOT count as a post; nothing in this spec batches it with questions asked
-elsewhere or tags anyone in it. Any comment the post hook does see SHALL be
-a post, and vetted, even when it carries igor's handback marker, which the
-hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
+The comment an Igor posts through its own code, which no tool hook sees,
+to hand an item back SHALL NOT count as a post. Any comment the post hook
+does see SHALL be a post, and vetted, even when it carries igor's handback
+marker, which the hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
 
-#### Scenario: An Igor's handback comment is not batched or tagged
+#### Scenario: A comment carrying igor's handback marker is vetted as a post
 
-- **WHEN** an Igor posts the comment handing an item back, holding its
-  worker's question, and no post hook sees it
-- **THEN** nothing in this spec batches its question with others, or tags
-  anyone in it
-- **AND** a comment an agent's `gh` call posts carrying igor's handback
-  marker, in the form task 0.6 records, is vetted as a post, and blocked if
-  it asks an unvetted question
+- **WHEN** an agent's `gh` call posts a comment carrying igor's handback
+  marker, in the form task 0.6 records
+- **THEN** the post hook vets it as a post, and blocks it if it asks an
+  unvetted question
 
 ### Requirement: An agent logs a bot's comment only as input
 
@@ -871,8 +860,7 @@ another repository is input* and leave out each file the item's visibility hides
 - **WHEN** `branch-search` prints a hit
 - **THEN** an input's `reason` is one of `unconfirmed`, `unanswered`,
   `miss`, `superseded` and `unreadable`
-- **AND** `landed` says whether the commit its `recorded_in` pins has
-  reached the default branch: `true`, `false`, or `null` for a file whose
+- **AND** `landed` is `true`, `false`, or `null` for a file whose
   `recorded_in` pins no commit
 
 #### Scenario: Given a run's item, the branch search applies the run's rules
@@ -889,6 +877,25 @@ another repository is input* and leave out each file the item's visibility hides
 - **WHEN** `branch-search` cannot fetch the repository's questions branch
 - **THEN** it exits with an error and prints no `hits`, so a caller reports
   the branch as not searched
+
+### Requirement: A decision hit that has not landed counts only where its commit is
+
+`landed` SHALL be `null` for a file whose `recorded_in` pins no commit;
+otherwise `true` when *An answer recorded on a work branch counts for
+other work once it lands* counts the file for every reader, and `false`
+when it does not or the script cannot check. A caller SHALL treat a
+`decision` hit whose `landed` is `false` as that requirement treats a
+file that has not landed: as input, labelled as not yet merged, unless
+the caller's branch contains the pinned commit.
+
+#### Scenario: A squash-merged decision has landed, and an unmerged one counts only on its branch
+
+- **WHEN** `branch-search` prints two `decision` hits, one whose pull
+  request was squash-merged with the document on the default branch, and
+  one whose pinned commit is only on an open pull request's branch
+- **THEN** the first has `landed: true`, and the second `landed: false`
+- **AND** a worker whose branch lacks the second's commit takes it as
+  input, labelled as not yet merged
 
 ### Requirement: The Igor reads questions branches with the script
 
@@ -1423,9 +1430,8 @@ concerns lines, which come in that order.
 
 When the second call's `ask` for a question names the skill that
 requires it (*A question another skill requires skips filters 2 and 4*),
-the question, asked in a post or in a Linear or Discord message, SHALL
-carry its
-**person-required line**,
+the question, asked in a post, in a Linear or Discord message or in an
+Igor worker's report, SHALL carry its **person-required line**,
 `Inquisitor: a person must decide this (required by <skill>).`, exactly as
 the second call prints it, `<skill>` being the requiring skill's name.
 
@@ -1446,14 +1452,6 @@ the second call prints it, `<skill>` being the requiring skill's name.
   that requires it
 - **THEN** its related-decision line comes directly after the line it ends
   on, and its person-required line next
-
-#### Scenario: A Linear question carries its line with no hook checking it
-
-- **WHEN** an agent asks on Linear whether to adopt spec-trace
-- **THEN** it puts spec-trace's person-required line directly after the
-  question, held to it only by the skill's instructions, since only a
-  GitHub post meets the post hook (*The second call checks a requiring
-  skill, and the post hook its line*)
 
 ### Requirement: The second call checks a requiring skill, and the post hook its line
 
@@ -1522,13 +1520,22 @@ thread counting as a private repository.
 
 In an Igor's handback comment, the Igor SHALL write each question's
 concerns line where *A question in a post or message names what it
-concerns on a line of its own* calls for one.
+concerns on a line of its own* calls for one. It SHALL keep, directly
+after a question, the person-required line its worker's report put there.
 
 #### Scenario: An Igor's handback names the repository a question concerns
 
 - **WHEN** an Igor posts a handback on an item of `o/web` asking its
   worker's question about `o/api`
 - **THEN** the Igor puts `Concerns: o/api` after the question
+
+#### Scenario: An Igor's handback keeps a question's person-required line
+
+- **WHEN** a worker's report holds a question whose second call named
+  spec-trace as requiring it, with spec-trace's person-required line after
+  it, and the Igor posts the handback asking it
+- **THEN** the handback carries that line after the question, so the
+  answer session posts no `Inquisitor: ` reply to it by itself
 
 ### Requirement: A round's questions are asked together at its end
 
@@ -2410,13 +2417,6 @@ source* says. Any other is logged once answered, with its answer.
 - **THEN** no log file is pushed for it, and the agent's report says the
   question was not logged
 
-#### Scenario: A question asked in a Discord thread is recorded when it is answered
-
-- **WHEN** an agent asks a question about `o/api` in a Discord thread
-- **THEN** it pushes no log file, and the question is recorded with its
-  answer once a person answers it, as the `answer-session` spec's *An
-  answer is recorded by a new log file* says for an answer session
-
 #### Scenario: An answer with no document is held in the log
 
 - **WHEN** a person answers a question that no decision document covers,
@@ -2828,12 +2828,6 @@ bars it.
   repository while the agent works in a first one
 - **THEN** no log file is pushed for it, and the only record is the
   citation file on the lore repository's questions branch
-
-#### Scenario: A lore entry the search shows but that stops nothing gets no citation
-
-- **WHEN** filter 1's search shows a lore entry for a question, and the
-  agent finds that the entry does not answer it and asks the question
-- **THEN** no citation file is pushed for that entry
 
 ### Requirement: No worker or Igor-started run pushes to a questions branch
 
@@ -3641,8 +3635,6 @@ several; else `message` and the asking message's URL.
 - **THEN** the hash takes `file`, an LF and that path
 - **AND** were the question in two log files on that branch, as when
   two items asked it, the hash would take the path first in byte order
-- **AND** an Igor's worker takes the path from its Igor's `branch-search`
-  hits, and writes no miss file when none holds the question
 - **AND** for a declined Linear message with no log file, the hash takes
   `message`, an LF and the message's URL
 
@@ -3651,6 +3643,18 @@ several; else `message` and the asking message's URL.
 - **WHEN** a person says that a picker question, never logged and asked
   in no message, did not need asking
 - **THEN** no miss file is written
+
+### Requirement: An Igor's worker writes a miss file only for a question a hit holds
+
+An Igor's worker SHALL name a `file` miss by the `path` of its Igor's
+`branch-search` hit whose `question` is the question, and write no miss
+file when no hit has it.
+
+#### Scenario: A worker writes no miss file for a question no hit holds
+
+- **WHEN** a person says a worker's question did not need asking, and no
+  `branch-search` hit holds the question
+- **THEN** the worker writes no miss file
 
 ### Requirement: A miss file's name is pushed once
 

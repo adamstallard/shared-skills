@@ -742,8 +742,8 @@ gives why.
 *Ruled out by a scenario:* recognising a handback by the marker and an `igor-`
 App author together, since no real handback reaches the hook (inquisitor spec:
 *An Igor's handback comment is no post, but the post hook vets what it sees*,
-scenario *An Igor's handback comment is not batched or tagged*, whose last
-clause has the post hook vet a `gh` post carrying the marker).
+scenario *A comment carrying igor's handback marker is vetted as a
+post*).
 
 ### Logs and privacy
 
@@ -2349,8 +2349,10 @@ in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
 building if they fail, until the repository's owner decides; so does task
-0.34 if Claude Code cannot restrict the session's tools. If task 0.37
-fails, the answer session is built as a standalone UI, not a mod. The
+0.34 if Claude Code cannot restrict the session's tools. Task 0.37 checks
+that a mod can submit a prompt of its own and have the model answer it
+unattended; if it cannot, building the mod stops, and the answer session
+is designed as a standalone UI and prototyped for the owner's approval. The
 rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and the repository's owner decides then what to build for them.**
@@ -2421,6 +2423,23 @@ A refusal the session cannot sort into either kind waits for the person.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   answer file.
+
+### Cuts that remove behaviour
+
+Each rule below could go to shorten the spec, but cutting it removes
+behaviour, so the owner decides.
+
+- **Should a relay post seen in the thread clear a pending answer?** The
+  answer-session spec's *A pending answer leaves the list once it is
+  settled* clears it, with scenario *A relay from another machine clears a
+  pending answer*. Cutting that clause and its scenario removes a
+  two-machine rule. Its cost is a stale pending entry on a machine that did
+  not relay the answer: *The thread is read again before a question is
+  shown and before a post* still stops a second relay. Recommended: cut.
+- **Should setup create a lore repository?** The answer-session spec's
+  *Setup can create a lore repository* and task 6.2 build it. No other
+  rule rests on it. Recommended: keep, since a person with no lore
+  repository otherwise makes one by hand before filter 1 has lore to read.
 
 ### Left to implementation
 
