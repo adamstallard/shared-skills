@@ -95,7 +95,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
       linear-app identity with a host command and learn the comment's URL;
-      that the identity can edit and delete its own comment; and that Linear marks a
+      that the identity can edit its own comment; and that Linear marks a
       comment's author as an app user in a form no person's account can
       take on. If any fails, Linear
       stays off and the README says so. Measured 2026-11-19 as an app
@@ -104,13 +104,18 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the `id`; the identity edits its own comment; a reply holds its
       parent's id; and an app user's comment has `user.app` `true` and a
       null `botActor`, the 5 test comments among the team's 77, the other
-      72 having `user.app` `false`. Not measured: deleting its own comment, mentions of the person or the relay,
+      72 having `user.app` `false`. Measured 2026-11-22, for the delete
+      *An automatic post is deleted when another relay post came first*
+      needs: an app user called the GraphQL mutation `commentDelete`,
+      through Linear's MCP server, on its own comment on a test issue;
+      it returned success, and the issue then listed no comments. Not
+      measured: mentions of the person or the relay,
       anything read with the person's key, and that no person's account
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
       of the person's user id and a reply to the relay's message, and edit
-      and delete its own message; that Discord marks the author of a bot's or a
+      its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports
       `messageContent` `true` reads a message that doesn't mention the bot
@@ -118,8 +123,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       If any fails, Discord stays off and the README says so. Measured
       2026-11-19 in a test thread: the identity reads a channel's history
       and a thread's, a reply holds a `message_reference` to its message,
-      the identity edits its own message, and a bot's message has
-      `author.bot` `true`. Not measured: deleting its own message, a mention of the person's user
+      the identity edits its own message and, as *An automatic post is
+      deleted when another relay post came first* needs, deletes it, and
+      a bot's message has `author.bot` `true`. Not measured: a mention of the person's user
       id, a webhook's message, and the Message Content read
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
@@ -236,9 +242,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       request comment and a review comment), and that an edit leaves it
       unchanged (inquisitor spec: *Every miss file is named by one hash*).
       Until it is measured, no miss file is named by a GitHub reply's
-      `node_id`. So three GitHub replies are not built: the person's
-      decline that posts a reply, the automatic `Inquisitor: ` reply, and
-      filter 1's `Recorded answer: ` reply to an agent's question. If a check fails,
+      `node_id`. So three GitHub replies to an agent's question are not
+      built: the reply a person's decline posts, the automatic
+      `Inquisitor: ` reply, and filter 1's `Recorded answer: ` reply. If a check fails,
       the GitHub id that names a miss file is changed to one the
       measurement shows passes these three checks, before miss files are
       named on GitHub
@@ -797,7 +803,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       held only in memory and never in a command's arguments, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the thread read after each
-      automatic post and the later of two such posts deleted, the preview showing where
+      automatic post and that post deleted when another relay post
+      came first (answer-session spec: *An automatic post is deleted
+      when another relay post came first*), the preview showing where
       the answer will be recorded; the person's pick of another place in
       it (answer-session spec: *The person can pick another place in the
       preview*); for an Igor's question on a more private repository, the
@@ -884,9 +892,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           prefix on GitHub*).
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
-        only when a miss file on the branch its question's concerns line
-        names backs it: one naming a `said_by`, or a hash-only one, each
-        named by a hash of the reply's surface and id
+        only when no other skill requires a person to decide the question
+        and a miss file backs the reply on the branch its question's
+        concerns line names, named by a hash of the reply's surface and id
+        and either naming a `said_by` or hash-only (inquisitor spec: *A
+        hash-only miss file shows nothing but that it exists*)
         (design.md: *What an asking agent does with an automatic reply*).
 - [ ] 6.11 Decide at implementation, and when each choice is made, add
       it to the spec as a requirement with a scenario or, if no test can

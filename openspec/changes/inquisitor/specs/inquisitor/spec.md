@@ -1489,8 +1489,8 @@ thread counting as a private repository.
 
 In an Igor's handback comment, the Igor SHALL write each question's
 concerns line where *A question in a post or message names what it
-concerns on a line of its own* calls for one. It SHALL keep, directly
-after a question, the person-required line its worker's report put there.
+concerns on a line of its own* calls for one. It SHALL keep each
+person-required line its worker's report put after a question.
 
 #### Scenario: An Igor's handback names the repository a question concerns
 
@@ -3567,7 +3567,14 @@ hex SHA-256 of two parts joined by an LF: for a reply the answer session
 posted, the surface (`github`, `linear` or `discord`) and the reply's id,
 on GitHub its `node_id`; else `file` and the path of the question's log
 file on the questions branch the miss goes to, the first in byte order if
-several; else `message` and the asking message's URL.
+several; else `message` and the asking message's URL. A writer finding
+the name taken SHALL push nothing.
+
+#### Scenario: A retried push of a miss already on the branch pushes nothing
+
+- **WHEN** the answer session retries an owed push of a miss file whose
+  earlier push had landed
+- **THEN** it pushes nothing, the name being on the branch
 
 #### Scenario: A miss file is named by its reply's id
 
@@ -3629,19 +3636,6 @@ file when no hit has it.
 - **WHEN** a person says a worker's question did not need asking, and no
   `branch-search` hit holds the question
 - **THEN** the worker writes no miss file
-
-### Requirement: A miss file's name is pushed once
-
-A writer finding a miss file's name taken SHALL push nothing, so a later
-miss about the same reply, question or message
-leaves the first in place, as *A file on a questions branch never changes
-once pushed* requires.
-
-#### Scenario: A retried push of a miss already on the branch pushes nothing
-
-- **WHEN** the answer session retries an owed push of a miss file whose
-  earlier push had landed
-- **THEN** it pushes nothing, the name being on the branch
 
 ### Requirement: A hash-only miss file shows nothing but that it exists
 

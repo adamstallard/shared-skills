@@ -379,17 +379,22 @@ same place. No other line SHALL settle anything.
 
 ### Requirement: A decline's preview says when the asking agent takes its reply as input
 
-The preview of a person's decline for the inquisitor of an agent's
-question no concerns line settles SHALL say that the asking agent will
-take the reply as input, since the agent looks for the reply's miss file
-only on the branch a concerns line names, and the session follows no line
-for such a question.
+When the person declines an agent's question for the inquisitor and no
+miss file will back the reply, the decline's preview SHALL say that the
+asking agent will take the reply as input. No miss file backs it when no
+concerns line settles the question, as the agent looks for one only on
+the branch such a line names, or when the session writes none: by *A
+miss holds the repository its question concerns*, by *The answer session
+writes no miss it cannot place privately*, or with no login configured.
 
 #### Scenario: A decline's preview says an unsettled question's reply is input
 
 - **WHEN** the person declines for the inquisitor an agent's question no
   concerns line settles
 - **THEN** the preview says the asking agent will take the reply as input
+- **AND** the preview says the same for a settled question shown from two
+  questions-branch files whose `repository` keys differ, which gets no
+  miss file
 
 ### Requirement: Each item of an open-questions section is its own question
 
@@ -1114,8 +1119,8 @@ as it was.
 
 - **WHEN** a question in a GitHub issue is the asker's next comment after
   a relay post there, so it replies to that post; the person answered the
-  question, or declined it with filter 2's reply posted or with nothing
-  posted; and then the asker comments again without a mention, or someone
+  question, or declined it with a reply posted, such as filter 2's; and
+  then the asker comments again without a mention, or someone
   mentions the person there
 - **THEN** every machine shows the comment as a new question, the asker's
   as a reply to the relay post and a mention as a mention, and the earlier
@@ -1342,7 +1347,7 @@ are a closed list of token shapes* and post none that matches.
 ### Requirement: The Linear relay's token stays in memory
 
 On Linear, where linear-app has no post command, the answer session SHALL
-post by its own HTTP request, holding only in memory the token
+post, edit and delete by its own HTTP request, holding only in memory the token
 linear-app's `token` command prints, never in a command's arguments, which any
 user of the machine can read.
 
@@ -1352,7 +1357,8 @@ user of the machine can read.
 - **THEN** the answer session posts it with its own HTTP request, with
   the token linear-app's `token` command printed to it, and no tool call
   of the model posts it
-- **AND** no command the session runs holds the token in its arguments
+- **AND** no command the session runs holds the token in its arguments,
+  and the session edits and deletes its Linear posts the same way
 
 ### Requirement: A failed relay post is reported to the person
 
@@ -1422,7 +1428,7 @@ queue* returns it; that rule returns no answer refused for its text. A
 refusal task 0.25's mapping cannot place counts as refused for its
 text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
-this machine.
+this machine; a dropped answer is never posted.
 
 #### Scenario: A text refused for its length stays pending after a recheck
 
@@ -1436,11 +1442,6 @@ this machine.
 - **WHEN** Discord refuses a relay post with an error task 0.25's mapping
   does not place, and the channel's check later passes
 - **THEN** the answer stays pending, shown with Discord's error
-
-### Requirement: A pending answer leaves the list once it is settled
-
-An answer SHALL leave the pending list only once it is back in the queue,
-posted or dropped; a dropped answer is never posted.
 
 #### Scenario: A dropped pending answer is never posted
 
@@ -1521,10 +1522,7 @@ kept pending.
 
 When the person later posts an answer whose file was pushed at once,
 the answer session SHALL push a new answer file, naming the same
-questions-branch file as the first, only if its text was edited. For a
-question a questions-branch file holds, dropping a pending answer,
-edited or not, SHALL push no file, and leaves a file already pushed,
-with its original text, as the person's answer.
+questions-branch file as the first, only if its text was edited.
 
 #### Scenario: An edited answer pushed at once pushes a new file when posted
 
@@ -1533,12 +1531,6 @@ with its original text, as the person's answer.
 - **THEN** the `log` command pushes a new answer file naming the same
   file, with the relay post's URL as its `answer_link`; posted unedited,
   it pushes no second file
-
-#### Scenario: An edited pending answer that is dropped leaves the original file
-
-- **WHEN** the person edits such an answer and then drops it
-- **THEN** nothing is posted, no new file is pushed, and the pushed file
-  with the original text stays the person's answer
 
 ### Requirement: A relay post can be edited where it was posted
 
@@ -1721,6 +1713,8 @@ its miss file. If the fetch or the delete fails, both posts stay.
   the first reply and deletes its own, and its miss file stays
 - **AND** had both replies carried the same time, the one whose id is
   larger in byte order would be deleted
+- **AND** had the first been the person's `User says: ` answer, relayed
+  from the other machine, the reply would be deleted the same way
 
 ### Requirement: Local state is per machine, in the state folder
 

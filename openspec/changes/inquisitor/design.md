@@ -2386,31 +2386,6 @@ A refusal the session cannot sort into either kind waits for the person.
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### Behaviour a person must choose
-
-- **A later automatic post that is never deleted.** *An automatic post
-  is deleted when another relay post came first* leaves both posts in
-  the thread when the fetch after the post fails, the delete is refused,
-  or the session stops between posting and that fetch. It takes a race
-  and a failure together, but the duplicate is visible to the thread's
-  readers. Options: (a) accept it, as the answer-session record's entry
-  listing accepted crash and two-machine gaps, *Rejected: A TLA+ model
-  of the answer session's owed pushes and automatic posts*, does; (b)
-  record that fetch and its delete as owed, like a push, and retry them
-  after a restart or once the channel is back. Recommended: (a), since
-  (b) adds a rule for a failure on top of a rare race.
-- **A relay that cannot delete its own post.** Tasks 0.16 and 0.17
-  check that the Linear and Discord relays can delete their own comment
-  or message, and their rule turns the surface off if any check fails.
-  GitHub needs no task: GitHub's REST reference asks the same Issues or
-  Pull requests write permission to delete a comment as to post one.
-  Options: (a) keep the tasks' rule, so a surface whose relay cannot
-  delete stays off; (b) on such a surface, post no automatic reply by
-  itself and show the person the question; (c) accept duplicates there.
-  Recommended: (b): it adds one rule, but keeps the surface for the
-  person's own answers, which (a) loses, and leaves none of the visible
-  duplicates (c) does.
-
 ### What other changes must provide
 
 - **github-app still hands a relay identity's token to commands that can
