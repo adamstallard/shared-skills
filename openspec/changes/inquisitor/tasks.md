@@ -1,8 +1,8 @@
 ## Before gate one is approved
 
 - [x] G.1 The repository's owner approves the prototype build covering thread replies and
-      the recorded answer shown beside the question, and task 6.1's rule
-      (d) names its tag. Done: build v0.1-33, tagged
+      the recorded answer shown beside the question, and task 6.1 names
+      the approved build's tag. Done: build v0.1-33, tagged
       `answer-session-ui-approved-v0.1-33`
 
 Gate two: the tasks below follow on this branch once the repository's owner approves the

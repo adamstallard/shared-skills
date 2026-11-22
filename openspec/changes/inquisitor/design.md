@@ -2426,20 +2426,39 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### Cuts that remove behaviour
 
-Each rule below could go to shorten the spec, but cutting it removes
-behaviour, so the owner decides.
+Each rule below could go to shorten the spec. The owner decides, because
+cutting it removes behaviour or a record entry rests on it. The first five
+handle only cases whose worst outcome is a duplicate, an extra question or
+a re-ask. Recommended for each: cut.
 
-- **Should a relay post seen in the thread clear a pending answer?** The
-  answer-session spec's *A pending answer leaves the list once it is
-  settled* clears it, with scenario *A relay from another machine clears a
-  pending answer*. Cutting that clause and its scenario removes a
-  two-machine rule. Its cost is a stale pending entry on a machine that did
-  not relay the answer: *The thread is read again before a question is
-  shown and before a post* still stops a second relay. Recommended: cut.
-- **Should setup create a lore repository?** The answer-session spec's
-  *Setup can create a lore repository* and task 6.2 build it. No other
-  rule rests on it. Recommended: keep, since a person with no lore
-  repository otherwise makes one by hand before filter 1 has lore to read.
+- **The asking agent's three retries before taking a reply as input**
+  (inquisitor: *A reply's miss file is looked for on the branch its
+  question's concerns line names*). Without
+  them, a reply whose miss file has not landed yet is taken as input, and
+  the question stays open.
+- **Dropping an owed push's retry once another answer file names the
+  unanswered file it would answer** (answer-session: *An owed push's retry stops when answered or
+  refused for good*, its first sentence and two scenarios). Without it,
+  the worst case is a second answer file.
+- **Taking an owed push's URL from the thread** (answer-session: *An owed
+  push with no URL is settled from the thread*, with its Discord matching
+  rules). Without it, the record is dropped, the answer stays pending, and
+  the person may post it again.
+- **Taking a miss file's reply id from the thread after a crash**
+  (answer-session: *The answer session logs its misses on the questions
+  branch of what the question concerns*). Without it, a reply posted
+  just before a crash has no miss file behind it, so the asker takes it
+  as input.
+- **An Igor writes no second answer file for a handback** (inquisitor).
+  Without it, the Igor may push one extra input file. igor #247's body,
+  which igor builds from, relies on it in decision 3 and section 3, and
+  would be edited with it.
+- **The post hook vets a handback comment it sees, though the comment is
+  not a post** (inquisitor: *An Igor's handback comment is no post, but
+  the post hook vets what it sees*). Cutting it removes no behaviour,
+  since *Questions in posts pass the same filters* already vets every
+  post the hook sees. The inquisitor record's Rationale entry for it, and
+  task 3.2, which cites it, would go or change with it.
 
 ### Left to implementation
 

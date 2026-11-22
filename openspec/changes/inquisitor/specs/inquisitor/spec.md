@@ -894,8 +894,9 @@ the caller's branch contains the pinned commit.
   request was squash-merged with the document on the default branch, and
   one whose pinned commit is only on an open pull request's branch
 - **THEN** the first has `landed: true`, and the second `landed: false`
-- **AND** a worker whose branch lacks the second's commit takes it as
-  input, labelled as not yet merged
+- **AND** a caller whose branch lacks the second's commit takes it as
+  input, labelled as not yet merged, and one whose branch contains it
+  counts it
 
 ### Requirement: The Igor reads questions branches with the script
 
@@ -1138,13 +1139,13 @@ once pushed*).
 
 ### Requirement: A logged decision needs write access to what its question concerns
 
-A `decision` log entry SHALL count only when its `answered_by` has write
-access, when the search reads it, to what the logged question concerns,
-whatever the agent's own question concerns: the repository its `repository`
-key names, or, for a file with no such key on a lore repository's
-questions branch, that lore repository (design.md: *A questions-branch
-decision counts by write access to what it names*). Such a file elsewhere
-is unreadable.
+A `decision` log file SHALL count only when its `answered_by` has write
+access to what the logged question concerns at the time the search reads
+it, whatever the agent's own question concerns. What it concerns is the
+repository its `repository` key names, or, for a file with no such key on
+a lore repository's questions branch, that lore repository. A file with
+no such key on any other branch is shown as input labelled unreadable,
+since what it concerns cannot be told.
 
 #### Scenario: A decision whose author lost write access is input
 
@@ -1767,8 +1768,8 @@ question stops the work, or, if the work goes on, that one waits.
 #### Scenario: A held-back question is not stated where its context is hidden
 
 - **WHEN** an Igor worker on an issue of the public `o/web` has a question
-  that cannot be understood without naming the private `o/api`'s code,
-  and the work needs the answer
+  about `o/web` that cannot be understood without naming the private
+  `o/api`'s code, and the work needs the answer
 - **THEN** it asks the question nowhere and stops, and its report, and so
   its handback comment, says only that a question stops the work, without
   the question's text
@@ -3195,11 +3196,10 @@ leak*; *A log file without `asked_in` is never merged*).
 
 A log file for a question also asked in a GitHub post SHALL hold that
 post's URL as `asked_in`, so the agent SHALL post the question first
-(design.md: *A log file follows its thread message by exact link*). An Igor
-worker's file holds the URL of any handback comment asking its question,
-which the Igor writes after posting the comment, leaving it out where *The
-log command withholds a link where it would leak* would (design.md: *Each
-Igor log file follows its own handback comment*).
+(design.md: *A log file follows its thread message by exact link*). The
+Igor writes a worker's file's `asked_in` after posting the handback
+comment, writing into it that comment's URL (design.md: *Each Igor log
+file follows its own handback comment*).
 
 #### Scenario: A question logged and asked in a post links the post
 
@@ -3973,9 +3973,10 @@ only that the question blocks.
 A session with no person in it SHALL ask or post no `secret` or `personal`
 question, ask a `vulnerability` one only in the advisory, defer none, stop
 only work needing the answer, and report only its category as blocking or
-waiting. An Igor worker's report SHALL instead be igor PR #216's flag
-on giving a question a category: each category met, listed once, marked if a question of it
-stopped the worker, and nothing else.
+waiting. An Igor worker SHALL instead report its questions with a
+category only through the flag igor PR #216 defines for them. The flag
+lists each
+category met once, marked if a question of it stopped the worker.
 
 #### Scenario: A headless session files a vulnerability's advisory
 

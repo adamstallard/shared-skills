@@ -229,21 +229,13 @@ take the time of the poll on this machine that first found it.
 ### Requirement: A poll position marks the newest message a poll read
 
 A channel's **poll position** SHALL be the time of the newest message its
-last poll read. GitHub's notifications endpoint, one feed for every
-GitHub channel, SHALL have one poll position of its own: the
-`Last-Modified` time of its last response.
+last poll read.
 
 #### Scenario: A channel's poll position is its newest message read
 
 - **WHEN** a Linear team's last poll read messages up to one posted at
   10:04
 - **THEN** that team's poll position is 10:04
-
-#### Scenario: The notifications feed's poll position is its last Last-Modified
-
-- **WHEN** GitHub's last notifications response had `Last-Modified` 10:06,
-  and the newest notification in it was updated at 10:02
-- **THEN** the notifications feed's poll position is 10:06
 
 ### Requirement: The state folder is under the XDG state home
 
@@ -590,8 +582,8 @@ in; each opening SHALL rerun any check that failed or never ran.
   passed, and the team counts as on
 - **AND** once Linear refuses a relay post there, the refusal counts as a
   failed posting check: the post is handled as *A failed relay post is
-  reported to the person* says, and the team stays off until a check at
-  a later opening passes
+  reported to the person* says, and the team stays off until the relay's
+  own check passes at a later opening
 
 ### Requirement: Setup opens on an incomplete configuration
 
@@ -1455,7 +1447,7 @@ queue* returns it; that rule returns no answer refused for its text. A
 refusal task 0.25's mapping cannot place counts as refused for its
 text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
-this machine; a dropped answer is never posted.
+this machine.
 
 #### Scenario: A text refused for its length stays pending after a recheck
 
@@ -1463,12 +1455,6 @@ this machine; a dropped answer is never posted.
   posting in that channel later passes
 - **THEN** the answer stays pending until the person edits, posts or
   drops it, and does not go back into the queue
-
-#### Scenario: A dropped pending answer is never posted
-
-- **WHEN** the person drops an answer from the pending list
-- **THEN** nothing is posted for it, and the question's state is read
-  from its thread
 
 #### Scenario: A refusal the session cannot place waits for the person
 
@@ -1478,16 +1464,15 @@ this machine; a dropped answer is never posted.
 
 ### Requirement: A pending answer leaves the list once it is settled
 
-An answer SHALL leave the pending list once it is back in the queue,
-posted or dropped, or once a relay post naming its question appears in
-the thread.
+An answer SHALL leave the pending list only once it is back in the queue,
+posted or dropped; a dropped answer is never posted.
 
-#### Scenario: A relay from another machine clears a pending answer
+#### Scenario: A dropped pending answer is never posted
 
-- **WHEN** another machine relays in a Linear or Discord thread an answer
-  this machine holds as answered, not relayed
-- **THEN** the answer leaves this machine's pending list, and the question
-  shows as answered
+- **WHEN** the person drops an answer from the pending list
+- **THEN** it leaves the list, nothing is posted for it, and the
+  question takes its state from its thread again: unanswered unless a
+  relay post there answers it or is an `Inquisitor: ` reply to it
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
@@ -1804,7 +1789,8 @@ outlives it.
 - **WHEN** the answer session saves its working state
 - **THEN** it writes only to the state folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
-  record, each channel's and the notifications feed's poll position,
+  record, each channel's poll position, the `Last-Modified` time of the
+  last response from GitHub's notifications endpoint,
   each check's last result, relay post ids, the question on screen, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
@@ -2235,7 +2221,10 @@ nothing; a reworded answer needs the same confirmation.
 Before the person confirms an answer, or a decline that logs a miss, its
 preview SHALL show which questions branch will hold the record and its
 visibility, or that nothing will be recorded and why, and, if the
-question has no thread, that the asker gets nothing.
+question has no thread, that the asker gets nothing. For a log file an
+Igor pushed to a branch more private than its worker's item, it says
+instead that the worker's run gets the answer (*The preview says when an
+answer also reaches a more visible item's run*).
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2691,8 +2680,7 @@ take its state from its thread.
 The person SHALL be able to reopen, on the machine where they declined
 it, a thread copy declined with nothing posted, which puts it back in
 their queue, and SHALL NOT be offered any other declined question to
-reopen; one declined with a post is changed by editing that post. A miss
-logged at the decline SHALL stay when the question is reopened.
+reopen; one declined with a post is changed by editing that post.
 
 #### Scenario: A question declined with a post is not reopened
 
@@ -2700,14 +2688,6 @@ logged at the decline SHALL stay when the question is reopened.
   the answer session posted that filter's reply
 - **THEN** no way to reopen it is offered, and the person can change the
   handling only by editing that post
-
-#### Scenario: A reopened decline keeps its miss
-
-- **WHEN** the person declines an agent's thread copy with filter 3's "the
-  agent shouldn't have asked", so that nothing is posted and a miss is
-  pushed, then reopens it on the same machine
-- **THEN** the question is back in the queue on that machine, and the miss
-  file stays on the questions branch
 
 #### Scenario: A declined questions-branch file is not offered for reopening
 
