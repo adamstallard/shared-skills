@@ -732,19 +732,6 @@ unvetted*). In the answer session's own session the model has no tool that
 posts (*The session's model has no shell, no writing tool and no web
 fetch*).
 
-#### No exemption for an Igor's handback
-
-**Rule:** inquisitor spec, *An Igor's handback comment is no post, but the
-post hook vets what it sees*; the inquisitor decision record's *Rationale:
-An Igor's handback comment is no post, but the post hook vets what it sees*
-gives why.
-
-*Ruled out by a scenario:* recognising a handback by the marker and an `igor-`
-App author together, since no real handback reaches the hook (inquisitor spec:
-*An Igor's handback comment is no post, but the post hook vets what it sees*,
-scenario *A comment carrying igor's handback marker is vetted as a
-post*).
-
 ### Logs and privacy
 
 #### Every asked question is logged with what it concerns
@@ -1289,8 +1276,9 @@ change it needs, but a clause guarding against misuse in igor's end state is wri
 as:
 - an answer to a question the handback record does not hold is not pushed;
 - an `igor lore-search` call that fails searches no lore;
-- a handback-marked post is vetted like any other (*No exemption for an
-  Igor's handback*).
+- a post carrying igor's handback marker, which a real handback, sent
+  through no tool, never is, is vetted like any other (the inquisitor
+  record's *Rationale: Questions in posts pass the same filters*).
 
 *Recorded:* in the inquisitor and answer-session decision records,
 *Constraint: Each rule that depends on igor states what holds once the igor
@@ -1745,7 +1733,8 @@ after its post*; *An answer whose thread is unreachable here is logged at
 once* and the requirements beside them; inquisitor spec, *The answer
 session's files are never kept pending*. The file follows the post so
 that no thread is left answered with no file. Recording the owed push
-before the post means a crash between them does not lose the answer file.
+before the post means a crash after the post's URL is saved does not lose
+the answer file.
 Checking the thread first lets the person see a new message before
 anything is pushed.
 
@@ -1759,12 +1748,6 @@ anything is pushed.
   question is logged at once*);
 - pushing no file when a refused post turned the channel off, though a file
   is pushed when the channel was already off (same scenario);
-- accepting a thread answered with no file (answer-session spec: *A
-  questions-branch answer's file is pushed after its post*, scenario *An
-  owed push survives a crash*);
-- any machine pushing an answer file for a relay post it finds without one
-  (same requirement, scenario *A machine that owes no push pushes no file
-  for a relay post*);
 - a dropped pending answer pushing a handled file (answer-session spec: *A
   handled file closes a questions-branch question*, scenario *Dropping a
   pending answer pushes no handled file*);
@@ -2190,8 +2173,8 @@ scenario *A bot's message reaches only the first person it mentions*).
 igor's marker*.
 
 The marker is needed because an Igor posts other comments on the item too.
-The post hook does not read the marker (*No exemption for an Igor's
-handback*).
+The post hook does not read the marker (the inquisitor record's
+*Rationale: Questions in posts pass the same filters*).
 
 Why a Linear comment counts too is in the answer-session record's
 *Rationale: A handback is an Igor's comment holding igor's marker*. Linear
@@ -2426,39 +2409,19 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### Cuts that remove behaviour
 
-Each rule below could go to shorten the spec. The owner decides, because
-cutting it removes behaviour or a record entry rests on it. The first five
-handle only cases whose worst outcome is a duplicate, an extra question or
-a re-ask. Recommended for each: cut.
-
-- **The asking agent's three retries before taking a reply as input**
-  (inquisitor: *A reply's miss file is looked for on the branch its
-  question's concerns line names*). Without
-  them, a reply whose miss file has not landed yet is taken as input, and
-  the question stays open.
-- **Dropping an owed push's retry once another answer file names the
-  unanswered file it would answer** (answer-session: *An owed push's retry stops when answered or
-  refused for good*, its first sentence and two scenarios). Without it,
-  the worst case is a second answer file.
-- **Taking an owed push's URL from the thread** (answer-session: *An owed
-  push with no URL is settled from the thread*, with its Discord matching
-  rules). Without it, the record is dropped, the answer stays pending, and
-  the person may post it again.
-- **Taking a miss file's reply id from the thread after a crash**
-  (answer-session: *The answer session logs its misses on the questions
-  branch of what the question concerns*). Without it, a reply posted
-  just before a crash has no miss file behind it, so the asker takes it
-  as input.
-- **An Igor writes no second answer file for a handback** (inquisitor).
-  Without it, the Igor may push one extra input file. igor #247's body,
-  which igor builds from, relies on it in decision 3 and section 3, and
-  would be edited with it.
-- **The post hook vets a handback comment it sees, though the comment is
-  not a post** (inquisitor: *An Igor's handback comment is no post, but
-  the post hook vets what it sees*). Cutting it removes no behaviour,
-  since *Questions in posts pass the same filters* already vets every
-  post the hook sees. The inquisitor record's Rationale entry for it, and
-  task 3.2, which cites it, would go or change with it.
+- **Should an owed handled, miss or citation push still be dropped when
+  the thread shows its post never went out?** (answer-session: *A handled
+  file is pushed once its close takes effect*; *A miss or citation file's
+  push is owed and retried as a handled file's is*.) The rule stands until
+  decided. Keeping it means the session reads the thread after a crash to
+  find whether a post went out, which it no longer does for answer files,
+  and the rule needs a scenario. Cutting it means a crash between
+  recording the push and posting pushes the file anyway: a handled file
+  closes its questions-branch file while the thread copy stays open, so
+  the person handles the question again; a citation counts one lore use
+  too many; a miss file, whose reply id was never saved, is dropped
+  either way. Recommended: cut, since each outcome is a re-ask or an
+  overcount the records already accept.
 
 ### Left to implementation
 

@@ -93,7 +93,8 @@ code, quotes and links, as the `answer-session` spec's *A mention names a
 user outside code, quotes and links* counts a mention.
 
 *An Igor's handback comment* is the comment in which an Igor hands an item
-back to a person, holding what its worker reported.
+back to a person, holding what its worker reported. It is not a post:
+the Igor sends it through its own code, which no tool hook sees.
 
 An agent is *inside an Igor*, or works *during an Igor's run*, as igor PR
 #216 defines "during a run", when it works for an Igor under that Igor's
@@ -513,20 +514,6 @@ repository keys and links are checked before use*.
   `repository` and `asked_from` the private `o/api`
 - **AND** so is a file on the questions branch of the private `o/lore`
   whose `asked_from` is the public `o/web`
-
-### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
-
-The comment an Igor posts through its own code, which no tool hook sees,
-to hand an item back SHALL NOT count as a post. Any comment the post hook
-does see SHALL be a post, and vetted, even when it carries igor's handback
-marker, which the hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
-
-#### Scenario: A comment carrying igor's handback marker is vetted as a post
-
-- **WHEN** an agent's `gh` call posts a comment carrying igor's handback
-  marker, in the form task 0.6 records
-- **THEN** the post hook vets it as a post, and blocks it if it asks an
-  unvetted question
 
 ### Requirement: An agent logs a bot's comment only as input
 
@@ -1273,7 +1260,7 @@ grouping supersedes still answers the file it names.
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
 An answer file SHALL stop counting for its own question once a newer answer
-file names the file it names, and SHALL be shown as input, labelled as
+file that would count names the same file, and SHALL be shown as input, labelled as
 superseded. It SHALL still supersede the older files in its hash group,
 which can leave that group with no answer that counts (design.md: *`answers`
 decides a named file's answer; the search groups by hash*).
@@ -2964,24 +2951,6 @@ access* and its `answered_by` as the `log` command would, and adds
 - **AND** the Igor, pushing the file, writes the answer, its `authority` and
   any `answered_by`, as *A worker logs no answer, and its Igor writes it
   from the comment* says
-
-### Requirement: An Igor writes no second answer file for a handback
-
-The Igor SHALL push nothing for a worker's handback answer when the branch
-already holds an answer file for the same comment: one that names the
-handback question's log file in `answers` and holds, as its `answer_link`
-or `recorded_in`, the comment the worker's file links. One answer would
-otherwise have two answer files.
-
-#### Scenario: An Igor writes no second answer file for a handback
-
-- **WHEN** a person answers an Igor's handback question in the answer
-  session, which pushes an answer file naming the Igor's log file in
-  `answers`, and a worker re-working the item reports a log file with an
-  `answer_link` to the relay post that answer file holds in `recorded_in`
-- **THEN** the Igor pushes nothing for it
-- **AND** when the person later answers again in a new comment, the Igor
-  writes and pushes the answer for that comment
 
 ### Requirement: No log file records a flagged run's question
 

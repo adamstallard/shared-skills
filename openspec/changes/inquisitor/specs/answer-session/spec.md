@@ -1476,13 +1476,13 @@ posted or dropped; a dropped answer is never posted.
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
-When an answer gets an answer file, and the fetch made before posting it
-finds no new message, the answer session SHALL record the
-**owed push**, with the answer and the thread, in the state folder; post;
-add the post's URL to the record; then push the answer file with that URL
-as its `answer_link`, retrying a failed push at each poll and opening
-(design.md: *The push order for a questions-branch answer*). An answer
-whose file was logged at once, then posted unedited, gets no owed push.
+When an answer gets an answer file and a fetch of its thread just before
+its post finds no new message, the answer session SHALL record the
+**owed push** in the state folder, post, add the post's URL to the
+record, and push the file with that URL as its `answer_link`, retrying a
+failed push at each poll and opening. The record of a post that fails,
+or still lacks its URL at the next opening, is dropped and its answer
+kept pending.
 
 #### Scenario: An owed push survives a crash
 
@@ -1490,40 +1490,15 @@ whose file was logged at once, then posted unedited, gets no owed push.
   before pushing the answer file
 - **THEN** at its next opening it pushes the answer file it recorded as
   owed
+- **AND** had it stopped before adding the post's URL to the record, it
+  drops the record, pushes no file, and keeps the answer pending, which
+  the person may then post again
 
-### Requirement: An owed push with no URL is settled from the thread
+### Requirement: An owed push refused for good is not retried
 
-The answer session SHALL settle an owed push recorded with no post's URL,
-other than an answer logged at once, from the thread at the next poll or
-opening: it takes the URL of a relay
-post there naming the question and holding this answer, or else drops
-the record and keeps the answer pending. A Discord post holds the answer
-even with whitespace at its end dropped and an `@name` sent as `<@id>`,
-as Discord and discord-bot send it (task 0.23).
-
-#### Scenario: An owed push whose post never went out is dropped
-
-- **WHEN** the answer session recorded an owed push and stopped before
-  the relay post went out, and the thread holds no relay post naming the
-  question
-- **THEN** it drops the record, pushes no file, and keeps the answer
-  pending
-
-#### Scenario: An owed push whose post went out takes its URL from the thread
-
-- **WHEN** an owed push has no post's URL, and the Discord thread holds
-  a relay post naming the question whose text is this answer with its
-  `@ana` sent as `<@1234>`
-- **THEN** the retry pushes the answer file with that post's URL as its
-  `answer_link`
-
-### Requirement: An owed push's retry stops when answered or refused for good
-
-The answer session SHALL drop an owed push's retry once a fetch after
-recording it first shows an answer file, counting as the person's
-answer, that names the same file. It SHALL NOT retry a push the `log`
-command refuses for a reason that will not change, telling the person
-the answer was relayed but not logged, and why.
+The answer session SHALL NOT retry any owed push the `log` or `cite`
+command refuses for a reason that will not change, such as lack of access, telling the person
+what was not logged, and why.
 
 #### Scenario: A push the log command refuses for good is not retried
 
@@ -1532,22 +1507,6 @@ the answer was relayed but not logged, and why.
   cannot read to copy the answer from, or for a credential its scan finds
   in the answer
 - **THEN** it is not retried, and the person is told so and why
-
-#### Scenario: Only an answer file first seen after the record drops the retry
-
-- **WHEN** an answer file counting as the person's answer, naming an owed
-  push's file, first shows at a fetch after the push was recorded
-- **THEN** the answer session drops the retry and pushes no file for it
-- **AND** such a file this machine had already seen when it recorded the
-  push does not drop the retry
-
-#### Scenario: The machine's own earlier file does not cancel an edited answer's push
-
-- **WHEN** this machine pushed the answer "Use Postgres" at once while the
-  thread's channel was off, the person edits it to "Use SQLite", it is
-  posted once the channel is on, and the edited answer's push fails
-- **THEN** the answer session keeps retrying that push, and the
-  "Use Postgres" file does not drop the retry
 
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
@@ -1572,7 +1531,8 @@ kept pending. No other answer SHALL push a file before its relay post.
 - **WHEN** the person answers a question shown from its questions-branch
   file, which has no `asked_in`, and the push fails for want of network
 - **THEN** the push stays owed in the state folder and is retried at each
-  poll and opening until it lands or its retry stops as for any owed push,
+  poll and opening until it lands or *An owed push refused for good is
+  not retried* stops it,
   and the answer is not kept pending
 
 #### Scenario: An answer held back by a new message pushes no file
@@ -2444,15 +2404,14 @@ and opening until it succeeds or is refused for good.
   handled file's push fails
 - **THEN** the push stays owed in the state folder and is retried at
   each poll and opening until it succeeds
-- **AND** a push the `log` or `cite` command refuses for good, such as
-  for lack of access, is dropped, and the person is told so
 
 ### Requirement: A miss or citation file's push is owed and retried as a handled file's is
 
 The answer session SHALL record each miss or citation file it pushes as
 an owed push before the post leading to it or, with nothing posted,
-before the push, and drop or retry it as *A handled file is pushed once
-its close takes effect* does a handled file's.
+before the push; drop it if the post fails, if the thread shows it never
+went out, or, for a miss file, if its reply's id was not saved; and retry
+it at each poll and opening until it succeeds or is refused for good.
 
 #### Scenario: A miss or citation owed when the session stopped is pushed later
 
@@ -3150,9 +3109,8 @@ branch of what it concerns*.
 - **THEN** it takes the reply's id from the surface's response and then
   pushes the miss file that id names, as the inquisitor's *Every miss file
   is named by one hash* says
-- **AND** if the session stopped before saving the reply's id, the
-  retried push takes the id from the relay's `Inquisitor: ` reply to that
-  question in the thread
+- **AND** if the session stopped before saving the reply's id, the miss
+  file's push is dropped, and the asker takes the reply as input
 
 ### Requirement: A miss records who judged it and where it was asked from
 

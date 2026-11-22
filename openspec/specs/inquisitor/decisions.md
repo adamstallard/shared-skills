@@ -107,8 +107,8 @@
   Evidence: igor PR #216's proposal, decisions 5 and 8, https://github.com/adamstallard/igor/blob/59e7561/openspec/changes/lore-search/proposal.md
   Evidence: that a citation shows its question exists: GitHub's events API shows each push's pusher and time to anyone who can see the repository, https://docs.github.com/en/rest/activity/events
 
-- **Rationale: An Igor's handback comment is no post, but the post hook vets what it sees.**
-  Exempting a post that carries igor's handback marker would let any agent that adds the marker skip vetting, and would help no real handback: the Igor posts each handback, which igor's specs call a handoff, through its own code, which no tool hook sees, and the worker holds no credential that could post one.
+- **Rationale: Questions in posts pass the same filters.**
+  Exempting from the filters a post that carries igor's handback marker would let any agent that adds the marker skip vetting, and would help no real handback: the Igor posts each handback, which igor's specs call a handoff, through its own code, which no tool hook sees, and the worker holds no credential that could post one.
   Evidence: igor's graceful-handoff spec has the Igor post each handoff, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/graceful-handoff/spec.md
   Evidence: igor's task-execution spec keeps the surface credential out of the worker's environment, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md
 

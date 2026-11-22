@@ -583,8 +583,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
-      section or a new issue; and vets
-      every post it sees, igor's handback included (design.md: *No exemption for an Igor's handback*)
+      section or a new issue; and blocks every other unvetted question
+      (inquisitor spec: *Questions in posts pass the same filters*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -943,8 +943,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - the relay post first, then the answer file's push, retried at
           each poll and each opening, the owed push recorded in the state
           folder before the post, and the relay post's URL added to that
-          record once the post goes out, the record dropped when it never
-          went out (design.md: *The push order for a questions-branch
+          record once the post goes out, the record dropped when its post
+          fails or it has no URL at the next opening (design.md: *The push order for a questions-branch
           answer*);
         - every push passing the `log` or `cite` command's session option, so
           that the owed push is the only retry;
