@@ -2404,27 +2404,6 @@ A refusal the session cannot sort into either kind waits for the person.
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### For a person to decide
-
-- **What may an agent's report say about a question the agent holds
-  back because it cannot be understood without more private context?**
-  *A question an agent may not ask is held back* says the report states
-  the question. In an Igor's run the report is what the handback holds.
-  Where the handback's issue or pull request is more visible than that
-  context, stating the question there carries the context with it, which
-  *Nothing about a repository goes somewhere more visible* forbids.
-  Options:
-  1. Where the report is more visible than that context, it says only
-     that a question waits for an answer or stops the work, with no text.
-     The category rule does the same (*A session with no person in it
-     holds back a question with a category*).
-  2. The report names it only where its readers could all read that
-     context, and leaves it out elsewhere.
-  3. Leave the rule as it is.
-
-  Recommendation: option 1, which reuses the category rule and keeps the
-  visibility rule whole.
-
 ### What other changes must provide
 
 - **github-app still hands a relay identity's token to commands that can

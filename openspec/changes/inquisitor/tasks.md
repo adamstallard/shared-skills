@@ -624,7 +624,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
       misses, the three categories recorded by hash only, what a headless
       session does (no picker, an Igor worker asking only in its handback
-      comment, stopping on a categorized question, and an Igor worker
+      comment, stopping only work that needs a categorized or held-back
+      question's answer and what its report then says, and an Igor worker
       raising igor's flag for a categorized question, listing once each
       category its worker run met and marking those of the questions it
       stopped on), describing no weakness in public text before its

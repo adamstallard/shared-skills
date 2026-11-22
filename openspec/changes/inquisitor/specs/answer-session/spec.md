@@ -853,7 +853,9 @@ says, it puts the question that post asked about back in the queue.
 - **THEN** it is ignored
 - **AND** so is an Igor's handback that reaches the person as its issue's
   assignee (*A handback that mentions no one goes to the item's
-  assignee*) and says only that the work waits elsewhere
+  assignee*) and says only that the work waits on a question recorded
+  elsewhere, or only that a question waits or stops the work, since it
+  holds no question the person could answer
 
 #### Scenario: The asker's thanks after a clarifying question is not ignored
 
@@ -1486,13 +1488,6 @@ whose file was logged at once, then posted unedited, gets no owed push.
   before pushing the answer file
 - **THEN** at its next opening it pushes the answer file it recorded as
   owed
-
-#### Scenario: A machine that owes no push pushes no file for a relay post
-
-- **WHEN** a machine reads, in the thread a questions-branch file's
-  `asked_in` links, a relay post answering that file's question, holds no
-  owed push for it, and finds no answer file naming that file
-- **THEN** it pushes no answer file for that post
 
 ### Requirement: An owed push with no URL is settled from the thread
 

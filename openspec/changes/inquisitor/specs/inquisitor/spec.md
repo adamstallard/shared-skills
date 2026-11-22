@@ -1723,19 +1723,19 @@ ask no question; what the Igor does with the question is igor PR #216's.
 
 A question that *A question is written at the privacy of what it
 concerns* bars, and a way-of-working question with no person in the
-session, SHALL NOT be asked. Unless it has a category, the agent's report
-SHALL state the question, a way-of-working one as waiting for the person,
-and the agent SHALL stop
-only if the work needs the answer. Filter 2 SHALL defer either kind, in
-any session, only into the report, and a report SHALL ask nothing about
-one it lists as deferred.
+session, SHALL NOT be asked; the agent SHALL stop only work needing the
+answer. One with no category SHALL be stated in the report, unless the
+report is more visible than its context, a way-of-working question's
+context being its person's alone; then the report SHALL say only that a
+question stops the work, or, if the work goes on, that one waits.
 
 #### Scenario: A headless session doesn't ask a way-of-working question
 
 - **WHEN** an Igor worker has a question about one person's way of working,
   and the work needs the answer
-- **THEN** it asks it nowhere, stops, and reports that the question waits
-  for the person
+- **THEN** it asks it nowhere, stops, and its report, and so its handback
+  comment, says only that a question stops the work, without the
+  question's text
 
 #### Scenario: A headless session doesn't defer a way-of-working question into a post
 
@@ -1743,14 +1743,6 @@ one it lists as deferred.
   working, and the work can go on without the answer
 - **THEN** it goes on with the work, lists the question in no post, files no
   issue for it, and reports that the question waits for the person
-
-#### Scenario: With the person present, a way-of-working question is deferred only into the report
-
-- **WHEN** an agent in a session with the person in it has a question
-  about the person's way of working, and the work can go on without the
-  answer
-- **THEN** filter 2 lists it as deferred only in the agent's report,
-  never in a post or issue, and the report asks nothing about it
 
 #### Scenario: A question the privacy requirement bars is stated in the report
 
@@ -1764,6 +1756,29 @@ one it lists as deferred.
   handled the same way
 - **AND** a question with the category `secret` that is barred the same
   way is not stated in the report
+
+#### Scenario: A held-back question is not stated where its context is hidden
+
+- **WHEN** an Igor worker on an issue of the public `o/web` has a question
+  that cannot be understood without naming the private `o/api`'s code,
+  and the work needs the answer
+- **THEN** it asks the question nowhere and stops, and its report, and so
+  its handback comment, says only that a question stops the work, without
+  the question's text
+
+### Requirement: Filter 2 defers a question an agent may not ask only into the report
+
+Filter 2 SHALL defer a question that *A question is written at the
+privacy of what it concerns* bars, or a way-of-working question in any
+session, only into the agent's report, which SHALL ask nothing about it.
+
+#### Scenario: With the person present, a way-of-working question is deferred only into the report
+
+- **WHEN** an agent in a session with the person in it has a question
+  about the person's way of working, and the work can go on without the
+  answer
+- **THEN** filter 2 lists it as deferred only in the agent's report,
+  never in a post or issue, and the report asks nothing about it
 
 ### Requirement: Two calls prove the filters ran
 
@@ -3244,12 +3259,14 @@ for each key (design.md: *An answer file names every file it answers*).
 
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
-A later Igor run SHALL know the answered file only from the Igor's handback
-record, one per handback, never from the comment. It SHALL hold
-the hash of each question, posted or held on another branch; its `Concerns: ` line, or that it had
-none; the repository its file went to; and, if a file was pushed, its name's date and suffix;
-and no question's text. Without that suffix and date, or if not exactly one file on that repository's questions branch
-has them, the Igor SHALL write no `answers`.
+A later Igor run SHALL know the answered file only from the Igor's
+handback record, never from the comment. That record
+SHALL hold, for each posted question, its hash; its concerns line (*An
+Igor writes the concerns line of a question in its handback*), or that it
+had none; the repository its file went to; and any pushed file's date
+and suffix; and no question's text. Without exactly one file with
+that date and suffix on that repository's questions branch, the Igor
+SHALL write no `answers`.
 
 #### Scenario: The Igor's handback record holds no question text
 
