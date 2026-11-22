@@ -10,15 +10,16 @@ spec.
 
 ## 0. Measure before building
 
-Record each result that a requirement rests on as Evidence in its
-capability's decision record, and the rest in the design.md section its
-task names, or else the place listed here:
+Record each result that a requirement cites or waits on as Evidence in
+its capability's decision record, and any other result where this list
+puts its task, in a design.md section unless it says otherwise:
 
 - *What the hook relies on, not yet measured*: 0.1 to 0.3;
 - *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7, 0.8, 0.10, 0.11 and 0.33;
+- *Facts measured before building*: 0.5, 0.7 to 0.11, 0.13, 0.14 and
+  0.33;
 - *igor's handback marker*: 0.6 and 0.38;
-- *Facts the answer session relies on*: 0.16 to 0.21, 0.23, 0.25,
+- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25,
   0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39;
 - igor issue #247's body, since its result is a fact about igor's host:
   0.29.

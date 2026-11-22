@@ -2327,18 +2327,19 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.16 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
-building if they fail, until the repository's owner decides; so does task
+all building if they fail, until the repository's owner decides; so does task
 0.34 if Claude Code cannot restrict the session's tools. Task 0.37 checks
 that a mod can submit a prompt of its own and have the model answer it
 unattended; if it cannot, building the mod stops, and the answer session
 is designed as a standalone UI and prototyped for the owner's approval. The
 rules that wait on
-task 0.21, which tasks.md's task 0.21 lists, are not built until it is
-measured, and the repository's owner decides then what to build for them.**
+task 0.21, which tasks.md's task 0.21 lists, are built as stated once it
+shows which App wrote a comment; if it cannot, the repository's owner
+decides what to build for them.**
 
 Task 0.25 records how each surface reports two kinds of refusal of a relay
 post: one for its text, such as its length, and one for lack of permission.
@@ -2387,6 +2388,27 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+
+### Where the spec's reasons live
+
+- **Should the specs and tasks.md keep pointing into design.md's
+  reasoning?** The specs cite design.md sections about 40 times, and
+  tasks.md records some measured results in those sections, yet nobody
+  keeps any part of design.md current but these Open Questions. Task 7.1
+  repoints the citations only at archive, so until then they lead to
+  text that may be stale. Options:
+  - (a) Cut each citation now, and record measured results only in
+    decision records or these Open Questions. A reason with no
+    *because* sentence and no record entry is dropped.
+  - (b) Move each reason a requirement still needs into its capability's
+    decision record now. Each entry needs Evidence, so a reason without
+    any is dropped there too, and the records grow.
+  - (c) Keep design.md's reasoning current until archive, which every
+    round would then have to read and edit.
+
+  Recommended: (a). It shortens the specs, costs no more than (b) for a
+  reason without evidence, and (b) can still follow for a reason that
+  has some.
 
 ### What other changes must provide
 

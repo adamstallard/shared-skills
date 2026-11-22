@@ -3594,13 +3594,6 @@ the name taken SHALL push nothing.
 - **AND** the asking agent hashes the id of the reply it reads and looks
   up that one path, whichever kind of miss file the session wrote
 
-#### Scenario: A forged reply names no miss file
-
-- **WHEN** an account other than the relay posts, under an agent's
-  question, a comment starting `Inquisitor: filter 4`
-- **THEN** that comment's id names no file on the branch, and the reply is
-  input
-
 #### Scenario: A miss with no reply hashes its question's file path
 
 - **WHEN** a person says a picker question, logged as
@@ -4278,8 +4271,6 @@ question. Otherwise it is input.
   `Inquisitor: filter 3`, and the questions
   branch of `o/web` holds the hash-only miss file that reply's id names
 - **THEN** the agent takes the option that has merit, as filter 3 says
-- **AND** with no such file on the branch, the reply is input, whoever
-  posted it
 
 ### Requirement: A reply's miss file is looked for on the branch its question's concerns line names
 

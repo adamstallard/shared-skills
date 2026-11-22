@@ -151,9 +151,11 @@ channel or thread holding it.
 
 The answer session SHALL treat as a **relayed question** any question asked
 of the person in a message starting `User says: ` or `User asks: ` that a
-bot account posted on any surface, and SHALL count it as a person's question. It SHALL show the
-posting bot account's name as who the question is from; the name proves
-nothing.
+bot account posted on any surface, and SHALL count it as a person's
+question. It SHALL show the posting bot account's name as who the
+question is from; the name proves nothing about who asked. On GitHub,
+where telling a bot account's comment needs task 0.21, this requirement
+is built only once that task is measured.
 
 #### Scenario: A relayed question is a person's, whoever's relay posted it
 
