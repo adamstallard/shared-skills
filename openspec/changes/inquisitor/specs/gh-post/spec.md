@@ -11,8 +11,7 @@ call the reader reports as unreadable.
 
 The shared post reader, `.agents/lib/gh-shell/`, SHALL tell a hook, for a
 tool call, its post, that it sends no post, or that it is unreadable. For
-a post, the reader returns the body the call sends and whether the call
-creates an issue.
+a post, the reader returns the body the call sends.
 prose's posting hook and the inquisitor's post hook SHALL read posts only
 through it.
 
@@ -81,21 +80,13 @@ ending in `/prose.py`, SHALL send no post, whatever its arguments.
 
 For a Bash command, apart from the forms other requirements of this spec
 add, the reader SHALL return a body only when the whole command line is
-one `gh pr` or `gh issue` command with a verb that posts text. It SHALL say that `gh issue create` or `gh issue new` creates an
-issue.
+one `gh pr` or `gh issue` command with a verb that posts text.
 
 #### Scenario: A gh post chained to another command is unreadable
 
 - **WHEN** a hook asks about `cd /x && gh pr comment 5 --body-file c.md`,
   where `c.md` exists
 - **THEN** the reader reports the command as unreadable
-
-#### Scenario: A new issue is reported as one
-
-- **WHEN** a hook asks about `gh issue create --title t --body-file b.md`,
-  or `gh issue new` with the same options, and `b.md` exists
-- **THEN** the reader returns the file's text as the body, and says that
-  the post creates an issue
 
 ### Requirement: A literal word is one the shell does not expand
 
@@ -152,18 +143,14 @@ such as `--template`, `--fill`, `--fill-first`, `--fill-verbose`,
 A **GitHub MCP tool** is one whose name starts `mcp__github__` or
 `mcp__plugin_<name>_github__`, the tools prose's posting hook matches.
 For one, the reader SHALL return every string under a key
-named `body` or `comment`, at any depth, as a body, and say that the post
-creates an issue for `create_issue`, and for `issue_write` with the
-`method` `create`.
+named `body` or `comment`, at any depth, as a body.
 
-#### Scenario: An MCP comment field and an issue_write create are read
+#### Scenario: An MCP comment field is read
 
 - **WHEN** a hook asks about a GitHub MCP tool whose input holds the
-  string `ok` under a key named `comment`, about one whose input holds
-  `comments[0].body`, and about an `issue_write` call with the `method`
-  `create` and the `body` `b`
-- **THEN** the reader returns `ok` and the nested string as bodies, returns
-  `b` as the body of the third, and says that the third creates an issue
+  string `ok` under a key named `comment`, and about one whose input holds
+  `comments[0].body`
+- **THEN** the reader returns `ok` and the nested string as bodies
 
 ### Requirement: The reader splits a command line into simple commands
 
@@ -457,8 +444,7 @@ query.
 For a `gh api` write under `repos/<owner>/<repo>/issues` or `.../pulls`,
 the reader SHALL read each `body` field, and each `body` key of the
 `--input` JSON, as a body, and, for a review under
-`.../pulls/<n>/reviews`, each `body` in its `comments`. The reader SHALL say that a `POST` to
-`repos/<owner>/<repo>/issues` creates an issue.
+`.../pulls/<n>/reviews`, each `body` in its `comments`.
 
 #### Scenario: Each gh api body form is read
 
@@ -468,14 +454,6 @@ the reader SHALL read each `body` field, and each `body` key of the
 - **THEN** the reader returns the body for each form, reading the named
   file for `@<file>` and `--input`, the `--input` file being JSON with a
   `body` key
-
-#### Scenario: A new issue sent through gh api or MCP is reported as one
-
-- **WHEN** a hook asks about `gh api repos/o/r/issues -f title=t -f
-  body=b`, or about a GitHub MCP `create_issue` call with the `title` `t`
-  and the `body` `b`
-- **THEN** the reader returns `b` as the body, and says that the post
-  creates an issue
 
 #### Scenario: gh api placeholders count as an owner and a repository
 
@@ -525,8 +503,8 @@ mentions no gh post verb sends no post*).
 ### Requirement: The reader reads GraphQL posts and blocks an unreadable body sent to issues or pull requests
 
 In each of the thirteen mutations that post text, which its scenarios
-list, the reader SHALL read every `body` argument, at any depth, as a body;
-`createIssue` creates an issue. It SHALL report as unreadable a query it
+list, the reader SHALL read every `body` argument, at any depth, as a body.
+It SHALL report as unreadable a query it
 cannot read or parse, and a `gh api` write to an endpoint or mutation it reads
 that is given a `body` it cannot read. Any other `gh api` call whose words are all
 literal SHALL send no post (*A gh api call holding a word the shell builds
@@ -552,13 +530,6 @@ is unreadable*).
   `submitPullRequestReview`, `createIssue`, `createPullRequest`,
   `updateIssue`, `updateIssueComment`, `updatePullRequest`,
   `updatePullRequestReview` or `updatePullRequestReviewComment`
-
-#### Scenario: A GraphQL issue is reported as a new issue
-
-- **WHEN** a hook asks about a `createIssue` mutation whose `body` is the
-  literal `"b"`
-- **THEN** the reader returns `b` as the body and says that the post
-  creates an issue
 
 #### Scenario: A write with no body sends no post
 

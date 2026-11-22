@@ -903,7 +903,7 @@ as a bot account's, an item of an open-questions section with a tag line
 (the inquisitor's *A tag line names the person a posted question tags*)
 SHALL reach only the person that line mentions, since each item tags its
 own decider; an item without one reaches whom that rule says. It waits on
-task 0.21 on GitHub, task 0.16 on Linear and task 0.17 on Discord.
+task 0.21 on GitHub.
 
 #### Scenario: Each item of a bot's post reaches the person its tag line names
 
@@ -2110,10 +2110,10 @@ every line break made a space.
 ### Requirement: An answer is recorded by a new log file
 
 The answer session SHALL write a log file, besides handled files, only
-for an answer the person confirmed or its later edit. The `log` command
-SHALL push it beside the unanswered files holding the question, naming
-them and setting `asked_from` as the inquisitor's *An answer file names
-every unanswered file it answers* sets. Where none holds it, the command
+for an answer the person confirmed or edited. The `log` command SHALL
+push it to the branch of the unanswered files holding the question,
+naming them and setting `asked_from` as the inquisitor's *An answer file
+names every unanswered file it answers* sets. Where none holds it, the command
 SHALL push it to the questions branch of what the question concerns, with
 the `repository` and `asked_from` a miss would have.
 
@@ -2126,6 +2126,14 @@ the `repository` and `asked_from` a miss would have.
   the branch holding that file, under the
   inquisitor's *A file on a questions branch never changes once pushed*;
   it posts nothing, and leaves the earlier file unchanged
+
+#### Scenario: An automatic post edited into the person's words is recorded
+
+- **WHEN** the person edits a posted automatic `Recorded answer: ` reply,
+  to a question about `o/api` that no file holds, so that it starts
+  `User says: `
+- **THEN** the `log` command pushes a log file holding the question and
+  the edited answer to the questions branch of `o/api`
 
 #### Scenario: One answer file names both files holding the question
 
@@ -2777,7 +2785,7 @@ The answer session SHALL post a recorded answer by itself only when the
 record is no more private than the question's thread: on GitHub, when the
 record's repository is at least as visible as the thread's; on Linear and
 Discord, whose readers it cannot check, only when the record's repository
-is public. When the record is a log or miss file, the file's own
+is public. When the record is a log file, the file's own
 visibility, as the inquisitor's *A log or miss file is as private as its
 more private repository* defines it, stands in for its repository's.
 
@@ -2878,8 +2886,9 @@ cite SHALL push nothing.
 #### Scenario: A filter-1 decline with no thread still cites its entry
 
 - **WHEN** the person's filter 1 decline of a question with no thread
-  names as the record an `active` entry in scope of the question's own
-  private lore repository
+  names as the record, by its `entries/<id>.md` link on the default
+  branch, an `active` entry, within the question's scope, of the private
+  lore repository serving the question
 - **THEN** nothing is posted, the recorded answer is shown, and a citation
   file for that entry is pushed
 

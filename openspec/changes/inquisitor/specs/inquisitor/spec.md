@@ -138,7 +138,8 @@ An agent SHALL run four filters in order before it puts any question to a
 person, and ask only if none stops it. Filter 1, already answered, SHALL
 stop a question an earlier answer settles; the agent cites and acts on that
 answer. Filter 2, deferrable, SHALL stop one the work can go on without; the
-agent lists it as not done, and files an issue if it outlives the work.
+agent lists it as not done, and if it outlives the work files an issue
+listing it under a deferral label, such as "Not in this change".
 
 #### Scenario: An answered question is not asked
 
@@ -155,7 +156,7 @@ agent lists it as not done, and files an issue if it outlives the work.
 - **THEN** the agent lists it as not done in the current work, and asks
   nobody
 - **AND** if the current work ends with the question still unanswered, the
-  agent files an issue for it
+  agent files an issue listing it under a deferral label
 
 ### Requirement: Filters 3 and 4 have the agent decide the question itself
 
@@ -934,10 +935,12 @@ leave the reply input.
 ### Requirement: The Igor runs a worker's miss check only where an agent would look
 
 The Igor SHALL run a worker's `miss-check` only on the repository its
-handback's concerns line named for the question, taken from the Igor's
-handback record, and SHALL leave the reply input for any other repository
-the worker names, because a worker steered by its item could name a
-repository an attacker can push to.
+handback record's concerns line names for the question the reply
+answers, leaving the reply input for any other, because a steered worker
+could name one where an attacker can push a backing miss file. It SHALL
+take that question from the reply's `Re: ` line, which must link the
+Igor's handback, and any `question <n>: `, the nth in the record's posted
+order; else the reply stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
@@ -946,6 +949,8 @@ repository an attacker can push to.
   handback record, carried `Concerns: o/api`
 - **THEN** the Igor runs no `miss-check`, and the reply is input to the
   worker
+- **AND** so it does for a reply whose `Re: ` line links another
+  handback
 
 ### Requirement: An Igor worker's search covers only its working tree beyond lore
 
@@ -2018,10 +2023,10 @@ no further setting, and neither hook SHALL spend a verdict record.
 A `PreToolUse` hook, the **post hook**, SHALL block a post holding a
 question with no verdict, or whose most recent verdict is neither `ask` nor
 `deferred`, or is over 2 hours old, or any question when it cannot read
-its verdict records. A recent `deferred` verdict SHALL pass only a
-question that tags no one and either is in a post creating an issue or is
-an item under a deferral label, as the shared post reader reports it;
-anywhere else it needs an `ask` verdict.
+its verdict records. A recent `deferred` verdict SHALL pass only an
+untagged item under a deferral label, which the answer session never
+shows; anywhere else, a new issue included, a question needs an `ask`
+verdict.
 
 #### Scenario: A post with an unvetted question is blocked
 
@@ -2045,8 +2050,9 @@ anywhere else it needs an `ask` verdict.
 #### Scenario: A deferred question asked outside an open-questions section is blocked
 
 - **WHEN** a post, such as a comment `gh issue comment 7 --body-file
-  body.md` sends, asks in its running text a question whose most recent
-  verdict is `deferred`
+  body.md` sends or a new issue `gh issue create --body-file body.md`
+  opens, asks in its running text a question whose most recent verdict is
+  `deferred`
 - **THEN** the hook blocks the post, and says the question needs an `ask`
   verdict
 
@@ -2063,13 +2069,6 @@ anywhere else it needs an `ask` verdict.
   recent verdict is `deferred`, and the item tags `@alice`
 - **THEN** the hook blocks the post, and says the question needs an `ask`
   verdict
-
-#### Scenario: An issue filed for a deferred question passes
-
-- **WHEN** an agent runs `gh issue create --body-file body.md`, and the body
-  asks, in its running text and tagging no one, a question whose most
-  recent verdict is `deferred`
-- **THEN** the hook lets the post through
 
 #### Scenario: A post with a stale verdict is blocked
 
@@ -2918,7 +2917,8 @@ comment, the question the item's handback asked SHALL report to its Igor
 a new questions-branch log file whose `answer_link` names that answer.
 The Igor writes the answer from the linked comment, decides its
 `authority` under *An answer is a decision only from a person with write
-access* and its `answered_by` as the `log` command would, and adds
+access* and its `answered_by` and `recorded_in` as the `log` command
+would, and adds
 `answers`, naming the handback question's log file.
 
 #### Scenario: A worker re-working an answered handback reports the answer
@@ -3024,7 +3024,8 @@ the comment.
 Where the `log` command reads a linked comment, it SHALL record as
 `answered_by` the comment's author as GitHub returns it, ignoring any login
 the agent passed, because a crafted thread can steer the login an agent
-passes. With its session option, it SHALL record as `answered_by`, whether
+passes, and SHALL write `authority: input` when that author is a bot
+account. With its session option, it SHALL record as `answered_by`, whether
 or not it reads a comment, the person whose answer session runs it.
 
 #### Scenario: The answer's answered_by is the linked comment's author
@@ -3032,6 +3033,8 @@ or not it reads a comment, the person whose answer session runs it.
 - **WHEN** the `log` command is given `answered_by: alice` and an
   `answer_link` to a comment `mallory` wrote
 - **THEN** the file names `mallory` as `answered_by`
+- **AND** given `authority: decision` and an `answer_link` to a comment
+  `igor-x[bot]` wrote, it writes `authority: input`
 
 #### Scenario: With its session option, answered_by is the session's person
 
@@ -3042,8 +3045,9 @@ or not it reads a comment, the person whose answer session runs it.
 
 ### Requirement: The log command in Igor-worker mode writes no answer
 
-In Igor-worker mode the `log` command SHALL read no comment and write no
-answer, `authority` or `asked_in`; its Igor writes them.
+In Igor-worker mode the `log` command SHALL read no comment and write none
+of the keys an Igor refuses in a worker's file (scenario *A file an Igor
+pushes names where it was asked from*); its Igor writes those it needs.
 
 #### Scenario: In Igor-worker mode the log command reads no comment
 
@@ -3233,8 +3237,7 @@ SHALL write no `answers`.
 - **WHEN** an Igor's later run records a person's answer to a handback
   question whose record holds no suffix and date, though its comment's text
   names a file
-- **THEN** the answer file holds no `answers`, and the earlier file stays
-  shown to the person until they answer it
+- **THEN** the answer file holds no `answers`
 
 #### Scenario: A later run with two matching files writes no answers key
 
@@ -3460,7 +3463,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 - **AND** of the files that the Igor's worker or the Igor's own inquisitor
   run reports, the Igor pushes none holding a key such a run may not write
   (`asked_from`, `asked_in`, an `## Answer` section, `authority`,
-  `answers`, `handled`, `closes` or `said_by`),
+  `answered_by`, `recorded_in`, `answers`, `handled`, `closes` or
+  `said_by`),
   and no hash-only miss file
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
@@ -3549,10 +3553,11 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   question tags `alice`, and the question's hash, which drops tag lines,
   still matches the hash vetted before the tag line was added (*Adding
   the tag line keeps the vetted hash*)
-- **AND** a related-decision line or person-required line after the
+- **AND** a related-decision, person-required or concerns line after the
   question (*A related-decision line is one URL on a line of its own*,
-  *A question another skill requires carries a person-required line*)
-  stays in `## Question` too
+  *A question another skill requires carries a person-required line*,
+  *A question in a post or message names what it concerns on a line of
+  its own*) stays in `## Question` too, the hash dropping it as well
 
 ### Requirement: Every miss file is named by one hash
 

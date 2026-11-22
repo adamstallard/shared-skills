@@ -464,13 +464,15 @@ to change if it misjudges posts.
 section, which would turn the commands under "Open a terminal and run:" into
 questions (scenario *A colon line that names no questions begins nothing*).
 
-#### A deferred question passes only untagged, listed or in a new issue
+#### The post hook passes a deferred question only untagged and listed
 
-**Rule:** inquisitor spec, *Questions in posts pass the same filters*. An
-open-questions list and a new issue are the two places filter 2 defers to:
-the list of what is not done, in whatever post reports the work, and an
-issue when the question outlives the work. The question must be untagged
-because tagging someone asks them, which needs an `ask`.
+**Rule:** inquisitor spec, *Questions in posts pass the same filters*. The
+post hook passes a deferred question only as an item under a deferral
+label, in any post. A new issue gets no exception: the answer session
+leaves only such items out when it shows a post's questions, so a
+deferred question in a new issue's running text would be shown to the
+issue's assignee as put to them. The question must be untagged because
+tagging someone asks them, which needs an `ask`.
 
 #### One person who can decide is tagged
 
@@ -2410,26 +2412,23 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### For a person to decide
 
-- **Is a deferred question in a new issue's running text shown as asked?**
-  The post hook passes a question whose second call recorded a `deferred`
-  verdict, and that tags no one, anywhere in a post creating an issue (the
-  inquisitor's *Questions in posts pass the same filters*, scenario *An
-  issue filed for a deferred question passes*). The answer session hides
-  a deferred question only when it is an item under a deferral label, a
-  heading such as "Not in this change" (*A deferred item is numbered but
-  not shown*). So it shows the issue's other deferred questions to
-  whoever the issue reaches, its assignee included (*A question asked of
-  the person comes from one of four sources*). Where a concerns line
-  settles the question's place, the answer session may then post
-  `Inquisitor: filter 2` by itself (*A clear filter 2 to 4 failure gets
-  its fixed reply by itself*) and log a miss against an agent that
-  deferred correctly. Options:
-  (a) require the deferral label in a new issue too, so the issue-creating
-  exception goes; (b) the answer session takes every question in an
-  issue-creating post as filed for later, showing it but posting no reply
-  and logging no miss by itself; (c) accept it. Recommended: (a). It
-  removes a rule rather than adding one, and the session already hides a
-  labelled item in any post.
+- **Does the README warn that the Linear relay's token can be printed?**
+  The answer-session spec's *The README warns that a relay's token can be
+  printed* and the matching Constraint in its decision record cover only
+  github-app. The answer session holds the Linear relay's token only in
+  memory (*The Linear relay's token stays in memory*), but gets it from
+  linear-app's `token` command, which prints it to any caller. So any
+  agent on the person's machine can forge the person's answer on Linear,
+  posting `User says: ` with a plain HTTP call, and since the answer
+  session needs that command, the exposure is permanent. Options:
+  (a) extend the README warning and the Constraint to Linear for good,
+  where github-app's last only until #96 lands; (b) also ask linear-app
+  for a way to hand the token over that no agent can print, as github-app
+  is asked; (c) leave Linear out of the warning, as the record's first
+  Constraint accepts that an agent can read a relay's key from the
+  keychain. Recommended: (a). It makes the README
+  true at the cost of one clause, and the first Constraint in the record
+  already accepts that an agent set on forging can do so.
 
 ### Left to implementation
 

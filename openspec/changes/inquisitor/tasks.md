@@ -346,7 +346,6 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         endpoint other than an issue's or pull request's, or a mutation
         off that list, is no post (design.md: *The reader
         reads gh api writes, REST and GraphQL*).
-      - It reports whether a post creates an issue.
       - It blocks as unreadable a `gh api` write to an endpoint or
         mutation it reads whose body it can't read, a GraphQL query it
         can't read or parse, and a review whose comments it can't read.
@@ -588,9 +587,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       a question whose latest verdict record gives it a category (inquisitor spec: *The post hook blocks a post holding a
       question with a category*); blocks a post with a
       question when it can't read its records; blocks a question whose raw
-      markdown matches the credential patterns; passes a `deferred`
-      question less than 2 hours old that tags no one under a deferral
-      label or in a new issue; blocks an item under a deferral label
+      markdown matches the credential patterns; passes an untagged
+      question under a deferral label whose `deferred` verdict is less
+      than 2 hours old; blocks an item under a deferral label
       without a `deferred` verdict, even with `ask` (*An item listed as
       deferred needs a deferred verdict*); and blocks
       every other unvetted question (inquisitor spec: *Questions in posts
