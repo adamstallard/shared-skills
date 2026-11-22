@@ -786,11 +786,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       create a lore repository*)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
-      requests, poll positions, the questions branch of every
-      subscribed repository and configured lore repository, and each
-      subscribed repository's default branch. The `search` command reads
-      only these fetched branches and the lore clones, and issues only of
-      their repositories (answer-session spec: *The answer session's
+      requests, poll positions, the questions and default branches of
+      every subscribed repository and configured lore repository. The
+      `search` command reads only these fetched branches, and issues only
+      of these repositories (answer-session spec: *The answer session's
       filter 1 reads only subscribed and lore repositories*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, or on Linear the session's own

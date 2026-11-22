@@ -2406,21 +2406,6 @@ A refusal the session cannot sort into either kind waits for the person.
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### For the repository's owner to decide
-
-- **Cut the input case of *An unnumbered Inquisitor reply covers its
-  whole post*?** Its second sentence makes an unnumbered reply input when
-  the post lists more than one question, or lists one and asks another
-  outside the list. Such a reply counts only with a miss file named for
-  it, only an answer session names a miss file for a reply, and the
-  answer session numbers its replies to such a post, so no flow in the
-  spec reaches the case. Cutting it changes behaviour: such a reply would
-  cover every question in the post. The options:
-  - Cut that sentence and the scenario *An unnumbered reply to a post of
-    several listed questions is input*. Recommended: the spec is shorter,
-    and the case needs a miss file no writer makes.
-  - Keep it, as a guard should another writer of miss files appear.
-
 ### What other changes must provide
 
 - **github-app still hands a relay identity's token to commands that can

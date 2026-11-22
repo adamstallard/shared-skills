@@ -2185,8 +2185,9 @@ its hash, with leading whitespace dropped.
 
 A posted question SHALL tag the first of these with write access to what it
 concerns: the approver of the pull request adding the related earlier
-decision; a login in `.inquisitor/reviewers` of the repository it concerns,
-or of the lore repository for a collective; its files' last
+decision; the first login with write access in the
+`.inquisitor/reviewers` file, one login per line, of the repository it
+concerns, or of the lore repository for a collective's question; its files' last
 committer. A question deferred to a later list (verdict `deferred`) SHALL
 NOT be tagged.
 
@@ -2856,12 +2857,12 @@ which of them the Igor pushes, and when.
 ### Requirement: A worker's question about a more private repository is asked on that repository's questions branch
 
 When an Igor worker's question concerns a repository more private than its
-item's, the Igor SHALL push the question file without waiting for an
-answer, with no `asked_in` and tagging whom a post would tag, to that repository's questions branch,
-and the handback SHALL say only that
-the work waits on a question recorded elsewhere, naming neither that
+item's, the Igor SHALL push the question file at once, with no
+`asked_in` and tagging whom a handback asking it would mention first, to that
+repository's questions branch, and the handback SHALL say only that the
+work waits on a question recorded elsewhere, naming neither that
 repository nor the question's words, since its readers may not read that
-repository. If the push fails, the question SHALL stay in the run's report.
+repository. A failed push SHALL leave the question in the run's report.
 
 #### Scenario: A public item's question about a private repository goes to its branch
 
@@ -2870,8 +2871,9 @@ repository. If the push fails, the question SHALL stay in the run's report.
 - **THEN** its handback comment says only that the work waits on a question
   recorded elsewhere, and its Igor pushes the question file, with no
   `asked_in`, to the questions branch of `o/api`
-- **AND** the file's question tags the person a post of it would tag, so
-  that person's answer session shows it if they subscribe to `o/api`
+- **AND** the file's question tags the person a handback asking it would
+  mention first, so it reaches that person's answer session alone, and
+  only if they subscribe to `o/api`
 
 #### Scenario: A question the Igor cannot push stays in the report
 
@@ -4373,18 +4375,7 @@ reply as input when that post was edited after the reply was posted.
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
 question in the post it replies to or names, and the agent SHALL act on
-it for each. When that post's open-questions section holds more than one
-item, or one item and a question sentence outside it, the agent SHALL
-instead treat the reply as input, and every question in the post stays
-open, since the answer session answers such a post by number.
-
-#### Scenario: An unnumbered reply to a post of several listed questions is input
-
-- **WHEN** an agent's post lists two questions in one open-questions
-  section, or lists one there and asks another in a sentence ending in `?`
-  outside it, and a reply starting `Inquisitor: filter 4`, with no
-  `question <n>: `, has its miss file
-- **THEN** the reply is input, and both questions stand
+it for each.
 
 #### Scenario: An unnumbered reply to a post asking two things unlisted covers both
 

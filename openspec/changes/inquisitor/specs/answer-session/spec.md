@@ -1026,7 +1026,8 @@ set by its mentions* says (igor #229).
 
 A log file whose `asked_in` links a thread message this machine's polls
 have read SHALL follow that message by exact link, taking whatever the answer
-session decides about it, and is never shown on its own.
+session decides about it, and is never shown on its own. An Igor's log
+file follows only *An Igor's log file follows its own handback comment*.
 
 #### Scenario: A questions-branch file follows the message it links
 
@@ -1159,8 +1160,9 @@ poll while none is open. It SHALL poll each channel that
 is on when it opens and about every 60 seconds after, for everything
 since its poll position, or the last 14 days without one, saving each
 poll position in the state folder, and at each poll SHALL fetch the
-questions branch of every subscribed repository and configured lore
-repository, and each subscribed repository's default branch.
+questions branch, and the default branch that filter 1's decision
+documents and lore entries are on, of every subscribed repository and
+configured lore repository.
 
 #### Scenario: Opening catches up
 
@@ -1177,9 +1179,8 @@ repository, and each subscribed repository's default branch.
 #### Scenario: Each poll fetches the questions branches
 
 - **WHEN** the answer session polls its channels
-- **THEN** it fetches the questions branch of every subscribed repository
-  and configured lore repository too, and each subscribed repository's
-  default branch
+- **THEN** it fetches the questions and default branches of every
+  subscribed repository and configured lore repository too
 
 #### Scenario: Nothing polls without an open answer session
 
@@ -1845,7 +1846,7 @@ outlives it.
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
   subscribed repository's questions and default branches (a lore
-  repository's questions branch is fetched into its configured clone), and
+  repository's branches are fetched into its configured clone), and
   the lock
 
 #### Scenario: A question set aside on one machine is new on another
@@ -2116,8 +2117,9 @@ from choosing what the code does beyond a closed set.
 
 With an answer session open, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
-enforced by Claude Code, not a hook (task 0.34); an answer session
-SHALL open only in a session so restricted. The session's code SHALL
+enforced by Claude Code's own tool restriction, which task 0.34 finds,
+never by a hook; an answer session SHALL open only in a session so
+restricted. The session's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
 
@@ -3047,28 +3049,16 @@ person's question it answers by itself logs none.
 - **THEN** it logs a miss against filter 1 whose `said` is
   `answer session: clearly filter 1`
 
-### Requirement: A reply to an automatic post is a new question
-
-The answer session SHALL judge a reply to an automatic post as a
-question, by filters 1 to 4 again, and may answer it by itself again. A
-question's **chain of replies** is the question, the relay post it
-replies to, the question that relay post names (on GitHub and Linear, by
-its `Re: ` line), and so on back to a question that replies to no relay
-post.
-
-#### Scenario: A reply to an automatic post is judged again
-
-- **WHEN** an agent's reply to a relay post holding filter 4's fixed text
-  asks a new question that a capability decision record on the
-  repository's default branch decides
-- **THEN** the relay posts, naming the reply, a recorded answer
-
 ### Requirement: No automatic post repeats one in its chain of replies
 
 The answer session SHALL NOT make by itself an automatic post whose
-text, apart from its `Re: ` line, is the same as that of any automatic
-post already made in the chain of replies of the question it would
-answer: such a repeat goes to the person, as an ordinary question.
+text, apart from its `Re: ` line, is the same as an earlier automatic
+post's in the chain of replies of the question it would
+answer: such a repeat goes to the person, as an ordinary question. A
+question's **chain of replies** is the question, the relay post
+(automatic or not) it replies to, the question that post names by its
+`Re: ` line or, on Discord, by replying, and so on back to a question
+that replies to no relay post.
 
 #### Scenario: A repeated automatic post goes to the person
 
