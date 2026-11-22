@@ -2204,12 +2204,11 @@ handback (answer-session spec: *A handback is an Igor's comment holding
 igor's marker*, scenario *An Igor comment without the handback marker is not a
 handback*).
 
-#### Only an item's newest handback is open
+#### Only an item's newest handback is shown
 
-**Rule:** answer-session spec, *Only an item's newest handback is shown*;
-*An item's newest handback is open until a relay post names it*.
+**Rule:** answer-session spec, *Only an item's newest handback is shown*.
 
-Only the newest handback is open because it says where the Igor is blocked
+Only the newest handback is shown because it says where the Igor is blocked
 now. A newer one is posted only after the person hands the item back to the
 Igor without answering the older one.
 
@@ -2405,6 +2404,23 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+
+### For a person to decide
+
+- **What does an agent do with a question it may not ask?** *A question
+  is written at the privacy of what it concerns* says two kinds are not
+  asked: one that cannot be understood without context more private than
+  what it concerns, and one about neither a repository, a collective nor
+  the person's way of working. Nothing says what the agent does next.
+  Options:
+  1. As *A way-of-working question is held back, not asked* says for that
+     kind: its report names the question, and it stops only if the work
+     needs the answer.
+  2. It goes on with its recommended answer, and its report names the
+     question and the answer it chose.
+  3. Leave it to the agent.
+
+  Recommendation: option 1, which reuses that requirement's rule.
 
 ### What other changes must provide
 

@@ -88,10 +88,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the person's `gh` login, for a mention, a review request, an
       assignment and a later comment in a thread the person was mentioned
       in, and that a conditional request answered `304` does not count
-      against the rate limit. Until then the answer session also reads,
-      since its poll position, each subscribed repository's new issues and
-      pull requests, their comments, reviews and review-thread comments,
-      and the review requests and assignments naming the person
+      against the rate limit. Until then the answer session reads every
+      source (answer-session spec: *Until notifications are measured, the
+      poll reads every GitHub question source*)
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
@@ -579,9 +578,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       tools, through `.agents/lib/gh-shell/`. It blocks a post in which a
       question whose `ask` names a requiring skill lacks its
       person-required line, or another question carries one. It blocks every post holding
-      a question whose latest verdict record has a category, read from
-      that record (inquisitor spec: *A question with a category is asked
-      only of the person or in its advisory*); blocks a post with a
+      a question whose latest verdict record gives it a category (inquisitor spec: *The post hook blocks a post holding a
+      question with a category*); blocks a post with a
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
@@ -981,7 +979,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - an item shown only through its newest handback, an older
           unanswered handback passed over with nothing written and its
           file never shown again (design.md: *Only an item's newest
-          handback is open*);
+          handback is shown*);
         - a bot's message reaching only the first person it mentions,
           a mention of a relay identity in a bot's message counting as
           one of the relay's person, and a bot's reply

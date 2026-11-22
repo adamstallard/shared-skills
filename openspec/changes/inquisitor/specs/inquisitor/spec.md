@@ -1494,7 +1494,8 @@ concerns a repository or a collective SHALL carry its **concerns line**:
 `Concerns: ` and that repository as `owner/repo`, or, for a collective's
 question, `Concerns: lore ` and the team's lore repository, and nothing
 else. It SHALL be left out where it would name a
-repository more private than the question's thread.
+repository more private than the question's thread, a Linear or Discord
+thread counting as a private repository.
 
 #### Scenario: A question about another repository names it
 
@@ -2514,7 +2515,7 @@ When a push to a questions branch is rejected because the branch moved, the
 script SHALL fetch and push again. When it cannot push for any other
 reason, it SHALL keep the file pending, with mode 0600, in
 `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/pending/`, and push it
-with the next file it pushes to that branch. The agent's report SHALL say the question is not yet logged, and why.
+before the next file it pushes to that branch, keeping it pending until then. The agent's report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2530,7 +2531,7 @@ with the next file it pushes to that branch. The agent's report SHALL say the qu
   mode 0600, in `$HOME/.local/state/inquisitor/pending/`, and the agent's
   report says the question is not yet logged, and why
 - **AND** the next `log` call that can push to that branch pushes the
-  pending file with its own
+  pending file, then its own
 
 ### Requirement: The answer session's files are never kept pending
 
@@ -2860,8 +2861,8 @@ which of them the Igor pushes, and when.
 When an Igor worker's question concerns a repository more private than its
 item's, the Igor SHALL push the question file to that repository's
 questions branch at the run's handback, with no `asked_in`. The file SHALL
-tag the first person a handback asking the question would mention, or the
-item's assignee if that handback would mention no one. The handback SHALL
+tag the first person the Igor's handback would mention if it asked the
+question, else the item's assignee. The handback SHALL
 say only that the work waits on a question recorded elsewhere. A failed
 push SHALL leave the question in the run's report.
 
@@ -2874,10 +2875,7 @@ push SHALL leave the question in the run's report.
   `asked_in`, to the questions branch of `o/api`
 - **AND** the file's question tags the first person a handback asking the
   question would mention, or the issue's assignee if that handback would
-  mention no one, so only that person's answer session shows the question,
-  and only if they subscribe to `o/api`
-- **AND** the handback asks no question, so an answer session's model
-  judges it clearly not a question and shows it nowhere
+  mention no one
 
 #### Scenario: A question the Igor cannot push stays in the report
 
@@ -3446,7 +3444,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   handback comment asking the question, written only where an `answer_link`
   of the same kind may be (design.md: *A log file follows its thread message
   by exact link*; *Each Igor log file follows its own handback comment*;
-  *Only an item's newest handback is open*; *A log file without `asked_in`
+  *Only an item's newest handback is shown*; *A log file without `asked_in`
   is never merged*)
 - **AND** no other file holds `asked_in`, except the miss file of a Linear
   or Discord thread's question, as *A miss file's keys* gives

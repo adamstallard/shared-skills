@@ -982,29 +982,13 @@ review request on it SHALL NOT make it a second question.
   their review
 - **THEN** it is shown only through its newest handback
 
-### Requirement: An item's newest handback is open until a relay post names it
-
-The newest handback SHALL be **open** until a relay post answers or
-handles it, a post whose `Re: ` line (*A GitHub or Linear relay post
-names its question in a Re line*) holds the handback's URL; while a
-`User asks: ` post names it, it waits for the asker, out of the queue,
-like any question.
-
-#### Scenario: An answered handback is no longer open
-
-- **WHEN** the relay posts `User says: ` on the item, its `Re: ` line
-  holding the newest handback's URL
-- **THEN** that handback is no longer open, and is shown as answered, not
-  in the queue
-
 ### Requirement: A handback that mentions no one goes to the item's assignee
 
 A handback that mentions no one, with the Igor's log file that follows
 it (*An Igor's log file follows its own handback comment*), SHALL reach
 the item's assignee as the third source, counting an assigned pull
 request as an assigned issue. A handback that mentions
-people SHALL stay the item's open handback, reaching under the first
-source only the first person it mentions, as *Whom a message reaches is
+people SHALL reach only the first person it mentions, as *Whom a message reaches is
 set by its mentions* says (igor #229).
 
 #### Scenario: A handback that mentions no one reaches the assignee
@@ -1096,8 +1080,8 @@ reads is not followed*).
 
 - **WHEN** the person answered an Igor's question on an assigned issue,
   and a later run posts a new handback there with a new log file whose
-  `asked_in` is that comment's URL, and the person answers it
-- **THEN** the new handback is shown as the issue's open handback, the
+  `asked_in` is the new handback's URL, and the person answers it
+- **THEN** the new handback is shown as the issue's newest handback, the
   answer is relayed on the issue, and an answer file naming the new log
   file is pushed
 
@@ -1475,11 +1459,10 @@ check SHALL still show as not checked.
 
 ### Requirement: A pending answer that no check returns waits for the person
 
-A pending answer SHALL stay until the person acts on it, whatever check
-passes, unless *A pending answer whose channel was off returns to the
-queue* returns it, as it returns none refused for its text. A refusal
-task 0.25's mapping cannot place counts as one for its text, shown with
-the surface's error. The person SHALL be able to edit or drop a pending
+A pending answer SHALL stay, whatever check passes, unless *A pending answer whose channel was off returns to the
+queue* returns it; that rule returns no answer refused for its text. A
+refusal task 0.25's mapping cannot place counts as refused for its
+text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
 this machine; a dropped answer is never posted.
 
@@ -1505,10 +1488,8 @@ this machine; a dropped answer is never posted.
 ### Requirement: A pending answer leaves the list once it is settled
 
 An answer SHALL leave the pending list once it is back in the queue,
-posted or dropped, once a relay post naming its question appears in the
-thread, or, for one whose file was pushed, once a newer answer file than
-its own that counts as the person's answer names the same
-questions-branch file.
+posted or dropped, or once a relay post naming its question appears in
+the thread.
 
 #### Scenario: A relay from another machine clears a pending answer
 
@@ -1516,13 +1497,6 @@ questions-branch file.
   this machine holds as answered, not relayed
 - **THEN** the answer leaves this machine's pending list, and the question
   shows as answered
-
-#### Scenario: A newer answer file clears a pending answer
-
-- **WHEN** this machine holds an answer whose file it pushed, and a
-  newer answer file that counts as the person's answer, pushed from
-  elsewhere, names the same file
-- **THEN** this machine's pending list no longer holds the answer
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
@@ -1638,7 +1612,6 @@ kept pending. No other answer SHALL push a file before its relay post.
   the thread, fetched just before the relay post as *A questions-branch
   answer's file is pushed after its post* says, holds a new message
 - **THEN** nothing is posted or pushed, and the answer stays pending
-  until the person posts or drops it
 
 ### Requirement: An answer logged at once gets a new file only when posted edited
 
