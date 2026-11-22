@@ -59,14 +59,17 @@ repository the question concerns or, for a collective's question, serving
 the repository it was asked from (*A collective's question is bounded by
 the repository it was asked from* defines that repository, and *The team's
 lore repository is the most specific one that serves* picks among
-several). For a collective's question asked on Linear or Discord, where no repository was asked from, the
-`answer-session` spec's *A channel's repositories place its questions*
-and *A Linear or Discord question is placed by what it concerns* pick the
-team's lore repository.
+several). When the answer session reads a collective's question on Linear
+or Discord, where no repository was asked from, the `answer-session`
+spec's *A channel's repositories place its questions* and *A Linear or
+Discord question is placed by what it concerns* pick the team's lore
+repository.
 
 *A session with a person in it* is one a person started and is reading, such
 as an interactive Claude Code session. Any other, such as an Igor worker or
-a `claude -p` job, is *a session with no person in it*. *The agent's
+a `claude -p` job, is *a session with no person in it*, and so is one
+where the agent or the script cannot tell, from how it was started,
+whether a person started it and is reading it. *The agent's
 report*, meant wherever this spec says the agent tells or reports to the
 person, is its reply in the session, or, with no person in it, its run's
 output.
@@ -535,19 +538,6 @@ hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
 - **AND** a comment an agent's `gh` call posts carrying igor's handback
   marker, in the form task 0.6 records, is vetted as a post, and blocked if
   it asks an unvetted question
-
-### Requirement: A session not known to hold a person holds none
-
-A session SHALL count as a **session with no person in it** when the agent
-or the script cannot tell, from how it was started, whether a person started
-it and is reading it.
-
-#### Scenario: A session of unknown start counts as having no person in it
-
-- **WHEN** the script cannot tell whether a person started the session and
-  is reading it, and the agent has a question that survives the filters
-- **THEN** the session counts as one with no person in it, and the agent
-  does not call the picker
 
 ### Requirement: An agent logs a bot's comment only as input
 
@@ -1729,14 +1719,16 @@ ask no question; what the Igor does with the question is igor PR #216's.
 - **THEN** igor counts the run flagged, and the Igor's handback comment
   asks no question (design.md: *A flagged run asks nothing and pushes nothing*)
 
-### Requirement: A way-of-working question is held back, not asked
+### Requirement: A question an agent may not ask is held back
 
-With no person in the session, a way-of-working question SHALL NOT be
-asked: the
-session reports that it waits for the person, and stops only if the work
-needs the answer. In any session, filter 2 SHALL defer a way-of-working
-question only into the agent's report, never a post or issue, and a report
-SHALL ask nothing about one it lists as deferred.
+A question that *A question is written at the privacy of what it
+concerns* bars, and a way-of-working question with no person in the
+session, SHALL NOT be asked. Unless it has a category, the agent's report
+SHALL state the question, a way-of-working one as waiting for the person,
+and the agent SHALL stop
+only if the work needs the answer. Filter 2 SHALL defer either kind, in
+any session, only into the report, and a report SHALL ask nothing about
+one it lists as deferred.
 
 #### Scenario: A headless session doesn't ask a way-of-working question
 
@@ -1759,6 +1751,19 @@ SHALL ask nothing about one it lists as deferred.
   answer
 - **THEN** filter 2 lists it as deferred only in the agent's report,
   never in a post or issue, and the report asks nothing about it
+
+#### Scenario: A question the privacy requirement bars is stated in the report
+
+- **WHEN** an agent in a session with a person in it has a question about
+  the public `o/web` that cannot be understood without naming the private
+  `o/api`'s code, and the work can go on without the answer
+- **THEN** it asks the question nowhere, goes on with the work, and its
+  report states the question
+- **AND** a question about none of the three things a question may
+  concern, a repository, a collective and the person's way of working, is
+  handled the same way
+- **AND** a question with the category `secret` that is barred the same
+  way is not stated in the report
 
 ### Requirement: Two calls prove the filters ran
 
@@ -2323,12 +2328,6 @@ without it SHALL NOT be asked.
   without naming a private repository's code
 - **THEN** the agent does not ask it, and does not log it in the private
   repository instead
-
-#### Scenario: A question about nothing it can be filed with is not asked
-
-- **WHEN** a question concerns no repository or collective, and
-  is not about the person's way of working
-- **THEN** the agent does not ask it
 
 ### Requirement: A question goes only where its audience is no wider than its subject
 
@@ -3246,9 +3245,9 @@ for each key (design.md: *An answer file names every file it answers*).
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
 A later Igor run SHALL know the answered file only from the Igor's handback
-record, one per handback, never from the comment. That record SHALL hold
-each posted question's hash; its concerns line, or that it had
-none; the repository its file went to; and, if a file was pushed, its name's 6-hex-digit suffix and date;
+record, one per handback, never from the comment. It SHALL hold
+the hash of each question, posted or held on another branch; its `Concerns: ` line, or that it had
+none; the repository its file went to; and, if a file was pushed, its name's date and suffix;
 and no question's text. Without that suffix and date, or if not exactly one file on that repository's questions branch
 has them, the Igor SHALL write no `answers`.
 

@@ -799,8 +799,6 @@ unanswered one of these, and nothing else:
 - **WHEN** a subscribed repository's questions branch holds an unanswered
   log file, with no `asked_in`, whose question tags the person
 - **THEN** it is shown as a question asked of the person
-- **AND** a file whose question holds the person's `@login` only in a
-  code span, a quoted line or a link is not
 
 ### Requirement: A log file named only by input answers shows the newest beside it
 
@@ -1103,44 +1101,25 @@ reads is not followed*).
   pushes an answer file naming the log file, and never shows the log file
   on its own
 
-### Requirement: A question is resolved once answered or declined
-
-A question SHALL count as **resolved** once it is answered and, if a
-questions-branch file holds it, the file the answer must push is pushed
-or no longer retried (*An owed push's retry stops when answered or
-refused for good*), since nothing is then pending; or once its decline
-takes effect, when its post goes out or, with nothing posted, the person
-confirms it. A decline with nothing posted resolves it only on the
-declining machine.
-
-#### Scenario: A held thread copy is resolved once its answer file is pushed
-
-- **WHEN** the person answered, in a GitHub issue, a thread copy a
-  questions-branch file holds, and its answer file was pushed
-- **THEN** the question counts as resolved
-
-#### Scenario: A held question with a category is resolved once its handled file is pushed
-
-- **WHEN** the person answered a question with a category that a
-  questions-branch file holds, and that file's handled file was pushed
-- **THEN** the question counts as resolved, with no answer file
-
 ### Requirement: Later messages after an answer or a decline are new questions
 
-Each later message in a resolved question's thread that a source names,
-and that *Messages judged clearly not questions are ignored* does not
-ignore, SHALL be shown on every machine as a new question of its own,
-under that source; the resolved question stays as it was.
+Each later message in the thread of a question that was answered or
+declined SHALL be shown on every machine as a new question of its own,
+under the source that names it (*A question asked of the person comes
+from one of four sources*), unless no source names it or *Messages judged
+clearly not questions are ignored* ignores it; the earlier question stays
+as it was.
 
 #### Scenario: A later message in an answered or declined thread is a new question
 
-- **WHEN** the relay had posted in a GitHub issue before a question there,
-  the person answered that question or declined it with filter 2's reply
-  posted, and then the asker comments again without a mention, or someone
+- **WHEN** a question in a GitHub issue follows a relay post there, so the
+  asker's later comments reply to that post; the person answered the
+  question, or declined it with filter 2's reply posted or with nothing
+  posted; and then the asker comments again without a mention, or someone
   mentions the person there
 - **THEN** every machine shows the comment as a new question, the asker's
   as a reply to the relay post and a mention as a mention, and the earlier
-  question stays resolved
+  question stays as it was
 
 ### Requirement: The answer session polls only while it is open
 
@@ -1383,13 +1362,6 @@ it was, and a failed automatic post SHALL leave its question shown as
 unanswered; a failed answer stays pending (*An answer that cannot reach
 its thread is kept pending*). A refused post can also turn its channel
 off (*Setup checks each relay identity before its channels are used*).
-
-#### Scenario: A post the surface refuses keeps the answer pending
-
-- **WHEN** the person relays a Discord answer, and Discord refuses it
-  because the relay may not post in that channel
-- **THEN** the person is told nothing was posted, with Discord's reason,
-  and the answer is kept as answered, not relayed
 
 #### Scenario: A failed question to the asker or automatic post leaves its question unanswered
 
@@ -1801,9 +1773,9 @@ that reply and keeping a held-back answer pending.
 ### Requirement: Local state is per machine, in the state folder
 
 The answer session SHALL keep its working state per machine in the state
-folder, as *The state folder holds all working state* lists, except each
-lore repository's questions branch, which it fetches into that
-repository's configured clone. A discussion
+folder, as *The state folder holds all working state* lists, except a
+lore repository's branches, which it fetches into that repository's
+configured clone. A discussion
 record SHALL be deleted once its question is
 answered by the person, answered or handled for them, or closed; a pending answer
 outlives it.
@@ -2044,14 +2016,15 @@ from choosing what the code does beyond a closed set.
   `personal` and `none`; `filter`, the filter that clearly stops the
   question, `1` to `4`, or `none`, with `hit` only for `1`, the number
   of the filter 1 hit with authority that answers it, among those the code
-  listed; for a question no concerns line settles, `place`, one of the
+  listed; for a question whose place neither a `Concerns: ` line nor a
+  questions-branch file holding it already fixes, `place`, one of the
   places the code listed (each subscribed repository and each configured
   lore repository, with a mapped channel's default places marked),
   `other` for a repository or collective outside them, or `none` when the model cannot
   tell, which on GitHub places it in its thread's repository, in a
   channel whose `repos` names one repository places it there, and
   otherwise leaves it with no place; and, for a Linear or Discord
-  question no concerns line settles, `place_sure`, `yes` or `no`,
+  question that gets `place`, `place_sure`, `yes` or `no`,
   whether the model is sure of `place` (*A Linear or Discord question in
   doubt gets no automatic reply*)
 - **AND** the model judges a message in two turns: on the message, it
