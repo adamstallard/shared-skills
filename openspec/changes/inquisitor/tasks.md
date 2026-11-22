@@ -162,8 +162,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions*, *A bot's message
         to a relay reaches the relay's person*, the
-        automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
-        incoming question*, and every miss a decline logs (*A decline for
+        automatic `Inquisitor: ` reply of *A clear filter 2 to 4 failure
+        gets its fixed reply by itself*, and every miss a decline logs (*A decline for
         the inquisitor logs a miss once it takes effect*).
 
       The three GitHub replies task 0.31 names wait on task 0.31 as well,
@@ -249,13 +249,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       does not match, the pattern is changed to the shape measured
 - [ ] 0.34 How Claude Code restricts a session's tools so that its model
       has only its conversation, `propose_reply`, `record_verdict` and
-      Read, Grep and Glob:
-      permission settings, a startup option
-      such as `--allowedTools`, or a mod's own control. Record whether
-      Claude Code itself enforces it, not a hook, whether a mod can apply
-      it to a session already running, and the exact option the `answer`
-      command needs. Until then, *The session's model has no shell, no
-      writing tool and no web fetch* and the `answer` command's line in
+      Read, Grep and Glob: permission settings, a startup option such as
+      `--allowedTools`, or a mod's own control. Record whether Claude Code
+      enforces it itself rather than through a hook, and what the `answer`
+      command must add to start a session so restricted. Until then, *The
+      session's model has no shell, no writing tool and no web fetch* and
+      the `answer` command's line in
       *Setup installs the answer command* are not built (answer-session
       spec). If no control Claude Code enforces exists, the design falls
       back to hooks and the change cannot be built as written: record it
@@ -472,9 +471,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         questions-branch file names where it was asked from*;
         answer-session spec: *A miss records who judged it and where it
         was asked from*).
-      - A handled file holds only `handled` and `closes`, the closed
-        file's name, or for a question with a category its SHA-256, with
-        no body (design.md: *The answer session writes
+      - A handled file holds only `handled`, the day in UTC, and
+        `closes`, the closed file's name or, for a question with a
+        category, that name's SHA-256, with no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
         written only through the command's session option, which only the
         answer session passes; a `handled` or `closes` key, or a hash-only

@@ -2357,10 +2357,9 @@ A refusal the session cannot sort into either kind waits for the person.
   mod's own control, never by a hook. If Claude Code offers no such
   control, the design falls back to hooks and the change cannot be built as
   written: the repository's owner decides what to build. *The session's
-  model has no shell, no writing tool and no web fetch*, the `answer`
-  command's line in *Setup installs the answer command*, and whether
-  `/answer` can open in a session started without the restriction all wait
-  on it.
+  model has no shell, no writing tool and no web fetch* and the `answer`
+  command's line in *Setup installs the answer command* wait on task
+  0.34.
 - **Does the `answer` command's line work?** (task 0.30) It relies on
   `CLAUDE_CODE_NO_FLICKER=1` giving the fullscreen layout, on `claude
   --name`, and on a prompt argument running a slash command. If one fails,
@@ -2389,23 +2388,22 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### Behaviour a person must choose
 
-- **Can the person relay an answer unrecorded from the answer session's
-  preview?** When an answer's record would go to a questions branch more
-  visible than its thread, the preview offers three things: confirm the
-  record there (*The preview warns before a record goes somewhere more
-  visible*), reword the answer, or move the record to another subscribed
-  or lore repository (*The person can pick another place in the
-  preview*). Rewording still records the answer on that branch, and
-  often no other repository fits, so the person cannot relay the answer
-  without its record reaching readers the thread lacks. An agent asking
-  through the host's question tool, by contrast, records nothing when the
-  person answers that it is not to be recorded, and the answer session
-  relays a question with no place unrecorded. Options: (a) the preview
-  also offers relaying the answer unrecorded, except for a question a
-  questions-branch file holds, whose file only an answer file closes;
-  (b) keep it as it is, and the person relays such an answer by hand.
-  Recommended: (a), which matches the asking agent's case and the
-  no-place case.
+- **Two machines' answer sessions can both post an automatic reply to
+  one question.** Each machine holds its own lock (*One answer session
+  runs on each machine*), so with sessions open on two machines both
+  judge a new agent question. If both make the pre-post fetch (*The
+  thread is read again before a question is shown and before a post*)
+  before either posts, the thread gets two `Recorded answer: ` or
+  `Inquisitor: ` replies, visible to its readers. Options: (a) after
+  each automatic post the session fetches the thread once more and, when
+  another relay post handling the same question was posted before its
+  own (on a tie, the one with the larger id goes), deletes its own post.
+  Each automatic reply is backed by a miss file, and the deleted post's
+  file stays, counting one miss too many: a low-priority overcount. (b)
+  setup marks one machine as the one that posts automatic replies, and
+  the others show such questions to the person; (c) accept the
+  duplicate. Recommended: (a), one fetch and one rule, with no new
+  setting.
 
 ### What other changes must provide
 

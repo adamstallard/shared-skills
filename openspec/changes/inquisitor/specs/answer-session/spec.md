@@ -1807,8 +1807,6 @@ names another.
   minutes unrefreshed
 - **THEN** the next session to open the answer session takes the lock
   without asking
-- **AND** a live session's lock, refreshed at least every 30 seconds, never
-  goes 2 minutes unrefreshed
 
 #### Scenario: A lock that cannot be parsed is replaced on opening
 
@@ -1967,8 +1965,8 @@ from choosing what the code does beyond a closed set.
 - **WHEN** the model calls `record_verdict` for an agent's GitHub
   question, which a concerns line settles, with `question: yes`,
   `category: none` and `filter: 3`
-- **THEN** the session's code posts filter 3's fixed reply as *Filters 2
-  to 4 judge every incoming question* says, and the tool itself posts
+- **THEN** the session's code posts filter 3's fixed reply as *A clear
+  filter 2 to 4 failure gets its fixed reply by itself* says, and the tool itself posts
   nothing
 
 #### Scenario: A value outside its field's set is refused
@@ -2017,22 +2015,19 @@ since a thread's text can steer the model.
 - **WHEN** the person asks the model what `src/retry.go` does
 - **THEN** the model reads and searches the code with Read, Grep and Glob
 
-### Requirement: An unrestricted session's /answer installs the answer command
+### Requirement: An unrestricted session's /answer points to the answer command
 
 When the person types `/answer` in a session whose tools are not
-restricted and that Claude Code cannot restrict while it runs (task
-0.34), no answer session SHALL open. The session SHALL install
-`answer` as setup does and, once setup's `answer` is in place, tell the
-person to run it; otherwise it SHALL say why `answer` is not installed.
+restricted as *The session's model has no shell, no writing tool and no
+web fetch* sets, no answer session SHALL open, and the session SHALL
+tell the person to run `answer`, the shell command setup installs.
 
 #### Scenario: An unrestricted session opens no answer session
 
 - **WHEN** the person types `/answer` in a session whose model has a
-  shell, and Claude Code cannot restrict that session's tools
-- **THEN** no answer session opens, `answer` is installed as setup
-  installs it, and the person is told to run it
-- **AND** with an `answer` file setup did not write in its place, the
-  person is told why `answer` was not installed, not to run it
+  shell
+- **THEN** no answer session opens, and the person is told to run
+  `answer`
 
 ### Requirement: A rephrased question is answered with its rephrasing
 
@@ -2312,12 +2307,6 @@ it or its `asked_in` links the question's message.
   questions-branch files hold
 - **THEN** the answer session pushes two handled files, each naming one
   of them
-
-#### Scenario: Dropping a pending answer pushes no handled file
-
-- **WHEN** the person drops a pending answer to a question that a
-  questions-branch file holds
-- **THEN** no handled file is pushed for that file
 
 ### Requirement: A handled file is pushed once its close takes effect
 
@@ -3157,8 +3146,8 @@ collective's question.
 
 ### Requirement: The answer session writes no miss it cannot place privately
 
-The answer session SHALL write no miss file, telling the person why,
-when any of these holds:
+The answer session SHALL write no miss file, even where another
+requirement says to log one, telling the person why, when any of these holds:
 
 - the question has a category;
 - it concerns no place the code lists for `record_verdict`;
@@ -3235,8 +3224,8 @@ person the question.
 
 #### Scenario: With no place for any miss file, no reply goes out by itself
 
-- **WHEN** an agent's question about an organization no configured lore
-  repository serves, or a question found in two questions-branch files
-  that name different repositories, clearly fails filter 4
+- **WHEN** an agent's question clearly fails filter 4, and the two
+  questions-branch files holding it name different repositories, so its
+  miss file has no one repository to name
 - **THEN** the session posts no reply by itself, and shows the person the
   question

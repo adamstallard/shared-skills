@@ -2399,13 +2399,6 @@ source* says. Any other is logged once answered, with its answer.
 - **THEN** no log file is pushed for it, and the agent's report says the
   question was not logged
 
-#### Scenario: An answer with no document is held in the log
-
-- **WHEN** a person answers a question that no decision document covers,
-  and the agent logs the answer with `authority: decision`
-- **THEN** the log file holds the answer, and filter 1 treats it as one
-  while its `answered_by` has write access
-
 ### Requirement: An answer is a decision only from a person with write access
 
 The agent SHALL write `authority: decision` only for an answer by a person
@@ -2548,14 +2541,14 @@ the answer-session spec sets for each kind of file.
 
 ### Requirement: No record goes somewhere more visible than its source
 
-A record's **source** SHALL have two parts: its thread, where its
-question was asked or answered, a Linear or Discord thread counting as a
-private repository; and the repository it was asked from. No log file, nor a miss file other
-than a hash-only one, SHALL be pushed or kept pending for a questions
-branch more visible than either, save as *The
-answerer's confirmation can send a record somewhere more visible* allows.
-Outside an Igor's run, the agent SHALL say why the question is not yet
-logged.
+A record's **source** SHALL be two parts: each thread its question was
+asked or answered in, a Linear or Discord thread counting as private;
+and the repository it was asked from. No log or miss file SHALL be
+pushed or kept pending for a questions branch more visible than either
+part, except a handled file, a hash-only miss file, or what *The
+answerer's confirmation can send a record somewhere more visible*
+allows. Outside an Igor's run, the asking agent SHALL say why such a
+question is unlogged.
 
 #### Scenario: A private repository's question stays out of an internal lore repository
 
