@@ -2388,22 +2388,28 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### Behaviour a person must choose
 
-- **Two machines' answer sessions can both post an automatic reply to
-  one question.** Each machine holds its own lock (*One answer session
-  runs on each machine*), so with sessions open on two machines both
-  judge a new agent question. If both make the pre-post fetch (*The
-  thread is read again before a question is shown and before a post*)
-  before either posts, the thread gets two `Recorded answer: ` or
-  `Inquisitor: ` replies, visible to its readers. Options: (a) after
-  each automatic post the session fetches the thread once more and, when
-  another relay post handling the same question was posted before its
-  own (on a tie, the one with the larger id goes), deletes its own post.
-  Each automatic reply is backed by a miss file, and the deleted post's
-  file stays, counting one miss too many: a low-priority overcount. (b)
-  setup marks one machine as the one that posts automatic replies, and
-  the others show such questions to the person; (c) accept the
-  duplicate. Recommended: (a), one fetch and one rule, with no new
-  setting.
+- **A later automatic post that is never deleted.** *An automatic post
+  is deleted when another relay post came first* leaves both posts in
+  the thread when the fetch after the post fails, the delete is refused,
+  or the session stops between posting and that fetch. It takes a race
+  and a failure together, but the duplicate is visible to the thread's
+  readers. Options: (a) accept it, as the answer-session record's entry
+  listing accepted crash and two-machine gaps, *Rejected: A TLA+ model
+  of the answer session's owed pushes and automatic posts*, does; (b)
+  record that fetch and its delete as owed, like a push, and retry them
+  after a restart or once the channel is back. Recommended: (a), since
+  (b) adds a rule for a failure on top of a rare race.
+- **A relay that cannot delete its own post.** Tasks 0.16 and 0.17
+  check that the Linear and Discord relays can delete their own comment
+  or message, and their rule turns the surface off if any check fails.
+  GitHub needs no task: GitHub's REST reference asks the same Issues or
+  Pull requests write permission to delete a comment as to post one.
+  Options: (a) keep the tasks' rule, so a surface whose relay cannot
+  delete stays off; (b) on such a surface, post no automatic reply by
+  itself and show the person the question; (c) accept duplicates there.
+  Recommended: (b): it adds one rule, but keeps the surface for the
+  person's own answers, which (a) loses, and leaves none of the visible
+  duplicates (c) does.
 
 ### What other changes must provide
 

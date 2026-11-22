@@ -95,7 +95,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
       linear-app identity with a host command and learn the comment's URL;
-      that the identity can edit its own comment; and that Linear marks a
+      that the identity can edit and delete its own comment; and that Linear marks a
       comment's author as an app user in a form no person's account can
       take on. If any fails, Linear
       stays off and the README says so. Measured 2026-11-19 as an app
@@ -104,13 +104,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the `id`; the identity edits its own comment; a reply holds its
       parent's id; and an app user's comment has `user.app` `true` and a
       null `botActor`, the 5 test comments among the team's 77, the other
-      72 having `user.app` `false`. Not measured: mentions of the person or the relay,
+      72 having `user.app` `false`. Not measured: deleting its own comment, mentions of the person or the relay,
       anything read with the person's key, and that no person's account
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
       of the person's user id and a reply to the relay's message, and edit
-      its own message; that Discord marks the author of a bot's or a
+      and delete its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports
       `messageContent` `true` reads a message that doesn't mention the bot
@@ -119,7 +119,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       2026-11-19 in a test thread: the identity reads a channel's history
       and a thread's, a reply holds a `message_reference` to its message,
       the identity edits its own message, and a bot's message has
-      `author.bot` `true`. Not measured: a mention of the person's user
+      `author.bot` `true`. Not measured: deleting its own message, a mention of the person's user
       id, a webhook's message, and the Message Content read
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
@@ -796,7 +796,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       HTTP request, carrying the token linear-app's `token` command prints,
       held only in memory and never in a command's arguments, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
-      a question is shown and before each post, the preview showing where
+      a question is shown and before each post, the thread read after each
+      automatic post and the later of two such posts deleted, the preview showing where
       the answer will be recorded; the person's pick of another place in
       it (answer-session spec: *The person can pick another place in the
       preview*); for an Igor's question on a more private repository, the

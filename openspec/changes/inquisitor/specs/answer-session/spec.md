@@ -1192,8 +1192,9 @@ and the review requests and assignments naming the person.
 The answer session SHALL read GitHub with the person's `gh` login and
 Linear with the person's Linear API key, keeping that key only in memory
 and never in a command's arguments, and SHALL use the GitHub and
-Linear relay identities only to check them, to post, and to edit their
-own relay posts. On Discord, the Discord relay identity SHALL both read
+Linear relay identities only to check the identities themselves, and
+to post, edit and delete their own relay posts. On Discord, the Discord relay identity
+SHALL both read
 and post, in the channels it has been added to.
 
 #### Scenario: Reading uses the person's gh login and posting the relay
@@ -1700,6 +1701,26 @@ that reply and keeping a held-back answer pending.
 - **WHEN** the person relays an answer after the asker has replied in the
   thread since the question was shown
 - **THEN** nothing is posted, and the asker's reply is shown
+
+### Requirement: An automatic post is deleted when another relay post came first
+
+After each automatic post, the answer session SHALL fetch the thread once
+more. It SHALL delete its own post when another relay post answering or
+handling the question, `User says: ` included, was posted before it, or
+has the same creation time as the surface reports it and an id smaller
+in byte order. It then shows the question as the earlier post leaves it.
+Deleting takes back no push made or owed for the deleted post, such as
+its miss file. If the fetch or the delete fails, both posts stay.
+
+#### Scenario: Of two machines' automatic replies, the later one is deleted
+
+- **WHEN** sessions on two machines both fetch an agent's question's
+  thread before either posts, and each posts its `Inquisitor: ` reply,
+  the second a few seconds after the first
+- **THEN** the second session, fetching the thread after its post, finds
+  the first reply and deletes its own, and its miss file stays
+- **AND** had both replies carried the same time, the one whose id is
+  larger in byte order would be deleted
 
 ### Requirement: Local state is per machine, in the state folder
 

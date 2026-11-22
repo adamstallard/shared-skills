@@ -2804,13 +2804,6 @@ bars it.
   lore entry answers it
 - **THEN** no citation file is pushed
 
-#### Scenario: A question filter 1 stopped about another repository is not logged
-
-- **WHEN** filter 1 stops, with a lore entry, a question about a second
-  repository while the agent works in a first one
-- **THEN** no log file is pushed for it, and the only record is the
-  citation file on the lore repository's questions branch
-
 ### Requirement: No worker or Igor-started run pushes to a questions branch
 
 During an Igor's run the agent SHALL push no citation itself, and no Igor
