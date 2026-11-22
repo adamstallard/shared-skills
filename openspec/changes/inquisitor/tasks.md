@@ -161,9 +161,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         agent's question comes from a bot account or a log file*;
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions*, *A bot's message
-        to a relay reaches the relay's person* and the
+        to a relay reaches the relay's person*, the
         automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
-        incoming question*.
+        incoming question*, and every miss a decline logs (*A decline for
+        the inquisitor logs a miss once it takes effect*).
 
       The three GitHub replies task 0.31 names wait on task 0.31 as well,
       since their miss files are named by the reply's `node_id`.
@@ -522,8 +523,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       file has one format* (`entry` and `date`, no `run`) once to the
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
-      the answer session cites an `active` entry in scope, a reason 2
-      decline with filter 1 naming one included (design.md: *A person's
+      the answer session cites an `active` entry in scope by naming it in
+      a reason 2 decline with filter 1 (design.md: *A person's
       cite pushes a citation file*). Its commit names no person (design.md: *A citation's commit
       names no person*). It sends none for a question with a category,
       none where *A lore entry that stops a question gets a citation
@@ -861,7 +862,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           wording after markup is reduced (design.md: *A question another skill
           requires carries a line the answer session matches*);
         - declining with its two reasons, and reason 2's posts;
-        - the misses on the questions branch, none for reason 1
+        - the misses on the questions branch, none for reason 1 or for
+          a person's question
           (design.md: *Messages that are not questions are ignored*;
           *Misses the answer session logs*), and a miss against filter 1
           for an agent's question the answer session answers by itself;
@@ -899,7 +901,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       to a recorded answer is a filter 1 decline*), as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
-      person cites a lore entry by naming it as an answer or a record*)
+      person cites a lore entry by naming it as a filter 1 record*)
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's

@@ -2147,10 +2147,7 @@ When the questions branch an answer file would go to is more visible
 than the answer's thread, ranked as the inquisitor's *No record goes
 somewhere more visible than its source* ranks one, the answer session
 SHALL post and push nothing, even for a reworded answer, until the
-person confirms the record. Where a questions-branch file holds the
-question, fixing its place, the person may instead relay the answer with
-no answer file; the asker then logs the relay post, a bot's comment, as
-`input`.
+person confirms the record.
 
 #### Scenario: An answer is not posted without its record
 
@@ -2160,15 +2157,6 @@ no answer file; the asker then logs the relay post, a bot's comment, as
   confirming the preview's warning
 - **THEN** nothing is posted and no file is pushed, the question stays in
   the queue, and the person may reword the answer and confirm it
-
-#### Scenario: A questions-branch question's answer is relayed with no record
-
-- **WHEN** an agent's Discord message asks a question about the public
-  `o/web` that its log file on `o/web`'s questions branch holds, and in
-  the preview the person picks relaying the answer with no record
-- **THEN** the relay posts the answer in that Discord thread, and the
-  session pushes no answer file and no handled file, so the log file
-  stays unanswered until the asker's answer file names it
 
 ### Requirement: The preview shows where an answer will be recorded
 
@@ -2214,19 +2202,19 @@ session writes no miss it cannot place privately*).
 
 #### Scenario: A decline's preview shows where its miss will be recorded
 
-- **WHEN** the person is about to decline, for filter 3, a question about
-  the public `o/web` asked in a Linear thread
+- **WHEN** the person is about to decline, for filter 3, an agent's
+  question about the public `o/web` asked in a Linear thread
 - **THEN** the preview warns that the miss on the questions branch of
   `o/web` is public and that Linear thread is not, and offers confirming
   the miss or declining with a hash-only miss file
 
 ### Requirement: The person can pick another place in the preview
 
-Unless a questions-branch file holds the question, which fixes its
-place, an answer's preview SHALL let the person pick another subscribed
+Unless a questions-branch file holding the question fixes its place,
+an answer's preview SHALL let the person pick another subscribed
 or configured lore repository. A decline's preview SHALL offer it only
-when no concerns line settles the question, since the asking agent looks
-for a miss only where such a line names. The pick SHALL be what the
+for an agent's question that no concerns line settles, since the asking
+agent looks for its miss only on that line's branch. The pick SHALL be what the
 question concerns for that post: the session checks its visibility, runs
 filter 1 for it and shows any hit first, and posts nothing by itself.
 
@@ -2523,8 +2511,8 @@ break, telling the person why.
 
 #### Scenario: A filter 1 reply names the place the person gave
 
-- **WHEN** the person, declining a question in a public repository with
-  filter 1, gives that repository's `docs/retries.md` as where it is
+- **WHEN** the person, declining an agent's question in a public
+  repository with filter 1, gives that repository's `docs/retries.md` as where it is
   decided
 - **THEN** once they confirm it, the relay posts a reply starting
   `Recorded answer: ` whose `Recorded in: ` line holds that file's URL,
@@ -2575,9 +2563,10 @@ category, it SHALL post nothing and close the question.
 
 ### Requirement: Filter 3 also offers that the agent shouldn't have asked
 
-Under the second reason, filter 3 (not a real question) SHALL also offer
-"the agent shouldn't have asked", for a message the asking agent should
-not have written, a choice that posts nothing (design.md: *Messages that
+Under the second reason, on an agent's question, filter 3 (not a real
+question) SHALL also offer "the agent shouldn't have asked", a choice
+that posts nothing, for a message that needs no reply at all, not even
+the advice to take the option with merit (design.md: *Messages that
 are not questions are ignored*).
 
 #### Scenario: The agent shouldn't have asked posts nothing
@@ -2590,13 +2579,13 @@ are not questions are ignored*).
 
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
-Under the second reason, the person MAY give a note, and the answer
-session SHALL log a miss against the picked filter, whose `said` is the
-note or, with none, `the inquisitor should have handled it`. A note more
-private than the question is reworded at its privacy by the session's
-model, for the person to confirm. It SHALL push the miss only once its
-post is out or, with none, the decline is confirmed, owed under *A miss
-or citation file's push is owed and retried as a handled file's is*.
+Under the second reason, the person MAY give a note, and on an agent's
+question the answer session SHALL log a miss against the picked filter.
+The miss's `said` is the note or, with none, `the inquisitor should have
+handled it`. A note more private than the question is reworded at its
+privacy by the session's model, for the person to confirm. The answer
+session SHALL push the miss only once the decline's post is out or, when
+the decline posts nothing, once the person confirms it.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2608,9 +2597,9 @@ or citation file's push is owed and retried as a handled file's is*.
 
 #### Scenario: A note more private than the question is reworded before the miss
 
-- **WHEN** the person declines with filter 1 a question about a public
-  repository, with the note "decided in o/private's decision record", a
-  private repository
+- **WHEN** the person declines with filter 1 an agent's question about a
+  public repository, with the note "decided in o/private's decision
+  record", `o/private` being a private repository
 - **THEN** the session's model rewords the note at the question's
   privacy, naming neither the private repository nor its file, the person
   confirms that wording with the decline, and the miss's `said` holds it
@@ -2735,16 +2724,16 @@ its question in a Re line* requires one.
   another person's relay, and a capability decision record on the
   repository's default branch decides it
 - **THEN** the relay posts a recorded answer naming the question, and no
-  miss is logged, as for any person's question
+  miss is logged, since a relayed question is a person's question
 
 ### Requirement: A recorded answer posted by itself links filter 1's hit and quotes no answer
 
 In a recorded answer the answer session posts by itself, the URL SHALL
 be filter 1's hit's: for a questions-branch file, the file's own URL on
-that branch, never a URL the file holds. A hit whose URL holds a space or
-line break,
-which could break the `Recorded in: ` line or plant a `Re: ` line, SHALL
-be shown beside its question instead. Whatever the hit is, a log file
+that branch, never a URL the file holds. Whatever the hit, its path
+SHALL be percent-encoded as GitHub's own links are, so that no space or
+line break in it can break the `Recorded in: ` line or plant a `Re: `
+line. Whatever the hit is, a log file
 included, the post SHALL quote no answer, and the session's model SHALL
 write none of the post.
 
@@ -2768,13 +2757,15 @@ write none of the post.
 - **THEN** the `Recorded in: ` line holds the answer file's URL on
   `o/api`'s questions branch, not the relay post's
 
-#### Scenario: A hit whose URL holds a line break is shown, not posted
+#### Scenario: A hit's path is percent-encoded in its link
 
 - **WHEN** filter 1's hit for an agent's question is a decision document
-  whose path holds a line break followed by `Re: ` and another question's
-  URL, or one whose URL holds a space
-- **THEN** nothing is posted by itself; the recorded answer is shown
-  beside the question
+  whose path holds a space, or a line break followed by `Re: ` and another
+  question's URL
+- **THEN** the relay posts the recorded answer by itself, its
+  `Recorded in: ` URL holding the path percent-encoded, a space as `%20`
+  and a line break as `%0A`, so the post holds no line starting `Re: `
+  but the one the relay adds
 - **AND** a questions-branch file whose name holds a line break or a space
   is not shown as a recorded answer at all, only as unreadable input, as
   the inquisitor's *A questions-branch file named outside the format is
@@ -2872,12 +2863,12 @@ automatic reply does not apply here: it binds the agent the reply reaches.
   `o/api` in an `o/api` thread, the session posts the recorded answer but
   pushes no citation file, since `o/lore` is more visible than `o/api`
 
-### Requirement: A person cites a lore entry by naming it as an answer or a record
+### Requirement: A person cites a lore entry by naming it as a filter 1 record
 
 The answer session SHALL count a person as one who **cites** a lore
-entry when they name it as the answer to a question, or as the record
-when declining one under the second reason with filter 1, agreeing
-included.
+entry when they name it as the record of a decline under the second
+reason with filter 1, agreeing to a recorded answer shown beside the
+question included.
 
 #### Scenario: Declining with filter 1 and a lore entry cites it
 
@@ -2908,7 +2899,7 @@ pushes nothing.
 
 #### Scenario: Citing an inactive, out-of-scope or more visible entry sends none
 
-- **WHEN** the person cites, by answering or agreeing, a lore entry whose
+- **WHEN** the person cites, by declining or agreeing, a lore entry whose
   status is not `active`, an `active` entry whose scope does not cover
   the question, or an entry in a public lore repository for a question
   about a private repository
@@ -2917,8 +2908,8 @@ pushes nothing.
 #### Scenario: A decline's citation is pushed when no readable miss is
 
 - **WHEN** the person's filter 1 decline names an `active` entry of a
-  private lore repository, whose scope covers the question; the question,
-  about the organization, was asked in a private repository's thread; its
+  private lore repository, whose scope covers the question; the agent's
+  question, about the organization, was asked in a private repository's thread; its
   miss would go to the team's lore repository, a public one; and the
   person has not confirmed the miss for that more visible branch
 - **THEN** the miss is a hash-only miss file, and the answer session
@@ -2928,9 +2919,9 @@ pushes nothing.
 
 When the answer session answers an agent's question by itself under
 filter 1, it SHALL log a miss against filter 1, since the asking agent's
-own filter 1 should have found the record, as *The answer session logs
-its misses on the questions branch of what the question concerns* says; a
-person's question it answers by itself logs none.
+own filter 1 should have found the record. The miss goes where *The
+answer session logs its misses on the questions branch of what the
+question concerns* says.
 
 #### Scenario: An agent's question answered by itself logs a miss
 
@@ -3032,8 +3023,8 @@ shown to the person. The answer session SHALL trust any such line.
 #### Scenario: Filter 1 still answers a marked question
 
 - **WHEN** such a question has an answer with authority recorded
-- **THEN** the recorded answer is posted by itself, as for any agent's
-  question
+- **THEN** the recorded answer is posted by itself, under the same
+  conditions as for a question with no such line
 
 #### Scenario: A line is matched on its fixed wording, markup aside
 
@@ -3077,8 +3068,8 @@ question SHALL get no automatic post.
 
 #### Scenario: Agreeing to a suggested verdict declines with that filter
 
-- **WHEN** the person agrees to filter 4, suggested for a person's
-  question on Linear, and confirms the post
+- **WHEN** the person agrees to filter 4, suggested for an agent's
+  Linear question no concerns line settles, and confirms the post
 - **THEN** the relay posts filter 4's reply as *A filter 2 to 4 reply the
   person chose says they chose it* sets, and a miss against filter 4 is
   logged
@@ -3089,13 +3080,22 @@ The answer session SHALL log each miss as a miss file, whether or not
 the asker logged the question, and the inquisitor script SHALL push it
 to the questions branch of what the question
 concerns, under the inquisitor's *A question is pushed to the questions
-branch of what it concerns*.
+branch of what it concerns*. The answer session SHALL log no miss on a
+person's question.
 
 #### Scenario: A miss goes to the questions branch
 
-- **WHEN** the answer session logs a miss for a question about `o/api`
+- **WHEN** the answer session logs a miss for an agent's question about
+  `o/api`
 - **THEN** the script pushes the miss file to `misses/` on the questions
   branch of `o/api`, and opens no pull request
+
+#### Scenario: A person's question logs no miss
+
+- **WHEN** the person declines a person's question for the inquisitor
+  with any filter, or agrees to a recorded answer or a suggested verdict
+  shown beside it
+- **THEN** no miss file is pushed, hash-only or readable
 
 #### Scenario: A second machine posts no second reply
 
@@ -3127,7 +3127,7 @@ repository.
 
 #### Scenario: A confirmed record names its own branch's repository
 
-- **WHEN** the person confirms sending a miss, for an
+- **WHEN** the person confirms sending a miss, for an agent's
   organization question asked in an issue of the private `o/api`, to the
   questions branch of the public lore repository `o/lore`
 - **THEN** the file's `asked_from` is `o/lore`, not `o/api`, as the
@@ -3146,22 +3146,23 @@ repository.
 
 #### Scenario: A miss on a thread question names the thread's repository
 
-- **WHEN** the person's decline for the inquisitor is of a question about
-  the organization in an issue of `o/web`, which no questions-branch
-  file holds
+- **WHEN** the person declines for the inquisitor an agent's question
+  about the organization, asked in an issue of `o/web`, and no
+  questions-branch file holds the question
 - **THEN** the miss file holds `asked_from: "o/web"` and no `repository`
 
 #### Scenario: A miss on an organization's Linear question names its lore repository
 
-- **WHEN** the person's decline for the inquisitor is of a question about
-  the organization asked in a Linear thread, which no questions-branch
-  file holds and the lore repository `o/lore` serves
+- **WHEN** the person declines for the inquisitor an agent's question
+  about the organization, which the lore repository `o/lore` serves,
+  asked in a Linear thread, and no questions-branch file holds the
+  question
 - **THEN** the miss file holds `asked_from: "o/lore"` and no `repository`
 
 #### Scenario: A miss on a Linear question holds the asking message's URL
 
-- **WHEN** the person's decline for the inquisitor is of a question about
-  the private `o/api` asked in a Linear thread
+- **WHEN** the person's decline for the inquisitor is of an agent's
+  question about the private `o/api` asked in a Linear thread
 - **THEN** the miss file holds `repository: "o/api"`, `asked_from:
   "o/api"` and, as `asked_in`, the asking message's URL, which the
   inquisitor's *A log file and a miss file have one format* allows
@@ -3190,9 +3191,9 @@ collective's question.
 
 #### Scenario: A miss on a thread question holds the repository it concerns
 
-- **WHEN** the person declines for the inquisitor a question about
-  `o/api` asked in an issue of `o/web`, which no questions-branch file
-  holds
+- **WHEN** the person declines for the inquisitor an agent's question
+  about `o/api`, asked in an issue of `o/web`, and no questions-branch
+  file holds the question
 - **THEN** the miss file holds `repository: "o/api"`
 
 ### Requirement: The answer session writes no miss it cannot place privately
@@ -3209,7 +3210,8 @@ when any of these holds:
 
 #### Scenario: No place for the miss means no miss file
 
-- **WHEN** the answer session would log a miss for a question about an
+- **WHEN** the answer session would log a miss for an agent's question
+  about an
   organization no configured lore repository serves, or about no
   repository or collective
 - **THEN** no miss file is written, the person is told why, and the
@@ -3224,15 +3226,15 @@ when any of these holds:
 
 #### Scenario: A question with a category gets no miss
 
-- **WHEN** the person's decline for the inquisitor is of a Discord
-  message the session's model judges holds a password
+- **WHEN** the person's decline for the inquisitor is of an agent's
+  Discord message the session's model judges holds a password
 - **THEN** nothing is posted, and the person is told why no miss file is
   written
 
 #### Scenario: A confirmed miss goes to the more visible branch
 
-- **WHEN** the person declines, for filter 3, a question about the public
-  `o/web` asked in a Linear thread, and confirms the miss
+- **WHEN** the person declines, for filter 3, an agent's question about
+  the public `o/web` asked in a Linear thread, and confirms the miss
 - **THEN** the miss file is pushed to the questions branch of `o/web`, as
   the inquisitor's *The answerer's confirmation can send a record somewhere
   more visible* says, holding no link into the thread

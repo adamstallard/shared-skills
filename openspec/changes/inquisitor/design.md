@@ -2407,41 +2407,6 @@ A refusal the session cannot sort into either kind waits for the person.
   record; one typed in the answer session and relayed there counts through its
   answer file.
 
-### For the repository's owner to decide
-
-- **Should an answer relayed with no record count as the person's
-  decision?** (answer-session: *No answer file goes somewhere more
-  visible than its thread unconfirmed*; inquisitor: *An agent logs a
-  bot's comment only as input*.) The relay identity is a bot, so the asking agent, or
-  the Igor for a handback, logs the relay post as `input`, even when the
-  person has write access; a reply the person types as themselves can be
-  a `decision`. Options: (a) keep it `input`, and have the preview say
-  so; (b) count the relay post as the person's, which reverses that
-  inquisitor rule for relay posts and needs a way to prove which
-  person's relay identity posted it. Recommended: (a), since nothing proves who a relay bot posts
-  for, and a person wanting a decision can reply as themselves.
-- **Should filter 1 log a miss on a person's question?** (answer-session:
-  *Filter 1's answer by itself to an agent's question logs a miss*;
-  *Agreeing to a shown recorded answer is a filter 1 decline*.) A miss
-  records that a filter should have stopped a question before it reached
-  the person, and the misses review reads it. When filter 1 posts a
-  record by itself on a person's question, no miss is logged; when the
-  person agrees to the same record shown beside the question, one is.
-  Options: (a) agreeing on a person's question logs no miss either; (b)
-  cut the clause that a person's question answered by itself logs none,
-  so both log one. Recommended: (b), since a person's decline for any
-  filter already logs a miss on a person's question, and (b) removes a
-  rule rather than adding one.
-- **How is a person's answer known to cite a lore entry?**
-  (answer-session: *A person cites a lore entry by naming it as an
-  answer or a record*.) A decline names its record in a field the code
-  reads, but a typed answer is free text, and nothing says how the code
-  tells that it names an entry. Options: (a) cut the "as an answer"
-  half, so only a filter 1 decline or an agreement cites; (b) count an
-  answer as citing an entry only when it holds that entry's URL.
-  Recommended: (a), since it removes an undefined rule, and the decline
-  and agreement paths still feed igor's citations.
-
 ### Left to implementation
 
 - **Task 6.11's details are chosen at implementation,** and each becomes a

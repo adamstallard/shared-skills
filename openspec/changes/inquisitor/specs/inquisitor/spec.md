@@ -107,12 +107,12 @@ IGOR_RUN* says.
 questions asked of them, and *a relay* the bot account that posts what they
 confirm there, as the `answer-session` spec defines both.
 
-*A miss* is a question a person said need not have been asked, or that an
-answer session judged clearly need not have been. *A citation file* records
-that an `active` lore entry whose scope covers a question answered it:
-filter 1 stopped the question with it, or the person answering in an answer
-session cited it, as the `answer-session` spec defines citing (design.md: *A
-person's cite pushes a citation file*).
+*A miss* is a question an agent asked that a person said need not have
+been asked, or that an answer session judged clearly need not have been.
+*A citation file* records that an `active` lore entry answered a question
+its scope covers: filter 1 stopped the question with the entry, or the
+person in an answer session cited the entry, as the `answer-session` spec
+defines citing (design.md: *A person's cite pushes a citation file*).
 
 ## ADDED Requirements
 
