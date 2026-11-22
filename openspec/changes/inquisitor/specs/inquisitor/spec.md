@@ -2874,6 +2874,8 @@ repository. A failed push SHALL leave the question in the run's report.
 - **AND** the file's question tags the person a handback asking it would
   mention first, so it reaches that person's answer session alone, and
   only if they subscribe to `o/api`
+- **AND** the handback asks no question, so an answer session's model
+  judges it clearly not a question and shows it nowhere
 
 #### Scenario: A question the Igor cannot push stays in the report
 
@@ -3928,14 +3930,6 @@ if `vulnerability`, in the advisory.
   be exploited
 - **THEN** the agent uses the answer in the fix, records it in the repository's
   private security advisory, and writes no log file
-
-#### Scenario: With no picker, a question with a category is asked in the reply
-
-- **WHEN** an agent, in a session with a person in it on a host with no
-  picker, has a question with the category `secret` that survives the
-  filters
-- **THEN** it asks the question in the text of its reply, and in no post
-  or issue
 
 ### Requirement: Without advisory access, a vulnerability question is recorded nowhere
 

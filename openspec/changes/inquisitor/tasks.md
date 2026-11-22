@@ -272,7 +272,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       its judgements to the code through record_verdict*). If it cannot,
       record it and stop building the mod: the answer session is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
-      for the owner's approval
+      for the owner's approval. If it can, also list every first character
+      on which the prompt box runs a submitted prompt as a command;
+      *propose_reply refuses a draft the prompt box would run* refuses each
 - [ ] 0.38 How the answer session tells, with the person's Linear key,
       that a Linear app user is an Igor's, in a form no other app user can
       take on, as the `igor-` slug tells an Igor's App on GitHub: for

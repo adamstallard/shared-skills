@@ -754,11 +754,13 @@ line, and say when `~/.local/bin` is not on `PATH`.
 - **THEN** setup leaves it unchanged, and says the `answer` command was
   not installed
 
-#### Scenario: Setup says when the answer command is not on PATH
+#### Scenario: Setup installs the answer command
 
-- **WHEN** setup installs `~/.local/bin/answer` and `~/.local/bin` is not
-  on the person's `PATH`
-- **THEN** setup says so
+- **WHEN** setup runs with no `~/.local/bin/answer`, and `~/.local/bin`
+  is not on the person's `PATH`
+- **THEN** setup writes `~/.local/bin/answer`, executable, with setup's
+  comment line second, running the `claude` command the requirement
+  gives, and says `~/.local/bin` is not on `PATH`
 
 ### Requirement: A question asked of the person comes from one of four sources
 
@@ -2037,9 +2039,9 @@ line.
 
 ### Requirement: propose_reply refuses a draft the prompt box would run
 
-`propose_reply` SHALL refuse a draft whose first character is `!` or
-`/`, because Claude Code's prompt box runs such a draft as a shell or
-slash command when the person submits it.
+`propose_reply` SHALL refuse a draft whose first character makes Claude
+Code's prompt box run it as a command when the person submits it: `!`
+and `/`, and any other such character task 0.37 lists.
 
 #### Scenario: A draft starting with a command prefix is refused
 
@@ -2084,8 +2086,8 @@ from choosing what the code does beyond a closed set.
   turn ends, a later
   accepted call's value replacing an earlier one's, and a field that no
   accepted call in its turn set counts as the cautious one: `question` as
-  `unclear`, `category` as a category the code cannot name, so the
-  question is handled as one with a category, `filter` as `none` (a `1`
+  `unclear`, `category` as `secret` (the
+  answer session handles every category alike), `filter` as `none` (a `1`
   with no `hit` counts as `none` too), `place` as `none`, the value
   for a model that cannot tell, and `place_sure` as `no`
 
