@@ -41,11 +41,11 @@ this spec *lore repository* always means the one holding the entries.
 every log and miss file about that repository; a lore repository's
 also holds the files about its collective's questions, and its citation
 files. *A questions-branch file* is a file on one; *a
-log file* is one logging a question, which a handled file, one closing a
-question file, is not; *a question file* is a log file
-holding no answer, and *an answer file* is a log file holding an answer, whether or not it lists, in
+log file* is one logging a question or, as a *handled file*, closing a
+question file; *a question file* is a log file
+holding no answer and no `handled` key, and *an answer file* is a log file holding an answer, whether or not it lists, in
 `answers`, earlier files there that logged the question unanswered. A log
-file is *unanswered* when it holds no answer and no answer file is its
+file other than a handled one is *unanswered* when it holds no answer and no answer file is its
 answer, as *A named file's answer is the newest answer file naming it*
 decides.
 

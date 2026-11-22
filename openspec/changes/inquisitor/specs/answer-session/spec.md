@@ -67,9 +67,16 @@ inquisitor's, or that spec's, *Title*:
 - **The person's answer** to a log file is the answer file that is its
   answer by the inquisitor's *A named file's answer is the newest answer
   file naming it*.
-- A **thread copy** is a question the answer session shows from a thread;
-  a questions-branch log file **holds** it when the file's `asked_in`
-  links that thread message.
+- A **thread copy** is a question the answer session reads from a
+  thread, whether it shows it, ignores it as not a question or passes it
+  over; a questions-branch log file **holds** it when the file's
+  `asked_in` links that thread message and, in a post with an
+  open-questions section, the file's question has the same hash as the
+  item, or as one sentence of the question that the post's sentences
+  outside the section make (*Question sentences outside a post's list are
+  one more question*; the inquisitor's *A question's text and hash are
+  built one way*). Every file of such a post links the same post, so
+  only there does the link alone not tell them apart.
 
 Any other term is defined in the requirement that sets the term's rule;
 a requirement before that one may already use the term.
@@ -869,13 +876,13 @@ says, it puts the question that post asked about back in the queue.
 
 ### Requirement: Whom a message reaches is set by its mentions
 
-A message by a bot account, as *An agent's question comes from a bot
-account or a log file* defines it, SHALL reach only the first person it
-mentions; any other message, a relayed question and an agent's posted
-under a person's own account included, SHALL reach each person it
-mentions (design.md: *A bot's question reaches only the first person it
-mentions*). On GitHub, this rule is built only once task 0.21 measures
-whether a comment's App can be told, which telling a bot account needs.
+A message by a bot account (*An agent's question comes from a bot
+account or a log file*) SHALL reach only the first person it mentions,
+save as *Each item of a bot's message reaches the person its tag line
+mentions* says; any other message, a relayed question and an agent's
+question posted under a person's own account included, SHALL reach each person it
+mentions. On GitHub, this rule is built only once task 0.21 measures
+whether a comment's App can be told.
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -888,6 +895,23 @@ whether a comment's App can be told, which telling a bot account needs.
 
 - **WHEN** a person's comment mentions `@maya` and then the person
 - **THEN** the person's answer session shows it as a question
+
+### Requirement: Each item of a bot's message reaches the person its tag line mentions
+
+In a message that *Whom a message reaches is set by its mentions* counts
+as a bot account's, an item of an open-questions section with a tag line
+(the inquisitor's *A tag line names the person a posted question tags*)
+SHALL reach only the person that line mentions, since each item tags its
+own decider; an item without one reaches whom that rule says. It waits on
+task 0.21 on GitHub, task 0.16 on Linear and task 0.17 on Discord.
+
+#### Scenario: Each item of a bot's post reaches the person its tag line names
+
+- **WHEN** an agent's bot account posts two questions in one
+  open-questions section, item 1 with the tag line `@maya` and item 2
+  with the tag line naming the person
+- **THEN** the person's answer session shows item 2 and not item 1, and
+  Maya's shows item 1, if she subscribes to that repository
 
 ### Requirement: A bot's message to a relay reaches the relay's person
 
@@ -966,8 +990,8 @@ is.
 
 ### Requirement: Only an item's newest handback is shown
 
-An issue or pull request an Igor handed back SHALL be shown only as the
-question its newest handback asks. Older handbacks are **passed over**:
+An issue or pull request an Igor handed back SHALL be shown only through
+the questions its newest handback asks. Older handbacks are **passed over**:
 each machine works this out from the thread alone, writes nothing for
 them, and never shows them again, even once the newest is answered. A
 review request on it SHALL NOT make it a second question.
@@ -992,8 +1016,8 @@ A handback that mentions no one, with the Igor's log file that follows
 it (*An Igor's log file follows its own handback comment*), SHALL reach
 the item's assignee as the third source, counting an assigned pull
 request as an assigned issue. A handback that mentions
-people SHALL reach only the first person it mentions, as *Whom a message reaches is
-set by its mentions* says (igor #229).
+people SHALL reach whom *Whom a message reaches is set by its mentions*
+says, igor #229 setting the order an Igor mentions people in.
 
 #### Scenario: A handback that mentions no one reaches the assignee
 
@@ -1017,8 +1041,8 @@ set by its mentions* says (igor #229).
 
 ### Requirement: A log file follows the thread message its asked_in links
 
-A log file whose `asked_in` links a thread message this machine's polls
-have read SHALL follow that message by exact link, taking whatever the answer
+A log file that holds a thread copy of a message this machine's polls
+have read SHALL follow that thread copy, taking whatever the answer
 session decides about it, and is never shown on its own; an Igor's log
 file instead follows its handback comment, as *An Igor's log file follows
 its own handback comment* says.
@@ -1035,10 +1059,18 @@ its own handback comment* says.
   or the message is ignored as not a question
 - **THEN** the log file is not shown on its own either
 
+#### Scenario: Each item's file follows only its own item
+
+- **WHEN** an agent's post lists two questions in one open-questions
+  section, each logged in its own file whose `asked_in` is the post's URL,
+  and the person answers item 2 and declines item 1
+- **THEN** the answer file names only the file whose question has item
+  2's hash, and the handled file names only the one with item 1's hash
+
 ### Requirement: A log file with no followed link is judged on its own
 
-A log file with no `asked_in`, or linking a message this machine's polls
-have not read, SHALL be judged on its own, as a question of the fourth
+A log file that holds no thread copy of a message this machine's polls
+have read SHALL be judged on its own, as a question of the fourth
 source, a questions-branch log file, save that an Igor's log file
 follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
@@ -1065,9 +1097,9 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 
 ### Requirement: An Igor's log file follows its own handback comment
 
-An Igor's log file SHALL follow the handback comment its
-`asked_in` links when this machine reads the comment's item, which
-counts only for a Linear issue, whatever the file's `asked_from`, or a
+An Igor's log file SHALL follow the thread copy it holds of the handback
+comment its `asked_in` links when this machine reads the comment's item,
+counting only a Linear issue, whatever the file's `asked_from`, or a
 GitHub issue or pull request in the repository its `asked_from` names, so
 that the file is passed over (*Only an item's newest handback is shown*)
 when the comment is. Otherwise it is shown on its own (design.md: *A link this machine never
@@ -2250,8 +2282,9 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 #### Scenario: An answer records the question the person saw
 
-- **WHEN** a log file's `asked_in` links a GitHub message whose question
-  differs from the file's own, and the person answers the message
+- **WHEN** a log file's `asked_in` links a GitHub message, one with no
+  open-questions section, whose question differs from the file's own, and
+  the person answers the message
 - **THEN** the new log file holds the message's question, not the
   file's, and names the earlier file in `answers`
 
@@ -2297,7 +2330,7 @@ answer to a question with a category takes a question off the queue, the
 session SHALL push a **handled file** for each unanswered
 questions-branch log file that holds the question and that no handled
 file names. A file holds the question when the question was shown from
-it or its `asked_in` links the question's message.
+it or the file holds its thread copy.
 
 #### Scenario: An automatic reply pushes a handled file
 

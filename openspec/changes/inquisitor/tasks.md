@@ -165,9 +165,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - on GitHub, each rule that reads a `[bot]` author login: *A
         handback is an Igor's comment holding igor's marker* and *An
         agent's question comes from a bot account or a log file*;
-      - on GitHub, the rules that need to tell an agent's question:
-        *Whom a message reaches is set by its mentions*, *A bot's message
-        to a relay reaches the relay's person*, the
+      - on GitHub, the rules that must tell whether an agent or a person
+        asked:
+        *Whom a message reaches is set by its mentions*, *Each item of a
+        bot's message reaches the person its tag line mentions*, *A bot's
+        message to a relay reaches the relay's person*, the
         automatic `Inquisitor: ` reply of *A clear filter 2 to 4 failure
         gets its fixed reply by itself*, and every miss a decline logs (*A decline for
         the inquisitor logs a miss once it takes effect*).
