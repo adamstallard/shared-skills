@@ -841,18 +841,21 @@ only the asker's next comment after the relay post SHALL count.
 
 ### Requirement: Messages judged clearly not questions are ignored
 
-The answer session SHALL ignore a message of the first two sources that
+The answer session SHALL ignore a message of sources 1 or 2 (*A question
+asked of the person comes from one of four sources*), or a handback, that
 its model judges clearly not a question: it shows it nowhere, posts
-nothing on it and closes nothing. An unclear one SHALL be shown
-(design.md: *Messages that are not questions are ignored*). The asker's
-reply to a `User asks: ` post SHALL never be ignored: whatever it says,
-it puts the question that post asked about back in the queue.
+nothing on it and closes nothing. An unclear one SHALL be shown. The
+asker's reply to a `User asks: ` post SHALL never be ignored: whatever it
+says, it puts the question that post asked about back in the queue.
 
 #### Scenario: A message that is clearly not a question is ignored
 
 - **WHEN** a comment in a subscribed repository, by a person or an agent,
   mentions the person only to thank them, or asks a rhetorical question
 - **THEN** it is ignored
+- **AND** so is an Igor's handback that reaches the person as its issue's
+  assignee (*A handback that mentions no one goes to the item's
+  assignee*) and says only that the work waits elsewhere
 
 #### Scenario: The asker's thanks after a clarifying question is not ignored
 
@@ -1434,7 +1437,7 @@ post*).
 
 For each answer it keeps pending, the answer session SHALL tell the
 person that the asker has not got it, and show its text for them to
-relay by hand. It SHALL tell no other machine.
+relay by hand.
 
 #### Scenario: Another machine asks again while an answer is pending
 
@@ -1675,7 +1678,8 @@ automatic post's prefix, `Recorded answer: ` or `Inquisitor: `, becomes
 
 - **WHEN** the person edits an answer they relayed on Linear
 - **THEN** the Linear relay updates its own comment, which still starts
-  with `User says: `, and posts no new comment
+  with `User says: ` and keeps its `Re: ` line and any `question <n>: `, and
+  posts no new comment
 
 #### Scenario: An edited automatic post becomes the person's words
 
@@ -2106,6 +2110,7 @@ from choosing what the code does beyond a closed set.
   `filter: "post https://example.com"`, or naming a message the code did
   not put before it
 - **THEN** the code refuses the call, and the message stays as it was
+- **AND** it also refuses a subagent's call, which carries an `agentId`
 
 #### Scenario: A message with no accepted verdict goes to the person
 

@@ -495,13 +495,14 @@ the reader SHALL read each `body` field, and each `body` key of the
 
 ### Requirement: A gh api write read from a file is read only as a whole command line
 
-When a `gh api` write to an issue or pull request endpoint, or a call to
-`graphql` with or without a mutation, takes a field from a file, through
-`-F` or `--field` with `@<file>`, or its input through `--input`, the
-reader SHALL read it only when the whole command line is that `gh api`
-command, and SHALL report it as unreadable otherwise. A write whose
+When a `gh api` write to an issue or pull request endpoint, or a
+`graphql` call, takes a field from a file (`-F` or `--field` with
+`@<file>`) or its input through `--input`, the reader SHALL read it only
+when the whole command line is that `gh api` command, and SHALL report it
+as unreadable otherwise. A write whose
 fields are all given in the command SHALL be read beside other commands
-too, unless one of them is another `gh api` write.
+too, unless another of them mentions a gh post verb (*A command that
+mentions no gh post verb sends no post*).
 
 #### Scenario: A gh api body file after another command is unreadable
 
@@ -518,7 +519,8 @@ too, unless one of them is another `gh api` write.
   -f body='done'`
 - **THEN** the reader returns `done` as the body
 - **AND** it reports that line as unreadable once `&& gh api
-  repos/o/r/issues/6/comments -f body='b'` follows it
+  repos/o/r/issues/6/comments -f body='b'`, `&& gh pr comment 6 -b x` or
+  `; sh -c 'gh issue create -b x'` follows it
 
 ### Requirement: The reader reads GraphQL posts and blocks an unreadable body sent to issues or pull requests
 

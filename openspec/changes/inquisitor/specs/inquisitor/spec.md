@@ -551,9 +551,10 @@ it and is reading it.
 
 ### Requirement: An agent logs a bot's comment only as input
 
-An answer the agent reads in a comment by a bot account, an answer
-session's relay bot's `User says: ` post and an Igor's included, SHALL be
-logged, if at all, as `input`. An answer a person gave in an answer session SHALL count
+An answer the agent reads in a comment by a bot account (a GitHub App,
+Linear app user, or Discord bot or webhook), such as a relay bot's
+`User says: ` post or an Igor's comment, SHALL be logged, if at all, as
+`input`. An answer a person gave in an answer session SHALL count
 through the answer file that session pushed.
 
 #### Scenario: A relayed answer counts through its answer file
@@ -2857,12 +2858,12 @@ which of them the Igor pushes, and when.
 ### Requirement: A worker's question about a more private repository is asked on that repository's questions branch
 
 When an Igor worker's question concerns a repository more private than its
-item's, the Igor SHALL push the question file at once, with no
-`asked_in` and tagging whom a handback asking it would mention first, to that
-repository's questions branch, and the handback SHALL say only that the
-work waits on a question recorded elsewhere, naming neither that
-repository nor the question's words, since its readers may not read that
-repository. A failed push SHALL leave the question in the run's report.
+item's, the Igor SHALL push the question file to that repository's
+questions branch at the run's handback, with no `asked_in`. The file SHALL
+tag the first person a handback asking the question would mention, or the
+item's assignee if that handback would mention no one. The handback SHALL
+say only that the work waits on a question recorded elsewhere. A failed
+push SHALL leave the question in the run's report.
 
 #### Scenario: A public item's question about a private repository goes to its branch
 
@@ -2871,9 +2872,10 @@ repository. A failed push SHALL leave the question in the run's report.
 - **THEN** its handback comment says only that the work waits on a question
   recorded elsewhere, and its Igor pushes the question file, with no
   `asked_in`, to the questions branch of `o/api`
-- **AND** the file's question tags the person a handback asking it would
-  mention first, so it reaches that person's answer session alone, and
-  only if they subscribe to `o/api`
+- **AND** the file's question tags the first person a handback asking the
+  question would mention, or the issue's assignee if that handback would
+  mention no one, so only that person's answer session shows the question,
+  and only if they subscribe to `o/api`
 - **AND** the handback asks no question, so an answer session's model
   judges it clearly not a question and shows it nowhere
 
@@ -3375,8 +3377,8 @@ Every log and miss file SHALL take one format wherever it is written, as the
 scenarios below give: its path, name and slug; UTF-8 with LF line ends; YAML
 frontmatter between two `---` lines, each value a double-quoted string,
 holding only the keys the scenarios list for its kind of file, each only
-where they allow it, never `conditions`; then a markdown body. Every log and miss file but a handled or hash-only one SHALL hold
-`asked_from`; in an Igor's run the Igor sets it.
+where they allow it; then a markdown body. Every log file but a handled one, and every miss file but a hash-only
+one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 
 #### Scenario: Where a file goes and how its slug is made
 
@@ -3639,7 +3641,7 @@ several; else `message` and the asking message's URL.
 ### Requirement: A miss file's name is pushed once
 
 A writer finding a miss file's name taken SHALL push nothing, so a later
-miss about the same reply or question
+miss about the same reply, question or message
 leaves the first in place, as *A file on a questions branch never changes
 once pushed* requires.
 
