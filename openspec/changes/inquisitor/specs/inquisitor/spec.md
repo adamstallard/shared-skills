@@ -962,6 +962,8 @@ line links no handback of the Igor's, the reply stays input.
   and a reply with no `question <n>: ` asks for `miss-check` on the
   repository the record's concerns line names for number 1
 - **THEN** the Igor runs the `miss-check`
+- **AND** had the two questions' concerns lines named two repositories,
+  it runs none, and the reply is input
 
 ### Requirement: An Igor worker's search covers only its working tree beyond lore
 
@@ -2699,14 +2701,16 @@ under someone else's name.
 
 ### Requirement: A question with no team's lore repository is not logged
 
-When the agent finds no team's lore repository for a collective's question, because none configured serves the repository it was
-asked from or it works in no git repository, it SHALL log nothing and tell
-the person the question was not logged.
+When no team's lore repository configured serves the repository a
+collective's question, one about an organization or other group, was
+asked from, the agent SHALL log nothing and
+tell the person the question was not logged.
 
-#### Scenario: Working in no git repository logs nothing
+#### Scenario: A collective's question no lore repository serves logs nothing
 
-- **WHEN** an agent working in no git repository asks a question about an
-  organization, and the person answers it
+- **WHEN** an agent working in `o/api`, which no configured lore
+  repository serves, posts a question about the organization, and the
+  person answers it
 - **THEN** no log file is written anywhere, and the agent tells the person
   the question was not logged
 
@@ -4299,7 +4303,8 @@ reply as input when that post was edited after the reply was posted.
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
 question in the post it replies to or names, when that post has no
-open-questions section, and the agent SHALL act on it for each. A reply
+open-questions section, or in the Linear or Discord message it replies
+to, and the agent SHALL act on it for each. A reply
 to a post with an open-questions section is input, since it names no
 item.
 
@@ -4310,6 +4315,7 @@ item.
   `Inquisitor: filter 4`, with no `question <n>: `, has its miss file
 - **THEN** the agent acts on the reply for both questions, choosing one
   option for each and recording what it chose and why
+- **AND** such a reply to a post with an open-questions section is input
 
 ### Requirement: A question that should not have been asked is logged as a miss
 

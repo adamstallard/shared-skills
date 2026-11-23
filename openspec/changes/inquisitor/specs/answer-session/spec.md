@@ -52,7 +52,8 @@ inquisitor's, or that spec's, *Title*:
   answer session runs in, which judges questions and drafts replies.
 - **Task 0.N** is that task in this change's tasks.md.
 - **What the question concerns**, **the repository the question
-  concerns**, **the team's lore repository** and **more visible** are as
+  concerns**, **the team's lore repository**, an **open-questions
+  section** and **more visible** are as
   the inquisitor's spec defines them, and the session's model judges what
   a question concerns as that spec has an agent judge it, except where a
   concerns line or *A channel's repositories place its questions* places
@@ -407,13 +408,13 @@ writes no miss it cannot place privately*, or with no login configured.
 ### Requirement: Each item of an open-questions section is its own question
 
 The answer session SHALL treat each item of a post's open-questions
-section, as the inquisitor's *A question in a post is a listed item or a
-sentence ending in a question mark* defines one, as its own question,
-numbered from 1 by its position among the post's such items. A relay post
-about an item SHALL hold `question <n>: `, its number, right after its
-reserved prefix, and never the item's words. A post with no
-open-questions section SHALL be one question, and its relay posts name
-no item.
+section as its own question, numbered from 1 in order among the post's
+such items. A relay post
+about an item SHALL hold `question <n>: ` right after its reserved
+prefix, and never the item's words. A post with no such section, or a
+Linear or Discord message, SHALL be one question, and its relay posts
+name no item, because the inquisitor finds sections only in a GitHub
+post.
 
 #### Scenario: Each listed question is shown and answered by itself
 
@@ -435,6 +436,8 @@ no item.
   holds no number
 - **AND** when the person's answer to it begins `question 2: `, the relay
   posts it as typed, and the post's one question shows as answered
+- **AND** a Linear message listing two questions under `Open questions:`
+  is one question too
 
 ### Requirement: A deferred item is numbered but not shown
 
@@ -2118,11 +2121,11 @@ every line break made a space.
 ### Requirement: An answer is recorded by a new log file
 
 The answer session SHALL write a log file, besides handled files, only
-for an answer the person confirmed or edited. The `log` command SHALL
-push it to the branch of the unanswered files holding the question,
-naming them and setting `asked_from` as the inquisitor's *An answer file
-names every unanswered file it answers* sets. Where none holds it, the command
-SHALL push it to the questions branch of what the question concerns, with
+for an answer the person confirmed or edited, never for an item
+question's. The `log` command SHALL push it to the branch of the unanswered
+files holding the question, naming them as the inquisitor's *An answer
+file names every unanswered file it answers* sets. Where none holds it,
+the command SHALL push it to the questions branch of what the question concerns, with
 the `repository` and `asked_from` a miss would have.
 
 #### Scenario: A questions-branch question is answered by a new file
@@ -2177,12 +2180,31 @@ the `repository` and `asked_from` a miss would have.
   person cannot push to the questions branch of what it concerns
 - **THEN** the answer is relayed in its thread, and no log file is pushed
 
+### Requirement: An item question is recorded only by its comment on the item
+
+A review request or an assigned issue shown as a question in its own
+right, not through a handback on it, is an **item question**. The answer session SHALL record
+an answer to one only by the comment it posts on the item, and SHALL
+write no log file or miss for it and run no filter 1 on it, since the
+item has no question text to hash or search.
+
+#### Scenario: An answer to a review request is recorded only on the item
+
+- **WHEN** the person answers, or declines for the inquisitor, a pull
+  request requesting their review that no handback is on
+- **THEN** filter 1 does not run on it, the relay posts the confirmed
+  comment on the pull request, and no log file or miss is pushed for it
+- **AND** the answer's preview says that comment is the only record
+
 ### Requirement: The preview shows where an answer will be recorded
 
 Before the person confirms an answer, or a decline that logs a miss, its
 preview SHALL show which questions branch will hold the record and its
-visibility, or that nothing will be recorded and why, and, if the
-question has no thread, that the asker gets nothing.
+visibility, or that nothing will be recorded and why. For an item
+question, it SHALL show that its comment is the only record. If the
+question has no thread, the preview SHALL also say that the asker gets
+nothing, unless *The preview says when an answer also reaches a more
+visible item's run* applies.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2239,13 +2261,13 @@ writes no miss it cannot place privately*).
 
 ### Requirement: The person can pick another place in the preview
 
-Unless a questions-branch file holding the question fixes its place,
-an answer's preview SHALL let the person pick another subscribed
-or configured lore repository. A decline's preview SHALL offer it only
-for an agent's question that no concerns line settles, since the asking
-agent looks for its miss only on that line's branch. The pick SHALL be what the
-question concerns for that post: the session checks its visibility, runs
-filter 1 for it and shows any hit first, and posts nothing by itself.
+Unless a questions-branch file holding the question fixes its place, or
+it is an item question, an answer's preview SHALL let the person pick
+another subscribed or configured lore repository. A decline's preview
+SHALL offer it only for an agent's question that no concerns line
+settles. The pick SHALL be what the question concerns for that answer
+or decline: the session checks its visibility, runs filter 1 for it and
+shows any hit first, and posts nothing by itself.
 
 #### Scenario: The person moves a question to another place
 
@@ -2595,13 +2617,12 @@ the advice to take the option with merit.
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
 Under the second reason, the person MAY give a note, and on an agent's
-question the answer session SHALL log a miss against the picked filter.
-The miss's `said` is the note or, with none, `the inquisitor should have
-handled it`. The answer session SHALL push the miss only once the
-decline's post is out or, when the decline posts nothing, once the
-person confirms it. On GitHub, where telling an agent's question from a
-person's needs task 0.21, this miss is logged only once that task is
-measured.
+question other than an item question the answer session SHALL log a
+miss against the picked filter. The miss's `said` is the note or, with
+none, `the inquisitor should have handled it`. It SHALL push the miss
+only once the decline's post is out or, when it posts nothing, once the
+person confirms it. On GitHub, it logs no such miss before task 0.21,
+which tells an agent's question from a person's, is measured.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2661,11 +2682,11 @@ reopen; one declined with a post is changed by editing that post.
 
 ### Requirement: Filter 1 runs on every incoming question not placed `other`
 
-Before the answer session shows a question not placed `other`, whoever
-asked it, it SHALL run filter 1 on it through the inquisitor script's
-`search` command, which reads issues with the person's credentials, as
-the inquisitor's *Filter 1 searches every place an answer is recorded*
-and *Only an answer with authority stops a question* say. The session's
+Before the answer session shows a question, whoever asked it, it SHALL
+run filter 1 on it, unless it is an item question or placed `other`,
+through the inquisitor script's `search` command, which reads issues
+with the person's credentials, as the inquisitor's *Filter 1 searches
+every place an answer is recorded* and *Only an answer with authority stops a question* say. The session's
 model judges whether a hit with authority answers the question; a hit
 that is only input stops nothing.
 

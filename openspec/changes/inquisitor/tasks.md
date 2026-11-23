@@ -768,7 +768,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       (answer-session spec: *The preview says when an answer also reaches
       a more visible item's run*); an answer whose last line
       starts `Re: `, which a reader would take for the post's own `Re: ` line, sent back for rewording,
-      and each confirmed answer pushed as a new log file, and again as a new one when its relayed answer
+      and each confirmed answer, except an item question's, pushed as a new log file, and again as a new one when its relayed answer
       is edited;
       discord-bot's warnings shown after each Discord relay post and edit;
       and, off GitHub, the relayed text logged with the relay post's URL
@@ -809,7 +809,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       guidance on its automatic replies, and, for each scenario this task
       builds, a test tagged `@scenario <capability>: <Scenario name>`.
       - Built in this task:
-        - filter 1 on every incoming question not placed `other`, run through the script's
+        - filter 1 on every incoming question not placed `other`, except an item question, run through the script's
           `search` command, and the `Recorded answer: ` post;
         - placing a question asked on Linear or Discord (answer-session
           spec: *A Linear or Discord question is placed by what it
@@ -820,8 +820,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           person unless filter 1 answers it, the line found by its fixed
           wording after markup is reduced;
         - declining with its two reasons, and reason 2's posts;
-        - the misses on the questions branch, none for reason 1 or for
-          a person's question, and a miss against filter 1
+        - the misses on the questions branch, none for reason 1, for
+          a person's question or for an item question, and a miss against filter 1
           for an agent's question the answer session answers by itself;
         - a `Recorded answer: ` post the answer session makes without
           the person, but no `Inquisitor: ` post, on a relayed question:

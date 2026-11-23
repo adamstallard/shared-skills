@@ -2317,7 +2317,7 @@ documents the same `author` field for both (the inquisitor record's
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39 measure facts the answer session relies on. Each task,
+**Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
@@ -2381,18 +2381,35 @@ A refusal the session cannot sort into either kind waits for the person.
 
 ### Rules to decide
 
-- **What question does an answer to a review request or an assignment
-  record?** The answer session shows a review request or an issue
-  assigned to the person as a question asked of them (its third source),
-  and records a confirmed answer in a new log file. No rule says what that
-  file's question is: the item's title, its description, or something
-  else. That text sets the file's name, the question's hash and what
-  filter 1 searches. Either
-  the spec defines that text, or the session logs no file for such an
-  answer and the comment it posts on the item is the only record.
-  Logging no file is recommended: an answer to either is a review or a
-  reply about that one item's work, which a later question rarely
-  repeats.
+- **What marks an item question answered?** An item question is a
+  review request or an assignment shown as a question in its own right.
+  A question's state comes from the latest relay post naming it, and a
+  relay post's `Re: ` line names the item's URL for both a question in
+  the item's description and the item question. So a pull request whose
+  description asks the person something, and which also requests their
+  review, is two questions that one answer closes together. And a review
+  re-requested after an answer is never shown. Options: (a) show such an
+  item only through its description's question, as *Only an item's
+  newest handback is shown* shows a handed-back item only through its
+  newest handback; and treat a request or assignment newer than the
+  latest relay post naming the item as a new question. (b) Give an item
+  question's relay posts a mark of their own, such as `review: ` after
+  the prefix. (c) Accept both: one answer closing two questions, and a
+  re-request never shown. Recommended: (a), which reuses an existing
+  rule.
+- **Two people's sessions both answering by themselves.** A person's
+  message that mentions two people who run answer sessions reaches both,
+  and when filter 1 finds a record each session posts its own
+  `Recorded answer: ` through its own relay, since neither counts the
+  other's relay as a relay identity. The thread gets two identical
+  replies. Options: (a) answer a person's question by itself only when
+  its message mentions no one but this session's person, and otherwise
+  show it with the hit beside it (*A recorded answer not posted by
+  itself is shown beside its question*); (b) count any bot's
+  `Recorded answer: ` naming the question as a relay post that came
+  first, which lets anyone silence an automatic answer; (c) accept the
+  duplicate. Recommended: (a), which reuses an existing rule and lets no
+  one silence an answer.
 
 ### What other changes must provide
 
