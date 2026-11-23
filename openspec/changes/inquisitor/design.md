@@ -2390,6 +2390,18 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+- **Can a poll fetch every subscribed repository each minute?** An
+  `owner` subscription subscribes every repository of that owner. At each
+  poll, about every 60 seconds, the answer session fetches each subscribed
+  repository's questions and default branches into a clone on the
+  machine. The answer-session decision record measures the poll's REST
+  requests; nothing measures the clones' disk space or the fetch time, and
+  the spec does not say what happens when the fetches take longer than a
+  minute. The repository's owner picks one: a new task measures both for
+  an owner with many repositories, and the rule stays if they fit; the
+  session fetches a repository's default branch only when filter 1 checks
+  a question about it, which adds a fetch to that check; subscriptions
+  name single repositories only; or the rule stays as written, untested.
 
 ### What other changes must provide
 

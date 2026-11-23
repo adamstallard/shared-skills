@@ -529,7 +529,9 @@ An answer the agent reads in a comment by a bot account (a GitHub App,
 Linear app user, or Discord bot or webhook), such as a relay bot's
 `User says: ` post or an Igor's comment, SHALL be logged, if at all, as
 `input`. An answer a person gave in an answer session SHALL count
-through the answer file that session pushed.
+through the answer file that session pushed. Until task 0.21 shows how
+to tell a bot account's comment on GitHub, nothing relying on this rule
+is built there.
 
 #### Scenario: A relayed answer counts through its answer file
 
@@ -3013,12 +3015,12 @@ the comment.
 ### Requirement: The log command takes answered_by from the linked comment
 
 Where the `log` command reads a linked comment, it SHALL record as
-`answered_by` the comment's author as GitHub returns it, ignoring any login
-the agent passed, because a crafted thread can steer the login an agent
-passes, and, without its session option, SHALL write `authority: input`
-when that author is a bot account. With its session option (*Only an
-answer session writes a handled file*), it SHALL record as `answered_by`
-the person whose answer session runs it.
+`answered_by` the comment's author as GitHub returns it, ignoring any
+login the agent passed, because a crafted thread can steer the login an
+agent passes. Without its session option, once task 0.21 is measured,
+it SHALL write `authority: input` when that author is a bot account.
+With the session option of *Only an answer session writes a handled
+file*, it SHALL record as `answered_by` the person running the session.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3474,9 +3476,10 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 - **AND** for a miss an answer session logs, `repository` and `asked_from`
   are instead as the `answer-session` spec's *A miss holds the repository its
   question concerns* and *A miss records who judged it and where it was
-  asked from* give, `said`, when it logs the miss by itself or with
-  no note from the person, is the fixed text the `answer-session` spec
-  gives for that case, and `asked` is the day the question was asked
+  asked from* give, `said` is the person's note as they typed it or,
+  when the session logs the miss by itself or the person gave no note,
+  the fixed text the `answer-session` spec gives for that case, and `asked` is the day the
+  question was asked
 - **AND** a questions-branch miss file for a question asked in a Linear or
   Discord thread holds the asking message's URL as `asked_in`, which
   makes the file private, as *A log or miss file is as
@@ -4341,8 +4344,8 @@ spec writes none for it.
 
 #### Scenario: A miss's record of what was said is written at the question's privacy
 
-- **WHEN** a person says a question about a public repository did not need
-  asking, because a private repository's capability decision record already decides it
+- **WHEN** a person tells the asking agent that a question about a public
+  repository did not need asking, because a private repository's capability decision record already decides it
 - **THEN** the miss file's `said` gives the reason as an earlier decision
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file

@@ -62,8 +62,8 @@ inquisitor's, or that spec's, *Title*:
   sides' messages kept in the state folder (*Local state is per machine,
   in the state folder*).
 - **The preview** is what the answer session shows the person before a
-  post goes out: the exact post, where it will be recorded, and any
-  warning.
+  post goes out or is edited: the exact post, where it will be recorded,
+  and any warning.
 - A **thread copy** is a question the answer session reads from a
   thread, whether it shows it, ignores it as not a question or passes it
   over; a questions-branch log file **holds** it when the file's
@@ -504,12 +504,6 @@ keychain, and a save SHALL keep keys it does not write.
   name, and no token: linear-app holds the relay's token; the person's Linear
   API key, which the answer session reads Linear with, is only in the
   system keychain
-
-#### Scenario: A hand-written key survives a save
-
-- **WHEN** the person has added to `inquisitor.json` a key the answer
-  session does not know, and setup saves a new subscription
-- **THEN** that key is still in the file, unchanged
 
 ### Requirement: The person runs the session, and a relay identity posts for them
 
@@ -2222,6 +2216,16 @@ writes no miss it cannot place privately*).
 - **AND** until the person confirms, nothing is posted, no file is
   pushed, and the question stays in the queue
 
+#### Scenario: An edit's preview warns before a more visible record
+
+- **WHEN** the person edits, in a Discord thread, a `Recorded answer: `
+  post they agreed to, so that it starts `User says: `, and no
+  questions-branch file holds the question, which concerns the public
+  `o/web`
+- **THEN** the edit would push the edited answer to the public questions
+  branch of `o/web`, so the preview warns of it, and nothing is edited or
+  pushed until the person confirms
+
 #### Scenario: A decline's preview shows where its miss will be recorded
 
 - **WHEN** the person is about to decline, for filter 3, an agent's
@@ -2592,7 +2596,9 @@ question the answer session SHALL log a miss against the picked filter.
 The miss's `said` is the note or, with none, `the inquisitor should have
 handled it`. The answer session SHALL push the miss only once the
 decline's post is out or, when the decline posts nothing, once the
-person confirms it.
+person confirms it. On GitHub, where telling an agent's question from a
+person's needs task 0.21, this miss is logged only once that task is
+measured.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2606,7 +2612,7 @@ person confirms it.
 
 - **WHEN** the person declines a person's question for the inquisitor
   with any filter, or agrees to a recorded answer or a suggested verdict
-  that the session shows beside the question
+  that the session shows beside a person's question
 - **THEN** no miss file is pushed, hash-only or not
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
@@ -2957,7 +2963,7 @@ session SHALL post the filter's fixed text there by itself, log its miss
 and list the question as handled, unless *No automatic post repeats one
 in its chain of replies*, *A question with a person-required line gets
 no filter 2 to 4 reply* or *An automatic Inquisitor reply goes out only
-with a miss file* bars it.
+with a miss file* bars it. On GitHub this rule waits on task 0.21.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
