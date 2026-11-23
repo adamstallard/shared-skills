@@ -1894,11 +1894,12 @@ SHA-256 of that text as UTF-8, in lowercase hex.
   `- Should we **retry** [on 503](https://example.com)?`
 - **THEN** the question's text is "Should we retry on 503?"
 
-#### Scenario: A whole comment is one part
+#### Scenario: A whole message is one part
 
-- **WHEN** a linked comment's text is `**Back off**,` then a blank line,
+- **WHEN** a Discord message's text is `**Back off**,` then a blank line,
   then `capped at a minute.`
-- **THEN** its text, built by these four steps as one part, is "Back off,
+- **THEN** the question text these four steps build from it, as one
+  part, is "Back off,
   capped at a minute.", one line
 
 ### Requirement: Inline markup is reduced to its text one way
@@ -2821,8 +2822,8 @@ which of them the Igor pushes, and when.
 When an Igor worker's question concerns a repository more private than its
 item's, the Igor SHALL push the question file to that repository's
 questions branch at the run's handback, with no `asked_in`. The file SHALL
-tag the first person the Igor's handback would mention if it asked the
-question, else the item's assignee. The handback SHALL
+tag the person a handback asking the question would mention for it, or
+the item's assignee when that handback would mention no one. The handback SHALL
 say only that the work waits on a question recorded elsewhere. A failed
 push SHALL leave the question in the run's report.
 
@@ -2833,9 +2834,9 @@ push SHALL leave the question in the run's report.
 - **THEN** its handback comment says only that the work waits on a question
   recorded elsewhere, and its Igor pushes the question file, with no
   `asked_in`, to the questions branch of `o/api`
-- **AND** the file's question tags the first person a handback asking the
-  question would mention, or the issue's assignee if that handback would
-  mention no one
+- **AND** the file's question tags the person a handback asking the
+  question would mention for it, or the issue's assignee if that handback
+  would mention no one
 
 #### Scenario: A question the Igor cannot push stays in the report
 
@@ -3107,8 +3108,9 @@ holding a line that is exactly `## Rephrased question`, `## Discussion` or
 The `log` command SHALL write an `answer_link` or `asked_in` only where *A
 log file and a miss file have one format* allows, and otherwise write the
 file without it, even where another requirement says the file holds it.
-A `recorded_in` URL withheld this way SHALL become the file's own path,
-which still names where the answer is recorded.
+Where an `answer_link` holding the answer's URL would be withheld, the
+file's `recorded_in`, which names where the answer is recorded, SHALL be
+the file's own path, since the file itself records the answer.
 
 #### Scenario: A GitHub link into a more private repository is left out
 

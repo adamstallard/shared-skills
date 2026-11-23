@@ -46,13 +46,11 @@
   Instead: these gaps are accepted, and scenarios state the crash and two-machine cases the answer session handles.
   Paths: .agents/skills/inquisitor/
 
-- **Rejected: Holding back an automatic answer that another person's answer session already posted.**
-  Facing: a message mentioning two people who each run an answer session reaches both, and when filter 1 finds a decision record, each session posts its own `Recorded answer: ` through its own relay, so the thread gets two identical replies.
-  Lost because: each session counts only its own person's relay identities as relays, and counting any bot's `Recorded answer: ` post as a relay post would let anyone who registers a bot, as any GitHub user or Discord user can, suppress an automatic answer with a fake one, https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app, https://discord.com/developers/docs/quick-start/getting-started
-  Instead: the duplicate is accepted.
-  Paths: .agents/skills/inquisitor/
-
 ## Rationale
+
+- **Rationale: An automatic post is deleted when another relay post came first.**
+  Only an earlier post by the person's own relay identities, the bots that post for them, makes the session delete its automatic post, so two people's sessions answering one message both post. Counting any bot's prefixed post would let anyone who registers a bot, as any GitHub or Discord user can, suppress an automatic answer with a fake one.
+  Evidence: anyone can register a GitHub App, https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app, or a Discord bot, https://discord.com/developers/docs/quick-start/getting-started
 
 - **Rationale: The answer session reads with the person's credentials, except on Discord.**
   Reading with the person's own logins keeps a relay's token to the right to post, and reads nothing the person reads under a bot's name. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts.

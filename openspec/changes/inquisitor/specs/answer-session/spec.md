@@ -1761,9 +1761,8 @@ that reply and keeping a held-back answer pending.
 ### Requirement: An automatic post is deleted when another relay post came first
 
 After each automatic post, the answer session SHALL fetch the thread once
-more. It SHALL delete its own post when another relay post answering or
-handling the question, `User says: ` included, was posted before it, or
-has the same creation time as the surface reports it and an id smaller
+more. It SHALL delete its own post when another of the person's relay
+posts answering or handling the question was posted before it, or has the same creation time as the surface reports it and an id smaller
 in byte order. It then shows the question as the earlier post leaves it.
 Deleting takes back no push made or owed for the deleted post, such as
 its miss file. If the fetch or the delete fails, both posts stay.
@@ -1779,6 +1778,13 @@ its miss file. If the fetch or the delete fails, both posts stay.
   larger in byte order would be deleted
 - **AND** had the first been the person's `User says: ` answer, relayed
   from the other machine, the reply would be deleted the same way
+
+#### Scenario: Another person's automatic answer deletes nothing
+
+- **WHEN** Alice's message tags Bob and Carol, who each run an answer
+  session, and Carol's session posts its `Recorded answer: ` reply first
+- **THEN** Bob's session still posts its own and deletes nothing, since
+  Carol's post is not one of Bob's relay posts
 
 ### Requirement: Local state is per machine, in the state folder
 
@@ -1800,14 +1806,16 @@ outlives it.
 #### Scenario: The state folder holds all working state
 
 - **WHEN** the answer session saves its working state
-- **THEN** it writes only to the state folder: the questions set aside
+- **THEN** apart from a lore repository's branches, which it fetches into
+  that repository's configured clone, it writes only to the state
+  folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
   record, each channel's poll position, each GitHub list's `ETag`, each setup check's last result, relay post ids, the question on screen unless it has a category, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
-  subscribed repository's questions and default branches (a lore
-  repository's branches are fetched into its configured clone), and
-  the lock
+  subscribed repository's questions and default branches, the input
+  files it passes to a relay identity's skill or to the `log` command,
+  and the lock
 
 ### Requirement: Reopening shows the question last on screen
 
@@ -2140,9 +2148,10 @@ every line break made a space.
 
 The answer session SHALL write a log file, besides handled files, only
 for an answer the person confirmed or edited. The session's `log` command
-SHALL push the log file to the questions branch of the unanswered files
-holding the question, naming them as the inquisitor's *An answer file
-names every unanswered file it answers* sets, or, with no such file, to
+SHALL push a log file to each questions branch where an unanswered file
+holds the question, listing those files in its `answers` as the
+inquisitor's *An answer file names every unanswered file it answers*
+sets, or, with no such file, to
 the questions branch of what the question concerns, with the
 `repository` and `asked_from` a miss would have.
 
@@ -2405,8 +2414,7 @@ file names.
 - **WHEN** a handled file names one questions-branch file, and another
   questions-branch file, or a thread, holds the same words
 - **THEN** the named file is shown on no machine, the other file and the
-  thread copy are still shown, and the handled file answers neither the
-  file it names nor any searching agent's question
+  thread copy are still shown, and the named file stays unanswered
 
 #### Scenario: Two questions-branch files get two handled files
 
