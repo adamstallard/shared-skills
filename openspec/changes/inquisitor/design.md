@@ -2258,7 +2258,8 @@ the directory where spec-trace's CI fails on an untagged one.**
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built.
-Each bullet says what the spec does if the fact is false. Task 0.11 has
+Each bullet, or where it says nothing more its task in tasks.md, says
+what the spec does if the fact is false. Task 0.11 has
 no bullet, since it is partly measured: it asks whether GitHub's API gives a comment's or
 review's text and author, which *The log command takes answered_by from the
 linked comment* relies on. Of these, only an issue comment's author is
@@ -2310,22 +2311,10 @@ documents the same `author` field for both (the inquisitor record's
   uses the answer only in the code of the fix that repairs the
   vulnerability, and tells the person only that a vulnerability question
   is blocking, without the question's text.
-- **Can the private fork's pull request be merged before the advisory is
-  published?** (task 0.13) The spec's weakness requirements give what each
-  result means. Until it is measured, a fork commit's message describes the
-  weakness, and a regression test goes in the fork, only on the word of the
-  person publishing the advisory; without it, the advisory's text holds the
-  full description.
-- **Can an Igor worker post?** (task 0.14) igor's task-execution requirement
-  keeps every credential but its seat's out of the worker's environment, but a
-  `gh` login in the worker's home directory is in neither its environment nor
-  its working tree. If a worker can post, it still asks only through its
-  Igor, and the credential in its reach is reported to igor as a breach of
-  that requirement.
+- **Can a security advisory's private-fork pull request be merged before
+  the advisory is published?** (task 0.13)
+- **Can an Igor worker post?** (task 0.14)
 - **Does the Discord bot token pattern match a real token?** (task 0.33)
-  The credential patterns' Discord shape has no measurement behind it. If
-  the relay's real token does not match, the pattern is changed to the
-  shape measured.
 
 ### Facts the answer session relies on
 

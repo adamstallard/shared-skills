@@ -583,7 +583,7 @@ Filter 1 SHALL search, as its scenarios list, the decision documents,
 issues with their comments and questions branch of the repository the
 question concerns, and the lore entries, questions branch and decision
 records, read without a checkout, of each configured lore repository
-serving it, or of all if the agent works in no git repository.
+serving what the question concerns.
 
 #### Scenario: The repository's questions branch is searched
 
@@ -1570,13 +1570,6 @@ run the two calls on it again.
   changing the work if the answer differs from what it assumed, and does
   not ask the question
 
-#### Scenario: A deferred question is not asked at the round's end
-
-- **WHEN** at a round's end, an agent holds one question filter 2 deferred
-  and one that survived the filters but blocked no step
-- **THEN** it asks the second, and lists the first as not done, asking
-  nothing about it
-
 ### Requirement: A question round ends at a hand-back or at the end of the agent's turn
 
 A **question round** SHALL end at a hand-back to a person, as spec-check's
@@ -1722,13 +1715,6 @@ question stops the work, or, if the work goes on, that one waits.
 - **THEN** it asks it nowhere, stops, and its report, and so its handback
   comment, says only that a question stops the work, without the
   question's text
-
-#### Scenario: A headless session doesn't defer a way-of-working question into a post
-
-- **WHEN** a `claude -p` job has a question about the person's way of
-  working, and the work can go on without the answer
-- **THEN** it goes on with the work, lists the question in no post, files no
-  issue for it, and reports that the question waits for the person
 
 #### Scenario: A question the privacy requirement bars is stated in the report
 
@@ -3013,21 +2999,22 @@ the comment.
 
 ### Requirement: The log command takes answered_by from the linked comment
 
-Where the `log` command reads a linked comment, it SHALL record as
-`answered_by` the comment's author as GitHub returns it, ignoring any
-login the agent passed, because a crafted thread can steer the login an
-agent passes. Without its session option, once task 0.21 is measured,
-it SHALL write `authority: input` when that author is a bot account.
-With the session option of *Only an answer session writes a handled
-file*, it SHALL record as `answered_by` the person running the session.
+With its session option, which only an answer session passes (*Only an
+answer session writes a handled file*), the `log` command SHALL record as
+`answered_by` the configuration's `login`. Without it, where the command
+reads a linked comment, it SHALL record as `answered_by` the comment's
+author as GitHub returns it, ignoring any login the agent passed, since a
+crafted thread can steer that login, and, once task 0.21 is measured,
+write `authority: input` when that author is a bot account.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
 - **WHEN** the `log` command is given `answered_by: alice` and an
   `answer_link` to a comment `mallory` wrote
 - **THEN** the file names `mallory` as `answered_by`
-- **AND** given `authority: decision` and an `answer_link` to a comment
-  `igor-x[bot]` wrote, it writes `authority: input`
+- **AND** once task 0.21 is measured, given `authority: decision` and an
+  `answer_link` to a comment `igor-x[bot]` wrote, it writes
+  `authority: input`
 
 #### Scenario: With its session option, answered_by is the session's person
 
@@ -3057,9 +3044,7 @@ For a Linear or Discord `answer_link`, which only an answer session passes,
 the `log` command SHALL refuse a call without its session option, since a
 link only the answer session makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
-the text the answer session says it relayed, save a Linear relay post's
-`Re: ` line, which the log file drops once the person confirms a record
-more visible than the thread.
+the answer text the answer session passes it.
 
 #### Scenario: A Discord answer link without the session option is refused
 

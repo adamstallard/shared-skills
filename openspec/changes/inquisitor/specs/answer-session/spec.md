@@ -410,9 +410,10 @@ The answer session SHALL treat each item of a post's open-questions
 section, as the inquisitor's *A question in a post is a listed item or a
 sentence ending in a question mark* defines one, as its own question,
 numbered from 1 by its position among the post's such items. A relay post
-about any question of such a post SHALL hold `question <n>: `, its
-number, right after its reserved prefix, and never the question's words.
-Any other post SHALL be one question, with no number.
+about an item SHALL hold `question <n>: `, its number, right after its
+reserved prefix, and never the item's words. A post with no
+open-questions section SHALL be one question, and its relay posts name
+no item.
 
 #### Scenario: Each listed question is shown and answered by itself
 
@@ -432,6 +433,8 @@ Any other post SHALL be one question, with no number.
 - **THEN** the answer session shows it as one question, though the
   asking agent's first call of the inquisitor script counts each sentence, and a relay post about it
   holds no number
+- **AND** when the person's answer to it begins `question 2: `, the relay
+  posts it as typed, and the post's one question shows as answered
 
 ### Requirement: A deferred item is numbered but not shown
 
@@ -2444,9 +2447,9 @@ unseen by the post hooks.
 
 #### Scenario: The README warns that a relay's token can be printed
 
-- **WHEN** the README is checked while github-app's `token` command, or
-  its `gh` command through `gh auth token`, and linear-app's `token` or
-  `headers` command can print a relay identity's token
+- **WHEN** a test reads the README while a github-app command, such as
+  `token`, and a linear-app command, such as `token` or `headers`, can
+  print a relay identity's token
 - **THEN** it says, for GitHub and for Linear, that any agent on the
   person's machine can print that token and post `User says: ` unseen by
   the post hooks
