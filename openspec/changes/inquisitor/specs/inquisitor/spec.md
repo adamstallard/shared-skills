@@ -937,13 +937,13 @@ leave the reply input.
 
 ### Requirement: The Igor runs a worker's miss check only where an agent would look
 
-The Igor SHALL run a worker's `miss-check` only on the repository its
-handback record's concerns line names for the question the reply
-answers, because a worker its thread steers could name one where an attacker
-can push a backing miss file. That question is number
-`<n>` in the record for a reply holding `question <n>: `, else number 1
-when the record holds no other number; with no such question, or a `Re: ` line linking no handback of the Igor's, the reply
-stays input.
+The Igor SHALL run a worker's `miss-check` only on the one repository
+its handback record's concerns lines name for the question the reply
+answers, since a steered worker could name one where an attacker can
+push a backing miss file. That question is number `<n>` for a reply
+holding `question <n>: `, else number 1 when the record holds no number
+but 1. With no such question or repository, or for a reply whose `Re: `
+line links no handback of the Igor's, the reply stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
@@ -2187,9 +2187,8 @@ A posted question SHALL tag the first of these with write access to what it
 concerns: the approver of the pull request adding the related earlier
 decision; the first login with write access in the
 `.inquisitor/reviewers` file, one login per line, of the repository it
-concerns, or of the lore repository for a collective's question; its files' last
-committer. A question deferred to a later list (verdict `deferred`) SHALL
-NOT be tagged.
+concerns, or of the lore repository for a collective's question; the last
+committer of the files it concerns.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -2893,14 +2892,14 @@ SHALL exit with an error and print no `answer`.
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
-A worker re-working an item after a person answered, in a GitHub
-comment, the question the item's handback asked SHALL report to its Igor
-a new questions-branch log file whose `answer_link` names that answer.
-The Igor writes the answer from the linked comment, decides its
-`authority` under *An answer is a decision only from a person with write
-access* and its `answered_by` and `recorded_in` as the `log` command
-would, and adds
-`answers`, naming the handback question's log file.
+A worker on an item whose handback question a person answered in a
+GitHub comment SHALL report to its Igor a new questions-branch log
+file whose `answer_link` names that comment. The Igor writes the
+answer from the comment, deciding its `authority` by *An answer is a
+decision only from a person with write access*, its `answered_by` as the
+`log` command would, and its `recorded_in` as the comment's URL, withheld
+as that command withholds it; its `answers` names the handback
+question's log file.
 
 #### Scenario: A worker re-working an answered handback reports the answer
 
@@ -2999,13 +2998,13 @@ the comment.
 
 ### Requirement: The log command takes answered_by from the linked comment
 
-With its session option, which only an answer session passes (*Only an
-answer session writes a handled file*), the `log` command SHALL record as
-`answered_by` the configuration's `login`. Without it, where the command
-reads a linked comment, it SHALL record as `answered_by` the comment's
-author as GitHub returns it, ignoring any login the agent passed, since a
-crafted thread can steer that login, and, once task 0.21 is measured,
-write `authority: input` when that author is a bot account.
+With its session option, which only an answer session passes, the `log`
+command SHALL record as `answered_by` the login of the person running the
+session. Without it, where the command reads a linked comment, it SHALL
+record as `answered_by` the comment's author as GitHub returns it,
+ignoring any login the agent passed, which a crafted thread can steer.
+Once task 0.21 shows how GitHub marks a bot's comment, it SHALL write
+`authority: input` for a bot author; until then that clause is not built.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3620,13 +3619,14 @@ file.
 
 ### Requirement: A log file is read by its frontmatter and its body's end
 
-A reader SHALL count a log file as holding an answer of its own when its
-frontmatter holds `authority`, and only then, and as handled, closed with no answer or
-authority, when it holds `handled`; nothing in a body decides either. A
-handled file closes the one file its `closes` names, and filter 1's search
-never matches it. A reader SHALL read any other log file's body from its
-end, as its scenarios give, and SHALL show a file that does not read that
-way as input, labelled as unreadable.
+A reader SHALL count a log file as holding an answer of its own only
+when its frontmatter holds `authority`, and as handled, closed with no
+answer or authority, only when it holds `handled`. A
+handled file closes the one file its `closes` names, or whose name has
+the SHA-256 `closes` holds, and filter 1's search never matches it. A
+reader SHALL read any other log file's body from its end, in the layout
+its scenarios give, and SHALL show one that does not fit as unreadable
+input.
 
 #### Scenario: A log file's body is read from its end
 
@@ -4298,8 +4298,10 @@ reply as input when that post was edited after the reply was posted.
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
-question in the post it replies to or names, and the agent SHALL act on
-it for each.
+question in the post it replies to or names, when that post has no
+open-questions section, and the agent SHALL act on it for each. A reply
+to a post with an open-questions section is input, since it names no
+item.
 
 #### Scenario: An unnumbered reply to a post asking two things unlisted covers both
 

@@ -1797,11 +1797,10 @@ a person's since the answer session cannot tell the two apart.
 **Rule:** answer-session spec, *Filter 1 runs on every incoming question not placed `other`*;
 *Filter 1's answer by itself to an agent's question logs a miss*.
 
-#### Filters 2 to 4 judge every incoming question
+#### A clear filter 2 to 4 failure gets its fixed reply by itself
 
-**Rule:** answer-session spec, *Filters 2 to 4 judge every incoming
-question*; *A clear filter 2 to 4 failure gets its fixed reply by
-itself*; *Filters 2 to 4 only suggest a verdict on other questions*; *An
+**Rule:** answer-session spec, *A clear filter 2 to 4 failure gets its
+fixed reply by itself*; *Filters 2 to 4 only suggest a verdict on other questions*; *An
 automatic post's text is fixed by the answer session*.
 
 *Ruled out by a scenario:* only suggesting a verdict, so the person handles
@@ -2379,6 +2378,21 @@ A refusal the session cannot sort into either kind waits for the person.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
+
+### Rules to decide
+
+- **What question does an answer to a review request or an assignment
+  record?** The answer session shows a review request or an issue
+  assigned to the person as a question asked of them (its third source),
+  and records a confirmed answer in a new log file. No rule says what that
+  file's question is: the item's title, its description, or something
+  else. That text sets the file's name, the question's hash and what
+  filter 1 searches. Either
+  the spec defines that text, or the session logs no file for such an
+  answer and the comment it posts on the item is the only record.
+  Logging no file is recommended: an answer to either is a review or a
+  reply about that one item's work, which a later question rarely
+  repeats.
 
 ### What other changes must provide
 

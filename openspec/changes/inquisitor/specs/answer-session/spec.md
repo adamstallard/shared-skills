@@ -2950,17 +2950,6 @@ relay post.
   filter 2 or filter 4
 - **THEN** nothing is posted by itself, and the person is shown the reply
 
-### Requirement: Filters 2 to 4 judge every incoming question
-
-The session's model SHALL judge each question filter 1 did not stop
-against filters 2 to 4, sending an unclear case to the person.
-
-#### Scenario: An unclear case goes to the person
-
-- **WHEN** the model can't tell whether an agent's question can wait
-- **THEN** nothing is posted by itself, no miss is logged, and the
-  question is shown to the person as an ordinary unanswered question
-
 ### Requirement: A clear filter 2 to 4 failure gets its fixed reply by itself
 
 When an agent's question whose place a concerns line settles clearly
@@ -3048,9 +3037,9 @@ On a person's question, a relayed one included, on an agent's question
 of the fourth source, a questions-branch log file, and on an agent's
 question no concerns line settles, the answer session SHALL post
 nothing by itself, but show the question with its suggested verdict,
-unless it carries a person-required line. Agreeing to the verdict is a decline
-under the second reason with that filter. A message that is not a
-question SHALL get no automatic post.
+unless it carries a person-required line, which gets no suggestion. Agreeing
+to the verdict is a decline under the second reason, *The inquisitor should
+have handled it*, with that filter.
 
 #### Scenario: A person's question only gets a suggestion
 
