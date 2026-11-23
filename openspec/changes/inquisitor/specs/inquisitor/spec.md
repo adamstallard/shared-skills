@@ -522,8 +522,6 @@ repository keys and links are checked before use*.
   input labelled unreadable
 - **AND** so is a questions-branch file about the organization, holding no
   `repository` and `asked_from` the private `o/api`
-- **AND** so is a file on the questions branch of the private `o/lore`
-  whose `asked_from` is the public `o/web`
 
 ### Requirement: An agent logs a bot's comment only as input
 
@@ -3255,11 +3253,8 @@ Igor's handback record, never matching by the comment's text.
 
 ### Requirement: A person's answer is recorded in their words or not at all
 
-A person's answer SHALL be recorded in their words or not at all. When it cannot be recorded at
-the privacy of what the question concerns, the agent SHALL push no file
-holding the answer, and the question stays open;
-the agent uses the answer in the work, and its report says the answer could
-not be recorded at this privacy.
+A log file SHALL hold a person's answer in their own words or not at all,
+never in an agent's rewording.
 
 #### Scenario: A picker answer is logged in the person's words
 
@@ -3268,13 +3263,6 @@ not be recorded at this privacy.
   `back off but cap it at a minute`
 - **THEN** the log file's answer is that option or that text word for word,
   never the agent's rewording
-
-#### Scenario: An answer holding private context is not recorded
-
-- **WHEN** a person answers a question about a public repository by naming
-  a private repository's code
-- **THEN** no file holding the answer is pushed, and the question stays
-  open
 
 ### Requirement: No credential goes into a log file or a question
 
@@ -3408,7 +3396,10 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `https://linear.app/<workspace>/issue/<TEAM>-<n>#comment-<first 8 hex
   digits of the comment's id>`, with no title slug, which changes when the
   issue is renamed; a question in a Linear issue's description takes that
-  form without the `#comment-` part
+  form without the `#comment-` part; a GitHub comment's or review's URL
+  takes the form *The forms a repository key and an answer_link must take*
+  gives an `answer_link`, and a question in an issue's or pull request's
+  own body takes that form without its `#` fragment
 
 #### Scenario: A handled file's keys
 
@@ -3471,7 +3462,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 - **AND** `repository`, `asked_from` and `asked` are as in the question's
   log file; `filter`, `"1"` to `"4"`, is the filter that should have
   stopped the question; `said` is what the person said, in their words or
-  in one sentence, with any place they named, such as a spec's path;
+  in one sentence, with any place they named that *A question is written
+  at the privacy of what it concerns* allows, such as a spec's path;
   `said_by` is that person's GitHub login, or for a miss an answer session
   logs, the login of the person running it; `asked_by` is the account
   that posted the question, as its thread shows it, left out for a question

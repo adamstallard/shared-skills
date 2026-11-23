@@ -1393,9 +1393,10 @@ are a closed list of token shapes* and post none that matches.
 ### Requirement: The Linear relay's token stays in memory
 
 On Linear, where linear-app has no post command, the answer session SHALL
-post, edit and delete by its own HTTP request, holding only in memory the token
-linear-app's `token` command prints, never in a command's arguments, which any
-user of the machine can read.
+post, edit and delete by its own HTTP request. It SHALL pass each text
+only as a GraphQL variable, so no text can change the query. It SHALL hold
+the token linear-app's `token` command prints only in memory, never in a
+command's arguments, which any user of the machine can read.
 
 #### Scenario: A Linear relay post is the answer session's own request
 
@@ -1404,7 +1405,8 @@ user of the machine can read.
   the token linear-app's `token` command printed to it, and no tool call
   of the model posts it
 - **AND** no command the session runs holds the token in its arguments,
-  and the session edits and deletes its Linear posts the same way
+  the answer's text goes into the request only as a GraphQL variable, and
+  the session edits and deletes its Linear posts the same way
 
 ### Requirement: A failed relay post is reported to the person
 
@@ -1500,9 +1502,9 @@ When an answer gets an answer file and a fetch of its thread just before
 its post finds no new message, the answer session SHALL record the
 **owed push** in the state folder, post, add the post's URL to the
 record, and push the file with that URL as its `answer_link`, retrying a
-failed push at each poll and opening. The record of a post that fails,
-or still lacks its URL at the next opening, is dropped and its answer
-kept pending.
+failed push at each poll and opening. The record of a post that fails
+is dropped and its answer kept pending; one still lacking its URL at the
+next opening is dropped too.
 
 #### Scenario: An owed push survives a crash
 
@@ -1511,8 +1513,8 @@ kept pending.
 - **THEN** at its next opening it pushes the answer file it recorded as
   owed
 - **AND** had it stopped before adding the post's URL to the record, it
-  drops the record, pushes no file, and keeps the answer pending, which
-  the person may then post again
+  drops the record and pushes no file, and the question shows as answered
+  by its relay post
 
 ### Requirement: An owed push refused for good is not retried
 
@@ -3219,9 +3221,9 @@ requirement says to log one, telling the person why, when any of these holds:
 ### Requirement: A miss more visible than its thread is pushed as a hash-only file
 
 Where the questions branch is more visible than the question's thread
-and the miss is unconfirmed, the answer session SHALL push, after each
-reply it posts, by itself or for the person, a hash-only miss file backing
-that reply, as the inquisitor's *A hash-only miss file shows nothing but
+and the miss is unconfirmed, the answer session SHALL back each reply
+that logs a miss, whether it posts the reply by itself or for the person,
+with a hash-only miss file pushed after the reply, as the inquisitor's *A hash-only miss file shows nothing but
 that it exists* defines one.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed

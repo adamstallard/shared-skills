@@ -147,10 +147,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         recognised;
       - task 6.4's GitHub relaying, which is every requirement that posts
         through the relay on GitHub and needs that question state;
-      - on GitHub, each rule that reads a `[bot]` author login: *A
+      - on GitHub, each rule that tells a bot account's comment by its
+        `[bot]` author login: *A
         handback is an Igor's comment holding igor's marker*, *An
-        agent's question comes from a bot account or a log file* and *A
-        relayed question is a person's question*;
+        agent's question comes from a bot account or a log file*, *A
+        relayed question is a person's question*, and, in the inquisitor
+        spec, *An agent logs a bot's comment only as input* and the rule of
+        *The log command takes answered_by from the linked comment* that
+        writes `authority: input` for a bot's comment;
       - on GitHub, the rules that must tell whether an agent or a person
         asked:
         *Whom a message reaches is set by its mentions*, *Each item of a
