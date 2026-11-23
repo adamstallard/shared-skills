@@ -32,7 +32,8 @@ it again.
 - An answer session gives a person one place to answer the questions asked
   of them on GitHub, Linear and Discord. A relay identity, the person's own
   bot on each surface, posts each answer for them, and a file on the
-  questions branch records it as theirs. The session runs the four filters
+  questions branch, or, for a review request or assigned issue, the relay's
+  comment on it, records it as theirs. The session runs the four filters
   on each incoming question too: it answers what is already recorded,
   replies to an agent's question that one of the other three filters clearly
   stops, and lets the person decline a question, logging a miss when they
@@ -43,11 +44,13 @@ it again.
 to a team discussion under a per-channel budget of posts. An Igor is one of
 the AI teammates of igor, a separate project; igor #211 tracks the role.
 
-design.md's *Decisions* gives the reason for each rule; its *Open Questions*
-lists what this change leaves unmeasured or needs from igor and other
-changes. The change creates each capability's decision record,
-`openspec/specs/<capability>/decisions.md`, holding what no test can check,
-such as constraints, rejected alternatives and evidence.
+The specs hold each rule a test can check; each capability's decision
+record, `openspec/specs/<capability>/decisions.md`, holds the reasoning
+with evidence. design.md's *Decisions* holds the remaining design choices,
+and its *Open Questions* what is undecided or unmeasured. What this change
+needs from other changes is in their issue bodies: igor's in
+adamstallard/igor#247, github-app's in shared-skills #96, and linear-app's
+in shared-skills #112.
 
 ## Capabilities
 
@@ -120,9 +123,10 @@ None.
   `G` in the same command as each use, or write the script's full path,
   since the shared post reader reads `$G` only when the same command sets
   it.
-- github-app, in a separate change (shared-skills issue #96): it hands a
-  relay identity's token to no command that can print it. Until that lands, any agent on the person's machine can print
-  it, and the inquisitor's README says so.
+- github-app and linear-app, in separate changes (shared-skills issues #96
+  and #112): each hands a relay identity's token to no command that can
+  print it. Until each lands, any agent on the person's machine can print
+  that skill's token, and the inquisitor's README says so.
 - bug-hunter: its Step 9 runs each recommendation through the inquisitor's
   filters before asking the person about it (task 5.7). Its regression test
   for a security weakness stays out of public places until the weakness's
