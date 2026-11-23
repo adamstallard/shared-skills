@@ -64,9 +64,6 @@ inquisitor's, or that spec's, *Title*:
 - **The preview** is what the answer session shows the person before a
   post goes out: the exact post, where it will be recorded, and any
   warning.
-- **The person's answer** to a log file is the answer file that is its
-  answer by the inquisitor's *A named file's answer is the newest answer
-  file naming it*.
 - A **thread copy** is a question the answer session reads from a
   thread, whether it shows it, ignores it as not a question or passes it
   over; a questions-branch log file **holds** it when the file's
@@ -388,17 +385,16 @@ same place. No other line SHALL settle anything.
 
 ### Requirement: A decline's preview says when the asking agent takes its reply as input
 
-When the person declines an agent's question for the inquisitor and no
-miss file will back the reply, the decline's preview SHALL say that the
+When the person declines an agent's question for the inquisitor with
+filter 2, 3 or 4 and no miss file will back the reply, the decline's preview SHALL say that the
 asking agent will take the reply as input. No miss file backs it when no
-concerns line settles the question, as the agent looks for one only on
-the branch such a line names, or when the session writes none: by *A
-miss holds the repository its question concerns*, by *The answer session
+concerns line settles the question, or when the session writes none: for files whose `repository` keys
+differ, by *A miss holds the repository its question concerns*, by *The answer session
 writes no miss it cannot place privately*, or with no login configured.
 
 #### Scenario: A decline's preview says an unsettled question's reply is input
 
-- **WHEN** the person declines for the inquisitor an agent's question no
+- **WHEN** the person declines with filter 4 an agent's question no
   concerns line settles
 - **THEN** the preview says the asking agent will take the reply as input
 - **AND** the preview says the same for a settled question shown from two
@@ -964,7 +960,7 @@ The answer session SHALL count as a **handback** only a comment that an
 Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
 an app user task 0.38 shows to be an Igor's) and that holds igor's
 handback marker, which quoted text cannot produce, in the form task 0.6
-records for each surface (design.md: *igor's handback marker*). It is
+records for each surface. It is
 built on GitHub once task 0.21 is measured, and on Linear once task 0.38
 is.
 
@@ -1077,8 +1073,7 @@ have read SHALL be judged on its own, as a question of the fourth
 source, a questions-branch log file, save that an Igor's log file
 follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
-session SHALL NOT pair a file with a message by matching text (design.md:
-*A log file without `asked_in` is never merged*).
+session SHALL NOT pair a file with a message by matching text.
 
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
@@ -1100,13 +1095,13 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 
 ### Requirement: An Igor's log file follows its own handback comment
 
-An Igor's log file SHALL follow the thread copy it holds of the handback
-comment its `asked_in` links when this machine reads the comment's item,
-counting only a Linear issue, whatever the file's `asked_from`, or a
-GitHub issue or pull request in the repository its `asked_from` names, so
-that the file is passed over (*Only an item's newest handback is shown*)
-when the comment is. Otherwise it is shown on its own (design.md: *A link this machine never
-reads is not followed*).
+When this machine reads the item of the handback comment an Igor's log
+file's `asked_in` links, the file SHALL follow its thread copy of that
+comment, so that the file is passed over (*Only an item's newest handback
+is shown*) when the comment is. Only a Linear issue, whatever the file's
+`asked_from`, or a GitHub issue or pull request in the repository its
+`asked_from` names, counts as that item. When this machine reads no such
+item, the file is shown on its own.
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -1271,8 +1266,7 @@ The answer session SHALL relay an answer by posting, as the relay
 identity in the question's thread, `User says: ` and the answer exactly
 as confirmed, keeping the post's id in the state folder. On Discord it
 SHALL use discord-bot without header options and with mention rewriting
-on, showing the person its warnings after each post and edit (design.md:
-*Discord relay posts: no header, mentions that ping*).
+on, showing the person its warnings after each post and edit.
 
 #### Scenario: An answer is posted with its prefix
 
@@ -2180,10 +2174,7 @@ the `repository` and `asked_from` a miss would have.
 Before the person confirms an answer, or a decline that logs a miss, its
 preview SHALL show which questions branch will hold the record and its
 visibility, or that nothing will be recorded and why, and, if the
-question has no thread, that the asker gets nothing. For a log file with
-no `asked_in` whose `asked_from` is more visible than its branch, it says
-instead that an Igor's run on an item there gets the answer (*The preview says when an answer
-also reaches a more visible item's run*).
+question has no thread, that the asker gets nothing.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2326,16 +2317,12 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
   posted as the relay, `User says: ` included, and nothing fetches the file's
   `answer_link`, that Linear comment's URL
 
-#### Scenario: A log file of a Discord-relayed answer is a decision
+#### Scenario: A log file of a Discord-relayed answer holds the text before mentions are rewritten
 
 - **WHEN** the person answers a question about a private repository asked
-  in a Discord thread, the session relays it on Discord, no later commit
-  changes the answer file the session pushes, and its `answered_by` has write access to what the
-  question concerns
-- **THEN** the file's answer is the text sent to discord-bot, before any
-  mention is rewritten; its `authority` is `decision`, as the inquisitor's
-  *An answer is a decision only from a person with write access* sets; filter 1 counts the file a decision; and nothing
-  fetches its Discord `answer_link`
+  in a Discord thread, and the session relays it on Discord
+- **THEN** the answer file's answer is the text sent to discord-bot,
+  before any mention is rewritten
 
 ### Requirement: A handled file closes a questions-branch question
 
@@ -2525,8 +2512,8 @@ break, telling the person why.
 #### Scenario: A filter 1 reply names the place the person gave
 
 - **WHEN** the person, declining an agent's question in a public
-  repository with filter 1, gives that repository's `docs/retries.md` as where it is
-  decided
+  repository with filter 1, gives that repository's
+  `openspec/specs/retry/spec.md` as where it is decided
 - **THEN** once they confirm it, the relay posts a reply starting
   `Recorded answer: ` whose `Recorded in: ` line holds that file's URL,
   and a miss file with `filter` `"1"` is logged
@@ -2579,8 +2566,7 @@ category, it SHALL post nothing and close the question.
 Under the second reason, on an agent's question, filter 3 (not a real
 question) SHALL also offer "the agent shouldn't have asked", a choice
 that posts nothing, for a message that needs no reply at all, not even
-the advice to take the option with merit (design.md: *Messages that
-are not questions are ignored*).
+the advice to take the option with merit.
 
 #### Scenario: The agent shouldn't have asked posts nothing
 
@@ -2621,8 +2607,7 @@ the decline posts nothing, once the person confirms it.
 
 A question declined with nothing posted SHALL be recorded in the state
 folder, closing a thread copy on this machine only; a questions-branch
-file its handled file names closes everywhere (design.md: *Closing works
-by exact identity, never by matching*). One declined with a post SHALL
+file its handled file names closes everywhere. One declined with a post SHALL
 take its state from its thread.
 
 #### Scenario: A decline with nothing posted is kept in the state folder

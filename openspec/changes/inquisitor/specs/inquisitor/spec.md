@@ -114,7 +114,7 @@ been asked, or that an answer session judged clearly need not have been.
 *A citation file* records that an `active` lore entry answered a question
 its scope covers: filter 1 stopped the question with the entry, or the
 person in an answer session cited the entry, as the `answer-session` spec
-defines citing (design.md: *A person's cite pushes a citation file*).
+defines citing.
 
 ## ADDED Requirements
 
@@ -243,9 +243,9 @@ A question that another installed skill requires a person to decide SHALL
 skip filters 2 and 4, and its `ask` verdict SHALL name that skill. Filter 3
 SHALL NOT stop it when its one option with merit is one that skill allows
 only with a person's answer.
-bug-hunter's Step 9 recommendations are not exempt: each SHALL pass all four
-filters (design.md: *bug-hunter's Step 9 recommendations go through the
-filters*).
+bug-hunter's Step 9 recommendations, which bug-hunter has the agent ask the
+person about, are not questions it requires a person to decide: each SHALL
+pass all four filters.
 
 #### Scenario: A question another skill requires is not decided by the agent
 
@@ -437,8 +437,7 @@ something comes from: the one the question concerns, one an `asked_in`
 URL points into or an `asked_from` names, and one holding a record or
 decision that a reply or post names. It SHALL count as public for a repository
 something goes to: one whose questions branch a file goes to, or where a
-post goes (design.md: *Nothing goes somewhere more visible than its
-source*).
+post goes.
 
 #### Scenario: A well-formed asked_from whose visibility can't be read is private
 
@@ -624,8 +623,7 @@ serving it, or of all if the agent works in no git repository.
 Filter 1 SHALL never show, count or mention a lore entry outside the
 question's scope. Outside an Igor, that scope is `global` and `project:`
 plus the short name of the repository the question concerns, the part of
-its name after its `/`, and for a collective's question only `global`
-(design.md: *Scope hides an entry; status only labels it*).
+its name after its `/`, and for a collective's question only `global`.
 
 #### Scenario: Out-of-scope lore entries are hidden
 
@@ -668,8 +666,7 @@ some out.
 
 Filter 1's output SHALL name each source it could not search, and give, for
 each lore clone, when a fetch last updated its remote-tracking default
-branch, or say that this is unknown (design.md: *Lore search is as fresh as
-the last fetch*).
+branch, or say that this is unknown.
 
 #### Scenario: An unsearched source is named
 
@@ -772,9 +769,7 @@ only through `igor lore-search` (igor PR #216's decision 49), the
 read-only command igor's lore-firing *An Igor runs its worker's lore
 searches* defines, passing the question as *The question reaches igor's
 command on standard input* gives, and show the labelled results it
-returns. If the command fails, the search SHALL search no lore and say so
-(design.md: *Filter 1 in an Igor's run searches through `igor
-lore-search`*).
+returns. If the command fails, the search SHALL search no lore and say so.
 
 #### Scenario: The question reaches igor's command on standard input
 
@@ -936,11 +931,10 @@ leave the reply input.
 
 The Igor SHALL run a worker's `miss-check` only on the repository its
 handback record's concerns line names for the question the reply
-answers, because a worker steered by its thread could name one where an
-attacker can push a miss file backing the reply. That question is the
-one the record numbers `<n>` for a reply holding `question <n>: `, or
-the record's only question for a reply holding none; with no such
-question, or a `Re: ` line linking no handback of the Igor's, the reply
+answers, because a worker its thread steers could name one where an attacker
+can push a backing miss file. That question is number
+`<n>` in the record for a reply holding `question <n>: `, else number 1
+when the record holds no other number; with no such question, or a `Re: ` line linking no handback of the Igor's, the reply
 stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
@@ -952,6 +946,14 @@ stays input.
   worker
 - **AND** so it does for a reply whose `Re: ` line links another
   handback
+
+#### Scenario: An unnumbered reply to two unlisted questions is checked against number 1
+
+- **WHEN** an Igor's handback asks two sentence questions and has no
+  open-questions section, so both share number 1 in its handback record,
+  and a reply with no `question <n>: ` asks for `miss-check` on the
+  repository the record's concerns line names for number 1
+- **THEN** the Igor runs the `miss-check`
 
 ### Requirement: An Igor worker's search covers only its working tree beyond lore
 
@@ -999,8 +1001,8 @@ status counts only if `accepted`.
 
 Filter 1 SHALL count an `accepted` decision record by igor's scribe, at the
 path igor PR #202 sets, on the default branch of a lore repository it
-searches, as an answer to a question that lore repository serves (design.md:
-*Filter 1 searches igor's scribe's records where #202 puts them*).
+searches, as an answer to a question about a repository or collective that lore
+repository serves.
 
 #### Scenario: A lore repository's accepted decision record is an answer
 
@@ -1093,9 +1095,7 @@ On a questions branch, a `decision` log file SHALL count only when no
 commit after the one that added it changed it and its `answered_by` has
 write access as *A logged decision needs write access to what its question
 concerns* says. The reader SHALL take the file at its word for who
-answered, and verify no author; a `decision` file failing either is input (design.md: *A
-file is trusted for who it names*; *No file on a questions branch changes
-once pushed*).
+answered, and verify no author; a `decision` file failing either is input.
 
 #### Scenario: A questions-branch decision is taken at its word
 
@@ -1217,8 +1217,7 @@ hash group* says how a replaced answer file supersedes.
 The answer of a **named file**, one an answer file names in `answers`,
 SHALL be the newest answer file naming it that would count and whose
 `answered_by` is a person its question tags or, if it tags no one, an
-account with write access to what it concerns (design.md: *A named file's
-answer must be the person's own*). Only these
+account with write access to what it concerns. Only these
 files decide whether a named file is answered: an answer file that hash
 grouping supersedes still answers the file it names.
 
@@ -1250,8 +1249,7 @@ An answer file SHALL stop counting for its own question once a newer answer
 file becomes the answer of the file both name (*A named file's answer is
 the newest answer file naming it*), and SHALL be shown as input, labelled
 as superseded. It SHALL still supersede the older files in its hash group,
-which can leave that group with no answer that counts (design.md: *`answers`
-decides a named file's answer; the search groups by hash*).
+which can leave that group with no answer that counts.
 
 #### Scenario: The newest answer naming a file counts
 
@@ -1268,9 +1266,7 @@ decides a named file's answer; the search groups by hash*).
 
 During an Igor's run, a questions-branch file whose `repository` key names
 a repository other than the run's item's SHALL be shown as input, labelled unconfirmed, whoever it names, unless the item's visibility hides it, as
-*A run's lore search keeps to the Igor's lore repository and scope* says
-(design.md: *Questions-branch files and `project:` entries in a run's
-search*).
+*A run's lore search keeps to the Igor's lore repository and scope* says.
 
 #### Scenario: A file about another repository is input during a run
 
@@ -1700,7 +1696,7 @@ ask no question; what the Igor does with the question is igor PR #216's.
 - **WHEN** an Igor's worker ends its run without its completed report,
   holding a question that survived the filters
 - **THEN** igor counts the run flagged, and the Igor's handback comment
-  asks no question (design.md: *A flagged run asks nothing and pushes nothing*)
+  asks no question
 
 ### Requirement: A question an agent may not ask is held back
 
@@ -1961,8 +1957,7 @@ hook**, SHALL block the call unless, for every question in it, the most
 recent verdict recorded against the question's text is `ask` and is less
 than 2 hours old. The block message SHALL name each question that failed
 and why, and give the command to run. The hook SHALL let the call through
-when it cannot read the call or its verdict records (design.md: *What each
-hook does when it can't read*).
+when it cannot read the call or its verdict records.
 
 #### Scenario: An unvetted question is blocked
 
@@ -2938,7 +2933,7 @@ would, and adds
 ### Requirement: No log file records a flagged run's question
 
 No log file SHALL record the question that stopped a flagged run, from that
-run or a later one (design.md: *A flagged run asks nothing and pushes nothing*).
+run or a later one.
 
 #### Scenario: A flagged run's question is logged nowhere
 
@@ -2953,9 +2948,7 @@ An agent SHALL write no handled file; only an answer session writes one, as
 the `answer-session` spec's *A handled file closes a questions-branch
 question* says. The `log` command SHALL write one only when called with its
 session option, which the skill's instructions SHALL tell an agent never to
-pass, and SHALL refuse a `handled` or `closes` key passed without it
-(design.md: *The answer session writes a handled file on every close of a
-questions-branch file*).
+pass, and SHALL refuse a `handled` or `closes` key passed without it.
 
 #### Scenario: An asking agent writes no handled file
 
@@ -2981,8 +2974,7 @@ questions-branch file*).
 The skill's script SHALL write every log and miss file through its `log`
 command, in the format *A log file and a miss file have one format* states,
 pushing it as *A question is pushed to the questions branch of what it
-concerns* says (design.md: *The `log` command reads its inputs and the
-linked comments itself*).
+concerns* says.
 
 #### Scenario: The log command writes and pushes a questions-branch file
 
@@ -3089,8 +3081,7 @@ more visible than the thread.
 The `log` command SHALL write nothing, and say why, when an `answer_link` or
 `asked_in` takes none of the forms *A log file and a miss file have one
 format* gives, or an `answers` key names any file that is not a log file
-on that questions branch, or that already holds an answer (design.md:
-*An answer file names every file it answers*).
+on that questions branch, or that already holds an answer.
 
 #### Scenario: An answers key naming no file on the branch is refused
 
@@ -3115,8 +3106,7 @@ on that questions branch, or that already holds an answer (design.md:
 
 The `log` command SHALL refuse, writing nothing and saying why, a question
 holding a line that is exactly `## Rephrased question`, `## Discussion` or
-`## Answer`; the agent rewords the question and logs it again (design.md:
-*The `log` command reads its inputs and the linked comments itself*).
+`## Answer`; the agent rewords the question and logs it again.
 
 #### Scenario: A question holding a closing section's heading is refused
 
@@ -3131,8 +3121,7 @@ The `log` command SHALL write an `answer_link` or `asked_in` only where *A
 log file and a miss file have one format* allows, and otherwise write the
 file without it, even where another requirement says the file holds it.
 A `recorded_in` URL withheld this way SHALL become the file's own path,
-which still names where the answer is recorded (design.md: *`answer_link` and `asked_in` are withheld where they would
-leak*; *A log file without `asked_in` is never merged*).
+which still names where the answer is recorded.
 
 #### Scenario: A GitHub link into a more private repository is left out
 
@@ -3153,11 +3142,9 @@ leak*; *A log file without `asked_in` is never merged*).
 ### Requirement: A questions-branch log file links where its question was asked
 
 A log file for a question also asked in a GitHub post SHALL hold that
-post's URL as `asked_in`, so the agent SHALL post the question first
-(design.md: *A log file follows its thread message by exact link*). The
+post's URL as `asked_in`, so the agent SHALL post the question first. The
 Igor writes a worker's file's `asked_in` after posting the handback
-comment, writing into it that comment's URL (design.md: *Each Igor log
-file follows its own handback comment*).
+comment, writing into it that comment's URL.
 
 #### Scenario: A question logged and asked in a post links the post
 
@@ -3173,7 +3160,7 @@ list each whose exact name the writer knows. It SHALL hold the most
 private of their `asked_from`, so it is as private as each, unless the
 answerer confirmed a more visible record. Files with different
 `repository` keys, a missing key counting as one, SHALL get one answer file
-for each key (design.md: *An answer file names every file it answers*).
+for each key.
 
 #### Scenario: An answer file names the file it answers
 
@@ -3257,8 +3244,7 @@ write no `answers`.
 
 For the log file a worker reports for a person's comment answering a
 handback, the Igor SHALL push it only when its question's hash is in the
-Igor's handback record, never matching by the comment's text (design.md:
-*A person's answer to a handback*).
+Igor's handback record, never matching by the comment's text.
 
 #### Scenario: An answer to a question not in the handback record is not pushed
 
@@ -3269,8 +3255,7 @@ Igor's handback record, never matching by the comment's text (design.md:
 
 ### Requirement: A person's answer is recorded in their words or not at all
 
-A person's answer SHALL be recorded in their words or not at all (design.md:
-*A logged answer is the person's own words*). When it cannot be recorded at
+A person's answer SHALL be recorded in their words or not at all. When it cannot be recorded at
 the privacy of what the question concerns, the agent SHALL push no file
 holding the answer, and the question stays open;
 the agent uses the answer in the work, and its report says the answer could
@@ -3323,7 +3308,7 @@ Each scan for the credential patterns SHALL read the raw markdown, link
 targets included, not the reduced text of *A question's text and hash are
 built one way*; the hash still uses the reduced text. Just before a post
 goes out, the post hook SHALL scan its questions again and block it on a
-match (design.md: *The secret scan is only a backstop*).
+match.
 
 #### Scenario: A token added to a link target after vetting is blocked
 
@@ -3413,10 +3398,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   worker's question that its Igor's handback comment asks
 - **THEN** its `asked_in` is that post's URL, or the URL of the
   handback comment asking the question, written only where an `answer_link`
-  of the same kind may be (design.md: *A log file follows its thread message
-  by exact link*; *Each Igor log file follows its own handback comment*;
-  *Only an item's newest handback is shown*; *A log file without `asked_in`
-  is never merged*)
+  of the same kind may be
 - **AND** no other file holds `asked_in`, except the miss file of a Linear
   or Discord thread's question, as *A miss file's keys* gives
 - **AND** a Discord message's URL is written as
@@ -3439,9 +3421,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `closes` is instead the SHA-256 of that name, as 64 lowercase hex digits,
   so neither the handled file nor its owed push holds the question's words,
   and a reader takes it to close the file whose name has that hash
-- **AND** no other file holds either key (design.md: *The answer session
-  writes a handled file on every close of a questions-branch file*; *Closing
-  works by exact identity, never by matching*)
+- **AND** no other file holds either key
 
 #### Scenario: An answer file names the questions-branch file it answers
 
@@ -3451,15 +3431,14 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   beside the name of any other file it answers on that branch, the names
   separated by single spaces, which no file name holds
 - **AND** no other file holds `answers`, nor does one naming a file not on
-  the branch (design.md: *An answer file names every file it answers*)
+  the branch
 
 #### Scenario: A file an Igor pushes names where it was asked from
 
 - **WHEN** an Igor pushes, for its worker on an item in `o/web`, a log file
   whose `repository` key is `o/api`
 - **THEN** its frontmatter also holds `asked_from: "o/web"`, though the
-  script, run in the worker, wrote none (design.md: *Every questions-branch
-  file names where it was asked from*)
+  script, run in the worker, wrote none
 - **AND** the Igor sets `asked_from`, the item's repository as `owner/repo`,
   on every log and miss file it pushes, except on a log file into which it
   writes an answer: that file's `asked_from` names the most private
@@ -3519,7 +3498,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `answer_link`, the comment's text, as *An answer logged from a comment is
   the comment's whole text* says; for a Linear or Discord one, the text the
   answer session relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
-  they typed, each word for word (design.md: *A logged answer is the person's own words*)
+  they typed, each word for word
 
 #### Scenario: A whole comment fits as the answer
 
@@ -3532,8 +3511,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   line, or `>` alone for a blank line, with line ends made LF and blank
   lines at its start and end dropped; the only other line dropped is a
   `Re: ` line *The answerer's confirmation can send a record somewhere
-  more visible* drops (design.md: *A log file's answer is
-  written as quote lines*)
+  more visible* drops
 
 #### Scenario: A rephrased question's log file holds the rephrasing
 
@@ -3968,8 +3946,7 @@ category met once, marked if a question of it stopped the worker.
   `secret` question and a `personal` question under filter 4
 - **THEN** its report holds igor's flag listing `personal`, marked, and
   `secret`, unmarked, each once as one word, and no question, answer or
-  count of questions (design.md: *The flag a worker raises for a question
-  with a category*)
+  count of questions
 - **AND** the flag does not say which stopped question had which category,
   and a stopped question with no category adds nothing to it
 
@@ -3988,8 +3965,7 @@ it SHALL NOT describe the weakness, whatever found it, or how to exploit it
 in text readable by anyone who cannot read the advisory, the fix's code
 excepted: commit messages and code comments on a public branch, any branch
 such a person can read other than the advisory's private fork, and pull
-request text and comments (design.md: *Weaknesses stay out of public text
-until disclosure*).
+request text and comments.
 
 #### Scenario: A fix on a public branch before publication doesn't describe the weakness
 
@@ -4101,8 +4077,7 @@ each entry it would propose in the run's report, as it does each file it
 would push, and the Igor SHALL open the pull request adding it as a
 `provisional` entry, under *A lore pull request goes to no lore repository
 more visible than its source* and *A proposed lore entry's path, fields and
-id follow igor's rules* (design.md: *A general answer is proposed as a
-provisional lore entry*).
+id follow igor's rules*.
 
 #### Scenario: A run's lore entry goes in its report
 
@@ -4195,8 +4170,7 @@ The agent SHALL NOT log an answer session's `Recorded answer: ` or
 session logs any miss due, as the `answer-session` spec says. For a
 `Recorded answer: ` reply, the agent SHALL check the place its `Recorded
 in: ` line names through filter 1, act on it only as filter 1 counts it,
-else as input, and push no citation for a lore entry it names (design.md:
-*What an asking agent does with an automatic reply*).
+else as input, and push no citation for a lore entry it names.
 
 #### Scenario: A recorded answer is checked, not logged as the person's
 

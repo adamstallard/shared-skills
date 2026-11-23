@@ -280,8 +280,9 @@ lore-search`, can make pass gets no tagged test until igor builds it. A
 scenario whose rule waits on a measuring task, such as task 0.21 or 0.31,
 gets none until that task is measured and the rule built. A
 skipped test would not do, since spec-trace counts a skipped test's tag as
-coverage. Task 4.2, which writes the tests, lists each expected gap here by
-name, and task 4.3 tags it once igor provides what it needs. The change is
+coverage. Task 4.2, which writes the tests, lists each expected gap by
+name, and task 4.3 tags it once igor builds what it needs or its task
+is measured. The change is
 archived only after every gap is tagged (*The change is archived only after
 every expected gap is tagged*). A gap cannot be exempted through
 spec-trace's baseline, `openspec/spec-trace-baseline.txt`, which takes no new
@@ -1360,10 +1361,7 @@ comment.
 
 *Ruled out by a scenario:* counting a `User says: ` comment by its author
 (inquisitor spec: *An agent logs a bot's comment only as input*,
-scenario *A User says comment with no answer file is input*); and counting
-every answer relayed off GitHub as input (answer-session spec: *A
-questions-branch answer file records the answer as given*, scenario *A log
-file of a Discord-relayed answer is a decision*).
+scenario *A User says comment with no answer file is input*).
 
 ### Running the answer session
 
@@ -1528,8 +1526,7 @@ Task 6.1's rules, which apply *The answer session*'s rule that the spec wins:
 
 **These are decided at implementation. When each choice is made, it becomes
 a requirement with a scenario if a test can check it, and otherwise a
-decision-record entry with evidence; this section links to it, and task 6.11
-lists them:**
+decision-record entry with evidence; task 6.11 lists them:**
 
 - how a question's options are parsed from its thread;
 - an asker's reply revising the options.
@@ -2260,10 +2257,9 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ### Facts measured before building
 
-The task each bullet names measures its fact before anything is built (tasks 0.1 to
-0.3 are under *What the hook relies on, not yet measured*). Each bullet says
-what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 asks whether GitHub's API gives a comment's or
+The task each bullet names measures its fact before anything is built.
+Each bullet says what the spec does if the fact is false. Task 0.11 has
+no bullet, since it is partly measured: it asks whether GitHub's API gives a comment's or
 review's text and author, which *The log command takes answered_by from the
 linked comment* relies on. Of these, only an issue comment's author is
 measured, and tasks.md records how. If GitHub gives no author for a review
@@ -2272,6 +2268,12 @@ or a review comment, that requirement needs another source for
 documents the same `author` field for both (the inquisitor record's
 *Rationale: The log command records a linked GitHub comment's own text*).
 
+- **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
+  hook does not fire on `AskUserQuestion`, or its exit 2 does not block
+  the picker, the skill's instructions alone cover the picker, and the
+  README says so. If the tool's input holds no `questions[].question` and
+  `questions[].options[].label`, the spec's definition of a picker question's text is rewritten to what
+  the input holds.
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
   answer in a post and every issue's decision block (the start of its body
@@ -2389,27 +2391,6 @@ A refusal the session cannot sort into either kind waits for the person.
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### Where the spec's reasons live
-
-- **Should the specs and tasks.md keep pointing into design.md's
-  reasoning?** The specs cite design.md sections about 40 times, and
-  tasks.md records some measured results in those sections, yet nobody
-  keeps any part of design.md current but these Open Questions. Task 7.1
-  repoints the citations only at archive, so until then they lead to
-  text that may be stale. Options:
-  - (a) Cut each citation now, and record measured results only in
-    decision records or these Open Questions. A reason with no
-    *because* sentence and no record entry is dropped.
-  - (b) Move each reason a requirement still needs into its capability's
-    decision record now. Each entry needs Evidence, so a reason without
-    any is dropped there too, and the records grow.
-  - (c) Keep design.md's reasoning current until archive, which every
-    round would then have to read and edit.
-
-  Recommended: (a). It shortens the specs, costs no more than (b) for a
-  reason without evidence, and (b) can still follow for a reason that
-  has some.
-
 ### What other changes must provide
 
 - **github-app and linear-app still hand a relay identity's token to
@@ -2429,9 +2410,30 @@ A refusal the session cannot sort into either kind waits for the person.
   record; one typed in the answer session and relayed there counts through its
   answer file.
 
+### A rule that cannot be built as written
+
+- **Should the session's model still reword a decline's note that is
+  more private than its question?** *A decline for the inquisitor logs a
+  miss once it takes effect* says it does, for the person to confirm. But
+  the model has no tool that can carry the rewording: `record_verdict`
+  takes only its closed list of fields, and `propose_reply` takes only a
+  draft reply or an edited relay post. Options:
+  - (a) Cut the sentence and its scenario *A note more private than the
+    question is reworded before the miss*. The note stays the person's
+    own words, and the decline's preview already shows which branch the
+    miss goes to and how visible it is.
+  - (b) Keep it: let `propose_reply` put the reworded note in the prompt
+    box, and add a `record_verdict` field marking a note more private
+    than its question, so the code knows when to ask for the rewording.
+
+  Recommended: (a). It removes a rule nothing can carry. Under (a) the
+  session gives no warning about the note's content, which its code
+  cannot judge, but the person sees where the miss goes before
+  confirming, and the visibility rule lets a person knowingly make their
+  own words more visible.
+
 ### Left to implementation
 
 - **Task 6.11's details are chosen at implementation,** and each becomes a
   requirement with a scenario, or a decision-record entry with evidence,
-  when it is made. *Some answer-session details are decided at
-  implementation* lists them and what is decided around them.
+  when it is made. Task 6.11 lists them and the nearby choices already decided.

@@ -89,6 +89,7 @@
   The agent passing an answer has read the thread around the comment, and untrusted text there can steer what it passes, so taking its copy would let a crafted thread record, under a person's name, words they never wrote. Fetching the comment through GitHub records what the comment says and who wrote it, whatever the agent passed; GitHub's `Comment` interface, which issue comments, reviews and review comments implement, documents the text as `body` and the writer as `author`.
   Evidence: OWASP names indirect prompt injection, content from external sources that "alters the behavior of the model in unintended or unexpected ways", https://genai.owasp.org/llmrisk/llm01-prompt-injection/
   Evidence: GitHub's GraphQL reference documents `body` and `author` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
+  Evidence: task 0.11's measurement on 2026-11-04, which found an issue comment's author in GraphQL's `IssueComment` as `author { login }`, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: A lore decision record counts.**
   igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.

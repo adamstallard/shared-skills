@@ -10,22 +10,12 @@ spec.
 
 ## 0. Measure before building
 
-Record each result that a requirement cites or waits on as Evidence in
-its capability's decision record, and any other result where this list
-puts its task, in a design.md section unless it says otherwise:
-
-- *What the hook relies on, not yet measured*: 0.1 to 0.3;
-- *Configuration* and *Facts measured before building*: 0.4;
-- *Facts measured before building*: 0.5, 0.7 to 0.11, 0.13, 0.14 and
-  0.33;
-- *igor's handback marker*: 0.6 and 0.38;
-- *Facts the answer session relies on*: 0.15 to 0.21, 0.23, 0.25,
-  0.28, 0.30, 0.31, 0.34, 0.35, 0.37 and 0.39;
-- igor issue #247's body, since its result is a fact about igor's host:
-  0.29.
-
-Record there too any result that contradicts what design.md assumed. In
-the same commit, rewrite each requirement and scenario that waits on that
+Record each result on its task's line below, and as Evidence in the
+decision record of each capability whose requirement cites or waits on
+it. Task 0.29's result goes in igor issue #247's body instead, since it
+is a fact about igor's host. In the same commit, drop the task from
+design.md's Open Questions unless its result leaves a choice to the
+repository's owner, and rewrite each requirement and scenario that waits on that
 task to its result: drop its wait, and drop or restate a scenario written
 for before the result, such as *Nothing is relayed on GitHub before task
 0.21*. spec-trace fails CI on a scenario no test tags, and no test can
@@ -48,8 +38,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
       marker on igor's handback comments on GitHub and on Linear, a marker that no text the
       Igor quotes from its item can produce, by which the answer session
-      tells a handback from the Igor's other comments (design.md: *igor's
-      handback marker*)
+      tells a handback from the Igor's other comments
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
@@ -60,8 +49,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       headless session that is not an Igor worker can post. The script
       reads from `IGOR_RUN` whether it runs in an Igor's run and whether
       that run is a worker's or the Igor's own; once igor builds it, check
-      that igor sets `IGOR_RUN` as igor PR #216 specifies (design.md: *The
-      script tells an Igor's run by `IGOR_RUN`*)
+      that igor sets `IGOR_RUN` as igor PR #216 specifies
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's text and author
@@ -71,20 +59,18 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       review comment, for which GitHub documents the same `author` through
       GraphQL's `Comment` interface
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
-      and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
-      #175 land, by their specs, unchecked since neither is built
-      (design.md: *What task 0.12 measured*). The implementation builds
+      and `inquisitor.json` in reach. It can't, and by the specs of igor PRs #174
+      and #175 it still can't once they land, though neither is built to
+      check. The implementation builds
       everything except Igor-worker mode, which waits for what igor issue
       #247 lists
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
-      request be merged before the advisory is published (design.md:
-      *Weaknesses stay out of public text until disclosure*). Until it
+      request be merged before the advisory is published. Until it
       shows the merge waits, fork commit messages describe the weakness
       only on the word of the person who will publish the advisory
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment;
-      if it can, the login is a breach to report to igor (design.md:
-      *An Igor worker asks only through its Igor*)
+      if it can, the login is a breach to report to igor
 - [ ] 0.15 That a conditional request answered `304`, sent with the
       person's `gh` login, does not count against the rate limit, as
       GitHub documents (answer-session spec: *The poll reads every GitHub
@@ -120,8 +106,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports
-      `messageContent` `true` reads a message that doesn't mention the bot
-      (design.md: *The Discord relay needs the Message Content intent*).
+      `messageContent` `true` reads a message that doesn't mention the bot.
       If any fails, Discord stays off and the README says so. Measured
       2026-11-19 in a test thread: the identity reads a channel's history
       and a thread's, a reply holds a `message_reference` to its message,
@@ -131,8 +116,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       id, a webhook's message, and the Message Content read
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
-      sees a relay post (design.md:
-      *A relay post gets no prose pass and no vetting*). If a hook does
+      sees a relay post. If a hook does
       see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
@@ -150,8 +134,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       repositories. On Linear and Discord, record whether the skill's
       check reads a team's or channel's permission or setup must. Where no
       check can, setup runs the skill's own check only, and a post a
-      channel refuses later turns that channel off (design.md: *A failed
-      relay check turns off only its channel*)
+      channel refuses later turns that channel off
 - [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
@@ -183,10 +166,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       If GitHub reports which App wrote a comment, the rules above are
       built as the spec states them; if not,
       the repository's owner decides what to build
-- [ ] 0.23 That the URL an asking agent records as `asked_in` (design.md:
-      *A log file follows its thread message by exact link*), and the
-      handback comment URL an Igor records (design.md: *Each Igor log file
-      follows its own handback comment*), equals character for character
+- [ ] 0.23 That the URL an asking agent records as `asked_in`, and the
+      handback comment URL an Igor records, equals character for character
       the URL the answer session builds from what it polls, on GitHub,
       Linear and Discord. Compare an issue comment's URL with a pull
       request comment's, `discord.com` with `discordapp.com`, and a Linear URL before and
@@ -277,8 +258,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, have the model answer
       it with a tool call, unattended, and detect when the model's reply in
-      that turn has ended (design.md: *The model hands
-      its judgements to the code through record_verdict*). If it cannot,
+      that turn has ended. If it cannot,
       record it and stop building the mod: the answer session is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
       for the owner's approval. If it can, also list every first character
@@ -332,8 +312,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         standard input or a file, and a method or endpoint the shell
         builds, each with a test, and a read piped into `python3 -c`
         passing. Check each case against `gh api --help` and gh's
-        behaviour, not only this list (design.md: *A gh api call counts
-        only when it can write*).
+        behaviour, not only this list.
       - It reads an unquoted `--body` or `-b` of one word holding no `$`,
         backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
         `-bhi` or `--body=hi`, as that word, as prose's reader does
@@ -346,8 +325,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         field taken from a file, by `@<file>` or `--input`, is readable
         only when that write is the whole command line. A write to an
         endpoint other than an issue's or pull request's, or a mutation
-        off that list, is no post (design.md: *The reader
-        reads gh api writes, REST and GraphQL*).
+        off that list, is no post.
       - It blocks as unreadable a `gh api` write to an endpoint or
         mutation it reads whose body it can't read, a GraphQL query it
         can't read or parse, and a review whose comments it can't read.
@@ -388,8 +366,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - During an Igor's run it searches lore only through `igor
         lore-search`, passing the question on standard input, or the
         other way igor PR #216 gives the command if its task 4.5 finds a
-        worker cannot (design.md: *Filter 1 in an Igor's run searches
-        through `igor lore-search`*).
+        worker cannot.
       - It applies the authority rules:
         - scope by the short name outside an Igor, and inside one as
           igor's `scopeMatches` gives it (igor's);
@@ -397,22 +374,16 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - a change's own decisions counted within that change;
         - a questions-branch `decision` file counted only unchanged and
           when its `answered_by` has write access, the file taken at its
-          word for who answered (design.md: *A file is trusted for who it
-          names*);
+          word for who answered;
         - an answer whose `recorded_in` pins a commit counted for other
-          work only once that commit has landed (design.md: *An answer
-          recorded on a work branch counts for other work once it
-          lands*);
+          work only once that commit has landed;
         - only the newest answer counting among a question's files on a
-          questions branch, by the order of the commits that added them
-          (design.md: *The newest answer counts*);
+          questions branch, by the order of the commits that added them;
         - during an Igor's run, `branch-search`, given the run's item,
           leaving out each file more private than the item (the file's
           visibility set by *A log or miss file is as private as its
           more private repository*) and showing a file about a
-          repository other than the item's as input (design.md:
-          *Questions-branch files and `project:` entries in a run's
-          search*).
+          repository other than the item's as input.
       - It reports each source it did not search, and when a fetch last
         updated each clone's remote-tracking default branch.
 - [ ] 2.3b `branch-search`, which searches one repository's `questions`
@@ -451,18 +422,15 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         spec: *A hash-only miss file shows nothing but that it exists*).
       - A log file for a question also asked in a post holds that post's
         URL as `asked_in`, only on a questions branch no more visible than
-        the repository it points into (design.md: *`answer_link` and
-        `asked_in` are withheld where they would leak*). Igor-worker mode
-        writes no `asked_in`, because each Igor log file follows its own
-        handback comment (design.md: *Each Igor log file follows its own
-        handback comment*).
+        the repository it points into. Igor-worker mode
+        writes no `asked_in`: the handback comment it would link exists only
+        once the Igor posts it, and the Igor writes it.
       - An answer file lists every file it answers in `answers`, refused
         when a named file is not on the branch or already holds an
-        answer (design.md: *An answer file names every file it answers*).
+        answer.
       - Built by igor, not this task: the Igor writes `answers` for a
         later run only for a file it finds by its own record's suffix
-        and date (design.md: *A later run names the answered file from
-        the Igor's record*).
+        and date.
       - On a questions branch, `repository` only on a file about one
         repository, and `asked_from` on every log and miss file except a
         handled file, a hash-only miss file and a file written during an
@@ -476,28 +444,23 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         visibility (inquisitor spec: *The answerer's
         confirmation can send a record somewhere more visible*); on a log or
         miss file the answer session writes, it is the `asked_from` the
-        answer session passes to the `log` command (design.md: *Every
-        questions-branch file names where it was asked from*;
-        answer-session spec: *A miss records who judged it and where it
+        answer session passes to the `log` command (answer-session spec: *A miss records who judged it and where it
         was asked from*).
       - A handled file holds only `handled`, the day in UTC, and
         `closes`, the closed file's name or, for a question with a
-        category, that name's SHA-256, with no body (design.md: *The answer session writes
-        a handled file on every close of a questions-branch file*). It is
+        category, that name's SHA-256, with no body. It is
         written only through the command's session option, which only the
         answer session passes; a `handled` or `closes` key, or a hash-only
         miss file, is refused without that option.
-      - Each answer is written in quote lines (design.md: *A log file's
-        answer is written as quote lines*):
+      - Each answer is written in quote lines:
         - with a github.com `answer_link`, read from the linked comment
           and recorded word for word;
         - with a Linear or Discord `answer_link`, refused without the
           session option; with it, the answer recorded as given and the
           link never fetched, the link written only where the questions
-          branch's repository is private and left out elsewhere (design.md: *An answer given through the answer session counts by its answer file*);
+          branch's repository is private and left out elsewhere;
         - any other answer a person gave, without an `answer_link`, in
-          their own words as given (design.md: *A logged answer is the
-          person's own words*); without the session option, as `input`
+          their own words as given; without the session option, as `input`
           unless its `answered_by` is the login of the person running the
           session, which for `decision` also needs write access (inquisitor spec: *The log
           command makes an unlinked answer a decision only for the
@@ -516,24 +479,18 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         keeps no pending copy and reports why the push failed.
       - A picker question's file is pushed once answered, and a record
         more visible than its source only once the person answering
-        confirmed the warning, then with no link into the source
-        (design.md: *Nothing goes somewhere more visible than its
-        source*).
+        confirmed the warning, then with no link into the source.
       - The secret scan, over raw markdown with link targets included, and
         the visibility refusal.
       - It refuses, saying why, a question holding a line that is exactly
-        `## Rephrased question`, `## Discussion` or `## Answer`
-        (design.md: *The `log` command reads its inputs and the linked
-        comments itself*).
+        `## Rephrased question`, `## Discussion` or `## Answer`.
       - `misses`, listing the misses by filter for a review.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) once to the
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
       the answer session cites an `active` entry in scope by naming it in
-      a reason 2 decline with filter 1 (design.md: *A person's
-      cite pushes a citation file*). Its commit names no person (design.md: *A citation's commit
-      names no person*). It sends none for a question with a category,
+      a reason 2 decline with filter 1. Its commit names no person. It sends none for a question with a category,
       none where *A lore entry that stops a question gets a citation
       file* bars it by visibility, and none for a cited entry not `active` or out
       of scope. A push it cannot make stays pending as `log`'s does,
@@ -544,8 +501,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 2.5 The question finder for posts, one function the post hook also
       calls, finding questions in a post's body, with an
       open-questions section begun only by a label that names questions
-      or a deferral label (design.md: *What counts as a question in a
-      post*)
+      or a deferral label
 - [ ] 2.6 `tag`, choosing whom a post's question tags: the first candidate
       with write access, starting with the approver of the related earlier
       decision the second call recorded; else the login configured for
@@ -567,8 +523,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `questions` branch, or refusing it by visibility or by an id outside
       igor's id rule. During an Igor's run it opens nothing and writes the
       entry into the run's report for the Igor to propose, as igor PR
-      #216 is asked to (design.md: *A
-      general answer is proposed as a provisional lore entry*)
+      #216 is asked to
 - [ ] 2.8 A test pinned to an igor commit that checks the lore entry
       format `lore` copies: the `entries/<id>.md` path, the id pattern and
       the frontmatter fields igor's lore store requires (inquisitor spec:
@@ -608,11 +563,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       test that checks SKILL.md states the rule. An expected gap is a
       scenario only igor's unbuilt work can make pass, or one whose rule
       waits on a measuring task such as 0.21 or 0.31. It gets no test, not even a skipped
-      one, and is listed by name in design.md's *Expected gaps* under
-      *Tracing scenarios to tests*
+      one, and is listed by name under this task
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
-      test for each expected gap, and remove it from design.md's list;
+      test for each expected gap, and remove it from task 4.2's list;
       do the same for a gap whose rule waited on a measuring task, once
       that task is measured and the rule built.
       The archive waits for this, because archiving moves the scenarios
@@ -653,7 +607,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `skills.py install inquisitor` and `skills.py doctor`
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
-      the post hooks don't block it (design.md: *Posts sent through the github-app skill's script*)
+      the post hooks don't block it
 - [ ] 5.6 `README.md` says that setup suggests a rule blocking force
       pushes to a `questions` branch and its deletion, which only an admin
       can set; that without it anyone with write access can rewrite or
@@ -668,8 +622,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       filters before asking about it: a root cause, a finding too large
       for the change, anything left unresolved when the run aborted, and
       a property from the hunt (Step 3) worth keeping as a permanent
-      guard (design.md: *bug-hunter's Step 9 recommendations go through
-      the filters*). These starting rules are input, not decided
+      guard. These starting rules are input, not decided
       behaviour: the builder sets the final rules, which are reviewed
       with the implementation.
 
@@ -683,8 +636,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       Only a broad root-cause fix or a design choice, or an abort's
       leftover whose new run is costly, still goes to the person
 - [ ] 5.8 Add to bug-hunter's SKILL.md the inquisitor spec's rules for a
-      weakness whose advisory is unpublished (design.md: *Weaknesses stay
-      out of public text until disclosure*). Task 0.13 measures whether
+      weakness whose advisory is unpublished. Task 0.13 measures whether
       GitHub can merge the advisory's private-fork pull request before
       publication. When it shows the merge waits, or the advisory's
       publisher says it does, the regression test lands in the private
@@ -703,12 +655,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 
 ## 6. The answer session
 
-- [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it
-      (design.md: *Discord is in the first version, through discord-bot*).
+- [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it.
       The Discord relay posts with no header option and with mention
-      rewriting on, because discord-bot always posts that way (design.md:
-      *Discord relay posts: no header, mentions
-      that ping*). discord-bot's `read` drops each message's
+      rewriting on, because discord-bot always posts that way. discord-bot's `read` drops each message's
       `author.bot` and reply reference, which the answer session needs to
       tell a bot's message and a reply to a relay post, as task 0.17 found
       on 2026-11-19; this task changes `read` to return both
@@ -720,9 +669,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       and contains all of it, including declining and the list of
       questions answered or handled for the person. The mod takes its
       questions from task 6.3's polls instead of the prototype's made-up
-      ones. Four rules decide what is built (design.md: *How the approved
-      prototype meets the spec*; *The UI is built from prototype build
-      v0.1-33*):
+      ones. Four rules decide what is built:
       - (a) Keep the approved screens' layout and interaction: the band, which is the mod's panel above the prompt box,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
@@ -739,20 +686,16 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - previews that show the `Re: <URL>` line;
         - two decline reasons, the prototype's first two merged as
           reason 1, "Nothing to answer: the conversation is over, or it
-          isn't a question" (design.md: *Two reasons to decline*); under
+          isn't a question"; under
           it declining closes only that question, and every later message
-          in its thread that the sources name is a new question, where the
-          prototype ends the thread (design.md: *Declining with nothing to answer closes only that
-          question*);
+          in its thread that the answer session's four question sources name is a new question, where the
+          prototype ends the thread;
         - reopening offered only for a thread copy declined with nothing
           posted, on its own machine, where the prototype offers it for
-          any decline under its first two reasons (design.md: *Reopening a declined
-          question*);
+          any decline under its first two reasons;
         - the handled file pushed naming each questions-branch file a
           closed question was shown from, or that holds it through
-          `asked_in`, which the prototype does not write (design.md:
-          *Closing works by exact identity, never
-          by matching*);
+          `asked_in`, which the prototype does not write;
         - a recorded answer the person agreed to and posted shown as
           answered for the person, where the prototype shows it as
           answered by the person's own relay post;
@@ -764,8 +707,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - agreeing to a recorded answer as a reason 2 decline with filter
           1, writing no answer file, where the
           prototype treats it as its own path and logs the recorded answer
-          in a new file (design.md:
-          *Agreeing to a recorded answer is a filter 1 decline*);
+          in a new file;
         - the question on screen kept in the state folder, not the mod's
           `$.store`, so a restarted session opens on it.
       - (c) A screen the spec needs that v0.1-33 lacks is designed in this
@@ -775,8 +717,6 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         post's failure and discord-bot's
         warnings, why no miss was logged, a channel that is off, and the
         pending list, which reuses the approved queue's screens
-        (design.md: *An answer that cannot reach its thread is kept
-        pending*)
       - (d) The screens v0.1-33 added to v0.1-30 are taken as that build
         has them, each in the one place it shows them: the thread's
         replies since the question, including when the asker withdraws
@@ -795,8 +735,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       lore repository's `questions` branch takes the person's direct push,
       and the suggested rule blocking its force pushes and deletion;
       and the optional step that creates a lore repository, its clone and its
-      configuration entry (design.md: *Setup checks direct pushes, and can
-      create a lore repository*)
+      configuration entry
 - [ ] 6.3 Polling: the four question sources (answer-session spec: *A
       question asked of the person comes from one of four sources*), only
       while open, the catch-up on opening, 60 seconds, poll positions,
@@ -824,7 +763,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       a more visible item's run*); an answer whose last line
       starts `Re: `, which a reader would take for the post's own `Re: ` line, sent back for rewording,
       and each confirmed answer pushed as a new log file, and again as a new one when its relayed answer
-      is edited (design.md: *Editing a relay post*);
+      is edited;
       discord-bot's warnings shown after each Discord relay post and edit;
       and, off GitHub, the relayed text logged with the relay post's URL
       as an unfetched `answer_link`
@@ -849,9 +788,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       tool and no web fetch*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
-      post none, because its text is fixed (design.md: *A relay post gets no
-      prose pass and no vetting*; *What the answer session posts by
-      itself*)
+      post none, because its text is fixed
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
@@ -859,8 +796,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter
       under "the inquisitor should have handled it" (reason 2) and the
-      exact post shown before it goes out (design.md: *Misses the answer
-      session logs*), and the list of questions answered and handled for
+      exact post shown before it goes out, and the list of questions answered and handled for
       the person. Done: build v0.1-30, tagged
       `answer-session-ui-approved-v0.1-30` on shared-skills
 - [ ] 6.10 The answer session's handling of incoming questions, SKILL.md's
@@ -876,48 +812,37 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - filters 2 to 4 and the three fixed `Inquisitor: ` texts, and a
           question carrying a person-required line always shown to the
           person unless filter 1 answers it, the line found by its fixed
-          wording after markup is reduced (design.md: *A question another skill
-          requires carries a line the answer session matches*);
+          wording after markup is reduced;
         - declining with its two reasons, and reason 2's posts;
         - the misses on the questions branch, none for reason 1 or for
-          a person's question
-          (design.md: *Messages that are not questions are ignored*;
-          *Misses the answer session logs*), and a miss against filter 1
+          a person's question, and a miss against filter 1
           for an agent's question the answer session answers by itself;
         - a `Recorded answer: ` post the answer session makes without
           the person, but no `Inquisitor: ` post, on a relayed question:
           one a bot account posted starting `User says: ` or
           `User asks: ` (answer-session: *A relayed question is a
-          person's question*; design.md: *Which questions
-          count as an agent's*; *Filter 1 runs on every incoming question
-          not placed `other`*);
+          person's question*);
         - no automatic post that repeats an automatic post made earlier
-          in its chain of replies (design.md: *No automatic post repeats
-          one in its chain of replies*);
+          in its chain of replies;
         - a questions-branch question asked in a post answered in its
           thread and by a log file;
         - a refused post turning off a channel no check can read;
         - the post hook's block of a tool-call post that starts with a
-          reserved prefix (design.md: *The post hook blocks a reserved
-          prefix on GitHub*).
+          reserved prefix.
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
         only when no other skill requires a person to decide the question
         and a miss file backs the reply on the branch its question's
         concerns line names, named by a hash of the reply's surface and id
         and either naming a `said_by` or hash-only (inquisitor spec: *A
-        hash-only miss file shows nothing but that it exists*)
-        (design.md: *What an asking agent does with an automatic reply*).
+        hash-only miss file shows nothing but that it exists*).
 - [ ] 6.11 Decide at implementation, and when each choice is made, add
       it to the spec as a requirement with a scenario or, if no test can
       check it, to the answer-session decision record as an entry with
-      evidence; design.md only links to that requirement or entry
-      (design.md: *Some answer-session details are decided at
-      implementation*): how a question's options, the choices it offers
+      evidence: how a question's options, the choices it offers
       with what each would change, are parsed from its thread; and how the
       session handles an asker's reply that revises those options. Agreeing
-      to a shown recorded answer is already decided (design.md: *Agreeing
-      to a recorded answer is a filter 1 decline*), as are agreeing to a
+      to a shown recorded answer is already decided, as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person's cite of an active entry in scope pushes a citation file*)
@@ -927,23 +852,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       search in an Igor worker depends on it, igor PR #202 has set the
       path of the scribe's records, and task 4.3 has tagged every expected
       gap, since spec-trace's CI fails on an untagged scenario once
-      archived (design.md: *The change is archived only after every
-      expected gap is tagged*). Make filter 1 search the scribe's records
+      archived. Make filter 1 search the scribe's records
       where igor PR #202 puts them, in the repository a question concerns
-      and in the lore repository (design.md: *Filter 1 searches igor's
-      scribe's records where #202 puts them*; *An answer typed on another
-      surface counts only through a decision document*). Point the spec's
+      and in the lore repository. Point the spec's
       links to igor PR #216's lore-firing spec at igor's
       `openspec/specs/lore-firing/spec.md` on main
 - [ ] 7.1 Archive with `openspec archive` and no flags. This pull request already
       edits the decision records, `openspec/specs/inquisitor/decisions.md`,
       `openspec/specs/answer-session/decisions.md` and
       `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
-      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Since
-      design.md and tasks.md are archived with the change and not read
-      again, repoint these citations: each requirement's citation of a
-      measurement task 0.N, and each decision record's Evidence link to
-      tasks.md, at its measured result; each citation of a design.md
-      section whose reason a decision record entry now gives, at that
-      entry; and each other citation of design.md, at the archived
-      design.md
+      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Point
+      each decision record's link to tasks.md at the archived tasks.md
