@@ -2379,38 +2379,6 @@ A refusal the session cannot sort into either kind waits for the person.
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### Rules to decide
-
-- **What marks an item question answered?** An item question is a
-  review request or an assignment shown as a question in its own right.
-  A question's state comes from the latest relay post naming it, and a
-  relay post's `Re: ` line names the item's URL for both a question in
-  the item's description and the item question. So a pull request whose
-  description asks the person something, and which also requests their
-  review, is two questions that one answer closes together. And a review
-  re-requested after an answer is never shown. Options: (a) show such an
-  item only through its description's question, as *Only an item's
-  newest handback is shown* shows a handed-back item only through its
-  newest handback; and treat a request or assignment newer than the
-  latest relay post naming the item as a new question. (b) Give an item
-  question's relay posts a mark of their own, such as `review: ` after
-  the prefix. (c) Accept both: one answer closing two questions, and a
-  re-request never shown. Recommended: (a), which reuses an existing
-  rule.
-- **Two people's sessions both answering by themselves.** A person's
-  message that mentions two people who run answer sessions reaches both,
-  and when filter 1 finds a record each session posts its own
-  `Recorded answer: ` through its own relay, since neither counts the
-  other's relay as a relay identity. The thread gets two identical
-  replies. Options: (a) answer a person's question by itself only when
-  its message mentions no one but this session's person, and otherwise
-  show it with the hit beside it (*A recorded answer not posted by
-  itself is shown beside its question*); (b) count any bot's
-  `Recorded answer: ` naming the question as a relay post that came
-  first, which lets anyone silence an automatic answer; (c) accept the
-  duplicate. Recommended: (a), which reuses an existing rule and lets no
-  one silence an answer.
-
 ### What other changes must provide
 
 - **github-app and linear-app still hand a relay identity's token to

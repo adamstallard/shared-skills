@@ -46,6 +46,12 @@
   Instead: these gaps are accepted, and scenarios state the crash and two-machine cases the answer session handles.
   Paths: .agents/skills/inquisitor/
 
+- **Rejected: Holding back an automatic answer that another person's answer session already posted.**
+  Facing: a message mentioning two people who each run an answer session reaches both, and when filter 1 finds a decision record, each session posts its own `Recorded answer: ` through its own relay, so the thread gets two identical replies.
+  Lost because: each session counts only its own person's relay identities as relays, and counting any bot's `Recorded answer: ` post as a relay post would let anyone who registers a bot, as any GitHub user or Discord user can, suppress an automatic answer with a fake one, https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app, https://discord.com/developers/docs/quick-start/getting-started
+  Instead: the duplicate is accepted.
+  Paths: .agents/skills/inquisitor/
+
 ## Rationale
 
 - **Rationale: The answer session reads with the person's credentials, except on Discord.**
@@ -85,7 +91,7 @@
   Evidence: GitHub documents that a conditional request answered `304` while correctly authorised does not count against the primary rate limit, and that a request refused for it should not be retried before the `x-ratelimit-reset` time, https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
 
 - **Rationale: The answer session's filter 1 reads only subscribed and lore repositories.**
-  Decision documents and questions-branch files are files, so searching them needs a copy on the machine, and the session keeps a copy only of each subscribed repository and each configured lore repository. Issues need no copy, since they are read live, but those reads also use the person's credentials. Any other repository a question names is chosen by the question's own text, so fetching its files or reading its issues would let a crafted question choose which repository, a private one included, the session reads with the person's credentials and puts before the model. So one closed set covers everything filter 1 reads in the session. The session acts on a closed set of places elsewhere too (*A concerns line settles what an agent's question concerns*), because untrusted text may only pick among what the code already offers (*Rationale: The model's judgements reach the session's code only through record_verdict*). A question about a repository outside the set still comes to the person, so the set costs a recorded answer from that repository, never the question.
+  Decision documents and questions-branch files are files, so searching them needs a copy on the machine, and the session keeps a copy only of each subscribed repository and each configured lore repository. Filter 1 also reads issues, which need no copy since they are read live, but with the person's credentials. Any other repository a question names is chosen by the question's own text, so fetching its files or reading its issues would let a crafted question choose which repository, a private one included, the session reads with the person's credentials and puts before the model. So one closed set covers everything filter 1 reads in the session. A question about a repository outside the set still comes to the person, so the set costs a recorded answer from that repository, never the question.
   Evidence: `git fetch` downloads a repository's objects before any of its files can be read on the machine, https://git-scm.com/docs/git-fetch
   Evidence: GitHub returns a private repository's issues to any request authenticated as a person who can read that repository, https://docs.github.com/en/rest/issues/issues#get-an-issue
   Evidence: OWASP lists, among prompt injection's mitigations, restricting the model's privileges to the minimum it needs, https://genai.owasp.org/llmrisk/llm01-prompt-injection/

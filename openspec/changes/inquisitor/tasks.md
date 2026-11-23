@@ -86,7 +86,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       that the identity can edit its own comment; and that Linear marks a
       comment's author as an app user in a form no person's account can
       take on. If any fails, Linear
-      stays off and the README says so. Measured 2026-11-19 as an app
+      stays off and the README says so. The task also finds whether the
+      person's key can read when an issue was assigned, which *An item
+      that asks the person something is shown once* compares with when
+      the item's questions were answered. If it cannot, Linear stays on,
+      and an assignment counts as made when a poll first finds it, so one
+      first found after those answers is shown as an item question. Measured 2026-11-19 as an app
       identity on a test issue: a host command's GraphQL `commentCreate` returns the
       comment's `id` and `url`, while the Linear MCP's tools return only
       the `id`; the identity edits its own comment; a reply holds its
@@ -97,7 +102,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       needs: an app user called the GraphQL mutation `commentDelete`,
       through Linear's MCP server, on its own comment on a test issue;
       it returned success, and the issue then listed no comments. Not
-      measured: mentions of the person or the relay,
+      measured: mentions of the person or the relay, an assignment's time,
       anything read with the person's key, and that no person's account
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,

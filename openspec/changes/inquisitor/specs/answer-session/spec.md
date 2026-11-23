@@ -1000,9 +1000,8 @@ is.
 
 An issue or pull request an Igor handed back SHALL be shown only through
 the questions its newest handback asks. Older handbacks are **passed over**:
-each machine works this out from the thread alone, writes nothing for
-them, and never shows them again, even once the newest is answered. A
-review request on it SHALL NOT make it a second question.
+each machine works this out from the thread alone, writes no file for
+them, and never shows them again, even once the newest is answered.
 
 #### Scenario: A newer handback passes over an older unanswered one
 
@@ -1012,11 +1011,30 @@ review request on it SHALL NOT make it a second question.
   the older one's log file again, and an answer to the newer names only
   the newer one's log file
 
+### Requirement: An item that asks the person something is shown once
+
+An issue or pull request shown to the person through a question in its
+description or newest handback SHALL never also be shown for a review
+request on it or its assignment. A request or assignment made after the
+relay posts answering or handling all those questions, by the time GitHub
+or Linear gives, SHALL be shown in its own right, as an item question.
+Only a relay post naming the item, made after the request and holding no
+`question <n>: `, SHALL answer it.
+
 #### Scenario: A handed-back pull request is not also a review request
 
 - **WHEN** a handed-back pull request assigned to the person also requests
   their review
 - **THEN** it is shown only through its newest handback
+
+#### Scenario: A review re-requested after the description's question is answered is a new question
+
+- **WHEN** a pull request's description asks the person something and
+  the pull request requests their review, the person answers, and the
+  author then re-requests their review
+- **THEN** the pull request is shown once before the answer, through its
+  description's question, and the re-request is then shown as an item
+  question until a relay post naming the pull request answers it
 
 ### Requirement: A handback that mentions no one goes to the item's assignee
 
@@ -2121,12 +2139,12 @@ every line break made a space.
 ### Requirement: An answer is recorded by a new log file
 
 The answer session SHALL write a log file, besides handled files, only
-for an answer the person confirmed or edited, never for an item
-question's. The `log` command SHALL push it to the branch of the unanswered
-files holding the question, naming them as the inquisitor's *An answer
-file names every unanswered file it answers* sets. Where none holds it,
-the command SHALL push it to the questions branch of what the question concerns, with
-the `repository` and `asked_from` a miss would have.
+for an answer the person confirmed or edited. The session's `log` command
+SHALL push the log file to the questions branch of the unanswered files
+holding the question, naming them as the inquisitor's *An answer file
+names every unanswered file it answers* sets, or, with no such file, to
+the questions branch of what the question concerns, with the
+`repository` and `asked_from` a miss would have.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2183,7 +2201,7 @@ the `repository` and `asked_from` a miss would have.
 ### Requirement: An item question is recorded only by its comment on the item
 
 A review request or an assigned issue shown as a question in its own
-right, not through a handback on it, is an **item question**. The answer session SHALL record
+right, not through a handback or a question in its description, is an **item question**. The answer session SHALL record
 an answer to one only by the comment it posts on the item, and SHALL
 write no log file or miss for it and run no filter 1 on it, since the
 item has no question text to hash or search.
@@ -2616,13 +2634,12 @@ the advice to take the option with merit.
 
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
-Under the second reason, the person MAY give a note, and on an agent's
-question other than an item question the answer session SHALL log a
+Under the second reason of *The person can decline to answer*, the person MAY give a note, and on an agent's
+question the answer session SHALL log a
 miss against the picked filter. The miss's `said` is the note or, with
 none, `the inquisitor should have handled it`. It SHALL push the miss
 only once the decline's post is out or, when it posts nothing, once the
-person confirms it. On GitHub, it logs no such miss before task 0.21,
-which tells an agent's question from a person's, is measured.
+person confirms it. On GitHub, it logs no such miss before task 0.21 is measured.
 
 #### Scenario: A decline with no note logs the default said after its post
 
