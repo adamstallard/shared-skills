@@ -1165,12 +1165,12 @@ as it was.
 
 The answer session SHALL poll only while it is open, and nothing SHALL
 poll while none is open. It SHALL poll each channel that is on, at
-opening and about every 60 seconds after, for everything since its
-**poll position**, the time of the newest message its last poll read,
-or, with none saved, the last 14 days, saving each poll position in the
-state folder.
-At each poll it SHALL fetch the questions branch and the default branch
-of every subscribed repository and configured lore repository.
+opening and about 60 seconds after each poll ends, for everything since
+its **poll position**, the time of the newest message its last poll
+read, or, with none saved, the last 14 days, saving each poll position
+in the state folder.
+Each poll SHALL fetch every subscribed repository's questions branch and
+every lore repository's questions and default branches.
 
 #### Scenario: Opening catches up
 
@@ -1187,8 +1187,8 @@ of every subscribed repository and configured lore repository.
 #### Scenario: Each poll fetches the questions branches
 
 - **WHEN** the answer session polls its channels
-- **THEN** it fetches the questions and default branches of every
-  subscribed repository and configured lore repository too
+- **THEN** it fetches the questions branch of every subscribed repository
+  and every lore repository's questions and default branches
 
 #### Scenario: Nothing polls without an open answer session
 
@@ -2674,12 +2674,14 @@ that is only input stops nothing.
 
 ### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
 
-`search` reads only the answer session's clones (inquisitor spec: *The
-search command runs filter 1 alone for the answer session*). A
-question placed `other` SHALL go unsearched, shown as such, because a
-`global` lore entry, applying everywhere, may contradict an unread
-repository's rules; any other question with no place SHALL be
-searched in `global` lore alone.
+Filter 1 reads files only from the answer session's clones, through
+`search`. The session SHALL fetch a subscribed repository's default
+branch just before filter 1 checks a question placed in it, and at no
+other time. A question placed
+`other` SHALL go unsearched, and the session SHALL say so, because a
+`global` lore entry may contradict an unread repository's rules. A
+question placed in no subscribed or lore repository for any other reason
+SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 
@@ -2688,8 +2690,9 @@ searched in `global` lore alone.
 - **THEN** its verdict's `place` is `other`, filter 1 searches nothing
   for it, `global` lore entries included, and the session shows that
   nothing was searched
-- **AND** a question about `o/web` has the decision documents on its
-  clone's default branch, its questions branch and its issues searched
+- **AND** a question about subscribed `o/web` has its clone's default
+  branch fetched then, not at each poll, and the decision documents there,
+  its questions branch and its issues searched
 - **AND** a question about the organization has the decision documents
   in the clone of the organization's configured lore repository searched
 

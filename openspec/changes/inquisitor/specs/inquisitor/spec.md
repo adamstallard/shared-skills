@@ -590,7 +590,7 @@ serving it, or of all if the agent works in no git repository.
 - **WHEN** a file under `questions/` or `misses/` on the questions branch
   of the repository the question concerns holds a question whose text
   matches the question's terms
-- **THEN** the search reads that branch with `git fetch` and `git show`,
+- **THEN** the search reads that branch with `git show`,
   without checking it out, and shows that file
 
 #### Scenario: Two lore repositories serving one owner are both searched
@@ -1256,8 +1256,8 @@ grouping supersedes still answers the file it names.
 An answer file SHALL stop counting for its own question once a newer answer
 file becomes the answer of the file both name (*A named file's answer is
 the newest answer file naming it*), and SHALL be shown as input, labelled
-as superseded. It SHALL still supersede the older files in its hash group,
-which can leave that group with no answer that counts.
+as superseded. It SHALL still supersede the older files in its hash group, so that an
+answer it replaced does not count again.
 
 #### Scenario: The newest answer naming a file counts
 
@@ -1267,8 +1267,7 @@ which can leave that group with no answer that counts.
   first as input, labelled as superseded, though their hashes differ
 - **AND** the search shows the second as its own hash group's answer
 - **AND** the first still supersedes the older files in its hash group, so
-  that group has no answer that counts, and all its files show as input,
-  labelled as superseded
+  they show as input, labelled as superseded
 
 ### Requirement: In an Igor's run, a file about another repository is input
 

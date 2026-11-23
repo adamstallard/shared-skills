@@ -744,10 +744,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       question asked of the person comes from one of four sources*), only
       while open, the catch-up on opening, 60 seconds, poll positions,
       `ETag`s and the wait after a rate-limit refusal (*The poll reads
-      every GitHub question source*), the
-      questions and default branches of
-      every subscribed repository and configured lore repository. The
-      `search` command reads only these fetched branches, and issues only
+      every GitHub question source*), and fetching every subscribed
+      repository's questions branch and every configured lore
+      repository's questions and default branches at each poll, and a
+      subscribed repository's default branch when filter 1 is about to
+      check a question placed in it. The `search` command reads only
+      branches fetched so, and issues only
       of these repositories (answer-session spec: *The answer session's
       filter 1 reads only subscribed and lore repositories*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
