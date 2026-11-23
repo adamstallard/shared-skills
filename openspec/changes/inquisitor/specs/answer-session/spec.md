@@ -72,8 +72,11 @@ inquisitor's, or that spec's, *Title*:
   item, or as one sentence of the question that the post's sentences
   outside the section make (*Question sentences outside a post's list are
   one more question*; the inquisitor's *A question's text and hash are
-  built one way*). A log file also holds a question shown from it, and
-  a **questions-branch question** is one that a log file holds.
+  built one way*). A log file also holds a question shown from that file, and
+  a **questions-branch question** is one that a log file holds. A
+  question has **no thread** on a machine whose answer session has read
+  no thread copy of it and so shows it from its log file alone, even
+  where its `asked_in` links a thread.
 
 Any other term is defined in the requirement that sets the term's rule;
 a requirement before that one may already use the term.
@@ -585,6 +588,12 @@ and unrun checks.
   the refusal counts as a failed posting check: the post is handled as *A failed relay post is
   reported to the person* says, and the team stays off until the next
   opening
+
+#### Scenario: An opening reruns a failed check
+
+- **WHEN** a Discord channel is off because its posting check failed, and
+  at the next opening that check passes
+- **THEN** the channel is on, and the answer session reads and posts in it
 
 ### Requirement: Setup opens on an incomplete configuration
 
@@ -2385,9 +2394,7 @@ retried* stops it.
 
 The answer session SHALL record, drop and retry each miss or citation
 file's push as *A handled file is pushed once its close takes effect* does
-a handled file's, and also drop the owed push of a miss file named by
-its reply's id when a crash lost that id before it reached the state
-folder.
+a handled file's.
 
 #### Scenario: A miss or citation owed when the session stopped is pushed later
 
@@ -2403,8 +2410,8 @@ folder.
   pushes the miss file that id names, as the inquisitor's *Every miss file
   is named by one hash* says
 - **AND** if the session stopped before saving the reply's id, the miss
-  file's push is dropped, and the asker takes the reply as input, since
-  only a miss file backs an automatic reply
+  file's push, whose name needs that id, is dropped, and the asker,
+  finding no miss file to back the reply, takes it as input
 
 ### Requirement: The person answers for what their relay posts
 
@@ -2581,10 +2588,9 @@ the advice to take the option with merit.
 Under the second reason, the person MAY give a note, and on an agent's
 question the answer session SHALL log a miss against the picked filter.
 The miss's `said` is the note or, with none, `the inquisitor should have
-handled it`. A note more private than the question is reworded at its
-privacy by the session's model, for the person to confirm. The answer
-session SHALL push the miss only once the decline's post is out or, when
-the decline posts nothing, once the person confirms it.
+handled it`. The answer session SHALL push the miss only once the
+decline's post is out or, when the decline posts nothing, once the
+person confirms it.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2594,14 +2600,12 @@ the decline posts nothing, once the person confirms it.
   `filter` is `"2"` and whose `said` is
   `the inquisitor should have handled it`
 
-#### Scenario: A note more private than the question is reworded before the miss
+#### Scenario: A person's question logs no miss
 
-- **WHEN** the person declines with filter 1 an agent's question about a
-  public repository, with the note "decided in o/private's decision
-  record", `o/private` being a private repository
-- **THEN** the session's model rewords the note at the question's
-  privacy, naming neither the private repository nor its file, the person
-  confirms that wording with the decline, and the miss's `said` holds it
+- **WHEN** the person declines a person's question for the inquisitor
+  with any filter, or agrees to a recorded answer or a suggested verdict
+  that the session shows beside the question
+- **THEN** no miss file is pushed, hash-only or not
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
 
@@ -3069,8 +3073,7 @@ The answer session SHALL log each miss as a miss file, whether or not
 the asker logged the question, and the inquisitor script SHALL push it
 to the questions branch of what the question
 concerns, under the inquisitor's *A question is pushed to the questions
-branch of what it concerns*. The answer session SHALL log no miss on a
-person's question.
+branch of what it concerns*.
 
 #### Scenario: A miss goes to the questions branch
 
@@ -3078,13 +3081,6 @@ person's question.
   `o/api`
 - **THEN** the script pushes the miss file to `misses/` on the questions
   branch of `o/api`, and opens no pull request
-
-#### Scenario: A person's question logs no miss
-
-- **WHEN** the person declines a person's question for the inquisitor
-  with any filter, or agrees to a recorded answer or a suggested verdict
-  shown beside it
-- **THEN** no miss file is pushed, hash-only or readable
 
 ### Requirement: A miss records who judged it and where it was asked from
 

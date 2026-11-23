@@ -2410,28 +2410,6 @@ A refusal the session cannot sort into either kind waits for the person.
   record; one typed in the answer session and relayed there counts through its
   answer file.
 
-### A rule that cannot be built as written
-
-- **Should the session's model still reword a decline's note that is
-  more private than its question?** *A decline for the inquisitor logs a
-  miss once it takes effect* says it does, for the person to confirm. But
-  the model has no tool that can carry the rewording: `record_verdict`
-  takes only its closed list of fields, and `propose_reply` takes only a
-  draft reply or an edited relay post. Options:
-  - (a) Cut the sentence and its scenario *A note more private than the
-    question is reworded before the miss*. The note stays the person's
-    own words, and the decline's preview already shows which branch the
-    miss goes to and how visible it is.
-  - (b) Keep it: let `propose_reply` put the reworded note in the prompt
-    box, and add a `record_verdict` field marking a note more private
-    than its question, so the code knows when to ask for the rewording.
-
-  Recommended: (a). It removes a rule nothing can carry. Under (a) the
-  session gives no warning about the note's content, which its code
-  cannot judge, but the person sees where the miss goes before
-  confirming, and the visibility rule lets a person knowingly make their
-  own words more visible.
-
 ### Left to implementation
 
 - **Task 6.11's details are chosen at implementation,** and each becomes a

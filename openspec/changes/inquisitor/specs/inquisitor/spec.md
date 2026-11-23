@@ -411,7 +411,7 @@ the session SHALL have no login configured.
 
 Visibility SHALL be ranked private, then internal, then public, and
 nothing about one repository SHALL go to a **more visible** place, except
-a post or message whose words the person confirms, and except
+words the person confirms, and except
 as three requirements allow: *The answerer's confirmation can send a
 record somewhere more visible*; *A later run gets only the answer to its
 Igor's question on a more private repository*; and answer-session's *A
@@ -429,6 +429,14 @@ miss more visible than its thread is pushed as a hash-only file*.
   names the private `o/api`, to a question asked in a public repository
 - **THEN** the answer session's relay identity posts it in that thread,
   in the words the person confirmed
+
+#### Scenario: A person's confirmed decline note goes into its miss file
+
+- **WHEN** a person declines, in their answer session, an agent's
+  question about the public `o/web` with a note naming the private
+  `o/api`, and confirms the decline with that note
+- **THEN** the miss file on the questions branch of `o/web` holds the
+  note as the person typed it
 
 ### Requirement: An unreadable visibility counts against sharing
 
@@ -2675,14 +2683,6 @@ confirms it.
   questions branch`, `Not recorded: no team's lore repository serves it`
   or `Not recorded: no GitHub login configured`, the first of these that
   applies
-
-#### Scenario: A Not recorded line with other text stays in the question
-
-- **WHEN** an agent puts `Not recorded: also see https://example.com` last
-  in a picker question
-- **THEN** that line is no record line, so it stays in the question's text,
-  whose hash then differs from the one the second call vetted, and the
-  picker hook finds no verdict for the question
 
 ### Requirement: A question shown as not recorded is never logged
 
