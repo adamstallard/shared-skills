@@ -137,9 +137,10 @@ Linear issue, the repository igor runs the item's work in.
 An agent SHALL run four filters in order before it puts any question to a
 person, and ask only if none stops it. Filter 1, already answered, SHALL
 stop a question an earlier answer settles; the agent cites and acts on that
-answer. Filter 2, deferrable, SHALL stop one the work can go on without; the
-agent lists it as not done, and if it outlives the work files an issue
-listing it under a deferral label, such as "Not in this change".
+answer. Filter 2, deferrable, SHALL stop one whose answer the current
+work does not need; the agent lists it as not done, and if it outlives the
+work files an issue listing it under a deferral label, such as "Not in
+this change".
 
 #### Scenario: An answered question is not asked
 
@@ -258,8 +259,7 @@ pass all four filters.
 #### Scenario: A question another skill requires is not deferred
 
 - **WHEN** prose's cold read leaves a finding that prose requires a person
-  to decide, one it would mark `kept (asked)`, and the work could go on
-  without the answer
+  to decide, and the current work does not need the answer
 - **THEN** filter 2 does not stop it, and the agent asks it now with an
   `ask` verdict naming prose
 
@@ -661,7 +661,8 @@ its name after its `/`, and for a collective's question only `global`.
 
 Filter 1 SHALL match the question's terms as plain text, rank its hits by
 the number of terms each matches, show at most 20, and say when it left
-some out.
+some out. In an Igor's run, `igor lore-search` does this for lore (igor
+issue #247).
 
 #### Scenario: Hits are ranked by terms matched and capped
 
@@ -1274,8 +1275,10 @@ answer it replaced does not count again.
 ### Requirement: In an Igor's run, a file about another repository is input
 
 During an Igor's run, a questions-branch file whose `repository` key names
-a repository other than the run's item's SHALL be shown as input, labelled unconfirmed, whoever it names, unless the item's visibility hides it, as
-*A run's lore search keeps to the Igor's lore repository and scope* says.
+a repository other than the run's item's SHALL be shown as input, labelled unconfirmed, whoever its `answered_by` names, unless the item's
+visibility hides the file, as *A run's lore search keeps to the Igor's lore
+repository and scope* says. This is because a worker steered by text in its
+item could name any repository in a file it reports.
 
 #### Scenario: A file about another repository is input during a run
 
@@ -3912,7 +3915,7 @@ category met once, marked if a question of it stopped the worker.
 #### Scenario: A headless session goes on past a deferrable personal question
 
 - **WHEN** a `claude -p` job that is not an Igor worker has a question with
-  the category `personal`, and the work can go on without the answer
+  the category `personal`, and the current work does not need the answer
 - **THEN** it asks and posts nothing, lists the question as deferred
   nowhere, goes on with the work, and reports only that a `personal`
   question waits, with no text

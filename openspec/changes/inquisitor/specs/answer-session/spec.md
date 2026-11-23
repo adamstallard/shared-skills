@@ -1184,6 +1184,10 @@ as it was.
 - **THEN** every machine shows the comment as a new question, the asker's
   as a reply to the relay post and a mention as a mention, and the earlier
   question stays as it was
+- **AND** if the person instead declined the question with nothing posted,
+  on one machine, a later mention of the person there is still shown on
+  every machine as a new question, and the earlier question stays closed
+  only on that machine
 
 ### Requirement: The answer session polls only while it is open
 
@@ -1868,7 +1872,7 @@ unrefreshed; and take it only when absent, stale or unparsable, or on a
 takeover. A session SHALL open no answer session while another holds
 a fresh lock, but say which holds it and how to reach it, offering a
 takeover. Before each poll, post and push, it SHALL close if the lock
-names another.
+names another id.
 
 #### Scenario: A second session is offered the choice
 
@@ -1882,9 +1886,11 @@ names another.
 
 - **WHEN** the person takes over from another session's answer session
 - **THEN** the new session replaces the lock, and the old session, finding
-  before its next poll, post or push that the lock names another, closes
-  its answer session and polls, posts and pushes nothing more, leaving its
-  owed pushes to the new session
+  before its next poll, post or push that the lock names another id,
+  closes its answer session and polls, posts and pushes nothing more,
+  leaving its owed pushes to the new session
+- **AND** it closes though both sessions are named `Answers`, as every
+  session the `answer` command starts is
 
 #### Scenario: A crashed session's lock goes stale
 
@@ -2682,14 +2688,19 @@ take its state from its thread.
 
 The person SHALL be able to reopen, on the machine where they declined
 it, a thread copy declined with nothing posted, which puts it back in
-their queue, and SHALL NOT be offered any other declined question to
-reopen; one declined with a post is changed by editing that post.
+their queue and keeps any miss the decline logged, since a file on a
+questions branch never changes once pushed, and SHALL NOT be offered any
+other declined question to reopen; one declined with a post is changed by
+editing that post.
 
 #### Scenario: A thread copy declined with nothing posted is reopened
 
 - **WHEN** the person declined a thread copy with nothing posted, and
   reopens it on that machine
 - **THEN** it is back in their queue
+- **AND** if the decline was under the second reason with filter 3's "the
+  agent shouldn't have asked", which posts nothing but logs a miss, that
+  miss file stays
 
 #### Scenario: A question declined with a post is not reopened
 
@@ -2701,7 +2712,7 @@ reopen; one declined with a post is changed by editing that post.
 #### Scenario: A declined questions-branch file is not offered for reopening
 
 - **WHEN** the person declined, with nothing to answer, a question
-  from a questions branch
+  shown from its questions-branch file, with no thread
 - **THEN** a handled file is pushed for it, and no way to reopen it is
   offered
 
@@ -3055,10 +3066,10 @@ shown to the person. The answer session SHALL trust any such line.
 
 #### Scenario: A marked question posted with the person's own login gets no filter 2 to 4 reply
 
-- **WHEN** an agent posts, with the person's own `gh` login, a question
-  that clearly fails filter 4, followed by `Inquisitor: a person must
-  decide this (required by spec-trace).`, so the answer session counts it
-  as a person's question
+- **WHEN** an agent posts a question that clearly fails filter 3, followed
+  by `Inquisitor: a person must decide this (required by spec-trace).`,
+  and posts it with the person's own `gh` login, so the answer session
+  counts it as a person's question
 - **THEN** no filter is suggested and nothing is posted by itself; a
   decline for the inquisitor offers only filter 1
 

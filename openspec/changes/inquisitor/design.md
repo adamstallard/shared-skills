@@ -146,10 +146,10 @@ posted without the person, raise two risks, and the spec answers each:
 
 - **A thread's text reaches the model that judges it.** So the model writes
   no word of an automatic post, and a crafted question can at worst choose
-  which fixed reply or which record is posted. The asking agent acts on a
-  filter 3 or 4 reply only when a miss file backs it (the inquisitor decision
+  which fixed reply or which record is posted. The asking agent acts on an
+  `Inquisitor: ` reply only when a miss file backs it (the inquisitor decision
   record's *Rationale: An Inquisitor reply is acted on only with its
-  miss file*). The asking agent already ran both filters itself, so a backed
+  miss file*). The asking agent already ran filters 3 and 4 itself, so a backed
   reply is a second judgment, by the person's answer session, that one
   option has merit or that the choice is cheap to reverse (*What an asking
   agent does with an automatic reply*).
@@ -246,10 +246,7 @@ unvetted.
 #### With a person present, ask through the picker
 
 **Rule:** inquisitor spec, *Where the host has a picker, an agent asks
-through it, never in its reply*; *A question with a category is asked only
-of the person or in its advisory*. On a host with no picker, the reply may
-carry a question with a category since it, like the picker, reaches only the
-person.
+through it, never in its reply*.
 
 **Why:** the picker hook then sees every question, and the starting agent,
 which is talking to the person, can batch a subagent's questions with its
@@ -358,9 +355,7 @@ second copy of the reader would add a second set of differences.
 #### Which commands the reader judges, and which are unreadable
 
 **Rule:** gh-post spec, *The reader reads a gh pr or gh issue post only as a
-whole command line*. A `gh pr` or `gh issue` command can take its body from a
-file, which an earlier command in the line could rewrite, so it is read only
-as the whole command line.
+whole command line*.
 
 #### Posts sent through the github-app skill's script
 
@@ -393,8 +388,9 @@ given in the command cannot be rewritten.
 *A gh api call writes by its method, fields, input or a mutation*.
 
 **Why:** a read posts nothing, so counting it would block, for every prose
-user, lines such as `gh api … | python3 -c …`. `--input` makes a call a write
-whatever gh does with it, so the reader fails closed.
+user, lines such as `gh api … | python3 -c …`. With no method given, the reader
+counts `--input` as a write without working out which method gh would use,
+so it fails closed.
 
 #### A hook payload that is not JSON passes the post hook
 
@@ -582,21 +578,14 @@ run, the writer of `asked_from`, the script or the answer session, already
 sets `repository`, so setting `asked_from` too gives it no new way to
 mislead.
 
-**Why** a run's file may name another repository (inquisitor spec: *The
-repository a question concerns defaults to the current work's*; #216's
-decision 33): during a run such a file is only input (inquisitor spec: *In
-an Igor's run, a file about another repository is input*), so a steered
-worker makes no answer count.
-
 #### A person's answer to a handback
 
 **Rule:** inquisitor spec, *An Igor pushes a handback answer only for a
 question its record holds*; *A later Igor run names the answered file only
 from the Igor's record*.
 
-**Why:** a worker steered by its item could otherwise pair a real comment
-with another question, and anyone who can edit the comment could change its
-text.
+**Why:** a worker steered by text in its item could otherwise attach a
+person's real comment to a question it does not answer.
 
 #### A later run names the answered file from the Igor's record
 
@@ -609,13 +598,6 @@ so a second file matching the record can only be a planted look-alike. The
 slug of the question's words in a file's name reveals nothing more, since the
 file holds the question's text on a questions branch no more visible than the
 question.
-
-#### igor-dependent rules state the end state
-
-A rule that depends on igor describes only igor once the change it needs
-has landed (the inquisitor and answer-session records' *Constraint: Each
-rule that depends on igor states what holds once the igor change it needs
-lands, …*), and still guards against misuse by igor in that state.
 
 #### Alignment with igor PR #216
 
@@ -646,21 +628,18 @@ comment.
 #### Which cross-machine cases are accepted
 
 **A case between two machines of the same person whose worst outcome is a
-question shown twice or asked again, or a post repeated, is accepted, and
-gets no rule of its own.** "Asked again" means an asking agent asks a question again because one
+question shown twice or asked again is accepted, and gets no rule of its
+own.** "Asked again" means an asking agent asks a question again because one
 machine has not yet seen what the other recorded, and
 "shown twice" means the person sees one question twice; either costs the
-person only a second look, and an entry cited twice only adds to igor's
-count. A case that could record a wrong answer, close a question wrongly,
+person only a second look. A case that could record a wrong answer, close a question wrongly,
 leak private content or lose an answer is still raised for a decision.
 
 #### One answer session runs on each machine
 
 **The lock makes one session the sole writer of its machine's state:** one state folder holds the machine's
 owed pushes, pending answers and poll positions, and two answer sessions
-would poll, post and push twice. The session holding the lock checks it by
-its session id, not its name, because every session the `answer` command
-starts is named `Answers`.
+would poll, post and push twice.
 
 #### A discussion runs in the session's own conversation
 
@@ -683,10 +662,8 @@ code only through record_verdict*; the answer-session decision record's
 Rationale entry of that title gives why.
 
 **The code puts each message to judge into the session's conversation as a
-prompt of its own, holding the message as quoted data, while the model is
-not answering the person.** The model judges it in two turns: first it sets
-the question's category and place, which filter 1's search, the script's
-`search` command, needs; then it judges the search's hits.
+prompt of its own, holding the message as quoted data, at times when the
+model is not answering the person.**
 
 The approved prototype, build v0.1-33, shows a mod filling the prompt box
 and registering a tool the model calls by name, but not prompting its own
@@ -704,8 +681,8 @@ thread again before it posts, two of the person's machines answering one
 question both post only when each posts before reading the other's post.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
-A crash after a post but before its id is saved loses nothing: the next read
-of the thread finds the post.
+A crash after a post but before its id is saved loses no question state: the
+next read of the thread finds the post.
 
 #### `User says: ` answers, `User asks: ` asks the asker
 
@@ -771,12 +748,13 @@ the person's newer answer marks the older ones in that wording stale, so
 asking again is safer than reviving one, even when that leaves the group with
 no answer that counts.
 
-#### A named file's answer must be the person's own
+#### Who may answer a named file
 
 **Rule:** inquisitor spec, *A named file's answer is the newest answer file
 naming it*.
 
-**Why:** the question was put to the person it tags.
+**Why** its `answered_by` must be a person the question tags, when it tags
+one: the question was put to that person.
 
 #### `answer_link` and `asked_in` are withheld where they would leak
 
@@ -962,11 +940,6 @@ question was handled. A thread copy stays reopenable after a handled file
 closes its questions-branch file, since that file is closed on every machine
 for good and the thread copy is separate from it.
 
-A reopened decline keeps its miss because a miss file never changes, and
-nothing records that the person took the decline back. Misses feed *Lessons
-from misses land by their scope*, so a miss is not held back on the chance
-of a reopening.
-
 #### Agreeing to a recorded answer is a filter 1 decline
 
 **Rule:** answer-session spec, *Agreeing to a shown recorded answer is a
@@ -1050,8 +1023,7 @@ The marker is needed because an Igor posts other comments on the item too.
 **Rule:** answer-session spec, *Only an item's newest handback is shown*.
 
 Only the newest handback is shown because it says where the Igor is blocked
-now. A newer one is posted only after the person hands the item back to the
-Igor without answering the older one.
+now.
 
 #### Each Igor log file follows its own handback comment
 
@@ -1162,10 +1134,6 @@ task 0.21, which tasks.md's task 0.21 lists, are built as stated once it
 shows which App wrote a comment; if it cannot, the repository's owner
 decides what to build for them.**
 
-Task 0.25 records how each surface reports two kinds of refusal of a relay
-post: one for its text, such as its length, and one for lack of permission.
-A refusal the session cannot sort into either kind waits for the person.
-
 - **Do Linear and Discord return a posted line's words unchanged?** (task
   0.28) The answer session finds a person-required line and a concerns line
   by their fixed wording after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
@@ -1217,6 +1185,25 @@ A refusal the session cannot sort into either kind waits for the person.
   states what github-app must change, and #112's what linear-app must. Until each does, *The README
   warns that a relay's token can be printed* keeps its warning for that
   skill.
+
+### For the repository's owner
+
+- **Does a tag line in a bot's Linear or Discord message split it into
+  items?** *Each item of a bot's message reaches the person its tag line
+  mentions* gives each listed item its own reader on any surface. But
+  *Each item of an open-questions section is its own question* makes a
+  Linear or Discord message one question, because the inquisitor finds
+  sections only in a GitHub post. So an Igor's Linear handback listing two
+  questions, one tagged `@maya` and one tagged the person, has no defined
+  reader. Options: (a) limit the tag-line rule to GitHub posts, so the
+  whole Linear message goes to the first person it mentions, and say so in
+  igor #247's section 4; (b) split a bot's Linear and Discord messages by
+  open-questions section, as GitHub posts are, which the inquisitor would
+  then have to do too. Recommended: (a), the smaller change. Its cost: on
+  Linear, every `Inquisitor: ` reply to such a handback stays input to the
+  worker, because the reply names no item number while the Igor's record
+  numbers the items (*The Igor runs a worker's miss check only where an
+  agent would look*).
 
 ### Outside this change
 
