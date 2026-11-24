@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.331
+▝▜██████▀  Opus 5.5 · Claude Ultra
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your
+  shell or settings.json.
+
+  Fable 5.2 is here for your longest and toughest coding tasks. It draws down usage faster than Opus 5.5. Switch with /model.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  1 of 17 · 15 new · 0 relayed · 0 for later · 2 done for you          v0.2-1
+GitHub  adamstallard/igor #216  12m ago · no replies           │ CHOOSE AN ANSWER
+claude asks, an agent via the inquisitor                       │   1: Yes, filter them by the role's scope  ★ recommended
+                                                               │      → A worker never sees another project's questions.
+During a run, should the inquisitor's first filter hide        │
+questions-branch files about projects the role doesn't work    │   2: No, show them as input
+on, as it hides lore entries outside the role's scope?         │      → Workers may read other projects' questions.
+                                                               │
+The scope filter covers lore entries only. Question files on   │   Or your own answer: type it here, or in the prompt box
+the lore repository's questions branch can be about any        │
+project.                                                       │
+                                                               │
+Related #216 decision 3: scope is a hard filter                │
+1–2: choose   (t)alk to Claude   (w)on't answer   (l)ater   ✓ 1 answered and 1 handled for you: see the sum…   (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a number, a key or your answer, then ⏎ · 7d 41% ⇣ Sat 1a

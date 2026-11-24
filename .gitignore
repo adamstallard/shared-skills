@@ -6,3 +6,6 @@ answer-session/tests/*.js
 # Laid by the engine when it loads the mod.
 answer-session/.claude-plugin/types/
 .worktrees/
+answer-mod/hooks/*.js
+answer-mod/tests/*.js
+answer-mod/.claude-plugin/types/

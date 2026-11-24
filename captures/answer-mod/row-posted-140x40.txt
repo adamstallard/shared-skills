@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.331
+▝▜██████▀  Opus 5.5 · Claude Ultra
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your
+  shell or settings.json.
+
+  Fable 5.2 is here for your longest and toughest coding tasks. It draws down usage faster than Opus 5.5. Switch with /model.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+● Answered adamstallard/igor #216 (claude's question: During a run, should the inquisitor's first fil…) — User says: Show them as inp…  view
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◉ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you          v0.2-1
+Linear  ENG-412 · Onboarding flag  22m ago · no replies        │ SUGGESTED Looks cheap to reverse · the inquisitor's filter 4
+Maya Ortiz asks                                                │ The flag switches off in minutes, so either choice is easy to undo.
+                                                               │   (a)gree: pick one, it's cheap to switch
+                                                               │
+Can we ship the onboarding flag to 10% on Friday, or should we │
+wait for the metrics review on Monday?                         │   Reply to Maya Ortiz: type it here, or in the prompt box
+                                                               │
+                                                               │
+QA signed off this morning, and the flag switches off in       │
+minutes. Waiting for the review adds three days.               │
+                                                               │
+                                                               │
+(h)elp me answer   (a)gree   (w)on't answer   (l)ater   ✓ Relayed to GitHub adamstallard/igor #216 as adam-…   (b)ack   (n)ext   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 41% ⇣ Sat 1a

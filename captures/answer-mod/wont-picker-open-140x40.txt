@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: Back to the filters
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◉ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you          v0.2-1
+Linear  ENG-412 · Onboarding flag  22m ago · no replies        │ ⊘ WON'T ANSWER · CHOOSE WHY
+Maya Ortiz asks                                                │   Why: choose… ▴
+                                                               │     choose…
+                                                               │     1: The conversation is over
+Can we ship the onboarding flag to 10% on Friday, or should we │     2: Not a question
+wait for the metrics review on Monday?                         │     3: The inquisitor should have handled it
+                                                               │      → The real skill ends the thread: later replies there stop
+                                                               │        counting as questions.
+QA signed off this morning, and the flag switches off in       │      → It was picked up by mistake. The real skill writes a lesson
+minutes. Waiting for the review adds three days.               │   3: The inquisitor should have handled it
+                                                               │      → Choose the filter that should have stopped it, and the session
+                                                               │        skill logs a miss against that filter.
+1–3: choose why                                                                                                      go (b)ack   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · 1, 2 or 3 for why, then ⏎ · 7d 41% ⇣ Sat 1a

@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: Back to the filters
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◉ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you          v0.2-1
+Linear  ENG-412 · Onboarding flag  22m ago · no replies        │ ◈ WHICH FILTER SHOULD HAVE STOPPED IT? · NOTHING IS POSTED YET
+Maya Ortiz asks                                                │   Filter: choose… ▾
+                                                               │   1: Already answered
+                                                               │      → replies with where the answer is recorded, which you give
+Can we ship the onboarding flag to 10% on Friday, or should we │   2: Can wait
+wait for the metrics review on Monday?                         │      → replies: carry on without it, and list it as not done
+                                                               │   3: Only one option has merit
+                                                               │      → replies: take the option that has merit
+QA signed off this morning, and the flag switches off in       │   4: Cheap to reverse
+minutes. Waiting for the review adds three days.               │      → replies: pick one, it's cheap to switch
+                                                               │
+                                                               │
+1–4: choose the filter                                                                                               go (b)ack   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · 1 to 4 for the filter, then ⏎ · 7d 41% ⇣ Sat 1a

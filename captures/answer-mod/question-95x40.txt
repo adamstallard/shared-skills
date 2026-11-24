@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: The summary
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit,
+  prompt.change, tool.call, prompt.suggest, prompt.submit, turn.start, turn.complete)
+
+❯ /answer
+  ⎿  answer-mod: Answer session closed. /answer opens it again where you left off.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 2
+     handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Nothing to answer here: p or n moves to a question.
+
+⏺ Prompt dropped by a hook: Question 1 of 18
+
+⏺ Prompt dropped by a hook: Question 2 of 18
+
+⏺ Prompt dropped by a hook: Question 3 of 18
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◈ ◉ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ○ ○ ○ ○  summary  3 of 18               v0.2-1
+GitHub  adamstallard/igor #216  14m ago · no replies
+claude asks, an agent via the inquisitor
+
+igor's publicStore setting can't tell an internal lore repository from a private one. How
+should the Igor learn its visibility?
+Related #212: lore is no more visible than the repositories it serves
+
+  1: Ask GitHub at startup  ★ recommended
+     → One API call, exact visibility, used by #212's startup check.
+  2: Treat publicStore: false as internal
+     → No API call; private items' citations are never pushed to a non-public lore
+       repository.
+1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater              (b)ack  (n)ext  (q)uit
+
+─────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 41% ⇣ …

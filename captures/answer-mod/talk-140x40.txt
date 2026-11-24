@@ -1,0 +1,40 @@
+
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+❯ /answer
+  ⎿  answer-mod: Answer session closed. /answer opens it again where you left off.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 2 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Nothing to answer here: p or n moves to a question.
+
+⏺ Prompt dropped by a hook: Question 1 of 18
+
+⏺ Prompt dropped by a hook: Question 2 of 18
+
+⏺ Prompt dropped by a hook: Question 3 of 18
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+⏺ Prompt dropped by a hook: Kept claude's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Talking to Claude
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◈ ◇ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ○ ○ ○ ○  summary  3 of 18 · talking to Claude                                        v0.2-1
+GitHub  adamstallard/igor #216  claude · 14m ago · no replies  │
+igor's publicStore setting can't tell an internal lore         │ ◇ TALKING TO CLAUDE · in the conversation above
+repository from a private one. How should the Igor learn its   │
+visibility?                                                    │ Ask anything about the question, or tell Claude what to say and it
+                                                               │ drafts your reply for you to check. It gets the question with your
+                                                               │ message and may read the thread and the code first; its reply shows
+                                                               │ above. The rest of the queue waits.
+                                                               │
+(a)sk the asker                                                                                                      go (b)ack   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a message to Claude or a key, then ⏎ · 7d 41% ⇣ Sat 1a

@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: Back to the filters
+
+⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Kept Maya Ortiz's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: Back to the filters
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ◉ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you          v0.2-1
+Linear  ENG-412 · Onboarding flag  22m ago · no replies        │ ◈ ANSWER FOR THE INQUISITOR · Filter 4, cheap to reverse
+Maya Ortiz asks                                                │
+                                                               │ POST ON LINEAR AS adam-relay (Linear app): Inquisitor: Filter 4 (cheap
+                                                               │ to reverse): pick one, it's cheap to switch.
+Can we ship the onboarding flag to 10% on Friday, or should we │
+wait for the metrics review on Monday?                         │ A note for the miss, if you like: type it in the prompt box. Or (p)ost
+                                                               │ it as it is. ⏎ posts.
+                                                               │
+QA signed off this morning, and the flag switches off in       │ The real skill logs a miss against filter 4, with your note as what
+minutes. Waiting for the review adds three days.               │ was said.
+                                                               │ Posts on a person's question too, as you chose. You can still answer
+                                                               │ on Linear by hand.
+(p)ost it                                                                                                            go (b)ack   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a note for the miss, or p to post it as it is, then ⏎ · 7d 41% ⇣ Sat 1a

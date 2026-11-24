@@ -1,0 +1,6 @@
+{
+  "name": "answer-mod",
+  "version": "0.2.0",
+  "description": "Prototype v2 of the inquisitor's answer session, on newer mod interface features: relayed questions, answered in one immersive band",
+  "types": "./types/index.d.ts"
+}
