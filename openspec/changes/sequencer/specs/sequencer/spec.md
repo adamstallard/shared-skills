@@ -25,13 +25,14 @@ These terms hold throughout this spec:
   within one repository, that is the lower number.
 - **The order's issue** is the one issue whose body holds the whole order.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
-  other than `archive/`. **An open change** is one on the default branch or
+  other than `archive/`. **An open change** is one on its repository's default branch or
   on an open pull request's head. A change **belongs to** the
   earliest-opened open pull request whose diff against its base adds or
   changes a file in the change's directory, and the order places the
   change where it places that pull request.
 - **A change's requirement** is a requirement that the change's delta adds,
-  or renames onto a new name, and that no spec on the default branch holds.
+  or renames onto a new name, and that no spec on its repository's default
+  branch holds.
 - **An explicit link** is a GitHub "blocked by" relation, a `Depends on`
   line in a body, or a `Builds on:` line in a change's `proposal.md`, as *Explicit links order the items they connect*
   and *A Depends on line names items by number, with or without their
@@ -40,9 +41,7 @@ These terms hold throughout this spec:
   references say it closes the issue, or a line in its body names the issue
   as `Part of #<number>` or after one of GitHub's closing keywords
   (`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`,
-  `resolves`, `resolved`, in any case). The script reads closing keywords
-  itself because GitHub gives no closing reference to a pull request whose
-  base is not the default branch. Such a line follows every rule of a
+  `resolves`, `resolved`, in any case). Such a line follows every rule of a
   `Depends on` line, with its own words in place of `Depends on `.
 - **An outside item** is an issue or pull request in another repository
   that an explicit link names.
@@ -57,6 +56,10 @@ These terms hold throughout this spec:
   GitHub's `author_association` on that item is OWNER, MEMBER or
   COLLABORATOR, which also counts some accounts with only read access. It
   does so for every caller, so that every caller counts the same writers.
+  A pull request that a GitHub App's bot account opened counts as opened
+  by a writer when that App is installed on the repository, detected by
+  the means task 0.8 finds; where the workflow's token cannot read that, it counts, for
+  every caller, as opened by an account without write access.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the head the change is read from, which `order`
   prints for each open change.
@@ -73,10 +76,12 @@ These terms hold throughout this spec:
 
 ### Requirement: The order holds every open pull request and the issues linked to the work
 
-The order SHALL hold each open pull request, each open issue that an
-explicit link connects to another item, each open issue that an open pull
-request a writer opened is tied to, and no other issue; the order's issue is never an
-item.
+The order SHALL hold each open pull request and, of the open issues, only
+those that an explicit link connects to another item through an edge that
+counts (see *Only edges set by writers count*), and those that an open
+pull request a writer opened is tied to; the order's issue is never an
+item. Only writers' links and ties bring issues in, since otherwise anyone
+could make the script write blocks into writers' issues.
 
 #### Scenario: An issue linked to nothing is not ordered
 
@@ -86,7 +91,7 @@ item.
 
 #### Scenario: A blocked issue is ordered
 
-- **WHEN** open issue #12's body has the line `Depends on #9`
+- **WHEN** open issue #12, opened by a writer, has the line `Depends on #9`
 - **THEN** the order holds both #12 and #9
 
 #### Scenario: The order's issue is never ordered
@@ -174,19 +179,25 @@ tie to another repository's issue SHALL place nothing.
 - **THEN** #43 shares #50's place, not #48's, and gains no place from #48
   alone
 
+#### Scenario: An installed App's pull request counts as a writer's
+
+- **WHEN** a GitHub App installed on the repository opens #90 as its bot
+  account, #90's body holds the line `Part of #43`, and no other pull
+  request is tied to #43
+- **THEN** #43 shares #90's place
+
 ### Requirement: A pull request tied to no issue is listed
 
-Each open pull request tied to no issue, counting ties that move nothing,
-SHALL say so on its line in the order's issue. The script SHALL add no
-`Closes` or `Part of` line to any body.
+Each open pull request with no tie to any issue SHALL say so on its line
+in the order's issue. A tie that moves nothing, such as one to another
+repository's issue, still counts as a tie.
 
 #### Scenario: A pull request tied to no issue is listed
 
 - **WHEN** draft pull request #64 closes no issue and names none in a
   `Part of` or `Closes` line, though issue #43 is the work it does
 - **THEN** #64 is listed although it is a draft: its line in the order's
-  issue says `tied to no issue`, and no body gains a `Closes` or
-  `Part of` line
+  issue says `tied to no issue`
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -205,7 +216,8 @@ other copies.
 
 ### Requirement: A change already on the default branch is not placed
 
-A change on the default branch that belongs to no open pull request SHALL
+A change on its repository's default branch that belongs to no open pull
+request SHALL
 not be placed, since it merged before every item, and an edge to it SHALL
 be dropped.
 
@@ -288,7 +300,7 @@ come after that change.
 
 #### Scenario: A citing change waits for the cited one
 
-- **WHEN** #91's `design.md` names *An open condition never ends a running
+- **WHEN** #91's `tasks.md` names *An open condition never ends a running
   service*, which #82's change adds
 - **THEN** #91 comes after #82, with the reason
   `` after #82: cites its `An open condition never ends a running service` ``
@@ -346,6 +358,11 @@ repository.
 
 - **WHEN** GitHub records #14 as blocked by #11
 - **THEN** #14 comes after #11, with the reason `after #11: blocked by it`
+
+#### Scenario: A link to a closed item orders nothing
+
+- **WHEN** #12's body holds the line `Depends on #9`, and #9 is closed
+- **THEN** #12 gains no edge from it, and the order does not hold #9
 
 ### Requirement: A Depends on line names items by number, with or without their repository
 
@@ -444,14 +461,15 @@ opened the item setting it.
 #### Scenario: A Depends on line from an outside author is not counted
 
 - **WHEN** issue #120, opened by `zed` who has no write access, says
-  `Depends on #95`
-- **THEN** #120 gains no edge after #95, that line counts in no reviewer's ranking, and the
-  order's issue lists `#120 after #95` as not counted, opened by `zed`
+  `Depends on #9`, and nothing else links #120 or #9
+- **THEN** #120 gains no edge after #9, the order holds neither issue, so
+  neither body gets a block, and the order's issue lists `#120 after #9`
+  as not counted, opened by `zed`
 
 #### Scenario: A citation set by an outside author's title is not counted
 
 - **WHEN** `zed`, without write access, opens #121, whose change adds a
-  requirement titled as a sentence in #82's `design.md`
+  requirement titled as a sentence in #82's `tasks.md`
 - **THEN** #82 does not come after #121, and the order's issue lists that
   edge as not counted, opened by `zed`
 
@@ -505,11 +523,6 @@ place this tiebreak or a cycle's rule decides.
   three were opened in number order
 - **THEN** the cycle comes before #42, placed as if opened when #40 was
 
-#### Scenario: An unordered pair raises no question
-
-- **WHEN** a run publishes an order in which no edge connects #20 and #17
-- **THEN** it posts no question about their order
-
 ### Requirement: A cycle's members are ordered by rule
 
 The order SHALL place a cycle's members together at one place, earliest
@@ -533,12 +546,6 @@ SHALL say so in its reason.
 - **WHEN** `order` runs before any publish has listed the cycle of #82 and
   #85
 - **THEN** it prints the cycle as `ordered by rule`, with no time
-
-#### Scenario: A cycle found in CI asks no one
-
-- **WHEN** a CI run finds a cycle between #82 and #85
-- **THEN** it posts no question, and the order's issue lists the cycle as
-  ordered by rule
 
 ### Requirement: A cycle override is kept and followed
 
@@ -697,13 +704,6 @@ an unchecked pair as checked. Where no open change exists, it SHALL say
 `Dependencies between requirements were not checked: no open OpenSpec
 change.`
 
-#### Scenario: A CI run with no credential says code was not checked
-
-- **WHEN** the workflow runs with no model step, and no recorded code edge
-  is kept
-- **THEN** the order's issue says `Build dependencies between changes' code
-  were not checked.`
-
 #### Scenario: A partly checked order names the unchecked pairs
 
 - **WHEN** #82, #90 and #95 hold open changes, and the model step checked
@@ -788,8 +788,9 @@ the issue and its author. Nothing of the order SHALL go in a comment.
 
 The line after each `<!-- sequencer:begin -->` marker SHALL be a heading:
 `## Order` in the order's issue, and `## Sequencer` in an item's block,
-because the inquisitor skill (#25) takes an issue's text before its first
-heading as a decision its author made.
+because #25's *Only four kinds of document are decision documents* takes an
+issue's text before its first heading as its decision block, and the
+order is no decision.
 
 #### Scenario: The order is never read as a decision
 
@@ -807,7 +808,7 @@ heading as a decision its author made.
 ### Requirement: Text from a pull request or the model is written inert
 
 The script SHALL write each string taken from an issue, a pull request, a
-change's files, the model step or a reviewer source, such as a reason or a
+change's files or the model step, such as a reason, and each reviewer's
 login, as inline code: delimited by a backtick run longer than any in
 it, padded with a space where it starts or ends with a backtick, and with
 its line breaks as spaces, so mentions, links and markers in it render
@@ -844,7 +845,7 @@ a string holding `<!-- sequencer:end -->`.
 
 ### Requirement: Each item's body carries a block giving its place
 
-Each item SHALL carry, in its own body and never in a comment, one block
+Each item SHALL carry, in its own body, one block
 giving its position in the order, what it waits on with each reason, and a
 link to the order's issue.
 
@@ -1059,6 +1060,12 @@ pull request's branch; when a Sequencer Igor dispatches it; and once a
 day. All its runs SHALL share one
 concurrency group, so no two of them edit a body at once.
 
+#### Scenario: Pull request events trigger through pull_request_target
+
+- **WHEN** `setup-ci` writes the workflow
+- **THEN** its pull request events trigger through `pull_request_target`,
+  and none through `pull_request`
+
 #### Scenario: Two quick merges run one after the other
 
 - **WHEN** two pull requests merge a second apart
@@ -1184,20 +1191,6 @@ data, and SHALL NOT check out or run code from a pull request's head.
 - **THEN** the run reads the pull request's change files as data and runs
   none of its code
 
-### Requirement: The model step needs only the order's printed output
-
-The model step SHALL need nothing but `order --json` output, which SHALL
-include the open changes' files, so an agent with no GitHub credential,
-such as an Igor's worker, can run it and write an edges file, which
-`publish`, run elsewhere, applies.
-
-#### Scenario: An edges file written without GitHub access is published
-
-- **WHEN** an agent with no GitHub credential runs the model step on
-  `order --json` output and writes an edges file, and the workflow
-  publishes that file while the changes it checked are unchanged
-- **THEN** `publish` takes the edges
-
 ### Requirement: Data names an item by its repository and number
 
 `order --json`, an edges file, and the checked pairs and code edges the
@@ -1233,8 +1226,15 @@ that names an item by number alone.
 `order` SHALL print the order, each item's position, its edges with
 reasons, the links to outside items, the cycles, the copies owed, the
 names each pair of changes' `tasks.md` files both hold, for the model step,
-and each change's hash, as JSON with `--json`, and SHALL write to no
-issue or pull request; `publish` SHALL be the only command that edits.
+and each open change's files and hash, as JSON with `--json`, and SHALL write to no
+issue or pull request; `publish` SHALL be the only command that edits,
+and SHALL edit bodies directly, in a session as in the workflow.
+
+#### Scenario: A session publishes without the workflow
+
+- **WHEN** a repository has no `.github/workflows/sequencer.yml`, and an
+  agent runs `publish` in a session
+- **THEN** the script edits the bodies directly, dispatching no workflow
 
 #### Scenario: An Igor reads positions without editing
 

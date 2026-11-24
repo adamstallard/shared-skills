@@ -1,14 +1,17 @@
-The tasks below are the implementation, built on this branch once Adam
-approves the spec. Every test tags the scenario it checks with `@scenario sequencer:
+Section 0's measurements need no approval and can run first. The rest is
+the implementation, built on this branch once the spec is approved. Every test tags the scenario it checks with `@scenario sequencer:
 <Scenario name>` (spec-trace).
 
 ## 0. Measure before building
 
-Record each result in design.md's *Facts measured before building*,
-including a result that contradicts what design.md assumed.
+Each task answers one of design.md's open questions. Write each result
+into the requirement it bears on, with its evidence in
+`openspec/specs/sequencer/decisions.md` where a rule rests on it, and
+remove the question from design.md.
 
 - [ ] 0.1 GitHub's "blocked by" relations of an issue or pull request can
-      be read through its API with a workflow run's `GITHUB_TOKEN`
+      be read through its API with a workflow run's `GITHUB_TOKEN`,
+      including a relation to another repository's issue
 - [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
       `pull-requests: write`, can edit the body of a pull request from a fork
 - [ ] 0.3 `openspec show --json` reads a change's deltas, with each
@@ -24,6 +27,10 @@ including a result that contradicts what design.md assumed.
       CODEOWNERS names
 - [ ] 0.7 Whether an issue transferred into a repository keeps the
       creation time it had
+- [ ] 0.8 How the workflow's token can tell that a pull request's author
+      is the bot account of a GitHub App installed on the repository:
+      through the permission API, `author_association`, or the
+      repository's list of installations
 
 ## 1. Reading the repository
 
@@ -60,7 +67,8 @@ including a result that contradicts what design.md assumed.
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
-      sets it, and list the rest as not counted
+      sets it, counting a pull request an installed App's bot opened as a
+      writer's, and list the rest as not counted
 - [ ] 2.11 List each explicit link that names an outside item as not
       counted, setting no edge and writing the outside item as plain
       `owner/repo#N` text: on the line of the item that has the link, or
@@ -125,12 +133,3 @@ including a result that contradicts what design.md assumed.
       that does only part of an issue's work
 - [ ] 6.2 The README's skills table
 
-## 7. Archive
-
-- [ ] 7.1 At archive, move out of design.md, into
-      `openspec/specs/sequencer/decisions.md`, anything still there that
-      the record holds: a constraint no test can check, an alternative no
-      requirement guards against, or a requirement's reason with evidence
-      (spec-check's SKILL.md, *Current-state passes*). That record is the
-      capability's only decision file, so write no
-      `.agents/skills/sequencer/DECISIONS.md`

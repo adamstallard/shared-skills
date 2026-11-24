@@ -1,19 +1,5 @@
 # sequencer: constraints, rejected alternatives and rationale
 
-## Rejected
-
-- **Rejected: A session publishing only by dispatching the workflow, as a Sequencer Igor does.**
-  Facing: a person's session and the CI workflow can each run `publish` against the same bodies at once.
-  Lost because: a dispatch runs only a workflow file on the default branch, so a repository without the workflow could not publish from a session at all, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch.
-  Instead: the later of two concurrent writes wins. The next run recomputes the rule-decided order. What only the overwritten publish wrote is lost until it is published again: its code edges until a model step runs, and its recorded override until the session publishes it again. A Sequencer Igor publishes only by dispatching the workflow, so its writes share the workflow's group.
-  Paths: .agents/skills/sequencer/scripts/sequencer.py
-
-- **Rejected: Running the workflow on `pull_request`.**
-  Facing: a trigger for the workflow's runs on pull request events.
-  Lost because: a `pull_request` run for a fork's pull request gets a read-only token, which cannot edit that pull request's body, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflows-in-forked-repositories.
-  Instead: `pull_request_target`, reading each pull request's change files as data and running none of its code. `pull_request_target` has no activity type for a submitted review (same page, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request_target), so review events come through `pull_request_review`, whose run for a fork's pull request may get a read-only token and publish nothing; the next run with a write token publishes the order.
-  Paths: .agents/skills/sequencer/ci/sequencer.yml
-
 ## Rationale
 
 - **Rationale: An issue takes the place of an open pull request tied to it.**
@@ -67,3 +53,12 @@
 - **Rationale: The sequencer recommends a merge order and never merges.**
   Approving a change is a person's act in the process the skill serves: in this repository, a person approves each specification before its implementation is built. A script that merged would decide what lands without that person, so the sequencer only recommends an order.
   Evidence: AGENTS.md says to build the implementation on the same branch "once the repository's owner approves that pull request's specification", [AGENTS.md](https://github.com/adamstallard/shared-skills/blob/be45f09b/AGENTS.md)
+
+- **Rationale: The workflow recomputes the order on each event that can change it.**
+  Pull request events trigger through `pull_request_target`, not `pull_request`, because a `pull_request` run for a fork's pull request gets a read-only token, which cannot edit that pull request's body. `pull_request_target` has no activity type for a submitted review, so review events come through `pull_request_review`, whose run for a fork's pull request may get a read-only token and publish nothing; the next run with a write token publishes the order.
+  Evidence: GitHub's documentation of workflows in forked repositories says a `pull_request` run from a fork gets a read-only `GITHUB_TOKEN`, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflows-in-forked-repositories
+  Evidence: GitHub's documentation lists the activity types of `pull_request_target`, none of them a submitted review, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request_target
+
+- **Rationale: The script prints the order for callers without editing anything.**
+  A Sequencer Igor publishes only by dispatching the workflow, but `publish` in a session edits the bodies directly, because a dispatch runs only a workflow file on the default branch, so a repository without the workflow could not publish from a session at all. The cost is that a session's write is outside the workflow's concurrency group, so it can overlap a workflow run, and the later write wins: what only the overwritten publish wrote, its code edges or a recorded override, is lost until it is published again.
+  Evidence: GitHub's documentation of `workflow_dispatch` says the workflow file must be on the default branch to be triggered, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
