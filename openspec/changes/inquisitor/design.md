@@ -998,17 +998,15 @@ question unanswered, or their answer lands on that asker's question.
 mentions*.
 
 A bot question with a tag line or a mention reaches one person, so two
-people cannot give a bot conflicting answers. A bot question with no tag
-line and no mention, which is no handback and no reply to a relay post,
-reaches every person whose answer session subscribes to the repository it
-concerns and who has write access there, rather than no one. The script's
-tagging candidates can all lack write access while another subscriber has
-it, and an agent's thread may have no person in it to notice the question.
-A question the session can place in no repository (it places it `other`)
-reaches no one, though its thread may have no person in it either. There
-is no repository to check write access to, and showing it to every
-subscriber of its channel would show people questions they may not be
-able to decide.
+people cannot give a bot conflicting answers. An untagged one, such as
+an agent's Linear question, reaches the subscribers with write access to
+the repository it is placed in, rather than no one: the script may find
+no tagging candidate with write access when another subscriber has it,
+and an agent's thread may have no person in it to notice the question.
+A question placed in no repository reaches no one, though its thread may
+have no person in it either: with no repository to check write access
+to, showing it to every subscriber of its channel would show people
+questions they may not be able to decide.
 
 #### igor's handback marker
 
@@ -1115,6 +1113,18 @@ bullet only asks the question, its task in tasks.md says it.
 
 **Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement shows the fact false.**
+
+### Choices for a person
+
+- **Should a hash-only miss file be pushed only for an `Inquisitor: `
+  reply?** (answer-session spec: *A miss more visible than its thread is
+  pushed as a hash-only file*) One is pushed for every reply that logs a
+  miss, filter 1's automatic `Recorded answer: ` reply included. For an
+  `Inquisitor: ` reply, the file is what lets the asking agent act on
+  it. A `Recorded answer: ` reply the agent checks through filter 1
+  instead, and neither filter 1 nor the `misses` review reads a hash-only
+  file, so there the file tells the branch's readers only when the person
+  pushed it. Recommended: push one only for an `Inquisitor: ` reply.
 
 ### Outside this change
 

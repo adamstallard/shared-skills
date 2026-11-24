@@ -416,11 +416,11 @@ Any other message SHALL be one question, whose relay posts name no item.
 #### Scenario: A bot's Linear message is split like a post
 
 - **WHEN** an Igor's Linear handback lists two questions under `Open
-  questions:`, each logged in its own file whose `asked_in` links the
-  handback
-- **THEN** the answer session shows them as questions 1 and 2, each held
-  by the file with its hash, and a relay post answering the second holds
-  `question 2: `
+  questions:`, each with a tag line mentioning the person and logged in
+  its own file whose `asked_in` links the handback
+- **THEN** the answer session shows them as questions 1 and 2, each
+  question's hash leaving its tag line out, so that its file holds it,
+  and a relay post answering the second holds `question 2: `
 
 ### Requirement: A deferred item is numbered but not shown
 
@@ -1026,13 +1026,13 @@ them, and never shows them again, even once the newest is answered.
 ### Requirement: An item that asks the person something is shown once
 
 An issue or pull request shown to the person through a question in its
-description or newest handback SHALL never also be shown for a review
-request on it or its assignment. A request or assignment dated after
-the last of those questions was answered or closed SHALL be shown in its
-own right, as an item question; task 0.16 says how a Linear assignment
-is dated.
-Only a relay post naming the item, made after the request and holding no
-`question <n>: `, SHALL answer it.
+description or newest handback SHALL never also be shown for its review
+request or assignment. A request or assignment made after the last of
+those questions was answered or closed (on GitHub, by its newest
+`review_requested` or `assigned` timeline event; on Linear, as task 0.16
+says) SHALL be shown as an item question, which only a relay post naming
+the item, made after the request and holding no `question <n>: `,
+answers.
 
 #### Scenario: A handed-back pull request is not also a review request
 
@@ -2772,6 +2772,9 @@ SHALL be searched in `global` lore alone.
   its questions branch and its issues searched
 - **AND** a question about the organization has the decision documents
   in the clone of the organization's configured lore repository searched
+- **AND** a Linear question for a collective whose lore repository the
+  model cannot tell, which so has no place, has only `global` lore
+  searched
 
 ### Requirement: A question with a category reaches filter 1 on standard input
 
@@ -2795,8 +2798,7 @@ pass any other question in a private file.
 
 When an answer with authority is recorded for a question read from its
 thread, the answer session SHALL answer it by itself, whoever asked,
-unless the person has no configured login, the question has no place,
-or one of these bars it: its category, *A recorded answer is posted by
+unless one of these bars it: *A recorded answer is posted by
 itself only when no more private than its thread*, *A Linear or Discord
 question in doubt gets no automatic reply* or *No automatic post repeats
 one in its chain of replies*. It posts through

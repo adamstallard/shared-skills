@@ -94,7 +94,9 @@ or a sentence ending in a question mark*). *A question tags* a
 person when its tag line (*A tag line names the person a posted question
 tags*), list item or sentence mentions their login as `@login` outside
 code, quotes and links, as the `answer-session` spec's *A mention names a
-user outside code, quotes and links* counts a mention.
+user outside code, quotes and links* counts a mention. An Igor's Linear
+handback puts a tag line under its questions too: a line holding only
+one mention.
 
 *An Igor's handback comment* is the comment in which an Igor hands an item
 back to a person, holding what its worker reported. It is not a post:
@@ -1405,11 +1407,10 @@ string matching the credential patterns.
 
 After the second call vets a question in a GitHub post, the agent SHALL
 add its **tag line** under any related-decision, person-required and
-concerns lines, which keep that order: `@` and the login that *A
-question in a post tags one person who can decide, if there is one*
-finds, or, if none, the fixed line of *A question no candidate can decide
-turns to the session's login*. An agent's question in a Linear or Discord
-message SHALL carry no tag line, as no GitHub login maps to a user there.
+concerns lines, in that order: `@` and the login *A question in a post
+tags one person who can decide, if there is one* finds, else the fixed
+line of *A question no candidate can decide turns to the session's
+login*. An agent's Linear or Discord question SHALL carry none.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
