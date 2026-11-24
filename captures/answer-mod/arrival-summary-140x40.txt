@@ -7,8 +7,8 @@
   shell or settings.json.
 
 ❯ /answer
-  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
-
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to leave. 1 answered and 1 handled for you: see
+     the summary.
 
 
 
@@ -19,7 +19,7 @@
 
 
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  3 new · 18 unanswered · 2 done for you                         v0.2-5
+○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  3 new · 18 unanswered · 2 done for you                                         v0.2-9
 18 questions still unanswered
 0 of 20 relayed this session · 1 answered for you · 1 handled for you
 
@@ -32,7 +32,7 @@ Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ 
 
 
 
-                                                                                                               (b)ack   (n)ext   (q)uit
+                                                                                                                        (b)ack   (n)ext
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 

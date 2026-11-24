@@ -1,0 +1,40 @@
+                                                                    ╭────────────────────────────────────────╮
+ ▐▛███▛█   Claude Code v2.1.331                                     │ answer-mod                             │
+▝▜██████▀  Opus 5.5 · Claude Ultra                                  │ New question: Igor (reviewer) asks on  │
+ ▝▝   ▝▝   ~/shared-skills                                          │ Discord (#igor-dev)                    │
+                                                                    ╰────────────────────────────────────────╯
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove
+  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shell or settings.json.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to leave. 1 answered
+     and 1 handled for you: see the summary.
+
+
+
+
+
+
+
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  3 new · 18 unanswered · 2 done for you           v0.2-9
+18 questions still unanswered
+0 of 20 relayed this session · 1 answered for you · 1 handled for you
+
+◎ jlee           adamstallard/igor #216  │ Recorded answer: See decision 10 in #216: the run id links to…
+◈ Igor (worker)  #igor-dev               │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap…
+
+
+
+
+
+
+
+                                                                                          (b)ack   (n)ext
+
+────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 44% ⇣ Sat 1a

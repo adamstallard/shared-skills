@@ -1,0 +1,40 @@
+                                                             ╭─────────────────────────────────────────╮
+ ▐▛███▛█   Claude Code v2.1.331                              │ answer-mod                              │
+▝▜██████▀  Opus 5.5 · Claude Ultra                           │ New question: Dev Patel asks on Linear  │
+ ▝▝   ▝▝   ~/shared-skills                                   │ (ENG-442)                               │
+                                                             ╰─────────────────────────────────────────╯
+⚠ Code Mode (experimental) is off for this session, as you c╭──────────────────────────────────────────╮
+  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shell or sett│ answer-mod                               │
+                                                            │ New question: Priya Nair asks on GitHub  │
+❯ /answer                                                   │ (adamstallard/igor #224)                 │
+  ⎿  answer-mod: Answer session open: type in the prompt box╰──────────────────────────────────────────╯
+     answered and 1 handled for you: see the summary.         ╭────────────────────────────────────────╮
+                                                              │ answer-mod                             │
+                                                              │ New question: Igor (reviewer) asks on  │
+                                                              │ Discord (#igor-dev)                    │
+                                                              ╰────────────────────────────────────────╯
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  1 of 20 · 3 new · 18 unanswered            v0.2-9
+GitHub  adamstallard/igor #216  12m ago · no replies
+claude asks, an agent via the inquisitor
+
+During a run, should the inquisitor's first filter hide questions-branch files about projects the
+role doesn't work on, as it hides lore entries outside the role's scope?
+
+The scope filter covers lore entries only. Question files on the lore repository's questions branc…
+
+  1: Yes, filter them by the role's scope  ★ recommended
+     → A worker never sees another project's questions.
+  2: No, show them as input
+     → Workers may read other projects' questions.
+1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater  ✓ New question from Igor (…  (b)ack  (n)ext
+
+──────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 44% ⇣ Sat 1a

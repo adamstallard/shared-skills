@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-8'
+const BUILD = 'v0.2-9'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -2700,20 +2700,21 @@ export const register: Register = on => {
       .filter(([n]) => n > 0)
       .map(([n, words]) => `${n} ${words}`)
     const pos = base ? [`${at + 1} of ${N}`] : []
-    // The longest of these that leaves the build room at the right: every
-    // count, then only where this is and "N new" (on the summary, its own
-    // first rows hold the counts). Narrower than 120 columns, a question
-    // shows only where it is and "N new".
-    const kept = [...pos, newLabel]
-    const wheres = isTalking
-      ? [[...kept, ...(cols >= 120 ? ['talking to Claude'] : [])], kept]
-      : cols >= 120 || !base
-        ? [[...kept, ...counts], kept]
-        : [kept]
+    // As many as leave the build its room at the right, in order, dropping
+    // from the end; where this is and "N new" always stay. The summary has no
+    // "where", and the counts it drops are in its first rows.
+    const kept = [...pos, newLabel].filter(Boolean)
+    const rest = isTalking ? ['talking to Claude'] : counts
     const fixed = (2 * N - 1) + 2 + 'summary'.length
     const room = cols - fixed - 2 - BUILD.length
-    const parts =
-      wheres.map(ps => ps.filter(Boolean)).find(ps => !ps.length || 2 + ps.join(' · ').length <= room) ?? kept.filter(Boolean)
+    let parts = kept
+    for (let n = rest.length; n > 0; n--) {
+      const ps = [...kept, ...rest.slice(0, n)]
+      if (2 + ps.join(' · ').length <= room) {
+        parts = ps
+        break
+      }
+    }
     const where = parts.join(' · ')
     const tally = where ? (
       <Box key="tally">

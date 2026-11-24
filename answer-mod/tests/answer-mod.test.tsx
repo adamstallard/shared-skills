@@ -1576,7 +1576,7 @@ test('questions arriving while the session is open chime once a poll, toast each
   await ui.unmount()
 })
 
-test('the bar keeps "1 of 20 · N new" and the build in 140 and 95 columns, giving up counts first', async ($, on) => {
+test('the bar shows as many counts as fit at any width, dropping from the end, and keeps "1 of 20 · N new" and the build', async ($, on) => {
   const s = answerSession(on)
   on('ui.log', () => ({ value: undefined }))
   on('ui.toast', () => ({ value: undefined }))
@@ -1590,7 +1590,11 @@ test('the bar keeps "1 of 20 · N new" and the build in 140 and 95 columns, givi
   })
   for (const [columns, onQuestion, onSummary] of [
     [140, '1 of 20 · 3 new · 18 unanswered · 2 done for you', '3 new · 18 unanswered · 2 done for you'],
-    [95, '1 of 20 · 3 new', '3 new'],
+    [110, '1 of 20 · 3 new · 18 unanswered', '3 new · 18 unanswered · 2 done for you'],
+    [104, '1 of 20 · 3 new · 18 unanswered', '3 new · 18 unanswered · 2 done for you'],
+    [95, '1 of 20 · 3 new · 18 unanswered', '3 new · 18 unanswered'],
+    [85, '1 of 20 · 3 new', '3 new · 18 unanswered'],
+    [75, '1 of 20 · 3 new', '3 new'],
   ] as const) {
     for (const [press, expected] of [
       [undefined, onQuestion],
