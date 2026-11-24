@@ -1,26 +1,26 @@
-                                                    ╭─────────────────────────────────────────╮
- ▐▛███▛█   Claude Code v2.1.331                     │ answer-mod                              │
-▝▜██████▀  Opus 5.5 · Claude Ultra                  │ New question: Dev Patel asks on Linear  │
- ▝▝   ▝▝   ~/shared-skills                          │ (ENG-442)                               │
-                                                    ╰─────────────────────────────────────────╯
-⚠ Code Mode (experimental) is off for this session,╭──────────────────────────────────────────╮
-  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shel│ answer-mod                               │
-                                                   │ New question: Priya Nair asks on GitHub  │
-❯ /answer                                          │ (adamstallard/igor #224)                 │
-  ⎿  answer-mod: Answer session open: type in the p╰──────────────────────────────────────────╯
-     handled for you: see the summary.               ╭────────────────────────────────────────╮
-                                                     │ answer-mod                             │
-                                                     │ New question: Igor (reviewer) asks on  │
-                                                     │ Discord (#igor-dev)                    │
+                                                     ╭────────────────────────────────────────╮
+ ▐▛███▛█   Claude Code v2.1.331                      │ answer-mod                             │
+▝▜██████▀  Opus 5.5 · Claude Ultra                   │ New question: Igor (reviewer) asks on  │
+ ▝▝   ▝▝   ~/shared-skills                           │ Discord (#igor-dev)                    │
                                                      ╰────────────────────────────────────────╯
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove
+  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shell or settings.json.
+
+❯ /answer
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1
+     handled for you: see the summary.
+
+
+
+
 
 
 
 
 
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 new             v0.2-2
-18 questions still new
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  3 new             v0.2-5
+18 questions still unanswered
 0 of 20 relayed this session · 1 answered for you · 1 handled for you
 
 ◎ jlee           adamstallard/igor #216  │ Recorded answer: See decision 10 in #216: the …
@@ -37,4 +37,4 @@ Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ 
 ─────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 44% ⇣ Sat 1a

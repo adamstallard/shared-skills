@@ -171,7 +171,7 @@ test('putting one off for later and relaying the rest ends on the summary', asyn
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await s.enter($, 'l')).toContain('comes back after the new ones')
+  expect(await s.enter($, 'l')).toContain('comes back after the unanswered ones')
   // The rest in queue order: a person's gets words, an agent's its first
   // option. jlee's was answered for Adam and the last handled for him: the
   // queue passes them by.
@@ -195,7 +195,7 @@ test('putting one off for later and relaying the rest ends on the summary', asyn
   expect(await s.enter($, '2')).toContain('Relayed')
   expect(await s.enter($, '1')).toContain("Logged your answer on adamstallard/lore's questions branch")
   await ui.redraw()
-  expect(await shown(ui, /Nothing new\. 1 for later\./)).toBeDefined()
+  expect(await shown(ui, /None unanswered\. 1 for later\./)).toBeDefined()
   await s.enter($, 'r')
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
@@ -379,7 +379,7 @@ test('a click on a dot opens that question; on summary, the summary; a summary r
   expect(await s.enter($, '2')).toContain('Relayed to Discord')
   await ui.press({ key: 'dot:summary' })
   await ui.redraw()
-  expect(await shown(ui, /14 questions still new/)).toBeDefined()
+  expect(await shown(ui, /14 questions still unanswered/)).toBeDefined()
   await ui.press({ key: 'sum:lore-backoff' })
   await ui.redraw()
   expect(await shown(ui, /RELAYED ON DISCORD AS/)).toBeDefined()
@@ -1111,7 +1111,7 @@ test("nothing posts or reaches the model without Enter, but the session's own tw
   expect(await shown(ui, /│ Recorded answer: See decision 10 in #216/)).toBeDefined()
   expect(await shown(ui, /│ Inquisitor: Filter 4 \(cheap to reverse\)/)).toBeDefined()
   expect(await shown(ui, /User says:/)).toBeUndefined()
-  expect(await shown(ui, /15 questions still new/)).toBeDefined()
+  expect(await shown(ui, /15 questions still unanswered/)).toBeDefined()
   expect(s.sent).toEqual([])
   await ui.unmount()
 })
@@ -1422,6 +1422,11 @@ async function isMarked(ui: Pick<Drawn, 'find'>, i: number): Promise<boolean> {
   return JSON.stringify(dot?.children ?? []).includes('▣')
 }
 
+/** The bar's tally, as it reads: where this is, "N new" and the counts. */
+async function tally(ui: Pick<Drawn, 'find'>): Promise<string | undefined> {
+  return ((await ui.find({ key: 'tally' })) as { text?: string } | undefined)?.text
+}
+
 /** The bar's "N new", or undefined when nothing is marked. */
 async function newLabel(ui: Pick<Drawn, 'find'>): Promise<string | undefined> {
   return ((await ui.find({ key: 'dot:new' })) as { text?: string } | undefined)?.text
@@ -1466,8 +1471,8 @@ test('questions arriving while the session is open chime once a poll, toast each
   expect(await isMarked(ui, 17)).toBe(true)
   expect(await isMarked(ui, 18)).toBe(true)
   expect(await newLabel(ui)).toBe('2 new')
-  // "2 new" stands for them: the count of every question still new waits.
-  expect(await shown(ui, /^1 of 19 · 0 relayed · 0 for later · 2 done for you$/)).toBeDefined()
+  // "2 new" follows where this is; "unanswered" counts them too; zero counts are left out.
+  expect(await tally(ui)).toBe('1 of 19 · 2 new · 17 unanswered · 2 done for you')
   expect(await shown(ui, /2 new questions, from Dev Patel and Priya Nair: dots 18–19/)).toBeDefined()
   // The next poll finds one more.
   await s.clock.advance(30_000)
@@ -1499,11 +1504,11 @@ test('questions arriving while the session is open chime once a poll, toast each
   await ui.press({ key: 'dot:19' })
   await ui.redraw()
   expect(await newLabel(ui)).toBeUndefined()
-  expect(await shown(ui, /^20 of 20 · 18 new · 0 relayed/)).toBeDefined()
+  expect(await tally(ui)).toBe('20 of 20 · 18 unanswered · 2 done for you')
   await ui.unmount()
 })
 
-test('the bar keeps "N new" and the build in 140 and 95 columns, giving up counts first', async ($, on) => {
+test('the bar keeps "1 of 20 · N new" and the build in 140 and 95 columns, giving up counts first', async ($, on) => {
   const s = answerSession(on)
   on('ui.log', () => ({ value: undefined }))
   on('ui.toast', () => ({ value: undefined }))
@@ -1515,10 +1520,9 @@ test('the bar keeps "N new" and the build in 140 and 95 columns, giving up count
     viewport: { columns, rows: 40, isFullscreen: true },
     surface: 'terminal' as const,
   })
-  const where = async (ui: Pick<Drawn, 'find'>) => ((await ui.find({ type: 'Text', text: /^(\d+ of \d+( · |$)|\d+ relayed · )/ })) as { text?: string } | undefined)?.text
   for (const [columns, onQuestion, onSummary] of [
-    [140, '1 of 20 · 0 relayed · 0 for later · 2 done for you', '0 relayed · 0 for later · 2 done for you'],
-    [95, '1 of 20', undefined],
+    [140, '1 of 20 · 3 new · 18 unanswered · 2 done for you', '3 new · 18 unanswered · 2 done for you'],
+    [95, '1 of 20 · 3 new', '3 new'],
   ] as const) {
     for (const [press, expected] of [
       [undefined, onQuestion],
@@ -1529,7 +1533,7 @@ test('the bar keeps "N new" and the build in 140 and 95 columns, giving up count
       await band.redraw()
       expect(await newLabel(band)).toBe('3 new')
       expect(await shown(band, /^v0\.2-/)).toBeDefined()
-      expect(await where(band)).toBe(expected)
+      expect(await tally(band)).toBe(expected)
       if (press) await band.press({ key: 'dot:0' })
       await band.unmount()
     }
@@ -1555,7 +1559,7 @@ test('a question arriving while the session is closed joins the queue without an
   // Nothing alerted, so nothing is marked.
   expect(await newLabel(ui)).toBeUndefined()
   expect(await isMarked(ui, 17)).toBe(false)
-  expect(await shown(ui, /16 questions still new|questions still new/)).toBeDefined()
+  expect(await shown(ui, /questions still unanswered/)).toBeDefined()
   expect(await ui.find({ key: 'sum:igor-216-scope' })).toBeUndefined()
   await ui.unmount()
 })

@@ -8,18 +8,18 @@
                                                    │ New question: Priya Nair asks on GitHub  │
 ❯ /answer                                          │ (adamstallard/igor #224)                 │
   ⎿  answer-mod: Answer session open: type in the p╰──────────────────────────────────────────╯
-     handled for you: see the summary.
-
-
-
-
+     handled for you: see the summary.               ╭────────────────────────────────────────╮
+                                                     │ answer-mod                             │
+                                                     │ New question: Igor (reviewer) asks on  │
+                                                     │ Discord (#igor-dev)                    │
+                                                     ╰────────────────────────────────────────╯
 
 
 
 
 
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 new  1 of 19      v0.2-2
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ▣ ▣ ▣  summary  1 of 20 · 3 new   v0.2-5
 GitHub  adamstallard/igor #216  12m ago · no replies
 claude asks, an agent via the inquisitor
 
@@ -32,9 +32,9 @@ The scope filter covers lore entries only. Question files on the lore repository
      → A worker never sees another project's questions.
   2: No, show them as input
      → Workers may read other projects' questions.
-1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater  ✓ 2 new q…  (b)ack  (n)ext  (q)uit
+1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater  ✓ New que…  (b)ack  (n)ext  (q)uit
 
 ─────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 43% ⇣ …
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 44% ⇣ …

@@ -651,7 +651,7 @@ const ACCENT = 'suggestion'
 const DONE = 'success'
 const LATER = 'warning'
 const RULE = 'subtle'
-/** Each state's dot, in the bar and the summary: ○ new, ◉ on screen and ◇ in a conversation are drawn beside these. */
+/** Each state's dot, in the bar and the summary: ○ unanswered, ◉ on screen and ◇ in a conversation are drawn beside these. */
 const GLYPH: Record<Answer['kind'], string> = { answer: '●', defer: '◐', wait: '◌', wont: '⊘', recorded: '◎', handled: '◈' }
 /** A recorded answer Adam chose to relay is his relay: ●. */
 const glyphOf = (a: Answer) => (a.kind === 'recorded' && a.chosen ? GLYPH.answer : GLYPH[a.kind])
@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-4'
+const BUILD = 'v0.2-5'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -1115,7 +1115,7 @@ type Ctx = {
   /** The question as it now stands (rephrased, revised, or as asked). */
   q?: Question
   answer?: Answer
-  /** It can be answered: new, for later, or handled for Adam (he can still answer it himself). */
+  /** It can be answered: unanswered, for later, or handled for Adam (he can still answer it himself). */
   open: boolean
   /** It has a post in its thread: relayed, waiting for the asker, or answered or handled for Adam. */
   posted: boolean
@@ -1314,7 +1314,7 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
     case 'r':
       return reopen($, q)
     case 'l':
-      return settle($, q, { kind: 'defer', text: '' }, `Later: ${q.asker.name}'s question comes back after the new ones`)
+      return settle($, q, { kind: 'defer', text: '' }, `Later: ${q.asker.name}'s question comes back after the unanswered ones`)
     case 'e':
       return startEdit($, q, c.answer?.text ?? '', c.answer?.kind !== 'recorded' && c.answer?.kind !== 'handled')
     case 'k':
@@ -1416,7 +1416,7 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
       if (it.command.key === 'a' && q?.record) return q.branch ? '⏎ log the recorded answer on the questions branch; nothing posts' : `⏎ post the recorded answer on ${surface}`
       if (it.command.key === 'p' && c.declining?.stage === 'post') return `⏎ post on ${surface} for the inquisitor, with no note`
       if (it.command.key === 'w') return "⏎ choose why you won't answer"
-      return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
+      return it.command.key === 'l' ? '⏎ ask me later, after the unanswered ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
     case 'say':
       return '⏎ to Claude, with the question'
     case 'ask':
@@ -1802,7 +1802,7 @@ async function quitSession($: EngineInterface): Promise<string> {
   return 'Answer session closed. Leaving Claude Code.'
 }
 
-/** Records what was done with a question and moves to the next new one. */
+/** Records what was done with a question and moves to the next unanswered one. */
 async function settle($: EngineInterface, one: Question, answer: Answer, note: string): Promise<string> {
   let after: Record<string, Answer> = {}
   await update($, answersAtom, a => (after = { ...a, [one.id]: answer }))
@@ -1929,7 +1929,7 @@ async function answerForInquisitor($: EngineInterface, one: Question, d: Extract
   )
 }
 
-/** Reopens a won't-answer: the question is open again, as if new. */
+/** Reopens a won't-answer: the question is open again, unanswered. */
 async function reopen($: EngineInterface, one: Question): Promise<string> {
   let was: Answer | undefined
   await update($, answersAtom, a => {
@@ -2636,15 +2636,6 @@ export const register: Register = on => {
         </Button>
       )
     })
-    // A click on "N new" opens the first of them.
-    const newLabel = markedAt.length ? `${markedAt.length} new` : ''
-    const toNew = newLabel ? (
-      <Button key="dot:new" plain onPress={() => run(goTo($, markedAt[0]!))}>
-        <Text color={ACCENT} bold>
-          {newLabel}
-        </Text>
-      </Button>
-    ) : null
     const toSummary = (
       <Button key="dot:summary" plain onPress={() => run(goTo($, N))}>
         <Text color={at === N ? ACCENT : undefined} bold={at === N} dimColor={at !== N}>
@@ -2652,47 +2643,68 @@ export const register: Register = on => {
         </Text>
       </Button>
     )
-    // Narrower than 120 columns only the counts that are not zero, so the bar keeps its build at the right.
-    // While new questions are marked, "N new" stands for them: the count of
-    // every question still new would read as the same thing, so it waits.
-    const counts = (all: boolean) =>
-      (
-        [
-          [markedAt.length ? 0 : fresh, 'new', !markedAt.length],
-          [relayed, 'relayed', all],
-          [deferred, 'for later', all],
-          [waiting, 'waiting', false],
-          [wont, "won't answer", false],
-          [recorded + handledCount, 'done for you', false],
-          [mine, 'for the inquisitor', false],
-        ] as const
-      )
-        .filter(([n, , always]) => n > 0 || always)
-        .map(([n, words]) => `${n} ${words}`)
-        .join(' · ')
+    // The tally: where this is, then the new questions still marked ("N new",
+    // just arrived; a click opens the first), then each count above zero.
+    // "Unanswered" counts every question with nothing done to it, the new ones too.
+    const newLabel = markedAt.length ? `${markedAt.length} new` : ''
+    const counts = (
+      [
+        [fresh, 'unanswered'],
+        [relayed, 'relayed'],
+        [deferred, 'for later'],
+        [waiting, 'waiting'],
+        [wont, "won't answer"],
+        [recorded + handledCount, 'done for you'],
+        [mine, 'for the inquisitor'],
+      ] as const
+    )
+      .filter(([n]) => n > 0)
+      .map(([n, words]) => `${n} ${words}`)
     const pos = base ? [`${at + 1} of ${N}`] : []
     // The longest of these that leaves the build room at the right: every
-    // count, then only those above zero, then where this is alone (the
-    // summary's own first rows hold the counts).
+    // count, then only where this is and "N new" (on the summary, its own
+    // first rows hold the counts). Narrower than 120 columns, a question
+    // shows only where it is and "N new".
+    const kept = [...pos, newLabel]
     const wheres = isTalking
-      ? [[...pos, ...(cols >= 120 ? ['talking to Claude'] : [])], pos]
+      ? [[...kept, ...(cols >= 120 ? ['talking to Claude'] : [])], kept]
       : cols >= 120 || !base
-        ? [[...pos, counts(cols >= 120)], [...pos, counts(false)], pos]
-        : [pos]
-    const fixed = 'Answer session'.length + 2 + (2 * N - 1) + 2 + 'summary'.length + (newLabel ? 2 + newLabel.length : 0)
+        ? [[...kept, ...counts], kept]
+        : [kept]
+    const fixed = 'Answer session'.length + 2 + (2 * N - 1) + 2 + 'summary'.length
     const room = cols - fixed - 2 - BUILD.length
-    const where =
-      wheres
-        .map(parts => parts.filter(Boolean).join(' · '))
-        .find(text => !text || 2 + text.length <= room) ?? pos.join('')
+    const parts =
+      wheres.map(ps => ps.filter(Boolean)).find(ps => !ps.length || 2 + ps.join(' · ').length <= room) ?? kept.filter(Boolean)
+    const where = parts.join(' · ')
+    const tally = where ? (
+      <Box key="tally">
+        {parts.map((part, i) => {
+          const sep = i ? ' · ' : ''
+          return part === newLabel ? (
+            <Box key="new">
+              {sep ? <Text dimColor>{sep}</Text> : null}
+              <Button key="dot:new" plain onPress={() => run(goTo($, markedAt[0]!))}>
+                <Text color={ACCENT} bold>
+                  {newLabel}
+                </Text>
+              </Button>
+            </Box>
+          ) : (
+            <Text key={part} dimColor>
+              {sep}
+              {part}
+            </Text>
+          )
+        })}
+      </Box>
+    ) : null
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
           <Text bold>Answer session</Text>
           <Box gap={1}>{dots}</Box>
           {toSummary}
-          {toNew}
-          {where ? <Text dimColor>{where}</Text> : null}
+          {tally}
         </Box>
         <Text dimColor wrap="truncate-end">
           {BUILD}
@@ -2819,11 +2831,11 @@ export const register: Register = on => {
       const settled = fresh === 0 && deferred === 0 && waiting === 0
       const head =
         fresh > 0
-          ? `${fresh} question${fresh === 1 ? '' : 's'} still new`
+          ? `${fresh} question${fresh === 1 ? '' : 's'} still unanswered`
           : deferred > 0
-            ? `Nothing new. ${deferred} for later.`
+            ? `None unanswered. ${deferred} for later.`
             : waiting > 0
-              ? `Nothing new. ${waiting} waiting for a reply.`
+              ? `None unanswered. ${waiting} waiting for a reply.`
               : 'All caught up.'
       // Each handled question, in queue order; a click opens it.
       const handled = queue.map((one, i) => ({ one, i, a: answers[one.id] })).filter(x => x.a)
