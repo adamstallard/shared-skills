@@ -1060,10 +1060,9 @@ Each bullet, or where it says nothing more its task in tasks.md, says
 what the spec does if the fact is false. Task 0.11 has
 no bullet, since it is partly measured: it asks whether GitHub's API gives a comment's or
 review's text and author, which *The log command takes answered_by from the
-linked comment* relies on. Of these, only an issue comment's author is
-measured, and tasks.md records how. If GitHub gives no author for a review
-or a review comment, that requirement needs another source for
-`answered_by` before it is built. The spec names none, since GitHub
+linked comment* relies on. tasks.md records what is measured and what
+follows if a review or review comment has no author. The spec names no
+other source, since GitHub
 documents the same `author` field for both (the inquisitor record's
 *Rationale: The log command records a linked GitHub comment's own text*).
 
@@ -1130,49 +1129,8 @@ task 0.21, which tasks.md's task 0.21 lists, are built as stated once it
 shows which App wrote a comment; if it cannot, the repository's owner
 decides what to build for them.**
 
-- **Do Linear and Discord return a posted line's words unchanged?** (task
-  0.28) The answer session finds a person-required line and a concerns line
-  by their fixed wording after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
-  session matches the form task 0.28 records instead. Task 0.28 is still to
-  run, on both surfaces: task 0.23 measured a Linear comment's text, not
-  this line, and `openspec/specs/answer-session/decisions.md` gives its
-  result under *Rationale: A question with a person-required line gets no
-  filter 2 to 4 reply*.
-- **How does Claude Code restrict a session's tools?** (task 0.34) The
-  answer session needs its session's model limited to its conversation,
-  `propose_reply`, `record_verdict` and Read, Grep and Glob, enforced by
-  Claude Code through permission settings, a startup option such as `--allowedTools`, or a
-  mod's own control, never by a hook. If Claude Code offers no such
-  control, the design falls back to hooks and the change cannot be built as
-  written: the repository's owner decides what to build. *The session's
-  model has no shell, no writing tool and no web fetch* and the `answer`
-  command's line in *Setup installs the answer command* wait on task
-  0.34.
-- **Does the `answer` command's line work?** (task 0.30) It relies on
-  `CLAUDE_CODE_NO_FLICKER=1` giving the fullscreen layout, on `claude
-  --name`, and on a prompt argument running a slash command. If one fails,
-  the command line in the answer-session spec's *Setup installs the answer
-  command* is changed to what the measurement shows works, before the
-  command is built.
-- **Does a GitHub comment's `node_id` identify it wherever it is read?**
-  (task 0.31) A miss file backing a GitHub reply is named by the reply's
-  `node_id`, which the session takes from its post's response and the
-  asking agent from the comment it reads. If GitHub's REST or GraphQL API
-  lacks it, a kind of comment has none, or an edit changes it, the GitHub id
-  that names a miss file is changed, before miss files are named on GitHub,
-  to one the measurement shows works.
-- **What marks an Igor's handback?** (tasks 0.6 and 0.38) igor PR #216
-  has not yet given the form of the marker on igor's handback comments;
-  task 0.6 records it once #216 does. Task 0.38 finds what tells an Igor's
-  Linear app user from every other Linear app user, as the `igor-` slug
-  prefix tells an Igor's App on GitHub; if nothing does, no Linear comment
-  is a handback. *A handback is an Igor's comment holding igor's marker*
-  waits on task 0.6 on both surfaces, on task 0.21 on GitHub, since the
-  prefix needs the comment's App (next bullet), and on task 0.38 on
-  Linear.
-- **Which App wrote a comment** is measured by both task 0.21 here and igor PR
-  #216's task 4.8. The rules that need it wait on task 0.21, which lists
-  them.
+igor PR #216's task 4.8 measures the same fact as task 0.21: which App
+wrote a comment.
 
 ### Outside this change
 

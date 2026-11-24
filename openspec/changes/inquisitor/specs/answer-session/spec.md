@@ -799,9 +799,9 @@ when unanswered:
 
 1. a message in a subscribed channel that reaches the person by *Whom a
    message reaches is set by its mentions*;
-2. a person's message there mentioning a relay identity of theirs, or
-   replying to a relay post;
-3. a review request to them there, or an issue there assigned to them;
+2. a person's message there that mentions the person's relay identity,
+   or replies to one of its posts;
+3. a review request or issue assignment to them there;
 4. a log file tagging the person on a subscribed or lore repository's
    questions branch, which no handled file names.
 
@@ -1041,9 +1041,10 @@ them, and never shows them again, even once the newest is answered.
 
 An issue or pull request shown to the person through a question in its
 description or newest handback SHALL never also be shown for a review
-request on it or its assignment. A request or assignment that GitHub or
-Linear dates after the last of those questions was answered or closed
-SHALL be shown in its own right, as an item question.
+request on it or its assignment. A request or assignment dated after
+the last of those questions was answered or closed SHALL be shown in its
+own right, as an item question; task 0.16 says how a Linear assignment
+is dated.
 Only a relay post naming the item, made after the request and holding no
 `question <n>: `, SHALL answer it.
 
@@ -1764,13 +1765,13 @@ that copy on a machine where it is still open still pushes a log file.
 
 ### Requirement: The thread is read again before a question is shown and before a post
 
-When a question comes on screen and its channel's last poll is more than
+When a question comes on screen and its channel's last poll is over
 about a minute old, the answer session SHALL fetch and show every reply in
-its thread since the question; only a relay post naming it changes its
-state. Before each relay post it SHALL fetch the thread again, and post
-nothing when it holds a relay post that answers or handles the question,
+its thread since the question. Before each relay post it SHALL fetch the thread again and post
+nothing if it holds a relay post that answers or handles the question,
 showing it in that state, or a reply the person has not seen, showing
-that reply and keeping a held-back answer pending.
+that reply; a held-back automatic post then leaves its question
+unanswered.
 
 #### Scenario: Replies since the question are shown
 
@@ -1790,13 +1791,16 @@ that reply and keeping a held-back answer pending.
 - **WHEN** the person relays an answer after the asker has replied in the
   thread since the question was shown
 - **THEN** nothing is posted, and the asker's reply is shown
+- **AND** had the session been about to post an automatic reply, nothing
+  is posted, and the question is shown as unanswered with that reply
 
 ### Requirement: An automatic post is deleted when another relay post came first
 
 After each automatic post, the answer session SHALL fetch the thread once
 more. It SHALL delete its own post when another of the person's relay
-posts answering or handling the question was posted before it, or has the same creation time as the surface reports it and an id smaller
-in byte order. It then shows the question as the earlier post leaves it.
+posts naming the question was posted before it, or at the same time, as
+the surface reports times, with an id that sorts before its own byte by
+byte. It then shows the question as the earlier post leaves it.
 Deleting takes back no push made or owed for the deleted post, such as
 its miss file. If the fetch or the delete fails, both posts stay.
 
@@ -1809,8 +1813,9 @@ its miss file. If the fetch or the delete fails, both posts stay.
   the first reply and deletes its own, and its miss file stays
 - **AND** had both replies carried the same time, the one whose id is
   larger in byte order would be deleted
-- **AND** had the first been the person's `User says: ` answer, relayed
-  from the other machine, the reply would be deleted the same way
+- **AND** had the first been the person's `User says: ` answer or
+  `User asks: ` question, relayed from the other machine, the second
+  session's reply would be deleted the same way
 
 #### Scenario: Another person's automatic answer deletes nothing
 
@@ -2182,13 +2187,12 @@ every line break made a space.
 ### Requirement: An answer is recorded by a new log file
 
 The answer session SHALL write a log file, besides handled files, only
-for an answer the person confirmed or edited. The session's `log` command
-SHALL push a log file to each questions branch where an unanswered file
-holds the question, listing those files in its `answers` as the
-inquisitor's *An answer file names every unanswered file it answers*
-sets, or, with no such file, to
-the questions branch of what the question concerns, with the
-`repository` and `asked_from` a miss would have.
+for an answer the person confirmed or edited. Except for an item
+question, which gets none, the session's `log` command SHALL push a log
+file to each questions branch where an unanswered file holds the
+question, listing those files in the log file's `answers`, or, with no such file, to the
+questions branch of what the question concerns, with the `repository`
+and `asked_from` a miss would have.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2682,7 +2686,8 @@ question the answer session SHALL log a
 miss against the picked filter. The miss's `said` is the note or, with
 none, `the inquisitor should have handled it`. It SHALL push the miss
 only once the decline's post is out or, when it posts nothing, once the
-person confirms it. On GitHub, it logs no such miss before task 0.21 is measured.
+person confirms it. In a GitHub thread, it logs none until task 0.21
+tells an agent's question from a person's.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2763,8 +2768,7 @@ that is only input stops nothing.
 
 ### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
 
-Filter 1 reads files only from the answer session's clones, through
-`search`. The session SHALL fetch a subscribed repository's default
+The session SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
 `other` SHALL go unsearched, and the session SHALL say so, because a

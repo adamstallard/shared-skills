@@ -3016,16 +3016,19 @@ the comment.
 With its session option, which only an answer session passes, the `log`
 command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
-record as `answered_by` the comment's author as GitHub returns it,
-ignoring any login the agent passed, which a crafted thread can steer.
-Once task 0.21 shows how GitHub marks a bot's comment, it SHALL write
-`authority: input` for a bot author; until then that clause is not built.
+record as `answered_by` the comment's author login, followed by `[bot]`
+when GitHub types the author as a `Bot`, ignoring any login the agent
+passed, which a crafted thread can steer. Once task 0.21 tells a bot's
+comment, it SHALL also write `authority: input` for a bot author.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
 - **WHEN** the `log` command is given `answered_by: alice` and an
   `answer_link` to a comment `mallory` wrote
 - **THEN** the file names `mallory` as `answered_by`
+- **AND** given an `answer_link` to a comment the App `x` wrote, the file
+  names `x[bot]`, which fails GitHub's login syntax, so filter 1 shows
+  the answer as input
 - **AND** once task 0.21 is measured, given `authority: decision` and an
   `answer_link` to a comment `igor-x[bot]` wrote, it writes
   `authority: input`

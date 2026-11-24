@@ -38,7 +38,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
       marker on igor's handback comments on GitHub and on Linear, a marker that no text the
       Igor quotes from its item can produce, by which the answer session
-      tells a handback from the Igor's other comments
+      tells a handback from the Igor's other comments. On GitHub and on
+      Linear, *A handback is an Igor's comment holding igor's marker*
+      waits on it
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
@@ -55,7 +57,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 0.11 GitHub's API gives a comment's or review's text and author
       (inquisitor spec: *The log command takes answered_by from the linked
       comment*). Measured 2026-11-04 for an issue comment's author only: GraphQL's
-      `IssueComment` has `author { login }`. Not measured: a review and a
+      `IssueComment` has `author { login }`. Measured 2026-11-23 for an
+      App's issue comment: GraphQL gives `author { __typename: "Bot",
+      login: "<slug>" }`, without `[bot]`, and REST's `user.login` gives
+      `<slug>[bot]`; task 0.21 still checks that no account can take on
+      that form. If a review or review comment has no author, that
+      requirement needs another source for `answered_by` before it is
+      built. Not measured: a review and a
       review comment, for which GitHub documents the same `author` through
       GraphQL's `Comment` interface
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone

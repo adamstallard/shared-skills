@@ -91,6 +91,10 @@
   Evidence: GitHub's GraphQL reference documents `body` and `author` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
   Evidence: task 0.11's measurement on 2026-11-04, which found an issue comment's author in GraphQL's `IssueComment` as `author { login }`, [tasks.md](../../changes/inquisitor/tasks.md)
 
+- **Rationale: The log command takes answered_by from the linked comment.**
+  The command adds `[bot]` to a bot author's login so that, before task 0.21 tells a bot's comment, a bot's answer counts only as input: a login holding `[bot]` fails the login syntax check of *A candidate or login that cannot be checked is skipped*, which shows the answer as input, while the bare slug GraphQL gives would pass as a person's login.
+  Evidence: a measurement on 2026-11-23 of an App's issue comment, which GraphQL gave as `author { __typename: "Bot", login: "<slug>" }` and REST as `user.login` `<slug>[bot]`, recorded under task 0.11 in [tasks.md](../../changes/inquisitor/tasks.md)
+
 - **Rationale: A lore decision record counts.**
   igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
   Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202
@@ -123,5 +127,5 @@
   Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
 - **Rationale: An Inquisitor reply is acted on only with its miss file.**
-  The reply itself counts for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide for itself a question a maintainer should decide; only a writer, an account with write access, can push to a questions branch. A miss file that is not hash-only must also name a `said_by`. The Igor is a writer, but it pushes the files of its worker's and its own inquisitor runs, which item text anyone can write may steer; this spec has it push none of those holding `said_by` (*A file an Igor pushes names where it was asked from*), so none of them backs a reply.
+  The reply itself counts for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide for itself a question a maintainer should decide; only a writer, an account with write access, can push to a questions branch. A miss file backs a reply only when it is hash-only or names a `said_by`. The Igor is a writer, but it pushes the files of its worker's and its own inquisitor runs, runs that item text anyone can write may steer; this spec has it push neither kind (*A file an Igor pushes names where it was asked from*), so none of its files backs a reply.
   Evidence: GitHub's repository roles give the push permission only from the Write role up, while the Read role can comment on issues and pull requests, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization
