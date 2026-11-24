@@ -1,0 +1,40 @@
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to
+     leave. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Question 2 of 17
+
+⏺ Prompt dropped by a hook: Question 3 of 17
+
+⏺ Prompt dropped by a hook: Question 4 of 17
+
+⏺ Prompt dropped by a hook: Question 5 of 17
+
+⏺ Prompt dropped by a hook: Question 6 of 17
+
+⏺ Prompt dropped by a hook: Question 7 of 17
+
+⏺ Prompt dropped by a hook: Question 8 of 17
+
+⏺ Prompt dropped by a hook: Question 9 of 17
+
+⏺ Prompt dropped by a hook: Question 10 of 17
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+○ ○ ○ ○ ◎ ○ ○ ○ ◈ ◉ ○ ○ ○ ○ ○ ○ ○  summary  10 of 17                                v0.2-8
+GitHub  adamstallard/igor #220  25m ago · 1 reply
+claude asks, an agent via the inquisitor
+
+Should a worker retry a failed lore push itself, or leave the citation to the next run?
+
+A push fails about once a day, when another worker pushed first.
+↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all
+Priya Shah: We settled this in #198: retry once after a rebase, then give up and log it. …
+  1: Retry once after a rebase  ★ recommended
+     → The citation lands in the same run; one more push per failure.
+  2: Leave it to the next run
+     → No retry code; the citation lands a run late.
+1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater  (v)iew all          (b)ack  (n)ext
+
+─────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 44% ⇣ …

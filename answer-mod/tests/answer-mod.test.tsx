@@ -301,7 +301,7 @@ test('Enter refuses what the screen cannot take, and sends nothing', async ($, o
 /** Whether the band shows the answer session now. */
 async function isShown($: Engine): Promise<boolean> {
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  const found = await shown(ui, /^Answer session$/)
+  const found = await shown(ui, /^summary$/)
   await ui.unmount()
   return found !== undefined
 }
@@ -459,7 +459,7 @@ test('a survey takes the band, and Enter answers nothing while it is up', async 
   const s = answerSession(on)
   await s.open($)
   const survey = await $.ui.mount({ ...BAND, props: { ...BAND.props, hasSurvey: true }, surface: 'terminal' })
-  expect(await shown(survey, /^Answer session$/)).toBeUndefined()
+  expect(await shown(survey, /^summary$/)).toBeUndefined()
   expect(await s.enter($, '1')).toContain('A survey is above the prompt')
   await survey.unmount()
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -1176,6 +1176,8 @@ test('many replies are trimmed to fit, and (v)iew all shows every one in full', 
   await short.redraw()
   expect(await shown(short, /4 REPLIES SINCE IT WAS ASKED/)).toBeDefined()
   expect(await shown(short, /Finance is the main user/)).toBeUndefined()
+  // Replies cut short: the key row offers (v)iew all.
+  expect(await short.find({ key: 'cmd:v' })).toBeDefined()
   await short.unmount()
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await ui.press({ key: 'view' })
@@ -1188,6 +1190,45 @@ test('many replies are trimmed to fit, and (v)iew all shows every one in full', 
   expect(await s.enter($, 'b')).toBe('Back to the question')
   expect(await s.enter($, 'CSV by default, Parquet behind a flag.')).toContain('Relayed to Linear')
   expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test('the key row offers (v)iew all only while a reply or record is cut short on screen', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // Ben's one short reply, whole beside the choices: (v)iew all stays beside it, out of the key row.
+  await ui.press({ key: 'dot:13' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await shown(ui, /Bumping this/)).toBeDefined()
+  expect(await ui.find({ key: 'view' })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:v' })).toBeUndefined()
+  await ui.unmount()
+  // At 90 × 24 the same reply is cut to a line: the key row offers (v)iew all.
+  const short = await $.ui.mount({
+    ...BAND,
+    props: { ...BAND.props, maxRows: 7, bodyColumns: 85, scroll: { offset: 0, bodyRows: 6 } },
+    viewport: { columns: 90, rows: 24, isFullscreen: true },
+    surface: 'terminal',
+  })
+  expect(await short.find({ key: 'cmd:v' })).toBeDefined()
+  await short.unmount()
+  // A question with no replies and no record has nothing to view.
+  const none = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await none.press({ key: 'dot:0' })
+  await none.redraw()
+  expect(await none.find({ key: 'cmd:v' })).toBeUndefined()
+  await none.unmount()
+})
+
+test('the bar starts with the dots: no title, the room going to the tally', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /^Answer session$/)).toBeUndefined()
+  expect(await ui.find({ key: 'dot:0' })).toBeDefined()
+  expect(await shown(ui, /^ · 2 done for you$/)).toBeDefined()
   await ui.unmount()
 })
 

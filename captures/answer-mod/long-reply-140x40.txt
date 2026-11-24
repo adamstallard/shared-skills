@@ -1,4 +1,12 @@
 
+⏺ Prompt dropped by a hook: Question 4 of 17
+
+⏺ Prompt dropped by a hook: Question 5 of 17
+
+⏺ Prompt dropped by a hook: Question 6 of 17
+
+⏺ Prompt dropped by a hook: Question 7 of 17
+
 ⏺ Prompt dropped by a hook: Question 8 of 17
 
 ⏺ Prompt dropped by a hook: Question 9 of 17
@@ -10,16 +18,8 @@
 ⏺ Prompt dropped by a hook: Question 12 of 17
 
 ⏺ Prompt dropped by a hook: Question 13 of 17
-
-⏺ Prompt dropped by a hook: Question 14 of 17
-
-⏺ Prompt dropped by a hook: Question 11 of 17
-
-⏺ Prompt dropped by a hook: Question 12 of 17
-
-⏺ Prompt dropped by a hook: Question 13 of 17
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ◉ ● ○ ○ ○  summary  13 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you         v0.2-2
+○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ◉ ○ ○ ○ ○  summary  13 of 17 · 15 unanswered · 2 done for you                                            v0.2-8
 GitHub  adamstallard/shared-skills #31  1h ago · 1 reply       │ ↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all
 jlee asks                                                      │ Priya Shah · 15m ago
                                                                │ │ Yes, and I think it matters more for reverts than for anything else.
@@ -32,9 +32,9 @@ revert too?                                                    │ │ went in, 
                                                                │
                                                                │   Reply to jlee: type it in the prompt box
                                                                │
-(h)elp me answer   (w)on't answer   (l)ater                                                                    (b)ack   (n)ext   (q)uit
+(h)elp me answer   (w)on't answer   (l)ater   (v)iew all                                                                (b)ack   (n)ext
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 44% ⇣ Sat 1a

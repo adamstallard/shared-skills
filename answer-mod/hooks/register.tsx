@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-7'
+const BUILD = 'v0.2-8'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -1191,7 +1191,7 @@ type Command = {
   key: string
   what: string
   posts?: true
-  /** Not in the key row: its button sits beside what it opens. */
+  /** Not in the key row: its button sits beside what it opens (the band lists it anyway while what it opens is cut short). */
   aside?: true
   /** Not in the key row at all, to save its room: typed only. */
   unlisted?: true
@@ -2528,6 +2528,15 @@ export const register: Register = on => {
     // counts what it draws. `take` keeps a view's first rows, shrinking a
     // block it cuts through to the rows it keeps.
     const heads = new WeakMap<object, { k: number; inner: Row }>()
+    // Rows that show less than (v)iew all would: a reply or record cut short
+    // or left out, a block cut through. The key row offers (v)iew all only
+    // while one is on screen.
+    const cuts = new WeakSet<object>()
+    const cutRow = <R extends Row>(row: R): R => {
+      if (typeof row === 'object' && row !== null) cuts.add(row)
+      return row
+    }
+    const hasCut = (rows: Row[]) => rows.some(row => typeof row === 'object' && row !== null && cuts.has(row))
     const tall = (inner: Row, k: number): Row[] => {
       const n = Math.max(1, k)
       const head = (
@@ -2542,7 +2551,7 @@ export const register: Register = on => {
       const kept = rows.slice(0, Math.max(0, n))
       return kept.map((row, i) => {
         const block = typeof row === 'object' && row !== null ? heads.get(row) : undefined
-        return block && i + block.k > kept.length ? tall(block.inner, kept.length - i)[0]! : row
+        return block && i + block.k > kept.length ? cutRow(tall(block.inner, kept.length - i)[0]!) : row
       })
     }
     // A post's words as Markdown (GitHub, Linear and Discord write it): its
@@ -2627,7 +2636,7 @@ export const register: Register = on => {
         return rows
       }
       const rows = build(TRIMS[TRIMS.length - 1]!, () => 0)
-      return [...take(rows, budget - 1), plain('⋯', { dim: true })]
+      return [...take(rows, budget - 1), cutRow(plain('⋯', { dim: true }))]
     }
     // What the relay account posts, exactly: "User says: …" behind a bar,
     // at most `max` rows, the terminal cutting the last with an ellipsis.
@@ -2649,7 +2658,7 @@ export const register: Register = on => {
       )
     }
 
-    // ── the bar: the session, the queue as dots, where this is ──────────
+    // ── the bar: the queue as dots, where this is ──────────────────────
 
     const dots = queue.map((one, i) => {
       const a = answers[one.id]
@@ -2701,7 +2710,7 @@ export const register: Register = on => {
       : cols >= 120 || !base
         ? [[...kept, ...counts], kept]
         : [kept]
-    const fixed = 'Answer session'.length + 2 + (2 * N - 1) + 2 + 'summary'.length
+    const fixed = (2 * N - 1) + 2 + 'summary'.length
     const room = cols - fixed - 2 - BUILD.length
     const parts =
       wheres.map(ps => ps.filter(Boolean)).find(ps => !ps.length || 2 + ps.join(' · ').length <= room) ?? kept.filter(Boolean)
@@ -2731,7 +2740,6 @@ export const register: Register = on => {
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
-          <Text bold>Answer session</Text>
           <Box gap={1}>{dots}</Box>
           {toSummary}
           {tally}
@@ -3101,10 +3109,12 @@ export const register: Register = on => {
         ))
       }
       if (k <= max) return quoted(md(r.text, Math.max(10, width - 2), key)[0]!, k, width)
-      return quoted(<Text maxLines={Math.max(1, max)}>{unmark(r.text)}</Text>, Math.max(1, max), width)
+      const [head, ...rest] = quoted(<Text maxLines={Math.max(1, max)}>{unmark(r.text)}</Text>, Math.max(1, max), width)
+      return [cutRow(head!), ...rest]
     }
     // A reply in one row: who, then as much as fits.
-    const replyLine = (r: Reply): Row => (
+    const replyLine = (r: Reply, width: number): Row => {
+      const row = (
       <Text wrap="truncate-end">
         <Text bold color={isNew(r) ? ACCENT : undefined}>
           {r.who}
@@ -3112,7 +3122,10 @@ export const register: Register = on => {
         <Text dimColor>{r.role === 'asker' ? ' (the asker)' : ''}: </Text>
         {unmark(r.text)}
       </Text>
-    )
+      )
+      const said = `${r.who}${r.role === 'asker' ? ' (the asker)' : ''}: ${unmark(r.text)}`
+      return said.length > width || said.includes('\n') ? cutRow(row) : row
+    }
     /** The replies since the question, oldest first, as many and as much as the trim allows. */
     const threadRows = (t: Trim, width: number): Row[] => {
       const list = others(c.replies)
@@ -3139,13 +3152,13 @@ export const register: Register = on => {
           {viewButton('view')}
         </Box>
       )
-      if (t.replies === 'count') return [head(` · latest ${list[n - 1]!.who}`)]
+      if (t.replies === 'count') return [cutRow(head(` · latest ${list[n - 1]!.who}`))]
       const last = list[n - 1]!
       if (t.replies === 'lines') {
         const shown = list.slice(-3)
-        return [head(), ...(n > shown.length ? [plain(`▸ ${n - shown.length} earlier`, { dim: true })] : []), ...shown.map(replyLine)]
+        return [head(), ...(n > shown.length ? [cutRow(plain(`▸ ${n - shown.length} earlier`, { dim: true }))] : []), ...shown.map(r => replyLine(r, width))]
       }
-      if (t.replies === 'latest') return [head(), ...list.slice(0, -1).map(replyLine), replyHead(last), ...replyBody(last, width, 3, `md:${q.id}:reply:${c.replies.indexOf(last)}`)]
+      if (t.replies === 'latest') return [head(), ...list.slice(0, -1).map(r => replyLine(r, width)), replyHead(last), ...replyBody(last, width, 3, `md:${q.id}:reply:${c.replies.indexOf(last)}`)]
       return [
         head(),
         ...list.flatMap((r, i) => [...(i > 0 && t.optionGap ? [blank()] : []), replyHead(r), ...replyBody(r, width, 6, `md:${q.id}:reply:${c.replies.indexOf(r)}`)]),
@@ -3170,6 +3183,8 @@ export const register: Register = on => {
           {part === 'act' ? null : viewButton('view:record')}
         </Box>
       )
+      // The record's words left out, short of the excerpt (v)iew all shows.
+      if (part !== 'act' && (t.record === 'head' || t.record === 'line')) cutRow(head)
       const record: Row[] = t.record === 'head' ? [] : [
         <Text wrap="truncate-end">
           <Link href={r.url}>{r.title}</Link>
@@ -3204,7 +3219,7 @@ export const register: Register = on => {
       // The smallest band: one row says there is one, and agrees to it.
       if (t.record === 'head' && part !== 'record' && agree.length) {
         return [
-          <Box height={1} overflow="hidden" gap={2}>
+          cutRow(<Box height={1} overflow="hidden" gap={2}>
             <Text color={DONE}>{GLYPH.recorded}</Text>
             <Text dimColor>RECORDED ANSWER</Text>
             <Button key="record" plain onPress={() => run(putInBox($, 'a'))}>
@@ -3214,7 +3229,7 @@ export const register: Register = on => {
               </Text>
             </Button>
             {viewButton('view:record')}
-          </Box>,
+          </Box>),
         ]
       }
       if (part === 'record') return [head, ...record]
@@ -3708,12 +3723,12 @@ export const register: Register = on => {
               ? []
               : [[`1–${options.length}`, 'choose']]
       const one = isWide ? [] : fit((t, g) => stack([questionColumn(t, cols, g), answerColumn(t, cols, g)], g('choices')), B)
-      const body = isWide ? (
-        columns(fit((t, g) => questionColumn(t, LW, g), B), fit((t, g) => answerColumn(t, RW, g), B), LW, RW)
-      ) : (
-        <Box flexDirection="column">{[...lift(one.length), ...one]}</Box>
-      )
-      return frame(body, hints, cmds)
+      const left = isWide ? fit((t, g) => questionColumn(t, LW, g), B) : []
+      const right = isWide ? fit((t, g) => answerColumn(t, RW, g), B) : []
+      const body = isWide ? columns(left, right, LW, RW) : <Box flexDirection="column">{[...lift(one.length), ...one]}</Box>
+      // (v)iew all joins the key row only while something it shows is cut short on screen.
+      const isCut = hasCut([...one, ...left, ...right])
+      return frame(body, hints, cmds.map(cmd => (cmd.key === 'v' && isCut ? { key: cmd.key, what: cmd.what } : cmd)))
     }
 
     // ── talking to Claude: this question only, the queue waits ───────────

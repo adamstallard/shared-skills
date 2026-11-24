@@ -1,40 +1,40 @@
 
-⏺ Prompt dropped by a hook: The summary
+ ▐▛███▛█   Claude Code v2.1.331
+▝▜██████▀  Opus 5.5 · Claude Ultra
+ ▝▝   ▝▝   ~/shared-skills
 
-⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit,
-  prompt.change, tool.call, prompt.suggest, prompt.submit, turn.start, turn.complete)
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove
+  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shell or settings.json.
 
 ❯ /answer
-  ⎿  answer-mod: Answer session closed. /answer opens it again where you left off.
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to
+     leave. 1 answered and 1 handled for you: see the summary.
 
-❯ /answer
-  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 2
-     handled for you: see the summary.
 
-⏺ Prompt dropped by a hook: Nothing to answer here: p or n moves to a question.
 
-⏺ Prompt dropped by a hook: Question 1 of 18
 
-⏺ Prompt dropped by a hook: Question 2 of 18
 
-⏺ Prompt dropped by a hook: Question 3 of 18
+
+
+
+
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ● ◈ ◉ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ○ ○ ○ ○  summary  3 of 18               v0.2-1
-GitHub  adamstallard/igor #216  14m ago · no replies
+◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  1 of 17                                 v0.2-8
+GitHub  adamstallard/igor #216  12m ago · no replies
 claude asks, an agent via the inquisitor
 
-igor's publicStore setting can't tell an internal lore repository from a private one. How
-should the Igor learn its visibility?
-Related #212: lore is no more visible than the repositories it serves
+During a run, should the inquisitor's first filter hide questions-branch files about
+projects the role doesn't work on, as it hides lore entries outside the role's scope?
 
-  1: Ask GitHub at startup  ★ recommended
-     → One API call, exact visibility, used by #212's startup check.
-  2: Treat publicStore: false as internal
-     → No API call; private items' citations are never pushed to a non-public lore
-       repository.
-1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater              (b)ack  (n)ext  (q)uit
+The scope filter covers lore entries only. Question files on the lore repository's questi…
 
+  1: Yes, filter them by the role's scope  ★ recommended
+     → A worker never sees another project's questions.
+  2: No, show them as input
+     → Workers may read other projects' questions.
+1–2: choose  (t)alk to Claude  (w)on't answer  (l)ater  ✓ 1 answered and …  (b)ack  (n)ext
+                                                                           ◐ medium · /effort
 ─────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 41% ⇣ …
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a number, a key or your answer, the…
