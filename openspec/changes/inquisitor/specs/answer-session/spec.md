@@ -14,9 +14,9 @@ inquisitor's, or that spec's, *Title*:
 
 - **The skill** is the inquisitor skill, and its **script** the inquisitor
   script. **The `log` command** is the script's command that writes and
-  pushes every log and miss file, answer and handled files included (the
-  inquisitor's *The script writes every log and miss file through its log
-  command*).
+  pushes every miss file and every log file, answer and handled files
+  being log files too (stated in the inquisitor's *The log command takes
+  its input in a private file*).
 - **Filters 1 to 4** stop a question before a person sees it: 1, already
   answered; 2, deferrable; 3, not a real question; 4, cheap to reverse
   (the inquisitor's *Every question passes four filters before a person
@@ -1000,11 +1000,13 @@ result.
 - **THEN** the answer session shows it as that issue's handback, reaching
   the person as the assignee
 
-#### Scenario: Another app user's marked Linear comment is not a handback
+#### Scenario: Another App's marked comment is not a handback
 
-- **WHEN** a Linear app user that is not an Igor's comments on an issue
-  assigned to the person, holding igor's handback marker, mentioning no
-  one and replying to no relay post
+- **WHEN** a GitHub App whose slug does not start with `igor-`, or a
+  Linear app user that is not an Igor's, comments on an issue assigned to
+  the person, holding igor's handback marker, mentioning no one and
+  replying to no relay post, so only counting as a handback could bring
+  it to the person
 - **THEN** it is not a handback, so it does not reach the person as the
   issue's assignee
 
@@ -2438,11 +2440,12 @@ file names.
 ### Requirement: A handled file is pushed once its close takes effect
 
 The answer session SHALL push a handled file once the post leading to it
-is out, or, with nothing posted, once the person confirms the decline.
-It SHALL record the owed push before the post or, with nothing posted,
-before the push; unless the question has a category, drop the owed push
-if the post fails or a reply the person has not seen holds the post back; and retry it at each poll
-and opening until it succeeds or *An owed push refused for good is not
+is out, or, with nothing posted or for a question with a category, once
+the person confirms the answer or decline.
+It SHALL record the owed push before posting or pushing; drop it if the
+post it waits for fails or the fetch before posting finds a reply the
+person has not seen; and retry it at each poll and each opening of the
+session until it succeeds or *An owed push refused for good is not
 retried* stops it.
 
 #### Scenario: A failed post pushes no handled file
@@ -2451,6 +2454,15 @@ retried* stops it.
   its thread copy for the inquisitor, and the decline's post fails or a
   reply the person has not seen holds it back
 - **THEN** no handled file is pushed
+
+#### Scenario: An answer to a question with a category pushes only a handled file
+
+- **WHEN** the person confirms an answer to a question with a category
+  that a questions-branch file holds, whether its relay post goes out,
+  fails, or has no thread to go to
+- **THEN** no answer file is pushed, since the question is recorded by
+  hash only, and that file's handled file is pushed once the answer is
+  confirmed
 
 #### Scenario: A failed handled-file push is retried
 

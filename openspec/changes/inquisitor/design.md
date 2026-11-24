@@ -442,9 +442,11 @@ the record: the agent must name why the question is not logged.
 #### The secret scan is only a backstop
 
 **Rule:** inquisitor spec, *The credential patterns are a closed list of
-token shapes*. The patterns include the two kinds of credential this change
-puts within reach of the answer session's model: a Linear key and a Discord relay's bot
-token.
+token shapes*. The scan catches only the token shapes it lists, so it backs
+up, never replaces, the category judgement that keeps a secret out of a log
+file. Its patterns include the two credentials this change gives the answer
+session's code, which a person could paste into an answer: a Linear key and
+a Discord relay's bot token.
 
 #### Weaknesses stay out of public text until disclosure
 
@@ -807,9 +809,9 @@ with no person seeing it.
 **Rule:** answer-session spec, *An agent's question comes from a bot account
 or a log file*; *A relayed question is a person's question*.
 
-Only an agent's question gets an automatic `Inquisitor: ` reply, so any
-doubt counts a question as a person's: no person then gets a reply nobody
-wrote.
+Only an agent's question gets an automatic `Inquisitor: ` reply, so a
+question in doubt counts as a person's: no person then gets an automatic
+`Inquisitor: ` reply.
 
 #### A question another skill requires carries a line the answer session matches
 

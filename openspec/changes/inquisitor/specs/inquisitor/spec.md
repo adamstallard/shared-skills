@@ -818,12 +818,13 @@ entries of each repository the role works, and the item's visibility.
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
 
 - **WHEN** an Igor's role works the private `o/api` and the public `o/web`,
-  its run works an item of `o/web`, and its lore repository holds
+  its run works an item of `o/web`, and its public lore repository holds
   `project:api` and `project:web` entries, a question file naming the public
   `o/doc` and a miss file naming the private `o/api`
 - **THEN** `igor lore-search` returns the `project:web` entry and, as
   input, the `o/doc` file. The role's scope covers `project:api`, but the
-  item's visibility hides that entry and the `o/api` file
+  item's visibility hides that entry and the `o/api` file, both about a
+  private repository
 - **AND** it returns nothing from any lore repository but the one the Igor
   injects lore from
 
@@ -865,14 +866,13 @@ the item's visibility hides.
 #### Scenario: Given a run's item, the branch search applies the run's rules
 
 - **WHEN** `branch-search` is run with `--item o/web`, `o/web` being
-  public, on a lore repository's questions branch, and two files match: a
-  `decision` file that would count, about the public `o/doc`, and a file
+  public, on a public lore repository's questions branch, and two files
+  match: a `decision` file that would count, about the public `o/doc`, and a file
   about a private repository
-- **THEN** the first is an `input` hit whose `reason` is `unconfirmed`, and
-  the second is in no hit
+- **THEN** the first is an `input` hit whose `reason` is `unconfirmed`, as
+  for any file about another repository, and the second is in no hit
 - **AND** with `--linear` added, the item counts as private, so the
-  second is shown too, as an `input` hit since it is about another
-  repository
+  second is shown too, as an `input` hit whose `reason` is `unconfirmed`
 
 #### Scenario: A branch the command cannot read is reported, not empty
 
@@ -1509,8 +1509,7 @@ thread counting as a private repository.
 - **WHEN** an agent asks, in an issue of the public `o/web`, a
   collective's question whose team's lore repository is the private
   `o/lore`
-- **THEN** the question carries no concerns line, and the answer session
-  posts no `Inquisitor: ` reply to it by itself
+- **THEN** the question carries no concerns line
 
 #### Scenario: A `Concerns:` line holding more than a repository is part of the question
 
@@ -1538,8 +1537,7 @@ person-required line its worker's report put after a question.
 - **WHEN** a worker's report holds a question whose second call named
   spec-trace as requiring it, with spec-trace's person-required line after
   it, and the Igor posts the handback asking it
-- **THEN** the handback carries that line after the question, so the
-  answer session posts no `Inquisitor: ` reply to it by itself
+- **THEN** the handback carries that line after the question
 
 ### Requirement: A round's questions are asked together at its end
 
@@ -2833,9 +2831,8 @@ which of them the Igor pushes, and when.
 
 - **WHEN** an Igor worker asks, in its handback comment, a question about
   the item's repository and one about the organization, and later logs a
-  miss about another such question
-- **THEN** the worker pushes nothing, and its report holds the two question
-  files and the miss file
+  miss about another question about the organization
+- **THEN** its report holds the two question files and the miss file
 - **AND** its Igor pushes the first to the questions branch of the item's
   repository, and the others to the lore repository's
 
@@ -2980,27 +2977,14 @@ pass, and SHALL refuse a `handled` or `closes` key passed without it.
 - **WHEN** an agent reads the skill's instructions for the `log` command
 - **THEN** they tell it never to pass the session option
 
-### Requirement: The script writes every log and miss file through its log command
-
-The skill's script SHALL write every log and miss file through its `log`
-command, in the format *A log file and a miss file have one format* states,
-pushing it as *A question is pushed to the questions branch of what it
-concerns* says.
-
-#### Scenario: The log command writes and pushes a questions-branch file
-
-- **WHEN** the agent logs a miss about an organization through the script's
-  `log` command
-- **THEN** the command writes the miss file and pushes it to the team's lore
-  repository's questions branch, as it pushes one about `o/api` to the
-  questions branch of `o/api`
-
 ### Requirement: The log command takes its input in a private file
 
-The `log` command SHALL take the file's place, keys and body sections in
-an input file, never as arguments, kept and refused as *The two calls'
-files and records stay private* keeps and refuses the two calls' files; on
-refusing one, it SHALL write nothing.
+The `log` command, which writes every log and miss file, SHALL take where
+the file goes, its keys and its body sections in an input file, never as
+arguments. It SHALL refuse, and write nothing, an input file that *The two
+calls' files and records stay private* would refuse: one inside a git
+working tree, or one its group or others can read or whose directory they
+can read.
 
 #### Scenario: A log command input others can read is refused
 
@@ -3603,9 +3587,9 @@ the name taken SHALL push nothing.
 ### Requirement: Only the answer session's log call names a miss by a reply's id
 
 The `log` command SHALL name a miss file by a reply's id only when called
-with its session option, so that a crafted thread cannot steer an agent
-into backing a forged `Inquisitor: ` reply, which counts only with its
-miss file.
+with its session option, so that an agent following the skill's
+instructions, which forbid that option, never backs an `Inquisitor: ` reply, which counts only with
+its miss file.
 
 #### Scenario: The log command refuses a reply-id miss without its session option
 
@@ -3615,9 +3599,10 @@ miss file.
 
 ### Requirement: An Igor's worker writes a miss file only for a question a hit holds
 
-An Igor's worker SHALL name a `file` miss by the `path` of its Igor's
-`branch-search` hit whose `question` is the question, and write no miss
-file when no hit has it.
+An Igor's worker SHALL name a `file` miss for a question by the `path` of
+the Igor's `branch-search` hit whose `question` is that question, taking
+only hits on the questions branch the miss goes to, and the first in byte
+order if several; and SHALL write no miss file when no hit has it.
 
 #### Scenario: A worker writes no miss file for a question no hit holds
 
