@@ -44,30 +44,28 @@ These terms hold throughout this spec:
   itself because GitHub gives no closing reference to a pull request whose
   base is not the default branch. Such a line follows every rule of a
   `Depends on` line, with its own words in place of `Depends on `.
-  Authors write `Part of` on a pull request that does only part of an
-  issue's work, and `Closes` on the one that completes it; the script does
-  not check which fits.
 - **An outside item** is an issue or pull request in another repository
   that an explicit link names.
 - **An edge** is a rule's finding that one item comes after another, with
   its **reason**. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
-- **The inputs hash** is a hash of everything the script read to compute
-  an order, which `order` prints. It leaves out the order text the script
-  itself published and the stored checked pairs and code edges, so that
-  publishing does not change it. It does hash the cycle overrides, since
-  an override changes the order an edges file was computed against.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question. Where
-  the workflow's token cannot read permissions, the script instead counts
+  holds the item or comment in question. Where task 0.6 finds that the
+  workflow's token cannot read permissions, the script instead counts
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on that item is OWNER, MEMBER or
-  COLLABORATOR, which also counts some accounts with only read access.
-- **An edges file** is the model step's output: the pairs of changes it checked
-  and the edges it found, with the inputs hash of the `order` run it read.
+  COLLABORATOR, which also counts some accounts with only read access. It
+  does so for every caller, so that every caller counts the same writers.
+- **A change's hash** is a hash of every file under the change's
+  directory, read from the head the change is read from, which `order`
+  prints for each open change.
+- **An edges file** is the model step's output: the pairs of changes it
+  checked, each with the two changes' hashes from the `order` run it read,
+  and the edges it found.
 - **The model step** applies the one rule that needs a model: a change
-  whose code will call another change's code is built after it.
+  whose code will call another change's code is built after it. **A pair
+  of changes** is two changes that each belong to an open pull request.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -105,7 +103,7 @@ block SHALL name that pull request. Each of them SHALL come after what the
 issue comes after, and what comes after the issue SHALL come after each of
 them, but edges between the issue and them SHALL be dropped.
 
-#### Scenario: A spec pull request and its issue share a place
+#### Scenario: A pull request and the issue it closes share a place
 
 - **WHEN** open pull request #50 closes issue #43, and #50 is third in the
   order
@@ -193,8 +191,7 @@ SHALL say so on its line in the order's issue. The script SHALL add no
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
 Where several open pull requests' heads hold one change's directory, the
-script SHALL read the change, and compute its hash for *A checked pair is
-kept while both its changes are unchanged*, from the head of the
+script SHALL read the change, and compute its hash, from the head of the
 pull request it belongs to, as the terms above define, and ignore the
 other copies.
 
@@ -318,7 +315,7 @@ later is the later in the cycle's order, by rule or by override.
   *Claims expire after an hour* to its copy before it archives, and neither
   item gains an edge from it
 
-#### Scenario: A copy duty inside a cycle follows the cycle's order
+#### Scenario: The copy owed inside a cycle follows the cycle's order
 
 - **WHEN** #82 and #90 both modify *Claims expire after an hour*, they form
   a cycle ordered by rule, and then a writer's `#90 first` overrides it
@@ -448,7 +445,7 @@ opened the item setting it.
 
 - **WHEN** issue #120, opened by `zed` who has no write access, says
   `Depends on #95`
-- **THEN** #120 gains no edge after #95, #95 gains no rank from it, and the
+- **THEN** #120 gains no edge after #95, that line counts in no reviewer's ranking, and the
   order's issue lists `#120 after #95` as not counted, opened by `zed`
 
 #### Scenario: A citation set by an outside author's title is not counted
@@ -627,7 +624,7 @@ has write access.
 
 A change whose code will call code another open change adds SHALL come after
 that change, as the model step finds. To help it, the script SHALL print,
-for each pair of open changes, the backticked names that both changes'
+for each pair of changes, the backticked names that both changes'
 `tasks.md` files hold. The script SHALL take the model step's edges only
 between items in the order, each with a reason, and refuse the whole set
 when any edge names something else or has no reason.
@@ -655,11 +652,12 @@ when any edge names something else or has no reason.
 
 ### Requirement: A checked pair is kept while both its changes are unchanged
 
-An edges file SHALL name every pair of changes the model step checked. The
-order's issue SHALL record each checked pair, with any edge found and one
-hash of each change's files. A later run SHALL count the pair checked, and
-keep its edge, while both hashes match. `publish` SHALL refuse an edges
-file whose inputs hash differs from that of what it reads.
+An edges file SHALL name every pair of changes the model step checked.
+`publish` SHALL first drop each pair whose two changes are not both still
+in the order with the hashes the file gives, and take the rest, with any
+edge found. The order's issue SHALL
+record each pair taken with those hashes, and a later run SHALL count the
+pair checked, and keep its edge, while both hashes match.
 
 #### Scenario: A run with no model keeps an unchanged code edge
 
@@ -682,22 +680,18 @@ file whose inputs hash differs from that of what it reads.
 - **THEN** that run counts the pair as checked, and does not label the
   order's issue `sequencer: check code` for it
 
-#### Scenario: Edges computed against changed inputs are refused
+#### Scenario: An unrelated change keeps a file's edges
 
-- **WHEN** the model step computed edges from an `order` run before a
-  merge, and the merge changed the inputs
-- **THEN** `publish` refuses that edges file and publishes nothing from it
-
-#### Scenario: Edges computed against the same inputs are taken
-
-- **WHEN** the order was published again after the model step's `order`
-  run, but no input has changed
-- **THEN** `publish` takes the edges
+- **WHEN** the model step checked #82 and #90 and found #90 after #82, and
+  before `publish` runs, issue #120 gains a comment, #95's change is
+  revised and #77 merges
+- **THEN** `publish` takes the edge between #82 and #90, and drops each
+  pair the file gives that holds #95 or #77
 
 ### Requirement: The order says plainly what it did not check
 
 The order's issue SHALL say `Build dependencies between changes' code were
-not checked.` when no model step has checked any pair of open changes, and
+not checked.` when no model step has checked any pair of changes, and
 name the unchecked pairs when it checked only some; it SHALL never present
 an unchecked pair as checked. Where no open change exists, it SHALL say
 `Dependencies between requirements were not checked: no open OpenSpec
@@ -756,15 +750,21 @@ wherever.
 The script SHALL keep the whole order in the body of the open issue labelled
 `sequencer`, creating that issue when none is open and publishing nothing
 when more than one is. It SHALL use such an issue only when its author has
-write access to the issue's repository, and otherwise publish nothing and name
-the issue and its author. Nothing of the order SHALL go in a comment, because `gh issue view`
-shows a body without its comments.
+write access to the issue's repository or is `github-actions[bot]`, which
+only a workflow run's token posts as, and otherwise publish nothing and name
+the issue and its author. Nothing of the order SHALL go in a comment.
 
 #### Scenario: The first publish creates the order's issue
 
 - **WHEN** the script publishes in a repository with no open issue labelled
   `sequencer`
 - **THEN** it opens one, labelled `sequencer`, whose body holds the order
+
+#### Scenario: An order issue the workflow opened is used
+
+- **WHEN** the one open issue labelled `sequencer` was opened by
+  `github-actions[bot]`
+- **THEN** the script publishes the order in it
 
 #### Scenario: The order is never posted as a comment
 
@@ -807,8 +807,8 @@ heading as a decision its author made.
 ### Requirement: Text from a pull request or the model is written inert
 
 The script SHALL write each string taken from an issue, a pull request, a
-change's files or the model step, such as a reason, a requirement's title or
-a file path, as inline code: delimited by a backtick run longer than any in
+change's files, the model step or a reviewer source, such as a reason or a
+login, as inline code: delimited by a backtick run longer than any in
 it, padded with a space where it starts or ends with a backtick, and with
 its line breaks as spaces, so mentions, links and markers in it render
 inert; an outside item's reference is the one exception. It SHALL refuse
@@ -875,8 +875,7 @@ stays last, and at the body's end otherwise.
 - **WHEN** #90 enters the order, and its body ends with the line
   `prose ✓ 3f2a91`
 - **THEN** its new block sits just before that line, which stays the
-  body's last line, though that footer's hash no longer matches the text
-  above it, which the script allows
+  body's last line
 
 #### Scenario: A new block goes at the end of a body with no prose footer
 
@@ -956,21 +955,6 @@ order.
 - **WHEN** #93 is a draft requesting review from a reviewer
 - **THEN** #93 is not that reviewer's next review
 
-### Requirement: A spec pull request is reviewed before the implementations that build on it
-
-A spec pull request is one whose diff against its base changes only files
-under `openspec/`. Where a reviewer awaits both a spec pull request and a
-pull request that comes after it through edges, the spec pull request
-SHALL rank ahead of it for that reviewer's next review.
-
-#### Scenario: A spec is offered before the code that waits on it
-
-- **WHEN** a reviewer awaits #82, which changes only files under
-  `openspec/`, and #95, a code pull request whose body says
-  `Depends on #82`
-- **THEN** the order's issue names #82, not #95, as that reviewer's next
-  review
-
 ### Requirement: A pull request awaits a reviewer until they review its current head
 
 A pull request SHALL stop awaiting a reviewer once that reviewer submits
@@ -993,8 +977,8 @@ changes its head, it SHALL await that reviewer again.
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
-of the repository's `.github/sequencer.json` except its author. With no
-such list (no file, no key or an empty list), it SHALL await each
+of `.github/sequencer.json` on the default branch, except its author. With no
+such list, it SHALL await each
 reviewer it has requested on GitHub, including one GitHub dropped from
 the list on their review. Having requested no one, it SHALL await the
 owners CODEOWNERS gives its changed files. Every caller SHALL take
@@ -1151,10 +1135,8 @@ did not check* says.
 ### Requirement: With an Igor, the workflow labels the order's issue for the model step
 
 Where the repository chose an Igor, `publish`, as the workflow runs it,
-SHALL label the order's issue `sequencer: check code` whenever it publishes
-an order with a pair of changes unchecked. `publish` SHALL remove that
-label when it publishes model-step edges that leave no pair unchecked, and
-keep it when it refuses them.
+SHALL keep the order's issue labelled `sequencer: check code` exactly while
+the order it publishes leaves unchecked a pair of changes whose pull requests writers opened.
 
 #### Scenario: An unchecked order is labelled for an Igor
 
@@ -1165,7 +1147,7 @@ keep it when it refuses them.
 #### Scenario: Publishing the model step's edges removes the label
 
 - **WHEN** a Sequencer Igor's dispatched run publishes model-step edges
-  that check every pair of open changes
+  that check every pair of changes
 - **THEN** the script removes the label `sequencer: check code`
 
 ### Requirement: The workflow publishes an edges file a dispatched run carries
@@ -1178,15 +1160,15 @@ group.
 
 #### Scenario: A dispatched edges file is published
 
-- **WHEN** a `workflow_dispatch` run carries an edges file computed against
-  the current inputs
+- **WHEN** a `workflow_dispatch` run carries an edges file whose changes
+  are unchanged
 - **THEN** the run publishes its edges, in the workflow's concurrency group
 
-#### Scenario: A stale dispatched edges file leaves the label on
+#### Scenario: A dispatched pair whose change was revised leaves the label on
 
-- **WHEN** a dispatched run carries edges computed before a merge that
-  changed the inputs
-- **THEN** the workflow's `publish` refuses them, and the label
+- **WHEN** a dispatched run carries a pair holding #90, and a push revised
+  #90's change after the model step read it
+- **THEN** the workflow's `publish` drops that pair, and the label
   `sequencer: check code` stays on the order's issue
 
 ### Requirement: The workflow runs no code from a pull request
@@ -1206,14 +1188,14 @@ data, and SHALL NOT check out or run code from a pull request's head.
 
 The model step SHALL need nothing but `order --json` output, which SHALL
 include the open changes' files, so an agent with no GitHub credential,
-such as an Igor's worker, can run it and write an edges file; `publish`, run elsewhere, SHALL
-apply that file while the inputs are unchanged.
+such as an Igor's worker, can run it and write an edges file, which
+`publish`, run elsewhere, applies.
 
 #### Scenario: An edges file written without GitHub access is published
 
 - **WHEN** an agent with no GitHub credential runs the model step on
   `order --json` output and writes an edges file, and the workflow
-  publishes that file before any input changes
+  publishes that file while the changes it checked are unchanged
 - **THEN** `publish` takes the edges
 
 ### Requirement: Data names an item by its repository and number
@@ -1249,13 +1231,13 @@ that names an item by number alone.
 ### Requirement: The script prints the order for callers without editing anything
 
 `order` SHALL print the order, each item's position, its edges with
-reasons, the links to outside items, the cycles, the copy duties, the
+reasons, the links to outside items, the cycles, the copies owed, the
 names each pair of changes' `tasks.md` files both hold, for the model step,
-and the hash of the inputs, as JSON with `--json`, and SHALL write to no
+and each change's hash, as JSON with `--json`, and SHALL write to no
 issue or pull request; `publish` SHALL be the only command that edits.
 
 #### Scenario: An Igor reads positions without editing
 
 - **WHEN** an Igor's work triage runs `order --json`
-- **THEN** it gets each item's position, and no body, label or comment in
-  the repository changes
+- **THEN** it gets each item's position, the open changes' files and each
+  change's hash, and no body, label or comment in the repository changes

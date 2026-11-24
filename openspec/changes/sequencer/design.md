@@ -61,14 +61,14 @@ The script is `.agents/skills/sequencer/scripts/sequencer.py`. It has three
 commands:
 
 - `order [--json] [--reviewers <login>,...]` computes the order and
-  prints it, with a hash of its inputs and, for each pair of open changes,
+  prints it, with each change's hash and, for each pair of changes,
   the backticked names that appear in both changes' `tasks.md` files, to
   help the model step. `--reviewers` tries a reviewer list in place of the
   configured one. It edits nothing.
 - `publish [--code-edges FILE | --model api] [--decide '#<n> first' --by <login>]`
   computes the order and edits the order's issue and the items' bodies. It
-  takes the model step's checked pairs and edges from `FILE`, which carries
-  the inputs hash `order` printed, or from one API call with `--model api`.
+  takes the model step's checked pairs and edges from `FILE`, or from one
+  API call with `--model api`.
   With `--decide` it records a person's override of a cycle's order; `--by`
   names that person.
 - `setup-ci [--model-step none|api-key|igor] [--force]` writes the workflow
@@ -255,16 +255,9 @@ own, so a session and the CI workflow publish the same issue body for the
 same inputs. A draft is not offered
 for review, since its author has not handed it over yet.
 
-A spec pull request ranks ahead of the pull requests that come after it.
-Ranking by how many items come after each pull request already gives
-that order: every item after a later pull request is also after the
-spec, and the spec has that pull request after it too, so the spec's
-count is always higher. *A spec pull request is reviewed before the
-implementations that build on it* states the order outright, so that a
-later change to the ranking keeps it. A pull request leaves a reviewer's
-queue once they review its current head, which each review's
-`commit_id`, the commit it was made on, shows, and returns when a push
-moves the head.
+A pull request leaves a reviewer's queue once they review its current
+head; each review's `commit_id` names the commit it was made on. A push
+that moves the head puts the pull request back in the queue.
 
 ### Which issues the order holds
 
@@ -324,12 +317,11 @@ steady between a Sequencer Igor's runs where the repository hands it the
 model step. A CI run with no model, after a merge, keeps the code edges
 the Igor found for the changes the merge left unchanged.
 
-**An edges file also carries the inputs hash, a hash of everything `order`
-read to compute the order it was built from, and `publish` refuses the
-file when the inputs it reads hash differently.** This stops a result
-computed before a merge from overwriting the order computed after it. Any
-change to the inputs, such as a newly opened issue, makes a file stale, and
-the model step runs again on the new order.
+**An edges file gives each checked pair with the two changes' hashes, and
+`publish` takes each pair whose changes still hash the same, dropping the
+rest.** Anything else that changes in the repository, such as a comment
+on an issue, leaves valid each pair whose changes still hash the same,
+where one hash over everything `order` read would refuse the whole file.
 
 ### Three ways Igor uses the skill
 
@@ -342,8 +334,10 @@ what it expects of any caller:**
 - An Igor in the Sequencer role, a Sequencer Igor, runs `order`, which
   takes reviewers as *Reviewers* above says for any caller, and publishes
   only by dispatching the workflow (`workflow_dispatch`). Its writes then
-  share the workflow's `concurrency` group, so two runs never race to edit
-  one body, as igor#231's decision 6 requires. Igor's work triage, the step
+  share the workflow's `concurrency` group. A session's `publish` writes
+  directly, and the later of two concurrent writes wins: what only the
+  overwritten write held, its code edges or a recorded override, is lost
+  until published again. Igor's work triage, the step
   where an Igor chooses which items to take, reads positions from
   `order --json`.
 - Where a repository hands the model step to an Igor, `publish`, run by
@@ -406,7 +400,7 @@ Each bullet says what the spec does if the fact is false.
 
 - **GitHub's "blocked by" relations can be read through its API with the
   workflow's token** (task 0.1). If not, the order reads only `Depends on`
-  lines and says that blocked-by relations were not read.
+  lines.
 - **A `pull_request_target` run's token can edit the body of a pull request
   from a fork** (task 0.2). If not, a fork's pull request is placed but gets
   no block, which *An item the script cannot edit is named, not skipped
@@ -424,18 +418,38 @@ Each bullet says what the spec does if the fact is false.
   one, publishes the order.
 - **An edges file fits in a `workflow_dispatch` input** (task 0.5). If
   one can exceed GitHub's limit, a Sequencer Igor sends its edges in
-  several dispatches, each a whole edges file for the same inputs hash.
+  several dispatches, each a whole edges file holding some of the pairs;
+  each run adds the pairs it takes to those already stored.
 - **A workflow's own token can read another account's permission and a
   CODEOWNERS team's members** (task 0.6). If the token cannot read
-  permissions, the script decides who is a writer, the check every edge
-  and override rests on, from the `author_association` GitHub attaches to
-  the author of each issue, pull request and comment: OWNER, MEMBER and
-  COLLABORATOR count. Unlike a stored token that can read permissions,
+  permissions, the script decides who is a writer from the
+  `author_association` GitHub attaches to the author of each issue, pull
+  request and comment: OWNER, MEMBER and COLLABORATOR count. It does so for
+  every caller, so that a session and CI give the same text (*The same
+  inputs give the same order whoever runs the script*). Unlike a stored token that can read permissions,
   this needs no secret; the price is a looser check, since a collaborator
   or organization member with only read access counts as a writer. If the
-  token cannot expand a team, the team counts as one reviewer, and the
-  order names one next review for the whole team.
+  token cannot expand a team, the team counts as one reviewer, for every
+  caller for the same reason, and the order names one next review for the
+  whole team.
 - **An issue transferred into the repository keeps the creation time it
   had** (task 0.7). The script uses the creation time GitHub reports
   either way. If a transfer resets it, a transferred issue sorts by the
   time of its transfer.
+
+## Open Questions
+
+- **Should an explicit link bring issues into the order only when a
+  writer set it?** Today a `Depends on` line from an account without write
+  access sets no edge but still brings both issues into the order, so their
+  bodies get blocks, while such an account's tie brings in nothing (*The
+  order holds every open pull request and the issues linked to the work*,
+  *Only a writer's tie to an issue in this repository counts*).
+- **Does a pull request a GitHub App opened count as a writer's?** Where
+  agents open pull requests as an App, its bot account may read as no
+  writer through the permission API and `author_association`. Then those
+  pull requests' ties and edges would not count. Nobody has measured it.
+- **When is a cycle on a later run the same cycle?** Nothing says whether
+  a cycle keeps its `ordered by rule since` time, when a publish first
+  listed it, and its overrides when a
+  member joins or leaves, or which of two overrides of one cycle wins.

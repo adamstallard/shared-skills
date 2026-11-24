@@ -44,7 +44,7 @@ including a result that contradicts what design.md assumed.
 ## 2. The rules
 
 - [ ] 2.1 Modifies and cites edges, with their reasons
-- [ ] 2.2 Copy duties
+- [ ] 2.2 The copies owed: which change owes each copy
 - [ ] 2.3 `Depends on` lines, outside code fences, with `#<number>` and
       `<owner>/<repo>#<number>` references whose names hold only the
       characters the spec allows, blocked-by relations, and
@@ -54,9 +54,9 @@ including a result that contradicts what design.md assumed.
       grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
-- [ ] 2.7 Model-step checked pairs and edges: validate, record with the two changes' hashes,
-      keep or drop them on later runs, and refuse edges computed against
-      other inputs
+- [ ] 2.7 Model-step checked pairs and edges: validate, take each pair
+      whose two changes still have the file's hashes, record it with them,
+      and keep or drop it on later runs
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
@@ -91,9 +91,8 @@ including a result that contradicts what design.md assumed.
 - [ ] 3.6 `order --json`, which edits nothing, naming each item by
       repository and number, as the edges file and the stored checked
       pairs and code edges do
-- [ ] 3.7 Rank a spec pull request ahead of the pull requests that come
-      after it, and stop a pull request awaiting a reviewer once their
-      review's `commit_id` is its head commit
+- [ ] 3.7 Stop a pull request awaiting a reviewer once their review's
+      `commit_id` is its head commit
 - [ ] 3.8 Write every string taken from an issue, a pull request, a
       change's files or the model step as inert inline code, and refuse
       one holding the end marker

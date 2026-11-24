@@ -2,9 +2,9 @@
 
 ## Rejected
 
-- **Rejected: Serialising a session's publish with the workflow's runs through an Actions concurrency group.**
+- **Rejected: A session publishing only by dispatching the workflow, as a Sequencer Igor does.**
   Facing: a person's session and the CI workflow can each run `publish` against the same bodies at once.
-  Lost because: a session's publish is no GitHub Actions run, and GitHub's docs describe a `concurrency` group as holding back only Actions jobs and workflow runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
+  Lost because: a dispatch runs only a workflow file on the default branch, so a repository without the workflow could not publish from a session at all, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch.
   Instead: the later of two concurrent writes wins. The next run recomputes the rule-decided order. What only the overwritten publish wrote is lost until it is published again: its code edges until a model step runs, and its recorded override until the session publishes it again. A Sequencer Igor publishes only by dispatching the workflow, so its writes share the workflow's group.
   Paths: .agents/skills/sequencer/scripts/sequencer.py
 
@@ -18,12 +18,12 @@
 
 - **Rationale: An issue takes the place of an open pull request tied to it.**
   An item that comes after an issue comes after every pull request tied to it, because it needs all of the issue's work. The script can make it wait only on pull requests tied to the issue, so every pull request doing part of that work needs a tie. The cost is that the item also comes after a second pull request competing to close the issue. A pull request that does only part of an issue's work cannot say `Closes`: GitHub would close the issue when that pull request merged. Without a `Part of` line, nothing would tie it to the issue. A `Closes` line is read as text too, because GitHub makes no closing reference for a pull request whose base is not the default branch, such as a stacked pull request. Prose that names the issue ties nothing, because prose also names issues that a pull request only mentions.
-  Evidence: issue #107's work was split across pull requests #108, #109 and #110, each calling itself a part ("Implements the docs part of #107", "the hook half of #107") and none saying `Closes #107`, so GitHub never closed #107, and it was later mistaken for work still to do, https://github.com/adamstallard/shared-skills/pull/108, https://github.com/adamstallard/shared-skills/pull/109, https://github.com/adamstallard/shared-skills/pull/110, https://github.com/adamstallard/shared-skills/issues/107
+  Evidence: issue #107's work was split across pull requests #108, #109 and #110, two of them calling themselves a part ("Implements the docs part of #107", "the hook half of #107") and none saying `Closes #107`, so GitHub never closed #107: it stayed open three days after the last of them merged, until closed by hand, https://github.com/adamstallard/shared-skills/issues/107#issuecomment-7140641196, https://github.com/adamstallard/shared-skills/pull/108, https://github.com/adamstallard/shared-skills/pull/109, https://github.com/adamstallard/shared-skills/pull/110, https://github.com/adamstallard/shared-skills/issues/107
   Evidence: GitHub's documentation says a pull request whose description uses a closing keyword closes the linked issue when the pull request merges into the default branch, https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue
 
 - **Rationale: A pull request tied to no issue is listed.**
-  Without the listing, a pull request that does an issue's work but names the issue in no `Closes` or `Part of` line would go unnoticed until someone mistook the issue for work still to do.
-  Evidence: pull requests #108, #109 and #110 did the work of issue #107 and named it only in prose, so GitHub never closed #107, and it was later mistaken for work still to do, https://github.com/adamstallard/shared-skills/pull/108, https://github.com/adamstallard/shared-skills/pull/109, https://github.com/adamstallard/shared-skills/pull/110, https://github.com/adamstallard/shared-skills/issues/107
+  Without the listing, a pull request that does an issue's work but names the issue in no `Closes` or `Part of` line would go unnoticed, and the issue would stay open after the work merged.
+  Evidence: pull requests #108, #109 and #110 did the work of issue #107 and named it only in prose, so GitHub never closed #107: it stayed open three days after the last of them merged, until closed by hand, https://github.com/adamstallard/shared-skills/issues/107#issuecomment-7140641196, https://github.com/adamstallard/shared-skills/pull/108, https://github.com/adamstallard/shared-skills/pull/109, https://github.com/adamstallard/shared-skills/pull/110, https://github.com/adamstallard/shared-skills/issues/107
 
 - **Rationale: The script reads OpenSpec changes only through the OpenSpec CLI.**
   If the script parsed OpenSpec's markdown itself, a release that changed the format would leave the script silently wrong. Read through the CLI, as spec-check and spec-trace read it, such a release makes all three fail their tests instead.
