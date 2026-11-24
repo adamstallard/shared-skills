@@ -65,10 +65,13 @@ including a result that contradicts what design.md assumed.
       `owner/repo#N` text: on the line of the item that has the link, or
       in the list of edges not counted when the order does not hold that
       item
-- [ ] 2.12 Tie each issue to the pull requests that close it or name it in
-      a `Part of` line, placing it by writers' ties to this repository's
-      issues only, and write `tied to no issue` on the line of each open
-      pull request with no tie
+- [ ] 2.12 Tie each issue to the open pull requests that close it or name
+      it in a `Part of` line. Counting only pull requests writers opened
+      and issues in this repository, place the issue with the earliest of
+      them, put each item that comes after the issue after every one of
+      them, and put the earliest after each item the issue comes after.
+      Write `tied to no issue` on the line of each open pull request with
+      no tie of any kind
 
 ## 3. Publishing
 

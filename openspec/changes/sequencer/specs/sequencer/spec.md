@@ -96,10 +96,11 @@ item.
 
 Where open pull requests that writers opened are tied to an issue, the
 issue SHALL share the position of the earliest opened of them, and its
-block SHALL name that pull request. Every edge to or from the issue SHALL
-apply to that pull request instead. A tie from a pull request no writer
-opened SHALL neither move an issue nor bring one into the order, and a
-tie to another repository's issue SHALL give that issue no place.
+block SHALL name that pull request. An item that comes after the issue
+SHALL come after each of those pull requests instead, and the earliest
+SHALL come after each item the issue comes after. A tie from a pull
+request no writer opened SHALL neither place an issue nor bring it into
+the order, and a tie to another repository's issue SHALL place nothing.
 
 #### Scenario: A spec pull request and its issue share a place
 
@@ -137,10 +138,11 @@ tie to another repository's issue SHALL give that issue no place.
 - **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
 - **THEN** #50 comes after #61, and #43 shares #50's place
 
-#### Scenario: An edge to a closed-by issue moves onto its pull request
+#### Scenario: An item after an issue comes after every pull request tied to it
 
-- **WHEN** #50 closes issue #43, and #70's body says `Depends on #43`
-- **THEN** #70 comes after #50
+- **WHEN** #108 and #109 say `Part of #107`, #110 closes #107, and #70's
+  body says `Depends on #107`
+- **THEN** #70 comes after #108, #109 and #110
 
 #### Scenario: An outside author's closing reference moves nothing
 
