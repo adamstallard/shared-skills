@@ -63,11 +63,6 @@ the files are not committed with the work.
   lore entry, so neither the search nor Igor reads one as an entry.
   Promotion to lore: inquisitor spec, *An answer that generalizes is
   proposed as lore*.
-- **In one of the three categories:** inquisitor spec, *Some questions are
-  recorded by hash only*. In an Igor's run, igor keeps the category's
-  name, never the text, in an operator-only file on its host, and moves the session
-  logs that hold the text next to that file (igor PR #216's decisions 88, 89,
-  97 and 98).
 
 **Ruled out by a scenario** (inquisitor spec: *A question is pushed to the
 questions branch of what it concerns*, scenario *A question about a
@@ -1101,10 +1096,9 @@ bullet only asks the question, its task in tasks.md says it.
 - **Can a security advisory's private-fork pull request be merged before
   the advisory is published?** (task 0.13)
 - **Can an Igor worker post?** (task 0.14)
-- **Does GitHub give a review's and a review comment's author?** (task
-  0.11; an issue comment's author is measured) If not, *The log command
-  takes answered_by from the linked comment* waits, before it is built,
-  for a person to choose another source for `answered_by`.
+- **Does GitHub give a review's and a review comment's author, and log
+  each re-request of a review?** (task 0.11, which says what follows if
+  not)
 - **Can the Igor itself run the script's `branch-search` and read a
   collaborator's permission?** (task 0.29, which says what follows if not)
 - **Does the Discord bot token pattern match a real token?** (task 0.33)
@@ -1113,18 +1107,6 @@ bullet only asks the question, its task in tasks.md says it.
 
 **Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement shows the fact false.**
-
-### Choices for a person
-
-- **Should a hash-only miss file be pushed only for an `Inquisitor: `
-  reply?** (answer-session spec: *A miss more visible than its thread is
-  pushed as a hash-only file*) One is pushed for every reply that logs a
-  miss, filter 1's automatic `Recorded answer: ` reply included. For an
-  `Inquisitor: ` reply, the file is what lets the asking agent act on
-  it. A `Recorded answer: ` reply the agent checks through filter 1
-  instead, and neither filter 1 nor the `misses` review reads a hash-only
-  file, so there the file tells the branch's readers only when the person
-  pushed it. Recommended: push one only for an `Inquisitor: ` reply.
 
 ### Outside this change
 

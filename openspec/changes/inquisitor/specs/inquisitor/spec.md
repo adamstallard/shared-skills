@@ -1405,7 +1405,7 @@ string matching the credential patterns.
 
 ### Requirement: A tag line names the person a posted question tags
 
-After the second call vets a question in a GitHub post, the agent SHALL
+After the second call gives an `ask` verdict to a question in a GitHub post, the agent SHALL
 add its **tag line** under any related-decision, person-required and
 concerns lines, in that order: `@` and the login *A question in a post
 tags one person who can decide, if there is one* finds, else the fixed

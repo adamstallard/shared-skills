@@ -65,7 +65,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       requirement needs another source for `answered_by` before it is
       built. Not measured: a review and a
       review comment, for which GitHub documents the same `author` through
-      GraphQL's `Comment` interface
+      GraphQL's `Comment` interface. The task also checks that
+      re-requesting a review adds a new `review_requested` timeline
+      event, by which *An item that asks the person something is shown
+      once* dates a request. If it does not, a request counts as made
+      when a poll first finds it pending. A review re-requested while the
+      first request is still pending then keeps that first date, before
+      the answers, and is not shown as an item question
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, and by the specs of igor PRs #174
       and #175 it still can't once they land, though neither is built to

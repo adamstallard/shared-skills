@@ -1025,14 +1025,14 @@ them, and never shows them again, even once the newest is answered.
 
 ### Requirement: An item that asks the person something is shown once
 
-An issue or pull request shown to the person through a question in its
-description or newest handback SHALL never also be shown for its review
-request or assignment. A request or assignment made after the last of
-those questions was answered or closed (on GitHub, by its newest
-`review_requested` or `assigned` timeline event; on Linear, as task 0.16
-says) SHALL be shown as an item question, which only a relay post naming
-the item, made after the request and holding no `question <n>: `,
-answers.
+An issue or pull request shown through a question in its description
+or newest handback SHALL not also be shown for its review request or
+assignment. A request or assignment made after those questions were
+answered or closed SHALL be shown as an item question, answered only by
+a relay post made after it that names the item and answers no numbered
+question (holds no `question <n>: `). On GitHub its date is its newest
+`review_requested` or `assigned` timeline event; on Linear, as task
+0.16 says.
 
 #### Scenario: A handed-back pull request is not also a review request
 
@@ -1141,7 +1141,7 @@ comment, so that the file is passed over (*Only an item's newest handback
 is shown*) when the comment is. Only a Linear issue, whatever the file's
 `asked_from`, or a GitHub issue or pull request in the repository its
 `asked_from` names, counts as that item. When this machine reads no such
-item, the file is shown on its own.
+item, the file is judged on its own.
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -1168,7 +1168,7 @@ item, the file is shown on its own.
 - **THEN** the answer session follows the link, and an answer to that
   handback names the log file
 - **AND** a log file with `asked_from: o/web` whose `asked_in` links a
-  handback on an issue in the subscribed `o/api` is shown on its own,
+  handback on an issue in the subscribed `o/api` is judged on its own,
   not with that handback
 
 #### Scenario: An Igor's log file follows its Linear handback comment
@@ -1862,10 +1862,7 @@ For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer session SHALL write no
 discussion record or log file, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
-and the surface's ids for its thread and message. A questions-branch
-file holding the question SHALL still be closed by a handled file,
-pushed once the answer is confirmed and naming that file only by a
-hash.
+and the surface's ids for its thread and message.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -1875,15 +1872,6 @@ hash.
 - **THEN** the state folder held no discussion record and none of the
   question's or the answer's text, and the question returns unanswered,
   with no pending answer
-
-#### Scenario: An answer to a questions-branch question with a category pushes only a handled file
-
-- **WHEN** the person answers a questions-branch question the session's
-  model judges has a category
-- **THEN** the answer is relayed in its thread, or kept pending in memory
-  when it cannot be posted there; no log file is pushed, and either way
-  the questions-branch file's handled file is pushed, so the file is not
-  shown again
 
 ### Requirement: One answer session runs on each machine
 
@@ -2798,10 +2786,8 @@ pass any other question in a private file.
 
 When an answer with authority is recorded for a question read from its
 thread, the answer session SHALL answer it by itself, whoever asked,
-unless one of these bars it: *A recorded answer is posted by
-itself only when no more private than its thread*, *A Linear or Discord
-question in doubt gets no automatic reply* or *No automatic post repeats
-one in its chain of replies*. It posts through
+unless another requirement says it posts nothing by itself on that
+question, as for one with no place or a category. It posts through
 the relay
 
 ```
@@ -2983,15 +2969,15 @@ cite SHALL push nothing.
   about a private repository
 - **THEN** no citation file is pushed
 
-#### Scenario: A decline's citation is pushed when no readable miss is
+#### Scenario: A filter 1 decline pushes its citation even with no miss file
 
 - **WHEN** the person's filter 1 decline names an `active` entry of a
   private lore repository, whose scope covers the question; the agent's
   question, about the organization, was asked in a private repository's thread; its
   miss would go to the team's lore repository, a public one; and the
   person has not confirmed the miss for that more visible branch
-- **THEN** the miss is a hash-only miss file, and the answer session
-  still pushes one citation file, to the entry's lore repository
+- **THEN** no miss file is pushed, and the answer session still pushes
+  one citation file, to the entry's lore repository
 
 ### Requirement: Filter 1's answer by itself to an agent's question logs a miss
 
@@ -3247,14 +3233,15 @@ collective's question.
 ### Requirement: The answer session writes no miss it cannot place privately
 
 The answer session SHALL write no miss file, even where another
-requirement says to log one, telling the person why, when any of these holds:
+requirement logs one, telling the person why, when any of these holds:
 
 - the question has a category;
 - it concerns no place the code lists for `record_verdict`;
 - the person cannot push to that place's questions branch;
-- its decline posts nothing, its miss would go to a branch more visible
-  than its thread (with no thread, than the questions-branch file it was
-  shown from), and the person has not confirmed that miss.
+- the miss's branch is more visible than its thread (or, with no
+  thread, than the file it was shown from), the person has not confirmed
+  the miss, and no `Inquisitor: ` reply goes out for a hash-only file to
+  back.
 
 #### Scenario: No miss goes outside the session's places or to a branch closed to the person
 
@@ -3299,21 +3286,25 @@ requirement says to log one, telling the person why, when any of these holds:
 ### Requirement: A miss more visible than its thread is pushed as a hash-only file
 
 Where the questions branch is more visible than the question's thread
-and the miss is unconfirmed, the answer session SHALL back each reply
-that logs a miss, whether it posts the reply by itself or for the person,
-with a hash-only miss file pushed after the reply, as the inquisitor's *A hash-only miss file shows nothing but
-that it exists* defines one.
+and the miss is unconfirmed, the answer session SHALL back each
+`Inquisitor: ` reply that logs a miss with a hash-only miss file pushed
+after the reply, as the inquisitor's *A hash-only miss file shows
+nothing but that it exists* defines one. In that case a `Recorded answer: ` post logs no
+miss: a hash-only file only vouches for a reply, and that post's asking
+agent checks its `Recorded in: ` link instead.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed
 
 - **WHEN** an agent's question about a public repository, which its
   concerns line settles, is asked in a private repository's GitHub
-  thread, or on Linear or Discord, and the session replies by itself
-  or the person declines with a reply without
+  thread, or on Linear or Discord, and the session posts an
+  `Inquisitor: ` reply by itself or the person declines with one without
   confirming the miss
 - **THEN** the reply goes out as it would with a readable miss, and the
   session pushes a hash-only miss file to the public repository's
   questions branch
+- **AND** for a `Recorded answer: ` post there, by itself or for a filter
+  1 decline, no miss file is pushed
 
 ### Requirement: An automatic Inquisitor reply goes out only with a miss file
 
