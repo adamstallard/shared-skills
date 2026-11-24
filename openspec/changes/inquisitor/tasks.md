@@ -80,7 +80,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the reset; the repository's owner then decides whether the poll
       changes
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
-      mentions of the person and of the relay, and replies to a relay
+      mentions of the person and of the relay, and the line each is on,
+      which tells whether it is a tag line, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
       linear-app identity with a host command and learn the comment's URL;
       that the identity can edit its own comment; and that Linear marks a
@@ -107,7 +108,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
-      of the person's user id and a reply to the relay's message, and edit
+      of the person's user id and the line it is on, and a reply to the
+      relay's message, and edit
       its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports
@@ -524,7 +526,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 
       A session with no person in it tags the login only when it has
       write access and the post goes out as someone else, and otherwise
-      tags no one. The tag goes on the question's tag line, which the
+      tags no one. The tag, or when tagging no one the fixed line of *A
+      question no candidate can decide turns to the session's login*, goes
+      on the question's tag line, which the
       question's hash leaves out (inquisitor spec: *A tag line names the
       person a posted question tags*; *A question's text and hash are
       built one way*)

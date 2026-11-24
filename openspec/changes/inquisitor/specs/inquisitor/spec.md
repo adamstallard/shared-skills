@@ -88,7 +88,9 @@ Code.
 
 *A post* is a pull request description, review or comment, or an issue or
 issue comment, sent through `gh` or a GitHub MCP tool, and its questions
-are those in its body. *A question tags* a
+are those in its body. A bot account's Linear or Discord message holds
+open-questions sections and items as a post does (*A question in a post is a listed item
+or a sentence ending in a question mark*). *A question tags* a
 person when its tag line (*A tag line names the person a posted question
 tags*), list item or sentence mentions their login as `@login` outside
 code, quotes and links, as the `answer-session` spec's *A mention names a
@@ -1398,7 +1400,9 @@ string matching the credential patterns.
 After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
 them, on the question's **tag line**: `@` and a login in GitHub's login
-syntax, alone on a line after any related-decision, person-required and
+syntax (in a Linear or Discord message, one mention in that surface's
+form), or the fixed line of *A question no candidate can decide turns to
+the session's login*, alone on a line after any related-decision, person-required and
 concerns lines, which come in that order.
 
 #### Scenario: Adding the tag line keeps the vetted hash
@@ -1409,6 +1413,8 @@ concerns lines, which come in that order.
 - **THEN** the agent adds the line `@alice` after the related-decision
   line, and the post hook finds the item's text and hash unchanged, and
   lets it through without the two calls running again
+- **AND** so it does when the fixed line of *A question no candidate can
+  decide turns to the session's login* takes the place of `@alice`
 
 ### Requirement: A question another skill requires carries a person-required line
 
@@ -2224,13 +2230,13 @@ committer of the files it concerns.
 
 ### Requirement: A question no candidate can decide turns to the session's login
 
-When *A question in a post tags one person who can decide, if there is one*
-finds no candidate with write access, the script SHALL check the session's
-login likewise, and tag it if it has write access and the post is known to
-go out as someone else. If the script tags no login and a person is in the
-session, the agent SHALL ask through the picker, unless a configured login
-lacks write access. Otherwise the post SHALL tag no one and say no one with
-authority to decide could be found.
+When no tagging candidate of the requirement above has write access, the
+script SHALL check the configured login, if `gh` is logged in as it, and tag it if it has write
+access and the post is known to go out as someone else. If it tags no
+one and a person is in the session, the agent SHALL ask through the
+picker, unless that login lacks write access. Otherwise the question
+SHALL tag no one, with the fixed tag line this requirement's last
+scenario gives.
 
 #### Scenario: The configured login is tagged when no candidate can decide
 
@@ -2266,15 +2272,15 @@ authority to decide could be found.
 - **WHEN** a session with no person in it posts a question, no candidate has
   write access, and no login is configured, or the post goes, or might go,
   out as the configured login
-- **THEN** the question tags no one, uses no picker, and the post says no
-  one with authority to decide could be found
+- **THEN** the question tags no one and uses no picker
 
 #### Scenario: A question no one can decide is posted untagged
 
 - **WHEN** neither a candidate nor the configured login has write access,
   whether or not a person is in the session
-- **THEN** the question tags no one, and the post says no one with authority
-  to decide could be found
+- **THEN** the question tags no one, and its tag line is `Inquisitor: no
+  one with authority to decide this could be tagged; name deciders in
+  .inquisitor/reviewers.`
 
 ### Requirement: A candidate or login that cannot be checked is skipped
 
@@ -4277,10 +4283,12 @@ taking the reply as input.
 ### Requirement: A numbered Inquisitor reply is about the item at that number
 
 An `Inquisitor: ` reply holding `question <n>: ` after its prefix SHALL be
-about item `<n>`, counted from 1, among the open-questions items of the post
-it replies to or names in its `Re: ` line, or, one past the last item,
-about the post's sentences ending in `?` outside that section. The agent SHALL treat such a
-reply as input when that post was edited after the reply was posted.
+about item `<n>`, counted from 1, among the open-questions items of the post,
+or Linear or Discord message, it replies to or names in its `Re: ` line
+(the line linking what it answers),
+or, one past the last item, about that message's sentences ending in `?`
+outside that section. The agent SHALL treat such a reply as input when
+that message was edited after the reply was posted.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -4307,11 +4315,10 @@ reply as input when that post was edited after the reply was posted.
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
-question in the post it replies to or names, when that post has no
-open-questions section, or in the Linear or Discord message it replies
-to, and the agent SHALL act on it for each. A reply
-to a post with an open-questions section is input, since it names no
-item.
+question in the post, or Linear or Discord message, it replies to or
+names, when that message has no open-questions section, and the agent
+SHALL act on it for each. A reply to one with an open-questions section
+is input, since it names no item.
 
 #### Scenario: An unnumbered reply to a post asking two things unlisted covers both
 
@@ -4320,7 +4327,8 @@ item.
   `Inquisitor: filter 4`, with no `question <n>: `, has its miss file
 - **THEN** the agent acts on the reply for both questions, choosing one
   option for each and recording what it chose and why
-- **AND** such a reply to a post with an open-questions section is input
+- **AND** such a reply to a post, or to a bot's Linear or Discord message,
+  with an open-questions section is input
 
 ### Requirement: A question that should not have been asked is logged as a miss
 

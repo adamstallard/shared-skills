@@ -99,7 +99,7 @@
   Evidence: igor's work-claiming requirement *An item someone else holds is not claimed*, under which an Igor claims an item assigned to a person only once the item's holder field, Linear's delegate or GitHub's `igor:` label, names that Igor, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/openspec/specs/work-claiming/spec.md#L465
 
 - **Rationale: A handback is an Igor's comment holding igor's marker.**
-  An Igor claims Linear items as well as GitHub ones, so it hands back on Linear too. Without a Linear handback, its comment there is an ordinary bot message, which reaches only the first person it mentions, so one that mentions no one reaches no one and its question waits unseen.
+  An Igor claims Linear items as well as GitHub ones, so it hands back on Linear too. If an Igor's Linear comment were never a handback, it would be an ordinary bot message, so one that mentions no one reaches every subscriber with write access, not the assignee who handed the Igor the work.
   Evidence: igor's work-claiming requirement *An item someone else holds is not claimed*, under which an Igor claims a Linear item once Linear's delegate field names it, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/openspec/specs/work-claiming/spec.md#L465
 
 - **Rationale: Setup suggests a rule guarding each questions branch.**

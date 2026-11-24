@@ -352,11 +352,6 @@ a line that mentions a gh post verb, an allow-list blocks every form outside
 it, so a difference fails closed. A
 second copy of the reader would add a second set of differences.
 
-#### Which commands the reader judges, and which are unreadable
-
-**Rule:** gh-post spec, *The reader reads a gh pr or gh issue post only as a
-whole command line*.
-
 #### Posts sent through the github-app skill's script
 
 **Rule:** gh-post spec, *The reader reads posts sent through the github-app
@@ -1003,13 +998,17 @@ a second look, while any merge rule can pair a message with another asker's
 file in the same words, so that the person's decline, which closes a
 question unanswered, or their answer lands on that asker's question.
 
-#### A bot's question reaches only the first person it mentions
+#### Whom a bot's question reaches
 
 **Rule:** answer-session spec, *Whom a message reaches is set by its
 mentions*.
 
-So each bot question has one owner: two people cannot give a bot
-conflicting answers.
+A tagged bot question reaches only the first person it mentions, so it has
+one owner: two people cannot give a bot conflicting answers. An untagged
+one that is no handback and no reply to a relay post reaches every
+subscriber with write access, rather than no one: the script's tagging
+candidates can all lack write access while another subscriber has it, and
+an agent's thread may have no person in it to notice the question.
 
 #### igor's handback marker
 
@@ -1178,32 +1177,17 @@ decides what to build for them.**
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
 
-### What other changes must provide
-
-- **github-app and linear-app still hand a relay identity's token to
-  commands that can print it.** adamstallard/shared-skills#96's body
-  states what github-app must change, and #112's what linear-app must. Until each does, *The README
-  warns that a relay's token can be printed* keeps its warning for that
-  skill.
-
 ### For the repository's owner
 
-- **Does a tag line in a bot's Linear or Discord message split it into
-  items?** *Each item of a bot's message reaches the person its tag line
-  mentions* gives each listed item its own reader on any surface. But
-  *Each item of an open-questions section is its own question* makes a
-  Linear or Discord message one question, because the inquisitor finds
-  sections only in a GitHub post. So an Igor's Linear handback listing two
-  questions, one tagged `@maya` and one tagged the person, has no defined
-  reader. Options: (a) limit the tag-line rule to GitHub posts, so the
-  whole Linear message goes to the first person it mentions, and say so in
-  igor #247's section 4; (b) split a bot's Linear and Discord messages by
-  open-questions section, as GitHub posts are, which the inquisitor would
-  then have to do too. Recommended: (a), the smaller change. Its cost: on
-  Linear, every `Inquisitor: ` reply to such a handback stays input to the
-  worker, because the reply names no item number while the Igor's record
-  numbers the items (*The Igor runs a worker's miss check only where an
-  agent would look*).
+- **Whom does an untagged bot question with no place reach?** A bot's
+  message that mentions no one reaches each subscriber with write access
+  to what its questions concern (answer-session spec, *Whom a message
+  reaches is set by its mentions*). A question the session's model places
+  nowhere, such as one in a Linear channel naming no repository or one
+  whose `record_verdict` place is `other`, therefore reaches no one and
+  waits unseen. Options: (a) leave it so; (b) send it to every subscriber of
+  its channel. Recommended: (a); (b) would show the person questions they
+  may have no authority to decide.
 
 ### Outside this change
 

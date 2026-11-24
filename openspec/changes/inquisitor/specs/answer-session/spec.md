@@ -58,6 +58,8 @@ inquisitor's, or that spec's, *Title*:
   a question concerns as that spec has an agent judge it, except where a
   concerns line or *A channel's repositories place its questions* places
   it.
+- A message's **subscribers** are the people whose answer sessions
+  subscribe to its channel.
 - A **discussion** is the person's exchange with the session's model about
   one question, and its **discussion record** the copy of both
   sides' messages kept in the state folder (*Local state is per machine,
@@ -68,11 +70,12 @@ inquisitor's, or that spec's, *Title*:
 - A **thread copy** is a question the answer session reads from a
   thread, whether it shows it, ignores it as not a question or passes it
   over; a questions-branch log file **holds** it when the file's
-  `asked_in` links that thread message and, in a post with an
-  open-questions section, the file's question has the same hash as the
-  item, or as one sentence of the question that the post's sentences
-  outside the section make (*Question sentences outside a post's list are
-  one more question*; the inquisitor's *A question's text and hash are
+  `asked_in` links that thread message and, in a message split into items
+  (*Each item of an open-questions section is its own question*), the
+  file's question has the same hash as the item or, since the asking
+  agent logs each sentence on its own, as any one of the sentences outside
+  the section, which together make one question
+  (*Question sentences outside a message's list are one more question*; the inquisitor's *A question's text and hash are
   built one way*). A log file also holds a question shown from that file, and
   a **questions-branch question** is one that a log file holds. A
   question has **no thread** on a machine whose answer session has read
@@ -407,14 +410,12 @@ writes no miss it cannot place privately*, or with no login configured.
 
 ### Requirement: Each item of an open-questions section is its own question
 
-The answer session SHALL treat each item of a post's open-questions
-section as its own question, numbered from 1 in order among the post's
-such items. A relay post
-about an item SHALL hold `question <n>: ` right after its reserved
-prefix, and never the item's words. A post with no such section, or a
-Linear or Discord message, SHALL be one question, and its relay posts
-name no item, because the inquisitor finds sections only in a GitHub
-post.
+The answer session SHALL treat each item of an open-questions section in
+a post, or in a bot account's Linear or Discord message, as its own
+question, numbered from 1 in order among the message's such items. A
+relay post about an item SHALL hold `question <n>: ` right after its
+reserved prefix, and never the item's words. Any other message SHALL be
+one question, and its relay posts name no item.
 
 #### Scenario: Each listed question is shown and answered by itself
 
@@ -436,8 +437,17 @@ post.
   holds no number
 - **AND** when the person's answer to it begins `question 2: `, the relay
   posts it as typed, and the post's one question shows as answered
-- **AND** a Linear message listing two questions under `Open questions:`
-  is one question too
+- **AND** a person's Linear message listing two questions under `Open
+  questions:` is one question too
+
+#### Scenario: A bot's Linear message is split like a post
+
+- **WHEN** an Igor's Linear handback lists two questions under `Open
+  questions:`, each logged in its own file whose `asked_in` links the
+  handback
+- **THEN** the answer session shows them as questions 1 and 2, each held
+  by the file with its hash, and a relay post answering the second holds
+  `question 2: `
 
 ### Requirement: A deferred item is numbered but not shown
 
@@ -456,11 +466,11 @@ it.
 - **THEN** the answer session shows only the last item, as question 3,
   and posts no `Inquisitor: ` reply to either deferred item
 
-### Requirement: Question sentences outside a post's list are one more question
+### Requirement: Question sentences outside a message's list are one more question
 
-In a post with an open-questions section, the sentences ending in `?`
-outside it SHALL together be one more question, numbered after the
-section's items, so none is dropped.
+In a message split into items, the sentences ending in `?` outside its
+open-questions section SHALL together be one more question, numbered
+after the section's items, so none is dropped.
 
 #### Scenario: A question sentence outside the list is one more question
 
@@ -783,16 +793,16 @@ line, and say when `~/.local/bin` is not on `PATH`.
 
 ### Requirement: A question asked of the person comes from one of four sources
 
-The answer session SHALL show, as a question asked of the person, each
-unanswered one of these, and nothing else:
+The answer session SHALL show as questions asked of the person only these,
+when unanswered:
 
-1. a message in a subscribed channel that mentions the person;
-2. a message there mentioning a relay identity of theirs, or replying
-   to a relay post;
-3. a pull request there requesting their review, or an issue there
-   assigned to them;
-4. a log file, on a questions branch the session fetches, whose question
-   tags the person and which no handled file names.
+1. a message in a subscribed channel that reaches the person by *Whom a
+   message reaches is set by its mentions*;
+2. a person's message there mentioning a relay identity of theirs, or
+   replying to a relay post;
+3. a review request to them there, or an issue there assigned to them;
+4. a log file tagging the person on a subscribed or lore repository's
+   questions branch, which no handled file names.
 
 #### Scenario: An agent's mention is a question
 
@@ -884,13 +894,13 @@ says, it puts the question that post asked about back in the queue.
 
 ### Requirement: Whom a message reaches is set by its mentions
 
-A message by a bot account (*An agent's question comes from a bot
-account or a log file*) SHALL reach only the first person it mentions,
-save as *Each item of a bot's message reaches the person its tag line
-mentions* says; any other message, a relayed question and an agent's
-question posted under a person's own account included, SHALL reach each person it
-mentions. On GitHub, this rule is built only once task 0.21 measures
-whether a comment's App can be told.
+A bot account's message (*An agent's question comes from a bot account
+or a log file*) SHALL reach only the first person it mentions, or, if it
+mentions no one, each subscriber with write access to what its questions
+concern, save as the next two requirements and *A handback that mentions
+no one goes to the item's assignee* say; any other message, a relayed
+question included (*A relayed question is a person's question*), SHALL
+reach each person it mentions. On GitHub, it waits on task 0.21.
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -898,6 +908,13 @@ whether a comment's App can be told.
   `@maya` first and then the person
 - **THEN** the person's answer session does not show it, and Maya's does,
   if she subscribes to that repository
+
+#### Scenario: A bot's message that mentions no one reaches whoever can decide it
+
+- **WHEN** an agent's bot account asks, in an `o/web` issue, a question
+  about `o/web` that mentions no one, and the person and Maya subscribe
+  to `o/web`, the person with write access there and Maya without
+- **THEN** the person's answer session shows it, and Maya's does not
 
 #### Scenario: A person's message reaches everyone it mentions
 
@@ -910,8 +927,8 @@ In a message that *Whom a message reaches is set by its mentions* counts
 as a bot account's, an item of an open-questions section with a tag line
 (the inquisitor's *A tag line names the person a posted question tags*)
 SHALL reach only the person that line mentions, since each item tags its
-own decider; an item without one reaches whom that rule says. It waits on
-task 0.21 on GitHub.
+own decider, and an item that tags no one SHALL reach whom its message
+would reach if it mentioned no one. It waits on task 0.21 on GitHub.
 
 #### Scenario: Each item of a bot's post reaches the person its tag line names
 
@@ -920,6 +937,9 @@ task 0.21 on GitHub.
   with the tag line naming the person
 - **THEN** the person's answer session shows item 2 and not item 1, and
   Maya's shows item 1, if she subscribes to that repository
+- **AND** an untagged third item reaches each subscriber with write
+  access to what it concerns, or, in a handback, the assignee of the
+  handed-back issue or pull request
 
 ### Requirement: A bot's message to a relay reaches the relay's person
 
@@ -993,8 +1013,8 @@ is.
 - **WHEN** a Linear app user that is not an Igor's comments on an issue
   assigned to the person, holding igor's handback marker, mentioning no
   one and replying to no relay post
-- **THEN** it is not a handback, and as a bot account's message that
-  mentions no one it reaches no one
+- **THEN** it is not a handback, so it does not reach the person as the
+  issue's assignee
 
 ### Requirement: Only an item's newest handback is shown
 
