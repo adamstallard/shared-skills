@@ -29,8 +29,8 @@ including a result that contradicts what design.md assumed.
 
 - [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
       `pyright --strict`: read the open issues and pull requests through
-      `gh`, with creation times, closing references, blocked-by
-      relations, requested reviewers, drafts and changed files
+      `gh`, with creation times, closing references, `Part of` lines,
+      blocked-by relations, requested reviewers, drafts and changed files
 - [ ] 1.2 Find each open change on the default branch and on each open pull
       request's head, and the pull request it belongs to
 - [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.1 or later,
@@ -65,6 +65,10 @@ including a result that contradicts what design.md assumed.
       `owner/repo#N` text: on the line of the item that has the link, or
       in the list of edges not counted when the order does not hold that
       item
+- [ ] 2.12 Tie each issue to the pull requests that close it or name it in
+      a `Part of` line, placing it by writers' ties to this repository's
+      issues only, and write `tied to no issue` on the line of each open
+      pull request with no tie
 
 ## 3. Publishing
 
@@ -113,7 +117,8 @@ including a result that contradicts what design.md assumed.
 ## 6. Docs
 
 - [ ] 6.1 `.agents/skills/sequencer/SKILL.md`: when to run it, the session's
-      model step, and the commands
+      model step, the commands, and the `Part of` line for a pull request
+      that does only part of an issue's work
 - [ ] 6.2 The README's skills table
 
 ## 7. Archive

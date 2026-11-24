@@ -269,9 +269,8 @@ moves the head.
 ### Which issues the order holds
 
 **The order holds every open pull request, and only the issues that an
-explicit link, or a closing reference such as a pull request's `Fixes #n`,
-connects to another item.** Every
-open issue in a large repository would otherwise get a block, most with no
+explicit link connects to another item or that an open pull request is
+tied to, by closing it or naming it in a `Part of` line.** Every open issue in a large repository would otherwise get a block, most with no
 rule placing them.
 
 ### Items no rule orders go earliest opened first, unasked
@@ -283,8 +282,8 @@ and a wrong guess is cheap to reverse.
 
 The key is GitHub's creation time; equal times go by repository name, then
 number. The same key picks the pull request a change belongs
-to, the pull request an issue shares a place with when several close it,
-the order of a cycle's members and the cycle's own place. Within one
+to, the pull request whose place an issue shares when several pull
+requests are tied to it, the order of a cycle's members and the cycle's own place. Within one
 repository it gives the order of the numbers, since GitHub numbers issues
 and pull requests as they are created, except perhaps for an issue
 transferred in (task 0.7). Every item of this order is in one repository,

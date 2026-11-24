@@ -36,6 +36,12 @@ These terms hold throughout this spec:
   line in a body, or a `Builds on:` line in a change's `proposal.md`, as *Explicit links order the items they connect*
   and *A Depends on line names items by number, with or without their
   repository* define.
+- **A pull request is tied to an issue** when GitHub's closing
+  references say it closes the issue, or a line in its body names the issue
+  as `Part of #<number>`. A `Part of` line follows the rules of a
+  `Depends on` line, with `Part of ` in its place. Authors write `Part of`
+  on a pull request that does only part of an issue's work, and `Closes`
+  on the one that completes it; the script checks neither.
 - **An outside item** is an issue or pull request in another repository
   that an explicit link names.
 - **An edge** is a rule's finding that one item comes after another, with
@@ -65,13 +71,14 @@ These terms hold throughout this spec:
 ### Requirement: The order holds every open pull request and the issues linked to the work
 
 The order SHALL hold each open pull request, each open issue that an
-explicit link or a pull request's closing reference connects to another
-item, and no other issue; the order's issue is never an item.
+explicit link connects to another item, each open issue that an open pull
+request a writer opened is tied to, and no other issue; the order's issue is never an
+item.
 
 #### Scenario: An issue linked to nothing is not ordered
 
 - **WHEN** an open issue has no explicit link to or from another issue or
-  pull request, and no open pull request closes it
+  pull request, and no open pull request is tied to it
 - **THEN** the order does not hold it, and its body gets no block
 
 #### Scenario: A blocked issue is ordered
@@ -85,20 +92,40 @@ item, and no other issue; the order's issue is never an item.
   `Depends on #40`
 - **THEN** the order does not hold #40, and #40's body gets no item block
 
-### Requirement: An issue an open pull request closes takes that pull request's place
+### Requirement: An issue takes the place of an open pull request tied to it
 
-Where open pull requests close an issue by GitHub's closing references,
-the issue SHALL share the position of the earliest opened of those that
-writers opened, and its block SHALL name that pull request.
-Every edge to or from the issue SHALL apply to that pull request instead.
-A closing reference from an author who is not a writer SHALL neither move
-an issue nor bring one into the order.
+Where open pull requests that writers opened are tied to an issue, the
+issue SHALL share the position of the earliest opened of them, and its
+block SHALL name that pull request. Every edge to or from the issue SHALL
+apply to that pull request instead. A tie from a pull request no writer
+opened SHALL neither move an issue nor bring one into the order, and a
+tie to another repository's issue SHALL give that issue no place.
 
 #### Scenario: A spec pull request and its issue share a place
 
 - **WHEN** open pull request #50 closes issue #43, and #50 is third in the
   order
 - **THEN** #43 is third too, and its block says it is closed by #50
+
+#### Scenario: A pull request doing part of an issue's work takes its place
+
+- **WHEN** #108's body holds the line `Part of #107 and #112`, no other
+  open pull request is tied to either, and #108 is third in the order
+- **THEN** #107 and #112 are third too, and each one's block says #108 does
+  part of it
+
+#### Scenario: Naming an issue in prose ties no pull request to it
+
+- **WHEN** #108's body says `Implements the docs part of #107` and holds no
+  `Part of` line, and nothing else links #107
+- **THEN** the order does not hold #107
+
+#### Scenario: A tie to another repository's issue moves nothing
+
+- **WHEN** #64's body holds the line `Part of octo/lib#7`, and nothing else
+  ties #64 to an issue
+- **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
+  does not say `tied to no issue`
 
 #### Scenario: An issue two pull requests close follows the one opened earlier
 
@@ -121,6 +148,20 @@ an issue nor bring one into the order.
   #50, opened by a writer, also closes #43
 - **THEN** #43 shares #50's place, not #48's, and gains no place from #48
   alone
+
+### Requirement: A pull request tied to no issue is listed
+
+Each open pull request tied to no issue, counting ties that move nothing,
+SHALL say so on its line in the order's issue. The script SHALL add no
+`Closes` or `Part of` line to any body.
+
+#### Scenario: A pull request tied to no issue is listed
+
+- **WHEN** draft pull request #64 closes no issue and holds no `Part of`
+  line, though issue #43 is the work it does
+- **THEN** #64 is listed although it is a draft: its line in the order's
+  issue says `tied to no issue`, and no body gains a `Closes` or
+  `Part of` line
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -348,7 +389,7 @@ item's repository.
 #### Scenario: An issue whose only link names another repository is not ordered
 
 - **WHEN** open issue #12's only explicit link is the body line
-  `Depends on octo/lib#7`, and no open pull request closes #12
+  `Depends on octo/lib#7`, and no open pull request is tied to #12
 - **THEN** the order does not hold #12, and the order's issue lists
   `#12: depends on octo/lib#7, in another repository` as not counted
 

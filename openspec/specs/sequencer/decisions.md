@@ -16,6 +16,15 @@
 
 ## Rationale
 
+- **Rationale: An issue takes the place of an open pull request tied to it.**
+  An issue shares a tied pull request's place because that pull request does the issue's work, so every pull request doing part of it needs a tie. A pull request that does only part of an issue's work cannot say `Closes`: GitHub would close the issue when that pull request merged. Without a `Part of` line, nothing would tie it to the issue. Prose that names the issue ties nothing, because prose also names issues that a pull request only mentions.
+  Evidence: issue #107's work was split across pull requests #108, #109 and #110, each calling itself a part ("Implements the docs part of #107", "the hook half of #107") and none saying `Closes #107`, so GitHub never closed #107, and it was later mistaken for work still to do, https://github.com/adamstallard/shared-skills/pull/108, https://github.com/adamstallard/shared-skills/pull/109, https://github.com/adamstallard/shared-skills/pull/110, https://github.com/adamstallard/shared-skills/issues/107
+  Evidence: GitHub's documentation says a pull request whose description uses a closing keyword closes the linked issue when the pull request merges into the default branch, https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue
+
+- **Rationale: A pull request tied to no issue is listed.**
+  Without the listing, a pull request that completes an issue's work but does not say `Closes` would go unnoticed until someone mistook the issue for work still to do.
+  Evidence: pull request #64 does the work of issue #43, yet `gh pr view 64 --json closingIssuesReferences` printed an empty list on 2026-11-24, so #43 would stay open when #64 merges, https://github.com/adamstallard/shared-skills/pull/64
+
 - **Rationale: The script reads OpenSpec changes only through the OpenSpec CLI.**
   If the script parsed OpenSpec's markdown itself, a release that changed the format would leave the script silently wrong. Read through the CLI, as spec-check and spec-trace read it, such a release makes all three fail their tests instead.
   Evidence: OpenSpec's own reading of the same markdown changed in both 1.16 releases, which a hand-written reader would have had to track. In 1.16.0, a line beginning with inline code written in triple backticks (```` ```npm test``` ````) stopped being read as the opening of a code fence, which had hidden every requirement after it, https://github.com/Fission-AI/OpenSpec/releases/tag/v1.16.0 (Fission-AI/OpenSpec#2131)
