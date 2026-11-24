@@ -93,9 +93,9 @@ The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `,
 which the skill's instructions reserve for its posts. On GitHub, this
-requirement and every one that posts through the relay are built only
-once task 0.21 is measured, and any GitHub reply whose miss file is
-named by the reply's `node_id` only once task 0.31 is too.
+requirement and every other that task 0.21 lists wait for that task's
+result, and the three GitHub replies task 0.31 names wait for task
+0.31's too.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -157,9 +157,7 @@ The answer session SHALL treat as a **relayed question** any question asked
 of the person in a message starting `User says: ` or `User asks: ` that a
 bot account posted on any surface, and SHALL count it as a person's
 question. It SHALL show the posting bot account's name as who the
-question is from; the name proves nothing about who asked. On GitHub,
-where telling a bot account's comment needs task 0.21, this requirement
-is built only once that task is measured.
+question is from; the name proves nothing about who asked.
 
 #### Scenario: A relayed question is a person's, whoever's relay posted it
 
@@ -182,8 +180,7 @@ as an Igor's worker. Unless it is a relayed question, the answer session
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
 message by a bot account (a GitHub App, Linear app user, or Discord bot or
-webhook). Every other question SHALL count as **a person's question**; on
-GitHub, this requirement is built only once task 0.21 is measured.
+webhook). Every other question SHALL count as **a person's question**.
 
 #### Scenario: A Linear app user's question is an agent's
 
@@ -310,8 +307,8 @@ A **mapped channel** is a Linear team or Discord channel whose `repos`
 names a subscribed repository. A question there that no concerns line
 settles SHALL go by default to the subscribed repository `repos` names,
 or the one of several the model picks, and a collective's question to
-**the channel's lore repository**, the team's lore repository that all
-the repositories `repos` names share, else no place. A question clearly
+**the channel's lore repository**, the lore repository that all the
+repositories `repos` names share, if they share one. A question clearly
 about another repository or collective SHALL take the model's `place`.
 
 #### Scenario: A channel's repositories place its questions
@@ -854,7 +851,9 @@ with the newest of those answer files beside it, as input.
 
 A message SHALL count as replying to a relay post as this requirement's
 scenarios show for each surface; in an unthreaded GitHub conversation,
-only the asker's next comment after the relay post SHALL count.
+only the asker's first comment after the relay post, or the first
+comment after it that a bot account posts starting `User says: `, SHALL
+count.
 
 #### Scenario: Replies to the relay on each surface are questions
 
@@ -871,6 +870,8 @@ only the asker's next comment after the relay post SHALL count.
   person comments, then the asker comments twice
 - **THEN** only the asker's first comment after the relay post counts as
   replying to it
+- **AND** when the asker answers in their own answer session instead of
+  commenting, the `User says: ` comment their relay posts counts
 
 ### Requirement: Messages judged clearly not questions are ignored
 
@@ -906,7 +907,7 @@ mentions no one, each subscriber with write access to what its questions
 concern, and no one for a question with no place, except as the next two
 requirements and *A handback that mentions no one goes to the item's
 assignee* say; any other message, a relayed question included, SHALL
-reach each person it mentions. On GitHub, it waits on task 0.21.
+reach each person it mentions.
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -936,7 +937,7 @@ as a bot account's, an item of an open-questions section with a tag line
 (the inquisitor's *A tag line names the person a posted question tags*)
 SHALL reach only the person that line mentions, since each item tags its
 own decider, and an item that tags no one SHALL reach whom its message
-would reach if it mentioned no one. It waits on task 0.21 on GitHub.
+would reach if it mentioned no one.
 
 #### Scenario: Each item of a bot's post reaches the person its tag line names
 
@@ -956,8 +957,7 @@ bot account that posts for them, SHALL count as a mention of that person,
 in the first-mention rule of *Whom a message reaches is set by its
 mentions*. A bot account's message that mentions no person and replies to
 a relay post SHALL reach that relay's person, since an agent's reply to a
-relay post usually mentions no one. On GitHub, this rule waits on task 0.21
-as *Whom a message reaches is set by its mentions* does.
+relay post usually mentions no one.
 
 #### Scenario: A bot's reply to a relay post that mentions no one reaches that relay's person
 
@@ -1000,9 +1000,8 @@ The answer session SHALL count as a **handback** only a comment that an
 Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
 an app user task 0.38 shows to be an Igor's) and that holds igor's
 handback marker, which quoted text cannot produce, in the form task 0.6
-records for each surface. It is
-built on GitHub once task 0.21 is measured, and on Linear once task 0.38
-is.
+records for each surface. On Linear, this rule waits for task 0.38's
+result.
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -1722,7 +1721,7 @@ answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply requeues
 it; otherwise unanswered. This machine adds only its pending answers and
 closed questions, and a question closed here stays closed whatever its
-thread shows. On GitHub it is built only once task 0.21 is measured.
+thread shows.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1881,8 +1880,9 @@ recorded by hash only* requires, the answer session SHALL write no
 discussion record or log file, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
 and the surface's ids for its thread and message. A questions-branch
-file holding the question SHALL still be closed by a handled file, which
-names it only by a hash (inquisitor spec: *A handled file's keys*).
+file holding the question SHALL still be closed by a handled file,
+pushed once the answer is confirmed and naming that file only by a
+hash.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -2190,13 +2190,13 @@ every line break made a space.
 
 ### Requirement: An answer is recorded by a new log file
 
-The answer session SHALL write a log file, besides handled files, only
-for an answer the person confirmed or edited. Except for an item
-question, which gets none, the session's `log` command SHALL push a log
-file to each questions branch where an unanswered file holds the
-question, listing those files in the log file's `answers`, or, with no such file, to the
-questions branch of what the question concerns, with the `repository`
-and `asked_from` a miss would have.
+For an answer the person confirmed or edited, and no other, the answer
+session's `log` command SHALL push log files to each questions branch
+where an unanswered file holds the question, as the inquisitor's *An
+answer file names every unanswered file it answers* sets, or else one to
+the questions branch of what the question concerns, with the
+`repository` and `asked_from` a miss would have. An item question gets
+none (*An item question is recorded only by its comment on the item*).
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2468,11 +2468,10 @@ file names.
 ### Requirement: A handled file is pushed once its close takes effect
 
 The answer session SHALL push a handled file once the post leading to it
-is out; with nothing posted, once the person confirms the decline;
-and for a question with a category, once the person confirms the
-answer. It SHALL record the owed push before
-the post or, with nothing posted, before the push; drop it if the post
-fails or a reply the person has not seen holds it back; and retry it at each poll
+is out, or, with nothing posted, once the person confirms the decline.
+It SHALL record the owed push before the post or, with nothing posted,
+before the push; unless the question has a category, drop the owed push
+if the post fails or a reply the person has not seen holds the post back; and retry it at each poll
 and opening until it succeeds or *An owed push refused for good is not
 retried* stops it.
 
@@ -2690,8 +2689,7 @@ question the answer session SHALL log a
 miss against the picked filter. The miss's `said` is the note or, with
 none, `the inquisitor should have handled it`. It SHALL push the miss
 only once the decline's post is out or, when it posts nothing, once the
-person confirms it. In a GitHub thread, it logs none until task 0.21
-tells an agent's question from a person's.
+person confirms it.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -3052,7 +3050,7 @@ session SHALL post the filter's fixed text there by itself, log its miss
 and list the question as handled, unless *No automatic post repeats one
 in its chain of replies*, *A question with a person-required line gets
 no filter 2 to 4 reply* or *An automatic Inquisitor reply goes out only
-with a miss file* bars it. On GitHub this rule waits on task 0.21.
+with a miss file* bars it.
 
 #### Scenario: A deferrable agent's question is handled for the person
 

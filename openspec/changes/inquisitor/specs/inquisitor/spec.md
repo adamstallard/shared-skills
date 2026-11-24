@@ -531,9 +531,7 @@ An answer the agent reads in a comment by a bot account (a GitHub App,
 Linear app user, or Discord bot or webhook), such as a relay bot's
 `User says: ` post or an Igor's comment, SHALL be logged, if at all, as
 `input`. An answer a person gave in an answer session SHALL count
-through the answer file that session pushed. Until task 0.21 shows how
-to tell a bot account's comment on GitHub, nothing relying on this rule
-is built there.
+through the answer file that session pushed.
 
 #### Scenario: A relayed answer counts through its answer file
 
@@ -941,13 +939,14 @@ leave the reply input.
 
 ### Requirement: The Igor runs a worker's miss check only where an agent would look
 
-The Igor SHALL run a worker's `miss-check` only on the one repository
-its handback record's concerns lines name for the question the reply
-answers, since a steered worker could name one where an attacker can
-push a backing miss file. That question is number `<n>` for a reply
-holding `question <n>: `, else number 1 when the record holds no number
-but 1. With no such question or repository, or for a reply whose `Re: `
-line links no handback of the Igor's, the reply stays input.
+The Igor SHALL run a worker's `miss-check` only on the repository its
+handback record's concerns lines name for the question the reply
+answers, since a steered worker could pick one an attacker can push a
+backing miss file to. Reading the reply by its id, the Igor takes
+question `<n>` when the reply holds `question <n>: `, else 1 if every
+question in that record is number 1. With no such question or
+repository, or if the reply's `Re: ` line links no handback of the
+Igor's, the reply stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
@@ -957,7 +956,7 @@ line links no handback of the Igor's, the reply stays input.
 - **THEN** the Igor runs no `miss-check`, and the reply is input to the
   worker
 - **AND** so it does for a reply whose `Re: ` line links another
-  handback
+  handback, whatever the worker's copy of the reply says
 
 #### Scenario: An unnumbered reply to two unlisted questions is checked against number 1
 
@@ -1400,11 +1399,12 @@ string matching the credential patterns.
 
 After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
-them, on the question's **tag line**: `@` and a login in GitHub's login
-syntax (in a Linear or Discord message, one mention in that surface's
-form), or the fixed line of *A question no candidate can decide turns to
-the session's login*, alone on a line after any related-decision, person-required and
-concerns lines, which come in that order.
+them, on the question's **tag line**: `@` and a GitHub login (in a
+Linear or Discord message, one mention in that surface's form; a
+questions-branch file omits that line), or the fixed line of *A question no
+candidate can decide turns to the session's login*, alone on a line
+after any related-decision, person-required and concerns lines, in that
+order.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
@@ -2232,7 +2232,7 @@ committer of the files it concerns.
 ### Requirement: A question no candidate can decide turns to the session's login
 
 When no tagging candidate of the requirement above has write access, the
-script SHALL check the configured login, if `gh` is logged in as it, and tag it if it has write
+script SHALL check the configured login, and tag it if it has write
 access and the post is known to go out as someone else. If it tags no
 one and a person is in the session, the agent SHALL ask through the
 picker, unless that login lacks write access. Otherwise the question
@@ -3535,6 +3535,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   question tags `alice`, and the question's hash, which drops tag lines,
   still matches the hash vetted before the tag line was added (*Adding
   the tag line keeps the vetted hash*)
+- **AND** a question asked in a Linear or Discord message is logged
+  without its tag line
 - **AND** a related-decision, person-required or concerns line after the
   question (*A related-decision line is one URL on a line of its own*,
   *A question another skill requires carries a person-required line*,
