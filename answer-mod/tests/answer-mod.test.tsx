@@ -1419,7 +1419,7 @@ test('each question answered or declined leaves a row in the transcript, posting
 /** Whether dot `i`'s glyph is drawn marked: a new question not yet shown. */
 async function isMarked(ui: Pick<Drawn, 'find'>, i: number): Promise<boolean> {
   const dot = (await ui.find({ key: `dot:${i}` })) as { children?: unknown[] } | undefined
-  return JSON.stringify(dot?.children ?? []).includes('"inverse":true')
+  return JSON.stringify(dot?.children ?? []).includes('▣')
 }
 
 /** The bar's "N new", or undefined when nothing is marked. */

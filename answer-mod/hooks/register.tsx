@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-3'
+const BUILD = 'v0.2-4'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -2623,13 +2623,14 @@ export const register: Register = on => {
 
     const dots = queue.map((one, i) => {
       const a = answers[one.id]
-      const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : !a ? '○' : glyphOf(a)
       const isMarked = !!marked[one.id]
+      // A marked dot is ▣, not an inverse cell, so every dot is the same size.
+      const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : isMarked ? '▣' : !a ? '○' : glyphOf(a)
       const color = i === at || isMarked ? ACCENT : !a ? RULE : TONE[a.kind]
       // A click on a dot opens that question.
       return (
         <Button key={`dot:${i}`} plain onPress={() => run(goTo($, i))}>
-          <Text color={color} bold={i === at || isMarked} inverse={isMarked} dimColor={(a?.kind === 'wait' || a?.kind === 'wont') && i !== at}>
+          <Text color={color} bold={i === at || isMarked} dimColor={(a?.kind === 'wait' || a?.kind === 'wont') && i !== at}>
             {glyph}
           </Text>
         </Button>
