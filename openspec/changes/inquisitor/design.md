@@ -402,13 +402,6 @@ marks a question answered on every machine.
 
 ### Logs and privacy
 
-#### Every asked question is logged with what it concerns
-
-**Rule:** inquisitor spec, *Every answer is recorded and every asked question
-logged*; *A question is written at the privacy of what it concerns*.
-Logged with what it concerns, a question's answer is found by the next agent
-instead of being asked again.
-
 #### Collective questions go on lore's `questions` branch
 
 ***Ruled out by a scenario:*** igor's `igor-state` branch, which holds
@@ -1095,15 +1088,13 @@ bullet only asks the question, its task in tasks.md says it.
   uses the answer only in the code of the fix that repairs the
   vulnerability, and tells the person only that a vulnerability question
   is blocking, without the question's text.
-- **Can a security advisory's private-fork pull request be merged before
-  the advisory is published?** (task 0.13)
-- **Can an Igor worker post?** (task 0.14)
-- **Does GitHub give a review's and a review comment's author, and log
-  each re-request of a review?** (task 0.11, which says what follows if
-  not)
-- **Can the Igor itself run the script's `branch-search` and read a
-  collaborator's permission?** (task 0.29, which says what follows if not)
-- **Does the Discord bot token pattern match a real token?** (task 0.33)
+
+Tasks 0.11, 0.13, 0.14, 0.29 and 0.33 measure the rest: whether GitHub
+gives review authors and logs re-requests, whether an advisory's
+private-fork pull request can merge before publication, whether an Igor
+worker can post, whether the Igor can run `branch-search` and read a
+collaborator's permission, and whether the Discord token pattern matches
+a real token. Each task says what follows if its fact is false.
 
 ### Facts the answer session relies on
 

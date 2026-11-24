@@ -14,7 +14,7 @@ inquisitor's, or that spec's, *Title*:
 
 - **The skill** is the inquisitor skill, and its **script** the inquisitor
   script. **The `log` command** is the script's command that writes and
-  pushes every miss file and every log file, answer and handled files
+  pushes every miss and log file but those an Igor writes itself, answer and handled files
   being log files too (stated in the inquisitor's *The log command takes
   its input in a private file*).
 - **Filters 1 to 4** stop a question before a person sees it: 1, already
@@ -1005,8 +1005,8 @@ result.
 - **WHEN** a GitHub App whose slug does not start with `igor-`, or a
   Linear app user that is not an Igor's, comments on an issue assigned to
   the person, holding igor's handback marker, mentioning no one and
-  replying to no relay post, so only counting as a handback could bring
-  it to the person
+  replying to no relay post, either of which would reach the person by
+  another rule
 - **THEN** it is not a handback, so it does not reach the person as the
   issue's assignee
 
@@ -1472,7 +1472,7 @@ The answer session SHALL keep a confirmed answer that cannot be posted
 in its thread as **answered, not relayed**, on this machine's **pending
 list**, with the thread it must go to, when its channel is off or not
 subscribed on this machine, its post is refused or fails, or the fetch before
-posting found a reply the person has not seen. It SHALL tell only the
+posting failed or found a reply the person has not seen. It SHALL tell only the
 person that the asker has not got such an answer, and show its text to
 relay by hand.
 
@@ -1757,10 +1757,10 @@ that copy on a machine where it is still open still pushes a log file.
 When a question comes on screen and its channel's last poll is over
 about a minute old, the answer session SHALL fetch and show every reply in
 its thread since the question. Before each relay post it SHALL fetch the thread again and post
-nothing if it holds a relay post that answers or handles the question,
-showing it in that state, or a reply the person has not seen, showing
-that reply; a held-back automatic post then leaves its question
-unanswered.
+nothing if the fetch fails, or, showing what it found, if a relay post
+there answers or handles the question or a reply the person has not seen
+is there. An automatic post held back by a failed
+fetch or an unseen reply leaves its question unanswered.
 
 #### Scenario: Replies since the question are shown
 
@@ -1779,7 +1779,8 @@ unanswered.
 
 - **WHEN** the person relays an answer after the asker has replied in the
   thread since the question was shown
-- **THEN** nothing is posted, and the asker's reply is shown
+- **THEN** nothing is posted, the asker's reply is shown, and the answer
+  is kept pending
 - **AND** had the session been about to post an automatic reply, nothing
   is posted, and the question is shown as unanswered with that reply
 
@@ -1841,8 +1842,8 @@ outlives it.
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
   subscribed repository's questions and default branches, the input
-  files it passes to a relay identity's skill or to the `log` command,
-  and the lock
+  files it passes to a relay identity's skill or to the `log` or `search`
+  command, and the lock
 
 ### Requirement: Reopening shows the question last on screen
 
@@ -1862,7 +1863,7 @@ a category; then it SHALL show the next in the queue.
 
 For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer session SHALL write no
-discussion record or log file, keep its question on screen and pending
+discussion record or file holding its question's or answer's text, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
 and the surface's ids for its thread and message.
 
@@ -2443,8 +2444,8 @@ The answer session SHALL push a handled file once the post leading to it
 is out, or, with nothing posted or for a question with a category, once
 the person confirms the answer or decline.
 It SHALL record the owed push before posting or pushing; drop it if the
-post it waits for fails or the fetch before posting finds a reply the
-person has not seen; and retry it at each poll and each opening of the
+post it waits for fails or is held back, recording it again before any
+later post; and retry it at each poll and each opening of the
 session until it succeeds or *An owed push refused for good is not
 retried* stops it.
 
@@ -2937,8 +2938,7 @@ posts the picked filter's reply* and the requirements after it say.
 When the answer session posts a recorded answer by itself, with no
 confirmation from the person, and the record is a lore entry, it SHALL push
 a citation file unless a bar in the inquisitor's *A lore entry that stops a
-question gets a citation file* applies. Its bar on an answer session's
-automatic reply does not apply here: it binds the agent the reply reaches.
+question gets a citation file* applies.
 
 #### Scenario: A lore entry's recorded answer sends a citation
 

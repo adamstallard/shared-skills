@@ -650,19 +650,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       filters before asking about it: a root cause, a finding too large
       for the change, anything left unresolved when the run aborted, and
       a property from the hunt (Step 3) worth keeping as a permanent
-      guard. These starting rules are input, not decided
-      behaviour: the builder sets the final rules, which are reviewed
-      with the implementation.
-
-      | Step 9 recommendation | Settle it without asking when | What to do then | Filter |
-      |---|---|---|---|
-      | A Step 3 property worth keeping as a guard: a property-based check the hunt ran against a stated invariant | The check is bounded in runtime, runs with a fixed seed, and needs no new dependency | Keep it as a test | Cheap to reverse |
-      | A finding too large for the change | Always | File it as an issue with its evidence, and report the link | Deferrable |
-      | Something left unresolved when a bug-hunter run aborted after its third iteration | A new bug-hunter run over it would be cheap | Record it where the repository keeps open questions, and report it | Deferrable |
-      | A root cause | It was already decided or rejected (look it up), or its fix is small and defensible | Fix it, and run bug-hunter's loop over the fix | Already answered; cheap to reverse |
-
-      Only a broad root-cause fix or a design choice, or an abort's
-      leftover whose new run is costly, still goes to the person
+      guard. The builder sets when each kind passes a filter, and those
+      conditions are reviewed with the implementation
 - [ ] 5.8 Add to bug-hunter's SKILL.md the inquisitor spec's rules for a
       weakness whose advisory is unpublished. Task 0.13 measures whether
       GitHub can merge the advisory's private-fork pull request before
@@ -794,8 +783,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       (answer-session spec: *The preview says when an answer also reaches
       a more visible item's run*); an answer whose last line
       starts `Re: `, which a reader would take for the post's own `Re: ` line, sent back for rewording,
-      and each confirmed answer, except an item question's, pushed as a new log file, and again as a new one when its relayed answer
-      is edited;
+      and answer files pushed as *An answer is recorded by a new log
+      file* and *An edit to a questions-branch answer pushes a new log
+      file* set;
       discord-bot's warnings shown after each Discord relay post and edit;
       and, off GitHub, the relayed text logged with the relay post's URL
       as an unfetched `answer_link`

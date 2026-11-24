@@ -2768,9 +2768,7 @@ citation file to the entry's lore repository's questions branch, unless:
 the question has a category; the lore repository is more visible than the
 repository the question concerns or, for a collective's question, the
 repository it was asked from; or *No worker or
-Igor-started run pushes to a questions branch* or *An
-answer session's automatic reply is a verdict, not a person's answer*
-bars it.
+Igor-started run pushes to a questions branch* bars it.
 
 #### Scenario: A collective's question from Discord cites no public lore entry
 
@@ -2979,7 +2977,8 @@ pass, and SHALL refuse a `handled` or `closes` key passed without it.
 
 ### Requirement: The log command takes its input in a private file
 
-The `log` command, which writes every log and miss file, SHALL take where
+The `log` command, which writes every log and miss file but those an
+Igor writes itself under igor's rules, SHALL take where
 the file goes, its keys and its body sections in an input file, never as
 arguments. It SHALL refuse, and write nothing, an input file that *The two
 calls' files and records stay private* would refuse: one inside a git
