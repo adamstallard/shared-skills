@@ -14,21 +14,17 @@ remove the question from design.md.
       including a relation to another repository's issue
 - [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
       `pull-requests: write`, can edit the body of a pull request from a fork
-- [ ] 0.3 `openspec show --json` reads a change's deltas, with each
-      requirement's operation and title, from a pull request head's files
-      written into a scratch `openspec/` tree, as spec-check's `show()` does
-
-- [ ] 0.4 A `pull_request_review` run for a fork's pull request gets a
+- [ ] 0.3 A `pull_request_review` run for a fork's pull request gets a
       `GITHUB_TOKEN` that can edit issue and pull request bodies
-- [ ] 0.5 The largest input a `workflow_dispatch` run accepts, against the
+- [ ] 0.4 The largest input a `workflow_dispatch` run accepts, against the
       size of an edges file for a large repository
-- [ ] 0.6 Whether a workflow run's `GITHUB_TOKEN` can read another
-      account's permission on the repository, and the members of a team
-      CODEOWNERS names
-- [ ] 0.7 Whether an issue transferred into a repository keeps the
+- [ ] 0.5 Whether a workflow run's `GITHUB_TOKEN` can read another
+      account's permission on the repository
+- [ ] 0.6 Whether an issue transferred into a repository keeps the
       creation time it had
-- [ ] 0.8 How the workflow's token can tell that a pull request's author
-      is the bot account of a GitHub App installed on the repository:
+- [ ] 0.7 How the workflow's token can tell that an issue's or pull
+      request's author is the bot account of a GitHub App installed on the
+      repository:
       through the permission API, `author_association`, or the
       repository's list of installations
 
@@ -67,8 +63,8 @@ remove the question from design.md.
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
-      sets it, counting a pull request an installed App's bot opened as a
-      writer's, and list the rest as not counted
+      sets it, counting as a writer's each issue or pull request that an
+      installed App's bot opened, and list the rest as not counted
 - [ ] 2.11 List each explicit link that names an outside item as not
       counted, setting no edge and writing the outside item as plain
       `owner/repo#N` text: on the line of the item that has the link, or
@@ -114,7 +110,7 @@ remove the question from design.md.
 ## 5. The CI workflow
 
 - [ ] 5.1 `.agents/skills/sequencer/ci/sequencer.yml`: every trigger
-      *The workflow recomputes the order on each event that can change it*
+      *The workflow recomputes the order on GitHub events and once a day*
       names, one concurrency group, `pull_request_target` reading pull
       requests as data, the sequencer script fetched from the shared-skills commit `setup-ci`
       writes into the template

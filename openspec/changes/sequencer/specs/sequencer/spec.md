@@ -50,16 +50,18 @@ These terms hold throughout this spec:
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question. Where task 0.6 finds that the
+  holds the item or comment in question. Where task 0.5 finds that the
   workflow's token cannot read permissions, the script instead counts
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on that item is OWNER, MEMBER or
   COLLABORATOR, which also counts some accounts with only read access. It
   does so for every caller, so that every caller counts the same writers.
-  A pull request that a GitHub App's bot account opened counts as opened
-  by a writer when that App is installed on the repository, detected by
-  the means task 0.8 finds; where the workflow's token cannot read that, it counts, for
-  every caller, as opened by an account without write access.
+  An App's bot account is not a collaborator, so it has a rule of its
+  own: an issue or pull request that a GitHub App's bot account opened
+  counts as opened by a writer when that App is installed on the
+  repository, as task 0.7 finds how to detect. Where the workflow's token
+  cannot tell whether the App is installed, every caller, a session
+  included, counts it as opened by an account without write access.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the head the change is read from, which `order`
   prints for each open change.
@@ -68,7 +70,9 @@ These terms hold throughout this spec:
   and the edges it found.
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
-  of changes** is two changes that each belong to an open pull request.
+  of changes** is two changes, each belonging to an open pull request,
+  the same one or not,
+  and **a code edge** is an edge the model step found.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -159,19 +163,6 @@ them, but edges between the issue and them SHALL be dropped.
   body says `Depends on #107`
 - **THEN** #70 comes after #108, #109 and #110
 
-### Requirement: Only a writer's tie to an issue in this repository counts
-
-A tie from a pull request no writer opened SHALL neither place an issue
-nor bring it into the order, since anyone can open a pull request, and a
-tie to another repository's issue SHALL place nothing.
-
-#### Scenario: A tie to another repository's issue moves nothing
-
-- **WHEN** #64's body holds the line `Part of octo/lib#7`, and nothing else
-  ties #64 to an issue
-- **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
-  does not say `tied to no issue`
-
 #### Scenario: An outside author's closing reference moves nothing
 
 - **WHEN** `zed`, without write access, opens #48 saying `Fixes #43`, and
@@ -185,6 +176,18 @@ tie to another repository's issue SHALL place nothing.
   account, #90's body holds the line `Part of #43`, and no other pull
   request is tied to #43
 - **THEN** #43 shares #90's place
+
+### Requirement: A tie to another repository's issue places nothing
+
+A tie to another repository's issue SHALL place nothing, and the order's
+issue SHALL not list it.
+
+#### Scenario: A tie to another repository's issue moves nothing
+
+- **WHEN** #64's body holds the line `Part of octo/lib#7`, and nothing else
+  ties #64 to an issue
+- **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
+  does not say `tied to no issue`
 
 ### Requirement: A pull request tied to no issue is listed
 
@@ -371,7 +374,7 @@ A `Depends on` line SHALL be a body line, outside code fences, starting
 references separated by commas or `and`, where `<owner>` holds only
 letters, digits and `-`, and `<repo>` only those, `.` and `_`; other text
 is no reference, here or in a `Builds on:` line's parentheses. A
-reference that names this repository in full SHALL be read as its
+reference that names this repository in full, in upper or lower case, SHALL be read as its
 `#<number>`.
 
 #### Scenario: A Depends on line with commas orders each item it names
@@ -465,6 +468,12 @@ opened the item setting it.
 - **THEN** #120 gains no edge after #9, the order holds neither issue, so
   neither body gets a block, and the order's issue lists `#120 after #9`
   as not counted, opened by `zed`
+
+#### Scenario: An installed App's issue sets an edge
+
+- **WHEN** a GitHub App installed on the repository opens issue #130 as
+  its bot account, and #130's body holds the line `Depends on #9`
+- **THEN** #130 comes after #9, and the order holds both
 
 #### Scenario: A citation set by an outside author's title is not counted
 
@@ -634,7 +643,7 @@ that change, as the model step finds. To help it, the script SHALL print,
 for each pair of changes, the backticked names that both changes'
 `tasks.md` files hold. The script SHALL take the model step's edges only
 between items in the order, each with a reason, and refuse the whole set
-when any edge names something else or has no reason.
+when any edge has no reason.
 
 #### Scenario: The script points the model step at shared names
 
@@ -643,12 +652,12 @@ when any edge names something else or has no reason.
 - **THEN** the script prints `claim_item()` as a name both #82 and #90's
   tasks hold
 
-#### Scenario: A model-step edge naming no item is refused
+#### Scenario: A model-step edge naming an item not in the order is dropped
 
-- **WHEN** the model step's edges include one after #400, and #400 is not
+- **WHEN** the model step's edges include #90 after #400, and #400 is not
   in the order
-- **THEN** the script publishes none of that set's edges, and says which
-  edge it refused
+- **THEN** `publish` drops the pair of #90 and #400, and takes the edges
+  file's other pairs
 
 #### Scenario: A model-step edge with no reason is refused
 
@@ -747,12 +756,13 @@ wherever.
 
 ### Requirement: The whole order lives in one issue's body
 
-The script SHALL keep the whole order in the body of the open issue labelled
-`sequencer`, creating that issue when none is open and publishing nothing
-when more than one is. It SHALL use such an issue only when its author has
-write access to the issue's repository or is `github-actions[bot]`, which
-only a workflow run's token posts as, and otherwise publish nothing and name
-the issue and its author. Nothing of the order SHALL go in a comment.
+The script SHALL keep the whole order in the body of the open issue
+labelled `sequencer`, creating it when none is open and publishing nothing
+when more than one is. It SHALL use that issue only when a writer opened
+it, or `github-actions[bot]`, which only a workflow run's token posts as
+and which needs no detection as an installed App; otherwise it SHALL
+publish nothing and name the issue and its author. Nothing of the order
+SHALL go in a comment.
 
 #### Scenario: The first publish creates the order's issue
 
@@ -764,6 +774,12 @@ the issue and its author. Nothing of the order SHALL go in a comment.
 
 - **WHEN** the one open issue labelled `sequencer` was opened by
   `github-actions[bot]`
+- **THEN** the script publishes the order in it
+
+#### Scenario: An order issue an installed App opened is used
+
+- **WHEN** the one open issue labelled `sequencer` was opened by the bot
+  account of a GitHub App installed on the repository
 - **THEN** the script publishes the order in it
 
 #### Scenario: The order is never posted as a comment
@@ -788,9 +804,10 @@ the issue and its author. Nothing of the order SHALL go in a comment.
 
 The line after each `<!-- sequencer:begin -->` marker SHALL be a heading:
 `## Order` in the order's issue, and `## Sequencer` in an item's block,
-because #25's *Only four kinds of document are decision documents* takes an
-issue's text before its first heading as its decision block, and the
-order is no decision.
+because the inquisitor spec's *Only four kinds of document are decision
+documents* takes the text before an issue's first heading as the issue's
+decision block, so the script's text there would be read as a decision,
+and the order is no decision.
 
 #### Scenario: The order is never read as a decision
 
@@ -922,7 +939,7 @@ the item as having no block, saying why.
 ### Requirement: The order's issue names each reviewer's next review
 
 The order's issue SHALL name, for each reviewer, the open pull request,
-neither a draft nor authored by them, that they should review next: of
+not authored by them, that they should review next: of
 those awaiting their review, the one with the most items after it through
 edges, followed directly or not, and on a tie the one earlier in the
 order.
@@ -978,13 +995,18 @@ changes its head, it SHALL await that reviewer again.
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
-of `.github/sequencer.json` on the default branch, except its author. With no
-such list, it SHALL await each
-reviewer it has requested on GitHub, including one GitHub dropped from
-the list on their review. Having requested no one, it SHALL await the
-owners CODEOWNERS gives its changed files. Every caller SHALL take
-reviewers this way, except as *Only a dry run takes a reviewer list*
-allows.
+of `.github/sequencer.json` on the default branch, except its author. With
+no such list, it SHALL await each reviewer it has requested on GitHub,
+including one GitHub removed from its requests when they reviewed.
+Having never requested anyone, it SHALL await the owners CODEOWNERS gives its changed
+files. A team SHALL count as one reviewer.
+
+#### Scenario: A team is one reviewer
+
+- **WHEN** `.github/sequencer.json` does not exist, #96 requests no
+  reviewer, and CODEOWNERS gives the team `@octo/docs` the files it changes
+- **THEN** #96 awaits `@octo/docs` as one reviewer, which gets one next
+  review
 
 #### Scenario: A configured list makes each pull request await each reviewer
 
@@ -1051,7 +1073,7 @@ it with the newer template when given `--force`.
 - **WHEN** `setup-ci --force` runs where an older template exists
 - **THEN** the file holds the current template
 
-### Requirement: The workflow recomputes the order on each event that can change it
+### Requirement: The workflow recomputes the order on GitHub events and once a day
 
 The workflow SHALL run the script when an issue is opened, edited, closed
 or commented on; when a pull request is opened, edited, marked ready for
@@ -1063,8 +1085,9 @@ concurrency group, so no two of them edit a body at once.
 #### Scenario: Pull request events trigger through pull_request_target
 
 - **WHEN** `setup-ci` writes the workflow
-- **THEN** its pull request events trigger through `pull_request_target`,
-  and none through `pull_request`
+- **THEN** its pull request events other than reviews trigger through
+  `pull_request_target`, reviews through `pull_request_review`, and none
+  through `pull_request`
 
 #### Scenario: Two quick merges run one after the other
 
@@ -1108,7 +1131,8 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 ### Requirement: With an API key, the model step is one API call with no tools
 
 Where the repository chose its API key, `publish --model api` SHALL run the
-model step, only while a pair of writers' changes is unchecked, as one
+model step, only while some pair of changes, both from pull requests
+writers opened, is unchecked, since only such pairs' edges count, as one
 Messages API call that offers no tools, sending those changes' files and
 taking from the reply only what it validates as an edges file. When that
 fails, the pairs SHALL stay unchecked, as *The order says plainly what it
@@ -1124,7 +1148,7 @@ did not check* says.
 #### Scenario: No unchecked pair makes no call
 
 - **WHEN** an outside account's comment triggers a run, and every pair of
-  writers' changes is checked
+  changes whose pull requests writers opened is checked
 - **THEN** the script makes no API call
 
 #### Scenario: A reply that does not parse checks nothing
