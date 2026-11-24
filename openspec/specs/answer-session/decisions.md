@@ -26,6 +26,12 @@
   Holds while: the session's Read, Grep and Glob have no path limit, and nothing the model drafts is posted before the person confirms it.
   Paths: .agents/skills/inquisitor/
 
+- **Constraint: A repository whose committed Claude Code settings or direnv `.envrc` set `INQUISITOR_ANSWER=1` makes the person's ordinary session there open the answer session, where a crafted thread could steer a model that has a shell.**
+  Because: the cost is accepted: only a repository the person trusts to load its settings or `.envrc` can set the variable there, and that trust already lets it run any command in their sessions through the same files.
+  Evidence: a project's committed Claude Code settings set both `env` and `hooks`, https://code.claude.com/docs/en/settings; and direnv runs an allowed `.envrc` as a bash script, https://direnv.net/
+  Holds while: the reference UI opens the answer session on `INQUISITOR_ANSWER=1` alone.
+  Paths: .agents/skills/inquisitor/answer-ui/
+
 - **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
   Because: igor has published no release, so no igor before that change is supported for such a clause to serve.
   Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases

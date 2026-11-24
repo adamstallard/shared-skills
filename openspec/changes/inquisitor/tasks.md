@@ -245,7 +245,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       named `Answers` in its fullscreen layout, and that the mod sees
       `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
       tool restriction still in force after the resume
-      (answer-session spec: *The script installs the answer command*;
+      (answer-session spec: *The script installs the reference UI*;
       *Only a session with the answer marker opens an answer
       session*). If a part fails, the command line or the variable is
       changed to what works before `answer` is built
@@ -273,8 +273,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       enforces it itself rather than through a hook, and what the `answer`
       command must add to start a session so restricted. Until then, *The
       session's model has no shell, no writing tool and no web fetch* and
-      the command line that *The script installs the answer command* gives
-      `answer` are not built (answer-session spec). If no control Claude
+      the `answer` launcher (*The script installs the reference UI*) are
+      not built (answer-session spec). If no control Claude
       Code enforces exists, the change cannot be built as written: record
       it and stop for the repository's owner
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
@@ -679,7 +679,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `author.bot` and reply reference, which the answer session needs to
       tell a bot's message and a reply to a relay post, as task 0.17 found
       on 2026-11-19; this task changes `read` to return both
-- [ ] 6.1 The mod, built into the inquisitor skill from the tag
+- [ ] 6.1 The reference UI, a mod built in the skill's `answer-ui/` folder from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
       commit fc3c35f), the only build the mod
       starts from. It descends
@@ -806,16 +806,23 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
       model gets only its conversation, `propose_reply`, `record_verdict`
       and Read, Grep and Glob (answer-session spec: *The session's model
-      has no shell, no writing tool and no web fetch*); the script's
-      `install-answer` command; and the mod opening the answer session
-      only where `INQUISITOR_ANSWER=1` is set (*Only a session with the answer
-      marker opens an answer session*)
+      has no shell, no writing tool and no web fetch*); the `answer`
+      launcher and the script's `install-ui` and `uninstall-ui` commands
+      (*The script installs the reference UI*); and the mod opening the
+      answer session only where `INQUISITOR_ANSWER=1` is set (*Only a
+      session with the answer marker opens an answer session*). SKILL.md
+      tells an agent using the skill, when the person wants to answer the questions asked
+      of them, to offer to install the reference UI and then to tell them
+      to run `answer`
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
-      and the README's section on the answer session: running
-      `install-answer` once, then `answer`; setup; what to do when a relay check fails, and that no post but
+      and the README's section on the answer session:
+      installing the reference UI with `install-ui`, then running `answer`,
+      and running `uninstall-ui` before uninstalling the skill, so no link
+      outlives the skill's folder;
+      setup; what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter

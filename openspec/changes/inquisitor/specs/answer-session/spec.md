@@ -2,12 +2,13 @@
 
 The answer session is the part of the inquisitor where a person answers
 the questions asked of them, from the GitHub, Linear and Discord channels
-they subscribe to and from questions branches. Its user interface is a
-Claude Code mod shipped with the inquisitor skill, beside the conversation
-of the Claude Code session it runs in, where the person discusses each
-question with the model;
-this spec names that interface only by what it does, never by how it
-looks or which keys it takes.
+they subscribe to and from questions branches. This spec specifies the
+answer service: what the answer session does, never how its user
+interface looks or which keys it takes. The skill ships a reference UI, a
+Claude Code mod in the skill's `answer-ui/` folder. The mod runs beside
+its Claude Code session's conversation, in which the person discusses
+each question with the model. Only its screens go unspecified: they come
+from the approved prototype (task 6.1).
 
 Terms from the inquisitor spec, whose requirements this spec cites as the
 inquisitor's, or that spec's, *Title*:
@@ -732,9 +733,9 @@ Repository questions SHALL need no lore repository and no igor.
 
 ### Requirement: Only a session with the answer marker opens an answer session
 
-The skill's mod SHALL open the answer session by itself whenever a Claude
+The reference UI SHALL open the answer session by itself whenever a Claude
 Code session whose environment holds `INQUISITOR_ANSWER=1`, the marker
-the `answer` command sets, starts or resumes, unless another session holds the lock, and in no other session.
+the `answer` command sets, starts or resumes, unless another session holds the lock (*One answer session runs on each machine*), and in no other session.
 
 #### Scenario: Running answer opens the answer session
 
@@ -753,30 +754,43 @@ the `answer` command sets, starts or resumes, unless another session holds the l
   resumes without `INQUISITOR_ANSWER=1` in its environment
 - **THEN** no answer session opens
 
-### Requirement: The script installs the answer command
+### Requirement: The script installs the reference UI
 
-The script's `install-answer` command SHALL install `answer`, an
-executable `~/.local/bin/answer` whose second line is
-`# written by inquisitor install-answer`, running
-`INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`, the
-fullscreen layout, with the startup option that restricts the session's
-tools, which task 0.34 is to find. It SHALL rewrite an `answer` file with that
-line, leave alone, saying so, one without it, and say when `~/.local/bin` is not on `PATH`.
+The script's `install-ui` command SHALL link
+`~/.claude/skills/inquisitor-answer-ui`, where manage-skills also links
+mods for Claude Code to load, to
+the skill's `answer-ui/` folder, and `~/.local/bin/answer` to that folder's
+`answer` launcher, which starts the restricted session named `Answers`
+that the first scenario gives; leave alone,
+saying so, anything else at either path; and say when `~/.local/bin` is not on `PATH`. Its
+`uninstall-ui` command SHALL remove only those links.
+
+#### Scenario: The answer launcher starts a restricted session
+
+- **WHEN** the person runs `answer`
+- **THEN** it runs `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
+  in the fullscreen layout `CLAUDE_CODE_NO_FLICKER=1` sets, with the startup option that restricts the
+  session's tools, which task 0.34 is to find
+
+#### Scenario: The script installs the reference UI
+
+- **WHEN** `install-ui` runs with nothing at either path, and `~/.local/bin` is
+  not on the person's `PATH`
+- **THEN** both links point into the skill's checked-in `answer-ui/`
+  folder, and it says
+  `~/.local/bin` is not on `PATH`
 
 #### Scenario: The script leaves another answer command alone
 
-- **WHEN** `~/.local/bin/answer` is a file without the script's comment
-  line
-- **THEN** `install-answer` leaves it unchanged, and says the `answer`
-  command was not installed
+- **WHEN** `~/.local/bin/answer` is a file of the person's own
+- **THEN** `install-ui` leaves it unchanged, and says `answer` was not
+  installed
 
-#### Scenario: The script installs the answer command
+#### Scenario: Uninstalling removes only the script's links
 
-- **WHEN** `install-answer` runs with no `~/.local/bin/answer`, and
-  `~/.local/bin` is not on the person's `PATH`
-- **THEN** it writes `~/.local/bin/answer`, executable, with the script's
-  comment line second, running the `claude` command the requirement
-  gives, and says `~/.local/bin` is not on `PATH`
+- **WHEN** `uninstall-ui` runs, with `~/.local/bin/answer` a file of the
+  person's own and the mod's link in place
+- **THEN** the mod's link goes, and the file stays
 
 ### Requirement: A question asked of the person comes from one of four sources
 
@@ -2114,7 +2128,7 @@ from choosing what the code does beyond a closed set.
 
 ### Requirement: The session's model has no shell, no writing tool and no web fetch
 
-With an answer session open, the model SHALL have only its
+In a session the `answer` launcher starts, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
 enforced by Claude Code's own tool restriction, which task 0.34 finds,
 never by a hook. The session's code SHALL

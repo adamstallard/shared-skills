@@ -109,12 +109,9 @@ file.
 The answer session gives a person one place to answer the questions asked of
 them on GitHub, Linear and Discord. A relay identity, the person's own bot on
 each surface, posts each answer in the question's thread, and an answer file
-on a questions branch records it. The session's interface is a Claude Code
-mod built from the approved prototype build v0.1-33 (task 6.1). A UI the owner
-approved by using its prototype is not specified, so nothing here describes how it looks; the spec
-governs what the UI does and posts, and wins where v0.1-33 differs. The rules
-are in the `answer-session` spec, and the decisions
-in the sections from *Answer-session configuration, setup and relay
+on a questions branch records it. The rules are in the `answer-session`
+spec, whose Purpose says what it leaves to the reference UI. The
+decisions are in this file's sections from *Answer-session configuration, setup and relay
 identities* to *Linking log files to threads, and handbacks*.
 
 ### What the answer session posts
@@ -604,6 +601,15 @@ which App wrote a comment.
 
 ### Running the answer session
 
+#### The reference UI ships inside the inquisitor skill
+
+**Why:** the reference UI, a Claude Code mod, does nothing without the
+inquisitor, and the answer session cannot be used without some UI.
+Shipping one with the skill makes the answer-session spec concrete, and
+gives anyone writing another UI a model. So the inquisitor's script
+installs it, not manage-skills, which installs the repository's top-level
+skills and mods.
+
 #### Which cross-machine cases are accepted
 
 **A case between two machines of the same person whose worst outcome is a
@@ -1040,35 +1046,6 @@ shipped, and merged later would leave that README describing a skip the
 template lacks.
 
 ## Open Questions
-
-### Choices for the repository's owner
-
-- **How does the person get the `answer` command before their first
-  answer session?** Setup runs inside the answer session, which only
-  `answer` starts, so setup cannot install it. Option one, as written:
-  the script's `install-answer` command writes it, and the README tells
-  the person to run that once (*The script installs the answer command*).
-  It leaves alone an `answer` file it did not write, and says when
-  `~/.local/bin` is not on `PATH`. Option two: `manage-skills install
-  inquisitor` writes it, which needs manage-skills to learn a per-skill
-  install step it lacks today. Option three: no installer; the README
-  gives the `claude` command line, and the person writes
-  `~/.local/bin/answer` by hand. Recommended: option one, the only one
-  that needs nothing outside the skill and keeps both checks.
-- **Does the mod open the answer session wherever `INQUISITOR_ANSWER=1`
-  is set?** `answer` starts its session with the tools restricted, so
-  the model there has no shell. But a repository can set the variable
-  through the `env` key of its committed Claude Code settings or a
-  direnv `.envrc`. A person's ordinary session in that repository, whose
-  model has a shell, would then open the answer session, and a crafted
-  thread message could steer that model. Option one, as written: accept
-  it. The gap opens only where a repository sets the variable, by malice
-  or mistake, and a repository that can do that can already run any
-  command in the person's sessions through the same files. Option two:
-  the mod opens the answer session only where it can tell the session's
-  tools are restricted. Task 0.34 would measure how; if the mod cannot
-  tell, the whole change stops for the repository's owner. Recommended:
-  option one.
 
 ### Facts measured before building
 
