@@ -332,19 +332,22 @@ gh pr create --title "..." --body-file signed.md
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
 
-**A pull request body is written when someone other than its author is
-about to read it:** when you are told a reviewer is joining, or when a
-review is requested from someone else. Until then, since `gh pr create`
-needs a body, one signed line naming what the pull request implements is
-enough. For the new reader, a subagent that has not seen the work writes
-the body from whichever of the specs, decision records, code and
-`tasks.md` the repository has. It is an introduction for a first-time
-reader, naming the pull requests or changes this one builds on. Each new
-reader gets a body written afresh, never an update of the last one, since
-an update carries stale text forward. Nobody rewrites it for the merge,
-except in a repository that squash-merges, where the body becomes the
-commit message. Never point an agent's brief at a body, such as its lists
-of what is decided or open, as a record of what is settled: nobody keeps a
+**A pull request body is written when a reviewer joins:** when the person
+you work for tells you one is joining, or when a review is requested from
+anyone but you and that person. Until then, from the moment the pull
+request opens, the body holds only link lines: `Closes #N` for each issue
+the pull request closes and `Part of #N` for each it partly implements.
+Only these tie a pull request to its issue, and anything more would go
+stale before anyone read it. For the new reader, start a subagent that has
+not seen the work to write the body from whichever of the specs, decision
+records, code and `tasks.md` the repository has. It is an introduction for
+a first-time reader, naming the pull requests or OpenSpec changes this one
+builds on, and keeps the link lines. Each new reader gets a body written
+afresh, never an update of the last one, since an update carries stale
+text forward. Nobody rewrites it for the merge, except in a repository
+that squash-merges: there the body becomes the squashed commit's message,
+so whoever merges rewrites it as that commit message. Never point an
+agent's brief at a body as a record of what is settled: nobody keeps a
 body current.
 
 **The title is kept current.** The agent that pushes an implementation
