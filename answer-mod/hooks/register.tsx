@@ -660,12 +660,12 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-6'
+const BUILD = 'v0.2-7'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
 // The key row's right end: the same place on every screen.
-const AT_RIGHT = ['b', 'n', 'q']
+const AT_RIGHT = ['b', 'n']
 const cursorAtom = atom({ plugin: 'answer-mod', key: 'cursor' } as const, 0)
 const answersAtom = atom({ plugin: 'answer-mod', key: 'answers' } as const, ARRIVED as Record<string, Answer>)
 const promptAtom = atom({ plugin: 'answer-mod', key: 'prompt' } as const, '')
@@ -1193,12 +1193,14 @@ type Command = {
   posts?: true
   /** Not in the key row: its button sits beside what it opens. */
   aside?: true
+  /** Not in the key row at all, to save its room: typed only. */
+  unlisted?: true
 }
 
 /** The commands the screen offers now, in the order the key row shows them. */
 function commands(c: Ctx): Command[] {
   const q = c.q
-  const close: Command = { key: 'q', what: '(q)uit' }
+  const close: Command = { key: 'q', what: '(q)uit', unlisted: true }
   const nav: Command[] = [
     { key: 'b', what: '(b)ack' },
     { key: 'n', what: '(n)ext' },
@@ -2279,7 +2281,7 @@ export const register: Register = on => {
     // The question on screen came on screen: its thread is read.
     await arrive($, await read($, cursorAtom))
     scheduleArrival($)
-    return { text: `Answer session open: type in the prompt box, Enter answers.${done ? ` ${done[0]!.toUpperCase()}${done.slice(1)}: see the summary.` : ''}` }
+    return { text: `Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to leave.${done ? ` ${done[0]!.toUpperCase()}${done.slice(1)}: see the summary.` : ''}` }
   })
 
   // `/tui fullscreen` restarts the session: while the band is open, keep the
@@ -2783,7 +2785,8 @@ export const register: Register = on => {
       ) : null
     // Narrower than 100 columns the commands sit closer, so the row holds them all.
     const keyGap = cols >= 100 ? 3 : 2
-    const keys = (allHints: [string, string][], shown: Command[]) => {
+    const keys = (allHints: [string, string][], offered: Command[]) => {
+      const shown = offered.filter(cmd => !cmd.unlisted)
       // The commands come first: where the row can't hold them all, the
       // digits' hint gives way (a recorded answer's (a)gree on a narrow band).
       const length = [...allHints.map(([key, what]) => `${key}: ${what}`), ...shown.filter(cmd => !cmd.aside).map(cmd => cmd.what)].reduce((n, w) => n + w.length + keyGap, 0)
@@ -2799,8 +2802,8 @@ export const register: Register = on => {
           {hints.map(([key, what]) => keyText(key, what))}
           {shown.filter(cmd => !AT_RIGHT.includes(cmd.key) && !cmd.aside).map(keyButton)}
         </Box>
-        {/* Back, next and quit always in the same place, at the right, for
-            quick back and forth by click. */}
+        {/* Back and next always in the same place, at the right, for quick
+            back and forth by click. */}
         <Box gap={keyGap} flexShrink={1} justifyContent="flex-end">
           {/* The status gives way to the commands, never the other way round. */}
           {said ? <Box flexShrink={1}>{said}</Box> : null}

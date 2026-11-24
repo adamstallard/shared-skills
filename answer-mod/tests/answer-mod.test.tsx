@@ -318,11 +318,17 @@ test('a new session shows nothing until /answer', async ($, on) => {
   expect(await isShown($)).toBe(true)
 })
 
-test('q and the quit button close the band and run /exit; /answer closes it alone and opens it again where it was', async ($, on) => {
+test('q closes the band and runs /exit, unlabelled in the key row; /answer closes it alone and opens it again where it was', async ($, on) => {
   const s = answerSession(on)
   const exits: string[] = []
   on('command.run', { command: 'exit' }, ($, e) => (exits.push(e.origin.kind), { text: '' }))
-  await s.open($)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  expect((await slash($, 'answer')).text).toBe('Answer session open: type in the prompt box, Enter answers. Ctrl+C twice to leave. 1 answered and 1 handled for you: see the summary.')
+  const keyRow = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await keyRow.find({ key: 'cmd:n' })).toBeDefined()
+  expect(await keyRow.find({ key: 'cmd:q' })).toBeUndefined()
+  expect(await shown(keyRow, /quit/)).toBeUndefined()
+  await keyRow.unmount()
   expect(await s.enter($, 'n')).toBe('Question 2 of 17')
   expect(await s.enter($, 'q')).toBe('Answer session closed. Leaving Claude Code.')
   expect(await isShown($)).toBe(false)
@@ -337,17 +343,11 @@ test('q and the quit button close the band and run /exit; /answer closes it alon
   await slash($, 'answer')
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await shown(ui, /2 of 17/)).toBeDefined()
-  await ui.press({ key: 'cmd:q' })
   await ui.unmount()
-  expect(await isShown($)).toBe(false)
-  await s.clock.advance(1)
-  expect(exits).toEqual(['plugin', 'plugin'])
-  await slash($, 'answer')
-  expect(await isShown($)).toBe(true)
   await slash($, 'answer')
   expect(await isShown($)).toBe(false)
   await s.clock.advance(1)
-  expect(exits).toHaveLength(2)
+  expect(exits).toHaveLength(1)
 })
 
 test('when /exit is refused, q leaves a toast saying how to leave', async ($, on) => {
@@ -1296,8 +1296,8 @@ test("a stopped post's notice fits the key row in whole words, and goes once the
   await stop()
   for (const [columns, words] of [
     [140, 'Not posted: Sara Lind replied. Read it, then ⏎ again.'],
-    [120, 'Not posted: Sara Lind replied'],
-    [95, 'Not posted: a new reply'],
+    [120, 'Not posted: Sara Lind replied. ⏎ again to post.'],
+    [95, 'Not posted: Sara Lind replied'],
   ] as const) {
     const band = await $.ui.mount(at(columns))
     expect(((await band.find({ type: 'Text', text: notice })) as { text?: string } | undefined)?.text).toBe(words)
