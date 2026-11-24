@@ -583,7 +583,7 @@ and unrun checks.
 
 The answer session SHALL run setup in place of the queue while `login` or
 `answer_session` is missing or no surface in it has both a `relay` and a
-subscription, and on `/answer setup`. Setup SHALL not complete without
+subscription, and when the person asks for it. Setup SHALL not complete without
 the person's GitHub login, and SHALL offer the channels the person can
 read and save every channel the person chose, whatever its checks found.
 
@@ -611,8 +611,8 @@ read and save every channel the person chose, whatever its checks found.
 
 #### Scenario: Setup runs again on request
 
-- **WHEN** the person types `/answer setup` with the configuration
-  complete
+- **WHEN** the person asks for setup in an answer session with the
+  configuration complete
 - **THEN** setup runs, showing the saved subscriptions as chosen
 
 ### Requirement: Setup guesses the repositories a Linear or Discord channel concerns
@@ -730,43 +730,51 @@ Repository questions SHALL need no lore repository and no igor.
 - **WHEN** the person skips the step, and answers a question about `o/api`
 - **THEN** the answer is recorded on the questions branch of `o/api`
 
-### Requirement: Two commands open an answer session
+### Requirement: Only a session with the answer marker opens an answer session
 
-The answer session SHALL open when the person types `/answer` in a
-Claude Code session that has the skill and whose tools are restricted,
-or runs `answer`.
-
-#### Scenario: Typing /answer in a restricted session opens the answer session
-
-- **WHEN** the person types `/answer` in a Claude Code session that has the
-  inquisitor skill and was started with the option that restricts its tools
-- **THEN** the answer session opens in that session
+The skill's mod SHALL open the answer session by itself whenever a Claude
+Code session whose environment holds `INQUISITOR_ANSWER=1`, the marker
+the `answer` command sets, starts or resumes, unless another session holds the lock, and in no other session.
 
 #### Scenario: Running answer opens the answer session
 
 - **WHEN** the person runs `answer`
-- **THEN** an answer session opens
+- **THEN** a session named `Answers` starts, and the answer session opens
+  in it with no prompt typed
 
-### Requirement: Setup installs the answer command
+#### Scenario: Resuming the session reopens the answer session
 
-Setup SHALL install `answer`, an executable `~/.local/bin/answer` whose
-second line is `# written by inquisitor answer-session setup`, running
-`CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'` with the
-startup option that restricts the session's tools, which task 0.34 is to
-find. It SHALL leave alone, saying so, an `answer` file without that
-line, and say when `~/.local/bin` is not on `PATH`.
+- **WHEN** the person resumes a session `answer` started
+- **THEN** the answer session opens in it again
 
-#### Scenario: Setup leaves another answer command alone
+#### Scenario: Another session opens no answer session
 
-- **WHEN** `~/.local/bin/answer` is a file without setup's comment line
-- **THEN** setup leaves it unchanged, and says the `answer` command was
-  not installed
+- **WHEN** a Claude Code session with the inquisitor skill starts or
+  resumes without `INQUISITOR_ANSWER=1` in its environment
+- **THEN** no answer session opens
 
-#### Scenario: Setup installs the answer command
+### Requirement: The script installs the answer command
 
-- **WHEN** setup runs with no `~/.local/bin/answer`, and `~/.local/bin`
-  is not on the person's `PATH`
-- **THEN** setup writes `~/.local/bin/answer`, executable, with setup's
+The script's `install-answer` command SHALL install `answer`, an
+executable `~/.local/bin/answer` whose second line is
+`# written by inquisitor install-answer`, running
+`INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`, the
+fullscreen layout, with the startup option that restricts the session's
+tools, which task 0.34 is to find. It SHALL rewrite an `answer` file with that
+line, leave alone, saying so, one without it, and say when `~/.local/bin` is not on `PATH`.
+
+#### Scenario: The script leaves another answer command alone
+
+- **WHEN** `~/.local/bin/answer` is a file without the script's comment
+  line
+- **THEN** `install-answer` leaves it unchanged, and says the `answer`
+  command was not installed
+
+#### Scenario: The script installs the answer command
+
+- **WHEN** `install-answer` runs with no `~/.local/bin/answer`, and
+  `~/.local/bin` is not on the person's `PATH`
+- **THEN** it writes `~/.local/bin/answer`, executable, with the script's
   comment line second, running the `claude` command the requirement
   gives, and says `~/.local/bin` is not on `PATH`
 
@@ -1485,15 +1493,15 @@ relay by hand.
   its question leaves this machine's queue, and the person is told the
   asker has not got it and shown its text to relay by hand
 
-### Requirement: A pending answer whose channel was off returns to the queue
+### Requirement: A pending answer returns to the queue once its channel works again
 
-An answer kept because its channel was off, or because a post refused
-for permission turned its channel off, SHALL return to the queue, kept,
-once setup's check of posting there passes, and SHALL be posted only once
-the person confirms it again. Where no check can read posting rights
-(task 0.20), if the relay identity's own check last passed, the next
-opening SHALL return the answer and turn the channel back on, its
-posting check shown as not checked.
+A pending answer SHALL return to the queue with its text kept, to be
+posted only once the person confirms it again: when setup's posting check
+passes, if its channel was off, as after a post refused for permission;
+when a later poll of its channel succeeds, if the fetch before its post
+failed. Where no check reads posting rights (task 0.20), the next opening
+SHALL return an answer whose channel was off, and turn the channel on, if
+the relay identity's own check passed when last run.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
@@ -1509,11 +1517,18 @@ posting check shown as not checked.
 - **THEN** at the next opening the answer returns to the queue, kept,
   and setup still shows the posting check as not checked
 
+#### Scenario: An answer held back by a failed fetch returns after a good poll
+
+- **WHEN** GitHub refuses the fetch before a relay post for its rate
+  limit, and the first poll of that channel after the reset succeeds
+- **THEN** the question goes back into the queue with the answer kept,
+  and is posted once the person approves it again
+
 ### Requirement: A pending answer that no check returns waits for the person
 
-A pending answer SHALL stay, whatever check passes, unless *A pending answer whose channel was off returns to the
-queue* returns it; that rule returns no answer refused for its text. A
-refusal task 0.25's mapping cannot place counts as refused for its
+A pending answer SHALL stay, whatever check passes, unless *A pending answer returns to the queue once its channel works
+again* returns it; that rule returns no answer refused for its text. A
+refusal task 0.25's mapping does not cover counts as refused for its
 text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
 this machine; a dropped answer is never posted.
@@ -1897,7 +1912,7 @@ names another id.
 #### Scenario: A second session is offered the choice
 
 - **WHEN** a session named `Answers` holds a fresh lock, and the person
-  types `/answer` in another session
+  runs `answer` again
 - **THEN** this session opens no answer session, names the session holding
   the lock as `Answers` with its id and start time, and offers to take
   over
@@ -2125,20 +2140,6 @@ since a thread's text can steer the model.
 
 - **WHEN** the person asks the model what `src/retry.go` does
 - **THEN** the model reads and searches the code with Read, Grep and Glob
-
-### Requirement: An unrestricted session's /answer points to the answer command
-
-When the person types `/answer` in a session whose tools are not
-restricted as *The session's model has no shell, no writing tool and no
-web fetch* sets, no answer session SHALL open, and the session SHALL
-tell the person to run `answer`, the shell command setup installs.
-
-#### Scenario: An unrestricted session opens no answer session
-
-- **WHEN** the person types `/answer` in a session whose model has a
-  shell
-- **THEN** no answer session opens, and the person is told to run
-  `answer`
 
 ### Requirement: A rephrased question is answered with its rephrasing
 

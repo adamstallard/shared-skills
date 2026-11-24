@@ -757,8 +757,8 @@ visible than its thread only with the person's confirmation.
 #### An answer that cannot reach its thread is kept pending
 
 **Rule:** answer-session spec, *An answer that cannot reach its thread is
-kept pending*; *A pending answer whose channel was off returns to the
-queue*; *A pending answer that no check returns waits for the person*. A
+kept pending*; *A pending answer returns to the queue once its channel
+works again*; *A pending answer that no check returns waits for the person*. A
 failed post keeps its answer pending rather than leaving the question as it
 was, which would drop the answer the person typed.
 
@@ -1043,28 +1043,32 @@ template lacks.
 
 ### Choices for the repository's owner
 
-- **Does an answer held back by a failed fetch return to the queue on its
-  own?** While GitHub refuses requests for its rate limit, until the reset
-  time it gives, every fetch before a relay post fails, so a confirmed
-  answer goes to the pending list. A channel is off only when setup's
-  identity or posting check fails, so the channel stays on, and *A pending
-  answer whose channel was off returns to the queue* never returns the
-  answer. As written, it waits on the pending list until the person posts
-  it from there, relays it by hand or drops it. The alternative puts the
-  question back in the queue, with the answer's text filled in, once a
-  later poll of its channel succeeds, and posts it once the person
-  confirms it again. Recommended: the alternative, so that an answer is
-  not forgotten on the pending list after a wait that may last an hour.
-- **What if the mod cannot tell whether a session's tools are
-  restricted?** (task 0.34) *Two commands open an answer session* and *An
-  unrestricted session's /answer points to the answer command* need it.
-  The `answer` command opens its session by typing `/answer` in it.
-  Option one: `answer` sets a marker, such as an environment variable,
-  and `/answer` opens the answer session only where it finds the marker;
-  typed in any other session, it tells the person to run `answer`.
-  Option two: drop `/answer` as a command the person types, so `answer`
-  is the only way in, opening the session some other way. Recommended:
-  option one, the smaller change.
+- **How does the person get the `answer` command before their first
+  answer session?** Setup runs inside the answer session, which only
+  `answer` starts, so setup cannot install it. Option one, as written:
+  the script's `install-answer` command writes it, and the README tells
+  the person to run that once (*The script installs the answer command*).
+  It leaves alone an `answer` file it did not write, and says when
+  `~/.local/bin` is not on `PATH`. Option two: `manage-skills install
+  inquisitor` writes it, which needs manage-skills to learn a per-skill
+  install step it lacks today. Option three: no installer; the README
+  gives the `claude` command line, and the person writes
+  `~/.local/bin/answer` by hand. Recommended: option one, the only one
+  that needs nothing outside the skill and keeps both checks.
+- **Does the mod open the answer session wherever `INQUISITOR_ANSWER=1`
+  is set?** `answer` starts its session with the tools restricted, so
+  the model there has no shell. But a repository can set the variable
+  through the `env` key of its committed Claude Code settings or a
+  direnv `.envrc`. A person's ordinary session in that repository, whose
+  model has a shell, would then open the answer session, and a crafted
+  thread message could steer that model. Option one, as written: accept
+  it. The gap opens only where a repository sets the variable, by malice
+  or mistake, and a repository that can do that can already run any
+  command in the person's sessions through the same files. Option two:
+  the mod opens the answer session only where it can tell the session's
+  tools are restricted. Task 0.34 would measure how; if the mod cannot
+  tell, the whole change stops for the repository's owner. Recommended:
+  option one.
 
 ### Facts measured before building
 

@@ -145,8 +145,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
-      has no terminal attached, as when the Claude app starts it from its
-      list of sessions. If they stop, record that and pause until the
+      has no terminal attached. If they stop, record that and stop building the answer session until the
       repository's owner decides: a live session's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
@@ -241,12 +240,15 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       token can read a collaborator's permission. Without the first, the
       call fails and the worker's search names each questions branch as
       not searched; without the second, every hit is `input`
-- [ ] 0.30 That `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`
-      starts Claude Code named `Answers`, in its fullscreen layout, and
-      runs `/answer`, with the tool restriction task 0.34 finds added
-      (answer-session spec: *Setup installs the answer
-      command*). If a part fails, the requirement's command line is
-      changed to what works before it is built
+- [ ] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
+      with the tool restriction task 0.34 finds added, starts Claude Code
+      named `Answers` in its fullscreen layout, and that the mod sees
+      `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
+      tool restriction still in force after the resume
+      (answer-session spec: *The script installs the answer command*;
+      *Only a session with the answer marker opens an answer
+      session*). If a part fails, the command line or the variable is
+      changed to what works before `answer` is built
 - [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
       comment the answer session replies to (an issue comment, a pull
@@ -268,17 +270,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       has only its conversation, `propose_reply`, `record_verdict` and
       Read, Grep and Glob: permission settings, a startup option such as
       `--allowedTools`, or a mod's own control. Record whether Claude Code
-      enforces it itself rather than through a hook, what the `answer`
-      command must add to start a session so restricted, and how the
-      skill's mod tells, from inside a session, whether its tools are so
-      restricted. Until then, *The session's model has no shell, no
-      writing tool and no web fetch*, the command line that *Setup
-      installs the answer command* gives `answer`, *Two commands open an answer
-      session* and *An unrestricted session's /answer points to the answer
-      command* are not built (answer-session spec). If no control Claude Code enforces exists, or
-      the mod cannot tell whether its session is restricted, the change
-      cannot be built as written: record it and stop for the repository's
-      owner
+      enforces it itself rather than through a hook, and what the `answer`
+      command must add to start a session so restricted. Until then, *The
+      session's model has no shell, no writing tool and no web fetch* and
+      the command line that *The script installs the answer command* gives
+      `answer` are not built (answer-session spec). If no control Claude
+      Code enforces exists, the change cannot be built as written: record
+      it and stop for the repository's owner
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
       Linear's GitHub integration puts on a team's issues. If not, setup's
       guess for a Linear team names nothing, and setup asks the person
@@ -753,7 +751,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       off and checked again at each opening; the Linear key in the
       keychain; each Linear or Discord channel's `repos`, guessed from its
       history (answer-session spec: *Setup guesses the repositories a
-      Linear or Discord channel concerns*); `~/.local/bin/answer`; the check that each subscribed or
+      Linear or Discord channel concerns*); the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push,
       and the suggested rule blocking its force pushes and deletion;
       and the optional step that creates a lore repository, its clone and its
@@ -807,16 +805,17 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       summary
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
       model gets only its conversation, `propose_reply`, `record_verdict`
-      and Read, Grep and Glob, and the answer session opens in no other
-      session
-      (answer-session spec: *The session's model has no shell, no writing
-      tool and no web fetch*)
+      and Read, Grep and Glob (answer-session spec: *The session's model
+      has no shell, no writing tool and no web fetch*); the script's
+      `install-answer` command; and the mod opening the answer session
+      only where `INQUISITOR_ANSWER=1` is set (*Only a session with the answer
+      marker opens an answer session*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
-      and the README's section on the answer session: setup, the `answer`
-      command, what to do when a relay check fails, and that no post but
+      and the README's section on the answer session: running
+      `install-answer` once, then `answer`; setup; what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter
