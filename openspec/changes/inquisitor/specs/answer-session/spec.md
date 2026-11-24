@@ -769,6 +769,11 @@ or runs `answer`.
   inquisitor skill and was started with the option that restricts its tools
 - **THEN** the answer session opens in that session
 
+#### Scenario: Running answer opens the answer session
+
+- **WHEN** the person runs `answer`
+- **THEN** an answer session opens
+
 ### Requirement: Setup installs the answer command
 
 Setup SHALL install `answer`, an executable `~/.local/bin/answer` whose
@@ -2115,8 +2120,7 @@ from choosing what the code does beyond a closed set.
 With an answer session open, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
 enforced by Claude Code's own tool restriction, which task 0.34 finds,
-never by a hook; an answer session SHALL open only in a session so
-restricted. The session's code SHALL
+never by a hook. The session's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
 
@@ -2387,8 +2391,7 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 - **WHEN** an answer file is pushed for an answer the session relayed
 - **THEN** the file's `recorded_in` is the relay post's URL, the same URL
   as its `answer_link`
-- **AND** for an answer with no relay post, or whose relay post's URL the
-  `log` command withholds because it would leak, `recorded_in` is the
+- **AND** for an answer with no relay post, `recorded_in` is the
   answer file's own path on the questions branch, `questions/<name>`
 
 #### Scenario: An answer records the question the person saw
@@ -2466,17 +2469,18 @@ file names.
 
 The answer session SHALL push a handled file once the post leading to it
 is out; with nothing posted, once the person confirms the decline;
-and for a question with a category, whose answer may never be posted,
-once the person confirms the answer. It SHALL record the owed push before
+and for a question with a category, once the person confirms the
+answer. It SHALL record the owed push before
 the post or, with nothing posted, before the push; drop it if the post
-fails; and retry it at each poll
+fails or a reply the person has not seen holds it back; and retry it at each poll
 and opening until it succeeds or *An owed push refused for good is not
 retried* stops it.
 
 #### Scenario: A failed post pushes no handled file
 
-- **WHEN** the person's decline for the inquisitor of a thread copy a
-  questions-branch file holds ends in a failed post
+- **WHEN** a questions-branch file holds a question, the person declines
+  its thread copy for the inquisitor, and the decline's post fails or a
+  reply the person has not seen holds it back
 - **THEN** no handled file is pushed
 
 #### Scenario: A failed handled-file push is retried

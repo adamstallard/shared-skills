@@ -863,10 +863,9 @@ the list the session's code lets the model choose from, so a
 crafted concerns line reaches nowhere new.
 
 A readable miss file is used, not a hash-only one, wherever privacy allows,
-for its value as a log. A decline that
-posts nothing gets no hash-only miss file: the file would back no reply, and
-with no reply to name it, it would be named by a hash of the asking
-message's URL, which anyone who knows that URL could compute.
+for its value as a log. A hash-only miss file
+only backs a reply, so a decline that posts nothing, where privacy rules
+out a readable file, logs no miss.
 
 #### Two reasons to decline
 
@@ -1057,14 +1056,10 @@ template lacks.
 
 The task each bullet names measures its fact before anything is built.
 Each bullet, or where it says nothing more its task in tasks.md, says
-what the spec does if the fact is false. Task 0.11 has
-no bullet, since it is partly measured: it asks whether GitHub's API gives a comment's or
-review's text and author, which *The log command takes answered_by from the
-linked comment* relies on. tasks.md records what is measured and what
-follows if a review or review comment has no author. The spec names no
-other source, since GitHub
-documents the same `author` field for both (the inquisitor record's
-*Rationale: The log command records a linked GitHub comment's own text*).
+what the spec does if the fact is false. Task 0.11,
+whether GitHub's API gives a comment's or review's text and author, has no
+bullet: tasks.md records the part measured and what follows if the rest
+fails.
 
 - **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
   hook does not fire on `AskUserQuestion`, or its exit 2 does not block
@@ -1116,18 +1111,7 @@ documents the same `author` field for both (the inquisitor record's
 ### Facts the answer session relies on
 
 **Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
-in tasks.md, says what the spec does if its measurement goes against it.
-Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
-hook and that a mod keeps polling while idle or in the background, stop
-all building if they fail, until the repository's owner decides; so does task
-0.34 if Claude Code cannot restrict the session's tools. Task 0.37 checks
-that a mod can submit a prompt of its own and have the model answer it
-unattended; if it cannot, building the mod stops, and the answer session
-is designed as a standalone UI and prototyped for the owner's approval. The
-rules that wait on
-task 0.21, which tasks.md's task 0.21 lists, are built as stated once it
-shows which App wrote a comment; if it cannot, the repository's owner
-decides what to build for them.**
+in tasks.md, says what the spec does if its measurement shows the fact false.**
 
 igor PR #216's task 4.8 measures the same fact as task 0.21: which App
 wrote a comment.
