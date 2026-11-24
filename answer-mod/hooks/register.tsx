@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-5'
+const BUILD = 'v0.2-6'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -2085,6 +2085,17 @@ function queueLinks(text: string, queue: Question[]): string[] {
   return [...new Set(hrefs.filter(href => queue.some(one => one.link === href)))]
 }
 
+/** A click on a transcript row's view: the band opens, if closed, on that question. */
+async function openQuestion($: EngineInterface, id: string): Promise<string> {
+  const i = queueOf(await read($, arrivedAtom)).findIndex(one => one.id === id)
+  if (i < 0) return ''
+  if (!(await read($, openAtom))) {
+    await update($, openAtom, () => true)
+    scheduleArrival($)
+  }
+  return goTo($, i)
+}
+
 /** A click on a link to a question in the queue: that question, the first still open where several share the thread. */
 async function openLinked($: EngineInterface, href: string): Promise<string> {
   const queue = queueOf(await read($, arrivedAtom))
@@ -2104,6 +2115,17 @@ async function openLinked($: EngineInterface, href: string): Promise<string> {
 // refused place drops its row.
 
 const VERB: Partial<Record<Answer['kind'], PlacedRow['verb']>> = { answer: 'answered', wait: 'asked', wont: 'wont', recorded: 'recorded', handled: 'inquisitor' }
+
+/** The drop's reason where a transcript row says what was done. */
+const DONE_WORD: Record<PlacedRow['verb'], string> = {
+  answered: 'Relayed.',
+  logged: 'Logged.',
+  asked: 'Asked.',
+  wont: "Won't answer.",
+  recorded: 'Posted.',
+  inquisitor: 'Posted.',
+  edited: 'Edited.',
+}
 
 async function placeRow($: EngineInterface, one: Question, a: Answer): Promise<void> {
   const verb = a.edited ? 'edited' : one.branch && a.kind === 'answer' ? 'logged' : VERB[a.kind]
@@ -2366,10 +2388,16 @@ export const register: Register = on => {
       return next({ ...e, context: [...(e.context ?? []), context] })
     }
     afterDrop = { dropped: e.text, text: '' }
+    const rowsBefore = Object.keys(await read($, rowsAtom)).length
     const done = await enter($, c, it)
     await update($, promptAtom, () => '')
     $.clock.after(PUT_BACK_MS, () => void settleBox($, false))
-    return { drop: done }
+    // Claude Code prints every drop's reason ("Prompt dropped by a hook:"),
+    // even an empty one. Where a transcript row now says what was done, the
+    // reason is one word, so the line doesn't repeat the row.
+    const rows = Object.values(await read($, rowsAtom))
+    const row = rows.length > rowsBefore ? rows[rows.length - 1] : undefined
+    return { drop: row ? DONE_WORD[row.verb === 'recorded' && !row.posts ? 'logged' : row.verb] : done }
   }).catch(($, e, next) => (next.called ? next(e) : { drop: 'The answer session could not check this prompt, so it was not sent.' }))
 
   // A discussion message's turn: the turn that starts with its text answers
@@ -3788,7 +3816,7 @@ export const register: Register = on => {
     const one = row && QUESTIONS.find(x => x.id === row.id)
     if (!row || !one) return next(e)
     const isPosting = !!(await read($, postingAtom))[e.props.id]
-    const { Box, Text, Link } = $.ui.resolve(e)
+    const { Box, Text, Link, Button } = $.ui.resolve(e)
     const surface = SURFACE_NAME[one.surface]
     const HEAD: Record<PlacedRow['verb'], [string, string, string]> = {
       answered: [GLYPH.answer, DONE, `Answered ${one.where}`],
@@ -3818,8 +3846,13 @@ export const register: Register = on => {
               <Text dimColor>posting to {surface}…</Text>
             </Box>
           ) : (
-            <Box flexShrink={0}>
-              <Link href={one.link}>view</Link>
+            // A plain click on view opens the question in the band; the post
+            // itself is a link, opened as links are (ctrl- or cmd-click).
+            <Box flexShrink={0} gap={2}>
+              <Button key={`view:${e.props.id}`} plain onPress={() => void openQuestion($, one.id).catch(() => undefined)}>
+                <Text color={ACCENT}>view</Text>
+              </Button>
+              <Link href={one.link}>{`on ${surface}`}</Link>
             </Box>
           )
         ) : null}

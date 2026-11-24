@@ -1385,7 +1385,7 @@ test("the question and a reply are drawn as Markdown; a link in a reply to a que
   await ui.unmount()
 })
 
-test('each question answered or declined leaves a row in the transcript, posting until the post lands', async ($, on) => {
+test('each question answered or declined leaves a row in the transcript, posting until the post lands; its drop says one word', async ($, on) => {
   const s = answerSession(on)
   const placed: string[] = []
   on('ui.place', (_, e) => {
@@ -1393,9 +1393,11 @@ test('each question answered or declined leaves a row in the transcript, posting
     return { value: { isPlaced: true as const, requestId: e.id } }
   })
   await s.open($)
-  expect(await s.enter($, '2')).toContain('Relayed to GitHub')
+  // Claude Code prints every drop's reason: where a row says what was done,
+  // the reason is one word; a drop with no row still says it in full.
+  expect(await s.enter($, '2')).toBe('Relayed.')
   expect(await s.enter($, 'w')).toContain('choose why')
-  expect(await s.enter($, '1')).toContain("Won't answer")
+  expect(await s.enter($, '1')).toBe("Won't answer.")
   expect(placed).toEqual(['igor-216-scope_1', 'eng-412_2'])
   const row = await $.ui.mount({ plugin: 'answer-mod', surface: 'terminal', component: 'Placed', props: { id: 'igor-216-scope_1', plugin: 'answer-mod' }, requestId: 'igor-216-scope_1' })
   expect(await shown(row, /^Answered adamstallard\/igor #216$/)).toBeDefined()
@@ -1404,7 +1406,7 @@ test('each question answered or declined leaves a row in the transcript, posting
   await s.clock.advance(1_500)
   await row.redraw()
   expect(await shown(row, /posting to GitHub/)).toBeUndefined()
-  expect(await row.find({ type: 'Link' })).toBeDefined()
+  expect(await row.find({ type: 'Link', text: /on GitHub$/ })).toBeDefined()
   await row.unmount()
   const wont = await $.ui.mount({ plugin: 'answer-mod', surface: 'terminal', component: 'Placed', props: { id: 'eng-412_2', plugin: 'answer-mod' }, requestId: 'eng-412_2' })
   expect(await shown(wont, /the conversation is over; nothing posted/)).toBeDefined()
@@ -1414,6 +1416,31 @@ test('each question answered or declined leaves a row in the transcript, posting
   const other = await $.ui.mount({ plugin: 'answer-mod', surface: 'terminal', component: 'Placed', props: { id: 'igor-216-scope_1', plugin: 'someone-else' }, requestId: 'x' })
   expect(await shown(other, /Answered/)).toBeUndefined()
   await other.unmount()
+})
+
+test("a transcript row's view opens its question in the band, opening the band if it is closed; the post is a link beside it", async ($, on) => {
+  const s = answerSession(on)
+  on('ui.place', (_, e) => ({ value: { isPlaced: true as const, requestId: e.id } }))
+  await s.open($)
+  expect(await s.enter($, '2')).toBe('Relayed.')
+  await s.clock.advance(1_500)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await tally(ui)).toMatch(/^2 of 17 · /)
+  const row = await $.ui.mount({ plugin: 'answer-mod', surface: 'terminal', component: 'Placed', props: { id: 'igor-216-scope_1', plugin: 'answer-mod' }, requestId: 'igor-216-scope_1' })
+  expect(await row.find({ type: 'Link', text: /on GitHub$/ })).toBeDefined()
+  await row.press({ key: 'view:igor-216-scope_1' })
+  await ui.redraw()
+  expect(await tally(ui)).toMatch(/^1 of 17 · /)
+  // Closed, the band opens on it.
+  await ui.press({ key: 'dot:2' })
+  await slash($, 'answer')
+  await ui.redraw()
+  expect(await tally(ui)).toBeUndefined()
+  await row.press({ key: 'view:igor-216-scope_1' })
+  await ui.redraw()
+  expect(await tally(ui)).toMatch(/^1 of 17 · /)
+  await row.unmount()
+  await ui.unmount()
 })
 
 /** Whether dot `i`'s glyph is drawn marked: a new question not yet shown. */
