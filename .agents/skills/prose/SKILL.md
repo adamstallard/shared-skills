@@ -335,10 +335,12 @@ other goals.
 **A pull request body is written when a reviewer joins:** when the person
 you work for tells you one is joining, or when a review is requested from
 anyone but you and that person. Until then, from the moment the pull
-request opens, the body holds two things only. First, link lines:
-`Closes #N` for each issue the pull request closes and `Part of #N` for
-each it partly implements, since nothing else ties a pull request to its
-issue. Second, any block a tool writes between its own markers, such as
+request opens, the body holds two things only. First, link lines: a line
+starting with `Closes #N`, or another of GitHub's closing keywords, for
+each issue the pull request closes, and one starting with `Part of #N`
+for each it partly implements. GitHub and the sequencer, which orders
+open pull requests, tie a pull request to its issue through these lines;
+a `Part of` mid-sentence ties it to nothing. Second, any block a tool writes between its own markers, such as
 `<!-- sequencer:begin -->` … `<!-- sequencer:end -->`, since the tool keeps
 it current. Anything more would go stale before anyone read it. For the
 reviewer who joins, start a subagent that has

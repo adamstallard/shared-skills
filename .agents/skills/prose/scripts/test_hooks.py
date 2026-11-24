@@ -1460,9 +1460,11 @@ class ReviewerJoins(unittest.TestCase):
 class LinkLines(unittest.TestCase):
     """After a call that creates a pull request, draft or not, the hand-back
     hook asks for link lines (`Closes #N`, `Part of #N`) when the body has
-    none. It checks only that one link line is present, not that the issue
-    exists or that the body holds nothing else. When a reviewer joins, the
-    note that a body is due says to keep them."""
+    none. A link line starts with a closing keyword or `Part of`, as
+    prose.LINK_LINE says. The hook checks only that one link line is present,
+    not that the issue exists or that the body holds nothing else. When a
+    reviewer joins, the note that a body is due says to keep the link lines
+    (test_a_body_due_keeps_its_link_lines)."""
 
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
@@ -1510,23 +1512,33 @@ class LinkLines(unittest.TestCase):
             "command": "gh pr create -d -t x -b y"}, host="cursor"))
 
     def test_any_link_line_is_enough(self):
-        for text in ("Closes #12", "Part of #43", "fixes: o/r#7", "Resolved #3",
-                     "Closes https://github.com/o/r/issues/9",
+        for text in ("Closes #12", "Part of #43", "Fixes o/r#7", "Fixes my-org/my_repo.js#7", "Resolved #3", "CLOSES #3",
+                     "Part of #107 and #112", "Closes #12\r\nA body written on Windows.",
+                     "Closed #4", "Fixed #4", "Intro.\rCloses #4",
                      "Closes #12\nPart of #43\n\nA full body written early.",
-                     "This fixes #5 along the way.",
-                     "Intro.\n\n  part of  #8",
-                     # Accepted: one in code or a comment counts, though GitHub links none.
-                     "```\nCloses #4\n```", "<!-- Closes #4 -->"):
+                     "Intro.\n\nfixes #5 along the way.",
+                     # Accepted: a fenced link line counts, though the sequencer skips it.
+                     "```\nCloses #4\n```"):
             with self.subTest(text=text):
                 self.assertTrue(prose.has_link_line(text))
                 body = self.dir / "body.md"
                 body.write_text(text)
                 note = self.hook(self.bash(f"gh pr create -d -t x --body-file {body}"))
                 self.assertEqual(note, "")
+        # None of these is a link line.
         for text in ("y", "Closes the gap", "See #12", "prefixes #4", "Part of 12",
-                     "Fixes issue #3", "Closes#12"):
+                     "Fixes issue #3", "Closes#12", "Closes #12abc", "part of #8", "Closes #",
+                     "This fixes #5 along the way.", "  Closes #4", "- Closes #4",
+                     "Closes: #4", "Closes  #4", "Closes https://github.com/o/r/issues/9",
+                     "<!-- Closes #4 -->", "x\u2028Closes #4"):
             with self.subTest(text=text):
                 self.assertFalse(prose.has_link_line(text))
+
+    def test_an_issue_named_mid_sentence_gets_the_reminder(self):
+        body = self.dir / "body.md"
+        body.write_text("Implements the docs part of #107.\n\nprose ✓ 123456\n")
+        note = self.hook(self.bash(f"gh pr create -d -t x --body-file {body}"))
+        self.assertIn(prose.LINK_NOTE, note)
 
     def test_the_github_mcp_create(self):
         self.assertIn(prose.LINK_NOTE, self.hook(self.mcp({

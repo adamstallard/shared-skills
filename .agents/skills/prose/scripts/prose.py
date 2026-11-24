@@ -1991,23 +1991,27 @@ BODY_DUE = (" Have a fresh agent write the body from durable sources (specs, dec
             "(`Closes #N`, `Part of #N`).")
 # Said after a call that creates a pull request, draft or not, whose body has
 # no link line.
-LINK_NOTE = ("The new pull request's body has no link line: add `Closes #N` for each issue it "
-             "closes and `Part of #N` for each it partly implements. If it has no issue, leave "
-             "the body as it is.")
-# A link line, matched anywhere in the body, mid-sentence too: one of
-# GitHub's closing keywords, or `Part of`, then an optional colon, a space,
-# and an issue as #N, owner/repo#N or its URL. GitHub links no issue from
-# code or an HTML comment, but this reads them too, so such a keyword
-# suppresses the reminder. That is deliberate: reading GitHub's Markdown to
-# skip them kept disagreeing with GitHub, and a missed reminder costs less.
+LINK_NOTE = ("The new pull request's body has no link line: add a line starting `Closes #N` for "
+             "each issue it closes and one starting `Part of #N` for each it partly implements. "
+             "A keyword mid-sentence makes no link line. If it has no issue, leave the body as "
+             "it is.")
+# A link line, read as the sequencer skill's spec reads a pull request's
+# tie to an issue: a line that starts with `Part of`, or with one of
+# GitHub's closing keywords in any letter case, then one space and #N or
+# owner/repo#N. A `Part of` mid-sentence, as in "Implements the docs part
+# of #107", ties nothing, so it gets the reminder. Unlike the sequencer,
+# this also reads lines inside code fences, so a fenced `Closes #4` line
+# suppresses the reminder. Skipping fences needs a Markdown parser that
+# finds the fences GitHub renders, and each hand-written one missed cases,
+# such as a fence opened in a list item. A missed reminder costs one note.
 LINK_LINE = re.compile(
-    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|part\s+of):?\s+"
-    r"(?:(?:[\w.-]+/[\w.-]+)?#\d+|https?://\S+/issues/\d+)", re.IGNORECASE)
+    r"(?:(?i:close[sd]?|fix(?:es|ed)?|resolve[sd]?)|Part of) "
+    r"(?:[A-Za-z0-9-]+/[A-Za-z0-9._-]+)?#\d+(?!\w)")
 
 
 def has_link_line(body):
     """Whether a pull request body holds a link line (LINK_LINE)."""
-    return bool(LINK_LINE.search(body))
+    return any(LINK_LINE.match(line) for line in re.split(r"\r\n|\r|\n", body))
 
 
 def created_bodies(payload, host):
