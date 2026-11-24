@@ -56,7 +56,8 @@ remove the question from design.md.
 - [ ] 2.5 The topological order with the earliest-opened tiebreak, cycles
       grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
-- [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
+- [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
+      for each pair of changes whose pull requests writers opened
 - [ ] 2.7 Model-step checked pairs and edges: validate, take each pair
       whose two changes still have the file's hashes, record it with them,
       and keep or drop it on later runs
@@ -84,9 +85,11 @@ remove the question from design.md.
 - [ ] 3.1 Find or create the order's issue labelled `sequencer`, and stop on
       two
 - [ ] 3.2 Write the order's issue and each item's block between the
-      markers, each opening with its heading, editing a body only when
-      that text changes, and removing the block of an item that leaves the order
-- [ ] 3.3 Name each item whose body could not be edited
+      markers, each opening with its heading, each block giving its place
+      without the number of places, editing a body only when that text
+      changes, and removing the block of an item that leaves the order
+- [ ] 3.3 Name each item whose body could not be edited or holds
+      unmatched markers, leaving that body as it is
 - [ ] 3.4 Each reviewer's next review, with reviewers from
       `.github/sequencer.json`, GitHub's requests or CODEOWNERS, and
       `order --reviewers` for a dry run
@@ -94,7 +97,8 @@ remove the question from design.md.
       API
 - [ ] 3.6 `order --json`, which edits nothing, naming each item by
       repository and number, as the edges file and the stored checked
-      pairs and code edges do
+      pairs and code edges do, and printing a change's files only where a
+      writer opened its pull request
 - [ ] 3.7 Stop a pull request awaiting a reviewer once their review's
       `commit_id` is its head commit
 - [ ] 3.8 Write every string taken from an issue, a pull request, a

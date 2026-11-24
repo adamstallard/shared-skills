@@ -54,10 +54,9 @@ These terms hold throughout this spec:
   workflow's token cannot read permissions, the script instead counts
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on that item is OWNER, MEMBER or
-  COLLABORATOR, which also counts some accounts with only read access. It
-  does so for every caller, so that every caller counts the same writers.
-  An App's bot account is not a collaborator, so it has a rule of its
-  own: an issue or pull request that a GitHub App's bot account opened
+  COLLABORATOR. It uses this fallback for every caller, a session
+  included, so that every caller counts the same writers.
+  An issue or pull request that a GitHub App's bot account opened
   counts as opened by a writer when that App is installed on the
   repository, as task 0.7 finds how to detect. Where the workflow's token
   cannot tell whether the App is installed, every caller, a session
@@ -107,7 +106,7 @@ could make the script write blocks into writers' issues.
 ### Requirement: An issue takes the place of an open pull request tied to it
 
 Where open pull requests that writers opened are tied to an issue, the
-issue SHALL share the position of the earliest opened of them, and its
+issue SHALL share the place of the earliest opened of them, and its
 block SHALL name that pull request. Each of them SHALL come after what the
 issue comes after, and what comes after the issue SHALL come after each of
 them, but edges between the issue and them SHALL be dropped.
@@ -177,18 +176,6 @@ them, but edges between the issue and them SHALL be dropped.
   request is tied to #43
 - **THEN** #43 shares #90's place
 
-### Requirement: A tie to another repository's issue places nothing
-
-A tie to another repository's issue SHALL place nothing, and the order's
-issue SHALL not list it.
-
-#### Scenario: A tie to another repository's issue moves nothing
-
-- **WHEN** #64's body holds the line `Part of octo/lib#7`, and nothing else
-  ties #64 to an issue
-- **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
-  does not say `tied to no issue`
-
 ### Requirement: A pull request tied to no issue is listed
 
 Each open pull request with no tie to any issue SHALL say so on its line
@@ -201,6 +188,13 @@ repository's issue, still counts as a tie.
   `Part of` or `Closes` line, though issue #43 is the work it does
 - **THEN** #64 is listed although it is a draft: its line in the order's
   issue says `tied to no issue`
+
+#### Scenario: A tie to another repository's issue moves nothing
+
+- **WHEN** #64's body holds the line `Part of octo/lib#7`, and nothing else
+  ties #64 to an issue
+- **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
+  does not say `tied to no issue`
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -216,6 +210,13 @@ other copies.
   `openspec/changes/inquisitor/`
 - **THEN** the script reads and hashes `inquisitor` from #25's head, and
   #64's copy sets no edge and no hash
+
+#### Scenario: A change archived on its pull request's head is not open
+
+- **WHEN** #82's head, the only place holding the change `claims`, moves
+  it under `openspec/changes/archive/`, and #90's change modifies a
+  requirement `claims` adds
+- **THEN** `claims` is not an open change, and #90 gains no edge from it
 
 ### Requirement: A change already on the default branch is not placed
 
@@ -237,7 +238,7 @@ The script SHALL read each open change's requirements and deltas only
 through OpenSpec's CLI, from each pull request's head as fetched files,
 never a checkout. It SHALL use the CLI only at 1.16.1 or later, because an
 earlier CLI can drop requirements without saying so. With an older or missing CLI, the script
-SHALL apply no rule that reads a change's files,
+SHALL apply no rule that reads a change's requirements or deltas,
 and the order's issue SHALL say requirements' dependencies were not
 checked, and why.
 
@@ -245,8 +246,8 @@ checked, and why.
 
 - **WHEN** `openspec` is not on the path, and two open pull requests hold
   changes
-- **THEN** no edge comes from a change's files, and the order's issue says
-  requirements' dependencies were not checked, because OpenSpec is not
+- **THEN** no edge comes from a change's requirements, and the order's
+  issue says requirements' dependencies were not checked, because OpenSpec is not
   installed
 
 #### Scenario: A change is read without checking out its head
@@ -450,7 +451,7 @@ item's repository.
 
 - **WHEN** pull request #12's body says `Depends on octo/lib#7`
 - **THEN** the script makes no request about `octo/lib#7`, gives it no
-  position, and lists the link whether `octo/lib#7` is open or closed
+  place, and lists the link whether `octo/lib#7` is open or closed
 
 ### Requirement: Only edges set by writers count
 
@@ -559,14 +560,14 @@ SHALL say so in its reason.
 ### Requirement: A cycle override is kept and followed
 
 The order's issue SHALL keep a list of cycle overrides, each naming the
-member a person with write access put first and linking their comment or,
+member a writer put first and linking their comment or,
 for one that `publish --decide` recorded, naming the `--by` login and the
 time. The order SHALL put that member first and the rest earliest opened
 first, and its reason SHALL give the same link, or login and time.
 
 #### Scenario: An override puts a later-opened member first
 
-- **WHEN** a person with write access put #85 first, in a cycle where #82
+- **WHEN** a writer put #85 first, in a cycle where #82
   and #85 cite each other's requirements and #82 was opened earlier
 - **THEN** #85 comes first, with the reason
   `` before #82, though it cites #82's `<title>`: chosen at <link to the comment> ``,
@@ -581,13 +582,13 @@ first, and its reason SHALL give the same link, or login and time.
 ### Requirement: A cycle override is read from the order's issue
 
 A run SHALL read a comment on the order's issue as an override when a
-person's own account with write access posted it, not an App, after the cycle's
+writer, and not an App's bot account, posted it after the cycle's
 `ordered by rule since` time, and its text starts with `#<n> first`,
 `#<n>` being one of the cycle's members.
 
 #### Scenario: A writer's comment overrides the rule
 
-- **WHEN** a person with write access comments `#85 first` on the order's
+- **WHEN** a writer comments `#85 first` on the order's
   issue after the cycle of #82 and #85 was listed
 - **THEN** the next run adds the override, linking that comment, and
   places #85 first
@@ -600,13 +601,13 @@ person's own account with write access posted it, not an App, after the cycle's
 
 #### Scenario: A comment on an item's thread overrides nothing
 
-- **WHEN** a person with write access comments `#85 first` on #82's thread,
+- **WHEN** a writer comments `#85 first` on #82's thread,
   not on the order's issue
 - **THEN** no run reads it, and the cycle stays ordered by rule
 
 #### Scenario: A comment older than the cycle overrides nothing
 
-- **WHEN** a person with write access commented `#85 first` on the order's
+- **WHEN** a writer commented `#85 first` on the order's
   issue before the cycle of #85 and #90 was listed
 - **THEN** that comment leaves the cycle ordered by rule
 
@@ -640,10 +641,10 @@ has write access.
 
 A change whose code will call code another open change adds SHALL come after
 that change, as the model step finds. To help it, the script SHALL print,
-for each pair of changes, the backticked names that both changes'
+for each pair of changes whose pull requests writers opened, the
+backticked names that both changes'
 `tasks.md` files hold. The script SHALL take the model step's edges only
-between items in the order, each with a reason, and refuse the whole set
-when any edge has no reason.
+with a reason each, and refuse the whole set when any edge has no reason.
 
 #### Scenario: The script points the model step at shared names
 
@@ -651,13 +652,6 @@ when any edge has no reason.
   `tasks.md` calls `claim_item()`
 - **THEN** the script prints `claim_item()` as a name both #82 and #90's
   tasks hold
-
-#### Scenario: A model-step edge naming an item not in the order is dropped
-
-- **WHEN** the model step's edges include #90 after #400, and #400 is not
-  in the order
-- **THEN** `publish` drops the pair of #90 and #400, and takes the edges
-  file's other pairs
 
 #### Scenario: A model-step edge with no reason is refused
 
@@ -674,6 +668,13 @@ in the order with the hashes the file gives, and take the rest, with any
 edge found. The order's issue SHALL
 record each pair taken with those hashes, and a later run SHALL count the
 pair checked, and keep its edge, while both hashes match.
+
+#### Scenario: A model-step edge naming an item not in the order is dropped
+
+- **WHEN** the model step's edges include #90 after #400, and #400 is not
+  in the order
+- **THEN** `publish` drops the pair of #90 and #400, and takes the edges
+  file's other pairs
 
 #### Scenario: A run with no model keeps an unchanged code edge
 
@@ -759,8 +760,7 @@ wherever.
 The script SHALL keep the whole order in the body of the open issue
 labelled `sequencer`, creating it when none is open and publishing nothing
 when more than one is. It SHALL use that issue only when a writer opened
-it, or `github-actions[bot]`, which only a workflow run's token posts as
-and which needs no detection as an installed App; otherwise it SHALL
+it, or `github-actions[bot]`; otherwise it SHALL
 publish nothing and name the issue and its author. Nothing of the order
 SHALL go in a comment.
 
@@ -863,15 +863,22 @@ a string holding `<!-- sequencer:end -->`.
 ### Requirement: Each item's body carries a block giving its place
 
 Each item SHALL carry, in its own body, one block
-giving its position in the order, what it waits on with each reason, and a
-link to the order's issue.
+giving its place in the order, what it waits on with each reason, and a
+link to the order's issue. The block SHALL NOT give the number of places,
+because then an item joining or leaving would rewrite every block, not
+only those after it.
 
 #### Scenario: A pull request's block names its place and waits
 
-- **WHEN** #90 is in the fifth of twelve places and waits on #82
-- **THEN** #90's body holds a block saying it is in the fifth of twelve
-  places, that it
-  waits on #82 with the reason, and linking the order's issue
+- **WHEN** #90 is fifth in the order and waits on #82
+- **THEN** #90's body holds a block saying it is fifth in the order, that
+  it waits on #82 with the reason, and linking the order's issue
+
+#### Scenario: An item joining at the end changes no other block
+
+- **WHEN** #120 joins at the end of an order of twelve places
+- **THEN** #120's body gains a block saying it is thirteenth in the order,
+  and no other item's block changes
 
 ### Requirement: The script edits only the text between its markers
 
@@ -927,14 +934,23 @@ its body as it was.
 
 ### Requirement: An item the script cannot edit is named, not skipped silently
 
-Where the script cannot edit an item's body, the order's issue SHALL name
-the item as having no block, saying why.
+Where the script cannot edit an item's body, or the body's marker lines
+are anything but one begin line followed by one end line, the order's
+issue SHALL name the item as having no block, saying why, and the script
+SHALL leave the body as it is.
 
 #### Scenario: A body the token cannot edit is reported
 
 - **WHEN** editing #95's body fails with a permission error
 - **THEN** the order still places #95, and the order's issue says #95 has no
   block because the edit was refused
+
+#### Scenario: A body with an unmatched marker is left as it is
+
+- **WHEN** #91's author deletes the line `<!-- sequencer:end -->` from
+  #91's body
+- **THEN** the script leaves #91's body as it is, and the order's issue
+  says #91 has no block because its markers are unmatched
 
 ### Requirement: The order's issue names each reviewer's next review
 
@@ -995,7 +1011,7 @@ changes its head, it SHALL await that reviewer again.
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
-of `.github/sequencer.json` on the default branch, except its author. With
+of `.github/sequencer.json` on the default branch. With
 no such list, it SHALL await each reviewer it has requested on GitHub,
 including one GitHub removed from its requests when they reviewed.
 Having never requested anyone, it SHALL await the owners CODEOWNERS gives its changed
@@ -1186,14 +1202,13 @@ the order it publishes leaves unchecked a pair of changes whose pull requests wr
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
 file, as a Sequencer Igor sends after running the model step on the issue
 labelled `sequencer: check code`, and publish it with `publish --code-edges`
-under the checks any caller's edges file gets and in the same concurrency
-group.
+under the checks any caller's edges file gets.
 
 #### Scenario: A dispatched edges file is published
 
 - **WHEN** a `workflow_dispatch` run carries an edges file whose changes
   are unchanged
-- **THEN** the run publishes its edges, in the workflow's concurrency group
+- **THEN** the run publishes its edges
 
 #### Scenario: A dispatched pair whose change was revised leaves the label on
 
@@ -1247,11 +1262,11 @@ that names an item by number alone.
 
 ### Requirement: The script prints the order for callers without editing anything
 
-`order` SHALL print the order, each item's position, its edges with
+`order` SHALL print the order, each item's place, its edges with
 reasons, the links to outside items, the cycles, the copies owed, the
-names each pair of changes' `tasks.md` files both hold, for the model step,
-and each open change's files and hash, as JSON with `--json`, and SHALL write to no
-issue or pull request; `publish` SHALL be the only command that edits,
+shared names for the model step, each open change's hash, and a change's
+files only where a writer opened its pull request, as JSON with `--json`,
+and SHALL write to no issue or pull request; `publish` SHALL be the only command that edits,
 and SHALL edit bodies directly, in a session as in the workflow.
 
 #### Scenario: A session publishes without the workflow
@@ -1260,8 +1275,16 @@ and SHALL edit bodies directly, in a session as in the workflow.
   agent runs `publish` in a session
 - **THEN** the script edits the bodies directly, dispatching no workflow
 
-#### Scenario: An Igor reads positions without editing
+#### Scenario: An Igor reads places without editing
 
 - **WHEN** an Igor's work triage runs `order --json`
-- **THEN** it gets each item's position, the open changes' files and each
-  change's hash, and no body, label or comment in the repository changes
+- **THEN** it gets each item's place, each change's hash and the files of
+  changes whose pull requests writers opened, and no body, label or comment
+  in the repository changes
+
+#### Scenario: An outside author's change is printed without its files
+
+- **WHEN** `zed`, without write access, opens #121, whose change adds a
+  requirement
+- **THEN** `order` prints the hash of #121's change, and none of its files
+  or of the names its `tasks.md` holds
