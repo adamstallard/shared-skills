@@ -104,31 +104,31 @@ The configured `login` is checked by running `gh api user` as the person
 it*), so nobody can claim a maintainer's login by typing it into their own
 file.
 
-## The answer session
+## The answer service
 
-The answer session gives a person one place to answer the questions asked of
+The answer service gives a person one place to answer the questions asked of
 them on GitHub, Linear and Discord. A relay identity, the person's own bot on
 each surface, posts each answer in the question's thread, and an answer file
-on a questions branch records it. The rules are in the `answer-session`
-spec, whose Purpose says what it leaves to the reference UI. The
-decisions are in this file's sections from *Answer-session configuration, setup and relay
+on a questions branch records it. The rules are in the `answer-service`
+spec, whose Purpose says what it leaves to the answer mod. The
+decisions are in this file's sections from *Answer-service configuration, setup and relay
 identities* to *Linking log files to threads, and handbacks*.
 
-### What the answer session posts
+### What the answer service posts
 
-Only the answer session starts a post with a reserved prefix (answer-session
+Only the answer service starts a post with a reserved prefix (answer-service
 spec: *Relay posts start with a reserved prefix*); *The post
 hook blocks a reserved prefix on GitHub* gives why.
 
-**Rule:** answer-session spec, *A relay post is posted by a host command,
+**Rule:** answer-service spec, *A relay post is posted by a host command,
 unvetted* (task 0.18); *The Linear relay's token stays in memory*; *A GitHub
 or Linear relay post names its question in a Re line*. The command runs with
 no shell because the person's answer and drafts built from a thread's
 untrusted text reach it.
 
-### What the answer session does by itself
+### What the answer service does by itself
 
-The answer session runs the four filters on incoming questions, so the
+The answer service runs the four filters on incoming questions, so the
 person sees only the questions that need them. Its automatic replies,
 posted without the person, raise two risks, and the spec answers each:
 
@@ -137,11 +137,9 @@ posted without the person, raise two risks, and the spec answers each:
   which fixed reply or which record is posted. The asking agent acts on an
   `Inquisitor: ` reply only when a miss file backs it (the inquisitor decision
   record's *Rationale: An Inquisitor reply is acted on only with its
-  miss file*). The asking agent already ran filters 3 and 4 itself, so a backed
-  reply is a second judgment, by the person's answer session, that one
-  option has merit or that the choice is cheap to reverse (*What an asking
+  miss file*). The asking agent already ran filters 2 to 4 itself, so a backed reply is a second judgment, by the person's answer service, that the question can wait, that one option has merit or that the choice is cheap to reverse (*What an asking
   agent does with an automatic reply*).
-- **A record can be more private than the thread:** answer-session spec, *A
+- **A record can be more private than the thread:** answer-service spec, *A
   recorded answer is posted by itself only when no more private than its
   thread*.
 
@@ -391,7 +389,7 @@ until the host is fixed.
 #### The post hook blocks a reserved prefix on GitHub
 
 **Rule:** inquisitor spec, *The post hook vets what the shared post reader
-returns*; answer-session spec, *Relay posts start with a reserved
+returns*; answer-service spec, *Relay posts start with a reserved
 prefix*.
 
 **Why:** anything holding a relay identity could post `User says: `, which
@@ -435,7 +433,7 @@ the record: the agent must name why the question is not logged.
 token shapes*. The scan catches only the token shapes it lists, so it backs
 up, never replaces, the category judgement that keeps a secret out of a log
 file. Its patterns include the two credentials this change gives the answer
-session's code, which a person could paste into an answer: a Linear key and
+service's code, which a person could paste into an answer: a Linear key and
 a Discord relay's bot token.
 
 #### Weaknesses stay out of public text until disclosure
@@ -532,7 +530,7 @@ hold private content, which stays with the repositories it concerns.
 **Rule:** inquisitor spec, *A session with no person in it asks in a post, a
 handback or nowhere*; *A worker's question about a more private repository
 is asked on that repository's questions branch*; *A later run gets only the
-answer to its Igor's question on a more private repository*; answer-session
+answer to its Igor's question on a more private repository*; answer-service
 spec, *The preview says when an answer also reaches a more visible item's
 run*.
 
@@ -556,7 +554,7 @@ repository*.
 **Why** no worker writes it: a worker steered by its item could write a
 public `repository` on a file about a private repository; `asked_from`
 still names the private one, so the question cannot be laundered. Outside a
-run, the writer of `asked_from`, the script or the answer session, already
+run, the writer of `asked_from`, the script or the answer service, already
 sets `repository`, so setting `asked_from` too gives it no new way to
 mislead.
 
@@ -581,31 +579,31 @@ slug of the question's words in a file's name reveals nothing more, since the
 file holds the question's text on a questions branch no more visible than the
 question.
 
-### Answer-session configuration, setup and relay identities
+### Answer-service configuration, setup and relay identities
 
 #### Discord is in the first version, through discord-bot
 
 **Discord is in the first version, through the `discord-bot` skill of
 shared-skills PR #1, merged,** because the skill's bot can post for the
-person without any service running beside the session: its script
+person without any process running beside the session: its script
 makes its API calls on each run and exits.
 
-#### An answer given through the answer session counts by its answer file
+#### An answer given through the answer service counts by its answer file
 
 **Rule:** inquisitor spec, *An agent logs a bot's comment only as input*;
-answer-session spec, *An answer is recorded by a new log file*; *A
+answer-service spec, *An answer is recorded by a new log file*; *A
 questions-branch answer file records the answer as given*. Because an
 answer counts by its answer file, not by who wrote the comment, no committed
 file lists a person's bots, and counting an answer never needs to know
 which App wrote a comment.
 
-### Running the answer session
+### Running the answer service
 
-#### The reference UI ships inside the inquisitor skill
+#### The answer mod ships inside the inquisitor skill
 
-**Why:** the reference UI, a Claude Code mod, does nothing without the
-inquisitor, and the answer session cannot be used without some UI.
-Shipping one with the skill makes the answer-session spec concrete, and
+**Why:** the answer mod, a Claude Code mod, does nothing without the
+inquisitor, and the answer service cannot be used without some UI.
+Shipping one with the skill makes the answer-service spec concrete, and
 gives anyone writing another UI a model. So the inquisitor's script
 installs it, not manage-skills, which installs the repository's top-level
 skills and mods.
@@ -619,54 +617,39 @@ machine has not yet seen what the other recorded, and
 "shown twice" means the person sees one question twice; either costs the
 person only a second look. A case that could record a wrong answer, close a question wrongly,
 leak private content or lose an answer is still raised for a decision. The
-answer-session decision record's *Rejected: A TLA+ model of the answer
-session's owed pushes and automatic posts* lists the further crash and
-two-machine outcomes accepted without one.
+answer-service decision record's *Rejected: A TLA+ model of the answer
+service's owed pushes and automatic posts* lists the further crash and two-machine outcomes accepted without a rule of their own.
 
-#### One answer session runs on each machine
+#### One answer service runs on each machine
 
-**The lock makes one session the sole writer of its machine's state:** one state folder holds the machine's
-owed pushes, pending answers and poll positions, and two answer sessions
+**The answer service's lock file makes one session the sole writer of its machine's state:** one state folder holds the machine's
+owed pushes, pending answers and poll positions, and two answer services
 would poll, post and push twice.
 
 #### A discussion runs in the session's own conversation
 
 **Why:** the person opened the conversation to talk the question through, and
 the model reads before it replies, while a picker would hide the answer
-session's screen. So a question the model asks back is the one exception to
+service's screen. So a question the model asks back is the one exception to
 the rule that an agent asks only through the picker.
-
-#### The session's model has no shell, no writing tool and no web fetch
-
-**Rule:** answer-session spec, *The session's model has no shell, no
-writing tool and no web fetch*; the answer-session decision record's
-*Rationale* entry of that title gives why. Coding, testing and committing
-happen in other Claude Code sessions.
 
 #### The model hands its judgements to the code through record_verdict
 
-**Rule:** answer-session spec, *The model's judgements reach the session's
-code only through record_verdict*; the answer-session decision record's
-Rationale entry of that title gives why.
-
-**The code puts each message to judge into the session's conversation as a
-prompt of its own, holding the message as quoted data, at times when the
-model is not answering the person.**
+**The code puts each message to judge into the session's conversation as a prompt of its own, holding the message as quoted data, at times when the model is not answering the person; the model then answers through `record_verdict`.** Whether a mod can prompt its own model is still open (task 0.37).
 
 The approved prototype, build v0.1-33, shows a mod filling the prompt box
 and registering a tool the model calls by name, but not prompting its own
-model. Task 0.37 measures whether a mod can.
+model.
 
 ### Relaying answers
 
 #### The thread is the durable record of an answer
 
-**Rule:** answer-session spec, *The thread is the durable record of an
+**Rule:** answer-service spec, *The thread is the durable record of an
 answer*; *The thread is read again before a question is shown and before a
 post*; *Relay posts start with a reserved prefix*; *A GitHub or Linear
 relay post names its question in a Re line*. Because each machine reads the
-thread again before it posts, two of the person's machines answering one
-question both post only when each posts before reading the other's post.
+thread again before it posts, two of the person's machines answering one question both post only when neither machine's read before posting finds the other's post.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
 A crash after a post but before its id is saved loses no question state: the
@@ -691,7 +674,7 @@ the item.
 
 #### A questions-branch question is answered by a new log file
 
-**Rule:** answer-session spec, *An answer is recorded by a new log file*;
+**Rule:** answer-service spec, *An answer is recorded by a new log file*;
 inquisitor spec, *A file on a questions branch never changes once pushed*.
 An answer to a file whose `asked_in` links a post is both relayed and
 pushed so that neither the asker reading the thread nor an agent searching
@@ -699,7 +682,7 @@ the branch misses it.
 
 #### An answer file records the question the person saw
 
-**Rule:** answer-session spec, *A questions-branch answer file records the
+**Rule:** answer-service spec, *A questions-branch answer file records the
 answer as given*; *The preview shows where an answer will be recorded*.
 Recording the log file's own question instead would let a log file whose
 `asked_in` points at an unrelated message get the person's answer
@@ -749,7 +732,7 @@ one: the question was put to that person.
 **Rule:** inquisitor spec, *The log command withholds a link where it would
 leak*; *A log or miss file is as private as its more private repository*;
 *The answerer's confirmation can send a record somewhere more visible*;
-answer-session spec, *The preview warns before a record goes somewhere
+answer-service spec, *The preview warns before a record goes somewhere
 more visible*; *A recorded answer is posted by itself only when no
 more private than its thread*.
 
@@ -762,7 +745,7 @@ visible than its thread only with the person's confirmation.
 
 #### An answer that cannot reach its thread is kept pending
 
-**Rule:** answer-session spec, *An answer that cannot reach its thread is
+**Rule:** answer-service spec, *An answer that cannot reach its thread is
 kept pending*; *A pending answer returns to the queue once its channel
 works again*; *A pending answer that no check returns waits for the person*. A
 failed post keeps its answer pending rather than leaving the question as it
@@ -770,28 +753,27 @@ was, which would drop the answer the person typed.
 
 #### The push order for a questions-branch answer
 
-**Rule:** answer-session spec, *A questions-branch answer's file is pushed
+**Rule:** answer-service spec, *A questions-branch answer's file is pushed
 after its post*; *An answer whose thread is unreachable here is logged at
-once*; inquisitor spec, *The answer session's files are never kept pending*.
+once*; inquisitor spec, *The answer service's files are never kept pending*.
 Were the `log` command to keep a pending copy too, a passing failure would
-give two answer files: the session's retry would push one, and the next
-`log` call the copy. After a refusal the person was told was final, the
-copy would still be pushed.
+give two answer files: the service's retry would push one, and the next
+`log` call the copy. And after the `log` command reported a refusal as final, its pending copy would still be pushed.
 
-#### What the answer session posts by itself
+#### What the answer service posts by itself
 
-**Rule:** answer-session spec, *A recorded answer posted by itself links
+**Rule:** answer-service spec, *A recorded answer posted by itself links
 filter 1's hit and quotes no answer*; *An automatic post's text is fixed by
-the answer session* (*What the answer session does by itself* gives why).
+the answer service* (*What the answer service does by itself* gives why).
 A log file's answer is a whole comment, which could hold @-mentions that
 would notify people again on GitHub, or a `Recorded in: ` line of its own.
 
 *Ruled out by a scenario:* a recorded answer in a sentence the model writes,
-which a crafted thread could steer (answer-session spec: *A clear filter 2 to
+which a crafted thread could steer (answer-service spec: *A clear filter 2 to
 4 failure gets its fixed reply by itself*, scenario *A thread's text cannot
 choose the words posted*); and quoting the answer with its mentions
 neutralised, which needs a
-rule per surface (answer-session spec: *A recorded answer posted by itself
+rule per surface (answer-service spec: *A recorded answer posted by itself
 links filter 1's hit and quotes no answer*, scenario *A recorded answer is
 posted by itself*).
 
@@ -805,32 +787,32 @@ with no person seeing it.
 
 #### Which questions count as an agent's
 
-**Rule:** answer-session spec, *An agent's question comes from a bot account
+**Rule:** answer-service spec, *An agent's question comes from a bot account
 or a log file*; *A relayed question is a person's question*.
 
-Only an agent's question gets an automatic `Inquisitor: ` reply, so a
-question in doubt counts as a person's: no person then gets an automatic
-`Inquisitor: ` reply.
+Only an agent's question gets an `Inquisitor: ` reply posted by itself, so a
+question in doubt counts as a person's: no person then gets an `Inquisitor: `
+reply posted by itself.
 
-#### A question another skill requires carries a line the answer session matches
+#### A question another skill requires carries a line the answer service matches
 
 **Rule:** inquisitor spec, *A question another skill requires carries a
 person-required line*; *The second call checks a requiring skill, and the
-post hook its line*; answer-session spec, *A question with a person-required
+post hook its line*; answer-service spec, *A question with a person-required
 line gets no filter 2 to 4 reply*.
 
 **Why:** the asking agent skips filters 2 and 4 for such a question. It
 has already run filter 3, knowing which options the requiring skill lets it
-take itself; the answer session cannot see those options. If the answer
-session applied filters 2 to 4, it could close by itself a question only a
+take itself; the answer service cannot see those options. If the answer
+service applied filters 2 to 4, it could close by itself a question only a
 person may decide. For the same reason, the person's own decline for the
 inquisitor posts no such reply either: the requiring skill wants the
 person's answer. The line starts
-`Inquisitor: ` like the session's own fixed texts, but sits after the
+`Inquisitor: ` like the service's own fixed texts, but sits after the
 question, since the post hook blocks a GitHub post starting `Inquisitor: `,
-a prefix reserved for the session. The script prints it, so its wording
+a prefix reserved for the service. The script prints it, so its wording
 never varies and finding it needs no judgement. Whether surfaces return it
-unchanged: the answer-session decision record's *Rationale: A question with
+unchanged: the answer-service decision record's *Rationale: A question with
 a person-required line gets no filter 2 to 4 reply*.
 
 #### What an asking agent does with an automatic reply
@@ -838,8 +820,8 @@ a person-required line gets no filter 2 to 4 reply*.
 **Rule:** inquisitor spec, *An Inquisitor reply is acted on only with its
 miss file*; *A reply's miss file is looked for on the branch its
 question's concerns line names*; *Every miss file is named by one hash*; *A
-hash-only miss file shows nothing but that it exists*; *An answer session's
-automatic reply is a verdict, not a person's answer*; answer-session spec,
+hash-only miss file shows nothing but that it exists*; *An answer service's
+automatic reply is a verdict, not a person's answer*; answer-service spec,
 *A concerns line settles what an agent's question concerns*; *A miss more
 visible than its thread is pushed as a hash-only file*.
 
@@ -847,16 +829,14 @@ A reply's miss file is named by the reply's own message id because the name
 is only a lookup key, and the file authorizes one thing, a particular reply,
 which its id identifies exactly. No question text is hashed, so nothing a
 surface or a posting skill changes in a message's text can break the lookup.
-Were the agent and the session each to judge what the
+Were the agent and the service each to judge what the
 question concerns, they could judge different repositories: the agent would
-find no file and take the reply as input, while the session listed the
-question as handled, so nobody would answer it. And an agent that also
-looked on its thread's repository would act on a miss backed by a writer
-there, who may have no write access to what the question concerns, though a
+find no file and take the reply as input, while the service listed the
+question as handled, so nobody would answer it. Second, an agent that also looked for the miss file on its thread's repository would act on a miss backed by a writer in that repository, who may have no write access to what the question concerns, though a
 logged decision needs that access. Naming the repository on the concerns
 line removes both failures. A crafted thread can already steer `place`,
 the `record_verdict` field naming what a question concerns, to any place on
-the list the session's code lets the model choose from, so a
+the list the service's code lets the model choose from, so a
 crafted concerns line reaches nowhere new.
 
 A readable miss file is used, not a hash-only one, wherever privacy allows,
@@ -864,26 +844,25 @@ for its value as a log.
 
 #### Two reasons to decline
 
-**Rule:** answer-session spec, *The person can decline to answer*;
+**Rule:** answer-service spec, *The person can decline to answer*;
 *Declining for the inquisitor posts the picked filter's reply*.
 
-The person can still answer on the surface by hand. Reason 1 is named
-"nothing to answer" to keep clear of filter 3's text, "not a real question".
+The two reasons are "nothing to answer" (reason 1) and "for the inquisitor" (reason 2). Reason 1 is named "nothing to answer" to keep clear of filter 3's text, "not a real question". The person can still answer on the surface by hand.
 
 #### Declining with nothing to answer closes only that question
 
-**Rule:** answer-session spec, *The person can decline to answer*; *Later
+**Rule:** answer-service spec, *The person can decline to answer*; *Later
 messages after an answer or a decline are new questions*.
 
 A reason 1 decline is held in each machine's own state folder, so if it
 stopped later messages counting, a follow-up would count on one machine and
 not on another.
 
-#### The answer session writes a handled file on every close of a questions-branch file
+#### The answer service writes a handled file on every close of a questions-branch file
 
-**Rule:** answer-session spec, *A handled file closes a questions-branch
+**Rule:** answer-service spec, *A handled file closes a questions-branch
 question*; *A handled file is pushed once its close takes effect*;
-inquisitor spec, *Only an answer session writes a handled file*; *A log
+inquisitor spec, *Only an answer service writes a handled file*; *A log
 file and a miss file have one format*.
 
 Without a handled file, a machine that never read the thread copy would
@@ -907,7 +886,7 @@ queue as a new question.
 
 #### Closing works by exact identity, never by matching
 
-**Rule:** answer-session spec, *A handled file closes a questions-branch
+**Rule:** answer-service spec, *A handled file closes a questions-branch
 question*; *A decline with nothing posted closes a thread copy on this
 machine only*.
 
@@ -917,7 +896,7 @@ answers; exact identity cannot disagree.
 
 #### Reopening a declined question
 
-**Rule:** answer-session spec, *Only a thread copy declined with nothing
+**Rule:** answer-service spec, *Only a thread copy declined with nothing
 posted is reopened*.
 
 After a post, the thread, which every machine reads, records how the
@@ -927,16 +906,16 @@ for good and the thread copy is separate from it.
 
 #### Agreeing to a recorded answer is a filter 1 decline
 
-**Rule:** answer-session spec, *Agreeing to a shown recorded answer is a
+**Rule:** answer-service spec, *Agreeing to a shown recorded answer is a
 filter 1 decline*.
 
 The record exists and filter 1 found it, so an answer log file pointing to
 it adds nothing; a later searching agent is stopped by the record only if
 its own filter 1 can read and count it.
 
-#### Misses the answer session logs
+#### Misses the answer service logs
 
-**Rule:** answer-session spec, *The answer session logs its misses on the
+**Rule:** answer-service spec, *The answer service logs its misses on the
 questions branch of what the question concerns*; *A miss records who judged
 it and where it was asked from*; *A miss holds the repository its question
 concerns*; *A Linear or Discord question is placed by
@@ -945,7 +924,7 @@ handled file's is*; inquisitor spec, *A log file and a miss file have one
 format*.
 
 The fixed `said` of an automatic miss lets a review of misses tell the
-session's judgement from a person's word. Where a miss file names in
+service's judgement from a person's word. Where a miss file names in
 `asked_by` the account that posted the question, a review of misses can
 show which asker keeps asking what it should have filtered.
 `asked_by` reveals nothing new: the account already shows on the question
@@ -959,7 +938,7 @@ lost miss back.
 
 #### A log file follows its thread message by exact link
 
-**Rule:** answer-session spec, *A log file follows the thread message its
+**Rule:** answer-service spec, *A log file follows the thread message its
 asked_in links*; inquisitor spec, *A log file and a miss file have one
 format*.
 
@@ -968,19 +947,19 @@ same message.
 
 #### A link this machine never reads is not followed
 
-**Rule:** answer-session spec, *A log file with no followed link is judged
+**Rule:** answer-service spec, *A log file with no followed link is judged
 on its own*; *An Igor's log file follows its own handback comment*.
 
 An Igor's log file follows its handback only on an item this machine
 already reads: reading any other item would let the file's `asked_from`,
-which whoever pushes the file writes, choose which repository the session
+which whoever pushes the file writes, choose which repository the service
 reads with the person's credentials. On GitHub the handback must also be
 in the repository `asked_from` names, where an Igor posts it, so a file
 cannot attach itself to a handback on another repository's item.
 
 #### A log file without `asked_in` is never merged
 
-**Rule:** answer-session spec, *A log file with no followed link is judged
+**Rule:** answer-service spec, *A log file with no followed link is judged
 on its own*.
 
 Merging only spares the person seeing one question twice, which costs them
@@ -990,42 +969,27 @@ question unanswered, or their answer lands on that asker's question.
 
 #### Whom a bot's question reaches
 
-**Rule:** answer-session spec, *Whom a message reaches is set by its
+**Rule:** answer-service spec, *Whom a message reaches is set by its
 mentions*.
 
 A bot question with a tag line or a mention reaches one person, so two
 people cannot give a bot conflicting answers. An untagged one, such as
 an agent's Linear question, reaches the subscribers with write access to
-the repository it is placed in, rather than no one: the script may find
-no tagging candidate with write access when another subscriber has it,
+the repository it is placed in, rather than no one: an untagged question does not mean no one can decide it, since the script may find no tagging candidate with write access when another subscriber has it,
 and an agent's thread may have no person in it to notice the question.
 A question placed in no repository reaches no one, though its thread may
 have no person in it either: with no repository to check write access
 to, showing it to every subscriber of its channel would show people
 questions they may not be able to decide.
 
-#### igor's handback marker
-
-**Rule:** answer-session spec, *A handback is an Igor's comment holding
-igor's marker*.
-
-The marker is needed because an Igor posts other comments on the item too.
-
-#### Only an item's newest handback is shown
-
-**Rule:** answer-session spec, *Only an item's newest handback is shown*.
-
-Only the newest handback is shown because it says where the Igor is blocked
-now.
-
 #### Each Igor log file follows its own handback comment
 
-**Rule:** answer-session spec, *An Igor's log file follows its own handback
+**Rule:** answer-service spec, *An Igor's log file follows its own handback
 comment*; inquisitor spec, *A questions-branch log file links where its
 question was asked*.
 
 Linking the handback comment means one answer never closes two handbacks'
-files, and the newest-handback rule needs no other mechanism.
+files, and the answer-service rule that only an item's newest handback is shown needs no other mechanism.
 
 ### OpenSpec and spec-trace
 
@@ -1102,10 +1066,9 @@ worker can post, whether the Igor can run `branch-search` and read a
 collaborator's permission, and whether the Discord token pattern matches
 a real token. Each task says what follows if its fact is false.
 
-### Facts the answer session relies on
+### Facts the answer service relies on
 
-**Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
-in tasks.md, says what the spec does if its measurement shows the fact false.**
+**Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 in tasks.md measure facts the answer service relies on, such as how each surface returns a message's text, how GitHub tells a bot's comment (0.21), how Claude Code restricts a session's tools (0.34) and whether a mod can prompt its own model (0.37). Each task says what the spec does if its measurement shows the fact false.**
 
 ### Outside this change
 
@@ -1115,6 +1078,6 @@ in tasks.md, says what the spec does if its measurement shows the fact false.**
   entry keyed by the Discord user id, or a file in the lore repository. A
   later change would choose. Without it, an answer typed directly on such a
   surface counts only through a decision document, such as the scribe's
-  record; one typed in the answer session and relayed there counts through its
+  record; one typed in the answer service and relayed there counts through its
   answer file.
 

@@ -54,15 +54,15 @@ decides.
 login of the person running the session; its key `lore` lists the lore
 repositories, each an object holding `path`, the local clone, and `owners`
 or `repos`, the GitHub owners and repositories (`owner/repo`) it *serves*;
-its key `answer_session` holds what the `answer-session` spec defines. A
+its key `answer_service` holds what the `answer-service` spec defines. A
 lore repository serves a collective known by its repositories, such as a
 project, when it serves one of them. *The team's lore repository* is the configured lore repository serving the
 repository the question concerns or, for a collective's question, serving
 the repository it was asked from (*A collective's question is bounded by
 the repository it was asked from* defines that repository, and *The team's
 lore repository is the most specific one that serves* picks among
-several). When the answer session reads a collective's question on Linear
-or Discord, where no repository holds the thread, the `answer-session`
+several). When the answer service reads a collective's question on Linear
+or Discord, where no repository holds the thread, the `answer-service`
 spec's *A channel's repositories place its questions* and *A Linear or
 Discord question is placed by what it concerns* pick the team's lore
 repository.
@@ -93,7 +93,7 @@ open-questions sections and items as a post does (*A question in a post is a lis
 or a sentence ending in a question mark*). *A question tags* a
 person when its tag line (*A tag line names the person a posted question
 tags*), list item or sentence mentions their login as `@login` outside
-code, quotes and links, as the `answer-session` spec's *A mention names a
+code, quotes and links, as the `answer-service` spec's *A mention names a
 user outside code, quotes and links* counts a mention. An Igor's Linear
 handback puts a tag line under its questions too: a line holding only
 one mention.
@@ -109,15 +109,16 @@ filters on a question that stopped its work. In either case the skill's
 script runs in *Igor-worker mode*, as *The script tells an Igor's run by
 IGOR_RUN* says.
 
-*An answer session* is the Claude Code session where a person answers the
-questions asked of them, and *a relay* the bot account that posts what they
-confirm there, as the `answer-session` spec defines both.
+*An answer service* is where a person answers the questions asked of them,
+in a Claude Code session the `answer` command starts, and *a relay* the bot
+account that posts what they confirm there, as the `answer-service` spec
+defines both.
 
 *A miss* is a question an agent asked that a person said need not have
-been asked, or that an answer session judged clearly need not have been.
+been asked, or that an answer service judged clearly need not have been.
 *A citation file* records that an `active` lore entry answered a question
 its scope covers: filter 1 stopped the question with the entry, or the
-person in an answer session cited the entry, as the `answer-session` spec
+person in an answer service cited the entry, as the `answer-service` spec
 defines citing.
 
 ## ADDED Requirements
@@ -418,7 +419,7 @@ nothing about one repository SHALL go to a **more visible** place, except
 words the person confirms, and except
 as three requirements allow: *The answerer's confirmation can send a
 record somewhere more visible*; *A later run gets only the answer to its
-Igor's question on a more private repository*; and answer-session's *A
+Igor's question on a more private repository*; and answer-service's *A
 miss more visible than its thread is pushed as a hash-only file*.
 
 #### Scenario: A private repository's question goes to no internal or public place
@@ -429,14 +430,14 @@ miss more visible than its thread is pushed as a hash-only file*.
 
 #### Scenario: A person's confirmed answer is relayed in its thread
 
-- **WHEN** a person confirms, in their answer session, an answer that
+- **WHEN** a person confirms, in their answer service, an answer that
   names the private `o/api`, to a question asked in a public repository
-- **THEN** the answer session's relay identity posts it in that thread,
+- **THEN** the answer service's relay identity posts it in that thread,
   in the words the person confirmed
 
 #### Scenario: A person's confirmed decline note goes into its miss file
 
-- **WHEN** a person declines, in their answer session, an agent's
+- **WHEN** a person declines, in their answer service, an agent's
   question about the public `o/web` with a note naming the private
   `o/api`, and confirms the decline with that note
 - **THEN** the miss file on the questions branch of `o/web` holds the
@@ -506,7 +507,7 @@ about the person's own way of working SHALL never be posted.
 
 ### Requirement: A log or miss file is as private as its more private repository
 
-Wherever this spec or the `answer-session` spec compares a log or miss
+Wherever this spec or the `answer-service` spec compares a log or miss
 file's visibility, it SHALL be that of the most private of the repository
 holding the file, the repositories its `repository` and `asked_from` keys
 name, and the one a GitHub `asked_in` URL points into. A file whose `asked_in` is a Linear or Discord URL SHALL
@@ -519,7 +520,7 @@ repository keys and links are checked before use*.
 - **WHEN** a miss file's or a questions-branch log file's `repository` is
   the public `o/web` and its `asked_from` the private `o/api`
 - **THEN** the file is private, and every visibility rule in this spec and
-  the `answer-session` spec treats it as about a private repository
+  the `answer-service` spec treats it as about a private repository
 - **AND** so is a file whose `repository` and `asked_from` are `o/web` and
   whose `asked_in` links a comment in the private `o/api`
 - **AND** so is a file whose `asked_from` fails the syntax check, which is
@@ -532,13 +533,13 @@ repository keys and links are checked before use*.
 An answer the agent reads in a comment by a bot account (a GitHub App,
 Linear app user, or Discord bot or webhook), such as a relay bot's
 `User says: ` post or an Igor's comment, SHALL be logged, if at all, as
-`input`. An answer a person gave in an answer session SHALL count
-through the answer file that session pushed.
+`input`. An answer a person gave in an answer service SHALL count
+through the answer file that service pushed.
 
 #### Scenario: A relayed answer counts through its answer file
 
-- **WHEN** `alice` answers a question in her answer session, her GitHub
-  relay posts `User says: Back off.`, and the session pushes an answer file
+- **WHEN** `alice` answers a question in her answer service, her GitHub
+  relay posts `User says: Back off.`, and the service pushes an answer file
   naming her as `answered_by`
 - **THEN** filter 1 counts the answer file, and the relay post, which the
   file's `answer_link` names, counts for nothing
@@ -692,19 +693,19 @@ branch, or say that this is unknown.
 - **THEN** the search output gives that date beside the first clone's
   results, and says the second's last fetch time is unknown
 
-### Requirement: The search command runs filter 1 alone for the answer session
+### Requirement: The search command runs filter 1 alone for the answer service
 
 The script's `search` command SHALL print filter 1's results for one
-question as one JSON object, issuing no token and recording nothing,
-since the answer session records verdicts through `record_verdict`. It
-SHALL fetch nothing, read files only from the answer session's clones
+question as one JSON object, issuing no pass token and recording nothing,
+since the answer service records verdicts through `record_verdict`. It
+SHALL fetch nothing, read files only from the answer service's clones
 as last fetched (the lore clones its configuration names and the clones
 of subscribed repositories in its state folder), and read issues as
 filter 1 does, but only of a repository those clones hold.
 
 #### Scenario: The search command prints filter 1's results and nothing more
 
-- **WHEN** the answer session runs `search` for a question about `o/web`
+- **WHEN** the answer service runs `search` for a question about `o/web`
 - **THEN** it prints `{"version": 1, "hits": [...], "not_searched":
   [...], "clones": [...]}`: each hit labelled as filter 1 labels it, a
   questions-branch hit with the fields `branch-search` gives; each
@@ -749,7 +750,7 @@ inquisitor run, anything else no run. In either run it SHALL read no lore
 clone, search lore as *In an Igor's run, filter 1 searches through igor*
 says, push as *No worker or Igor-started run pushes to a questions branch*
 says, and say so each time. Outside a run, filter 1 SHALL need no Igor role,
-configuration or service.
+configuration or running Igor.
 
 #### Scenario: A run is told by IGOR_RUN
 
@@ -1178,10 +1179,11 @@ SHALL count as no write access.
 ### Requirement: An answer logged from a comment is the comment's whole text
 
 Whoever logs an answer from a GitHub comment, whether the skill's script,
-an answer session or an Igor, SHALL record the comment's whole text word
-for word as the file's answer, never a paraphrase and never the answer
-text passed with the link, save the `Re: ` line *The answerer's
-confirmation can send a record somewhere more visible* drops.
+an answer service or an Igor, SHALL record the comment's whole text, word for
+word, as the file's answer, never a paraphrase and never the answer text
+passed with the link. The one exception: a record sent somewhere more
+visible drops the `Re: ` line, as *The answerer's confirmation can send a
+record somewhere more visible* says.
 
 #### Scenario: A comment's whole text is recorded as the answer
 
@@ -1637,8 +1639,8 @@ subagent's run excepted.
 
 With a person in session, an agent SHALL ask only through the picker, a
 post, a message on another service, or, for a `vulnerability` question, a
-private security advisory, never in its reply, bar an answer session's
-discussion (`answer-session` spec: *A discussion runs in the session's own
+private security advisory, never in its reply, bar an answer service's
+discussion (`answer-service` spec: *A discussion runs in the session's own
 conversation*). On a host with no picker it SHALL ask in its reply instead
 of the picker, once the two calls vet it, unchecked by hooks. Its subagents
 SHALL hand back surviving questions, prepared.
@@ -2034,7 +2036,7 @@ A `PreToolUse` hook, the **post hook**, SHALL block a post holding a
 question with no verdict, or whose most recent verdict is neither `ask` nor
 `deferred`, or is over 2 hours old, or any question when it cannot read
 its verdict records. A recent `deferred` verdict SHALL pass only an
-untagged item under a deferral label, which the answer session never
+untagged item under a deferral label, which the answer service never
 shows; anywhere else, a new issue included, a question needs an `ask`
 verdict.
 
@@ -2139,7 +2141,7 @@ code, `>` lines or prose's footer.
 ### Requirement: An item listed as deferred needs a deferred verdict
 
 The post hook SHALL pass an item of a section begun by a deferral label
-only with a `deferred` verdict, since the `answer-session` spec's *A
+only with a `deferred` verdict, since the `answer-service` spec's *A
 deferred item is numbered but not shown* never shows it to the person.
 
 #### Scenario: A question with an ask verdict listed as deferred is blocked
@@ -2156,7 +2158,7 @@ The post hook SHALL vet the body that the shared post reader (the
 reports as sending no post or a payload that is not JSON, and block one the
 reader reports as unreadable. It SHALL block a post when any body the
 reader returns for it starts with one of the four reserved prefixes the
-`answer-session` spec defines, once its inline markup is reduced and
+`answer-service` spec defines, once its inline markup is reduced and
 leading whitespace dropped.
 
 #### Scenario: A call that sends no post passes the post hook
@@ -2431,7 +2433,7 @@ comment or review the agent links.
 
 ### Requirement: The log command makes an unlinked answer a decision only for the session's person
 
-Called without its session option, the `log` command SHALL write
+Called without its service option, the `log` command SHALL write
 `authority: decision` for an answer with no `answer_link` only when its
 `answered_by` is the login of the person running the session (*A configured
 login counts only when gh is logged in as it*), and `input` otherwise,
@@ -2440,7 +2442,7 @@ decision only from a person with write access* still applies.
 
 #### Scenario: An unlinked answer by someone other than the session's person is input
 
-- **WHEN** an agent calls the `log` command, without its session option,
+- **WHEN** an agent calls the `log` command, without its service option,
   for an answer with no `answer_link`, passing `answered_by: bob` and
   `authority: decision`, and the person running the session's login is
   `alice`
@@ -2531,18 +2533,18 @@ before the next file it pushes to that branch, keeping it pending until then. Th
 - **AND** the next `log` call that can push to that branch pushes the
   pending file, then its own
 
-### Requirement: The answer session's files are never kept pending
+### Requirement: The answer service's files are never kept pending
 
-The answer session SHALL pass the `log` and `cite` commands' session
-option on every push. With it, the command SHALL fetch and push again when the branch moved, keep
-no pending copy of a file it cannot push, and tell the session why the
-push failed, leaving the file's retry to the session's owed push, which
-the answer-session spec sets for each kind of file.
+The answer service SHALL pass the `log` and `cite` commands' **service
+option**, which nothing else passes, on every push. With it, the command SHALL fetch and push again when the branch moved, keep
+no pending copy of a file it cannot push, and tell the service why the
+push failed, leaving the file's retry to the service's owed push, which
+the answer-service spec sets for each kind of file.
 
-#### Scenario: A file the answer session cannot push leaves no pending copy
+#### Scenario: A file the answer service cannot push leaves no pending copy
 
-- **WHEN** the answer session calls the `log` or `cite` command with its
-  session option, and the push fails for want of network or of write access
+- **WHEN** the answer service calls the `log` or `cite` command with its
+  service option, and the push fails for want of network or of write access
 - **THEN** the command keeps no pending copy and reports why the push
   failed
 - **AND** the next `log` or `cite` call that pushes to that branch finds
@@ -2594,7 +2596,7 @@ question is unlogged.
 
 #### Scenario: The question is found in its thread and logged once confirmed
 
-- **WHEN** the person's answer session, which reads `o/api`, shows that
+- **WHEN** the person's answer service, which reads `o/api`, shows that
   question from its issue, and the person answers it and confirms the
   preview's warning that the record is more visible than `o/api`
 - **THEN** the answer is relayed in the issue, and a log file holding the
@@ -2606,7 +2608,7 @@ question is unlogged.
 #### Scenario: An answer given only in the thread is not logged on the lore repository
 
 - **WHEN** a person answers that question in a comment on the issue,
-  outside any answer session
+  outside any answer service
 - **THEN** no log file is pushed to the questions branch of `o/lore`,
   since nobody confirmed sending the record there
 
@@ -2621,7 +2623,7 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 
 #### Scenario: A confirmed answer from a Discord thread is recorded on a public branch
 
-- **WHEN** a person answers, in their answer session, a question about the
+- **WHEN** a person answers, in their answer service, a question about the
   public `o/web` asked in a Discord thread, and confirms the warning that
   the record is more visible than that thread
 - **THEN** the log file is pushed to the questions branch of `o/web`,
@@ -2630,7 +2632,7 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 
 #### Scenario: A confirmed answer drops the relay post's Re line
 
-- **WHEN** a person answers, in their answer session, an organization
+- **WHEN** a person answers, in their answer service, an organization
   question asked in an issue of the private `o/api`, and confirms sending
   the record to the public lore repository `o/lore`
 - **THEN** the answer in the log file pushed to the questions branch of
@@ -2769,7 +2771,7 @@ Igor-started run pushes to a questions branch* bars it.
 
 #### Scenario: A collective's question from Discord cites no public lore entry
 
-- **WHEN** filter 1, in an answer session, stops a collective's question
+- **WHEN** filter 1, in an answer service, stops a collective's question
   asked in a Discord thread with an entry of a public lore repository
 - **THEN** no citation file is pushed, since a collective's question
   asked in a Linear or Discord thread counts as asked from a private
@@ -2945,12 +2947,12 @@ run or a later one.
 - **THEN** no log file records that question, from that run or from a later
   run on the item, and the Igor pushes none
 
-### Requirement: Only an answer session writes a handled file
+### Requirement: Only an answer service writes a handled file
 
-An agent SHALL write no handled file; only an answer session writes one, as
-the `answer-session` spec's *A handled file closes a questions-branch
+An agent SHALL write no handled file; only an answer service writes one, as
+the `answer-service` spec's *A handled file closes a questions-branch
 question* says. The `log` command SHALL write one only when called with its
-session option, which the skill's instructions SHALL tell an agent never to
+service option, which the skill's instructions SHALL tell an agent never to
 pass, and SHALL refuse a `handled` or `closes` key passed without it.
 
 #### Scenario: An asking agent writes no handled file
@@ -2958,19 +2960,19 @@ pass, and SHALL refuse a `handled` or `closes` key passed without it.
 - **WHEN** an agent's question, logged on a questions branch and asked in a
   post, gets a reply starting
   `Recorded answer: `
-- **THEN** the agent pushes no handled file; the answer session that made
+- **THEN** the agent pushes no handled file; the answer service that made
   the post pushes it
 
-#### Scenario: The log command refuses a handled key without its session option
+#### Scenario: The log command refuses a handled key without its service option
 
-- **WHEN** the `log` command is called without its session option, on a
+- **WHEN** the `log` command is called without its service option, on a
   file whose keys include `handled` or `closes`
 - **THEN** it refuses, and writes nothing
 
-#### Scenario: The skill's instructions forbid the session option
+#### Scenario: The skill's instructions forbid the service option
 
 - **WHEN** an agent reads the skill's instructions for the `log` command
-- **THEN** they tell it never to pass the session option
+- **THEN** they tell it never to pass the service option
 
 ### Requirement: The log command takes its input in a private file
 
@@ -3005,13 +3007,12 @@ the comment.
 
 ### Requirement: The log command takes answered_by from the linked comment
 
-With its session option, which only an answer session passes, the `log`
+With its service option, which only an answer service passes, the `log`
 command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
 record as `answered_by` the comment's author login, followed by `[bot]`
 when GitHub types the author as a `Bot`, ignoring any login the agent
-passed, which a crafted thread can steer. Once task 0.21 tells a bot's
-comment, it SHALL also write `authority: input` for a bot author.
+passed, which a crafted thread can steer. Once task 0.21 shows how to tell a bot, it SHALL also write `authority: input` for a bot author.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3025,12 +3026,12 @@ comment, it SHALL also write `authority: input` for a bot author.
   `answer_link` to a comment `igor-x[bot]` wrote, it writes
   `authority: input`
 
-#### Scenario: With its session option, answered_by is the session's person
+#### Scenario: With its service option, answered_by is the session's person
 
-- **WHEN** the answer session's `log` call, with its session option, links
+- **WHEN** the answer service's `log` call, with its service option, links
   a relay post the person's GitHub relay App wrote
 - **THEN** the file names as `answered_by` the configuration's `login`,
-  the person whose answer session runs it, not the App, and the App's
+  the person whose answer service runs it, not the App, and the App's
   bot account does not make the answer `authority: input`
 
 ### Requirement: The log command in Igor-worker mode writes no answer
@@ -3049,21 +3050,21 @@ pushes names where it was asked from*); its Igor writes those it needs.
 
 ### Requirement: The log command fetches no Linear or Discord answer link
 
-For a Linear or Discord `answer_link`, which only an answer session passes,
-the `log` command SHALL refuse a call without its session option, since a
-link only the answer session makes would otherwise record words nothing
+For a Linear or Discord `answer_link`, which only an answer service passes,
+the `log` command SHALL refuse a call without its service option, since a
+link only the answer service makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
-the answer text the answer session passes it.
+the answer text the answer service passes it.
 
-#### Scenario: A Discord answer link without the session option is refused
+#### Scenario: A Discord answer link without the service option is refused
 
-- **WHEN** an agent calls the `log` command, without its session option,
+- **WHEN** an agent calls the `log` command, without its service option,
   with a Discord message's URL as an answer's `answer_link`
 - **THEN** the command refuses, and writes nothing
 
 #### Scenario: A Discord answer link is recorded and never fetched
 
-- **WHEN** the answer session's `log` call passes an answer relayed on
+- **WHEN** the answer service's `log` call passes an answer relayed on
   Discord, with that Discord message's URL as its `answer_link`, for a
   private repository's questions branch
 - **THEN** the command fetches nothing, records the answer it was given word
@@ -3369,7 +3370,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 - **THEN** its `answer_link` is the github.com URL of the comment or review
   holding the answer, written only on a questions branch no more visible
   than the repository it points into
-- **AND**, for an answer an answer session relayed on Linear or Discord, it
+- **AND**, for an answer an answer service relayed on Linear or Discord, it
   is that relay comment's or message's URL, which nothing fetches, written
   only on the questions branch of a repository whose visibility its writer
   reads as private: `https://discord.com/channels/<id>/<id>/<id>` with
@@ -3399,12 +3400,12 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 
 #### Scenario: A handled file's keys
 
-- **WHEN** an answer session marks a questions-branch file handled
+- **WHEN** an answer service marks a questions-branch file handled
 - **THEN** the new file holds only `handled`, the day in UTC, as
-  `yyyy-mm-dd`, on which the session closed the question, even when the push
+  `yyyy-mm-dd`, on which the service closed the question, even when the push
   succeeds on a later poll, and `closes`, that file's name
   `<date>-<slug>-<6 hex digits>.md` without its directory, and has no body
-- **AND** for a question the session's model judges has a category,
+- **AND** for a question the service's model judges has a category,
   `closes` is instead the SHA-256 of that name, as 64 lowercase hex digits,
   so neither the handled file nor its owed push holds the question's words,
   and a reader takes it to close the file whose name has that hash
@@ -3452,19 +3453,19 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   stopped the question; `said` is what the person said, in their words or
   in one sentence, with any place they named that *A question is written
   at the privacy of what it concerns* allows, such as a spec's path;
-  `said_by` is that person's GitHub login, or for a miss an answer session
+  `said_by` is that person's GitHub login, or for a miss an answer service
   logs, the login of the person running it; `asked_by` is the account
   that posted the question, as its thread shows it, left out for a question
   with no thread; a miss an Igor's worker or its own inquisitor run reports
   holds no `said_by`, since neither is the person who judged it, and a
   worker's holds no `asked_by`; and the body is the question
   under `## Question`
-- **AND** for a miss an answer session logs, `repository` and `asked_from`
-  are instead as the `answer-session` spec's *A miss holds the repository its
+- **AND** for a miss an answer service logs, `repository` and `asked_from`
+  are instead as the `answer-service` spec's *A miss holds the repository its
   question concerns* and *A miss records who judged it and where it was
   asked from* give, `said` is the person's note as they typed it or,
-  when the session logs the miss by itself or the person gave no note,
-  the fixed text the `answer-session` spec gives for that case, and `asked` is the day the
+  when the service logs the miss by itself or the person gave no note,
+  the fixed text the `answer-service` spec gives for that case, and `asked` is the day the
   question was asked
 - **AND** a questions-branch miss file for a question asked in a Linear or
   Discord thread holds the asking message's URL as `asked_in`, which
@@ -3478,7 +3479,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   answer comes, the answer under `## Answer`: for a github.com
   `answer_link`, the comment's text, as *An answer logged from a comment is
   the comment's whole text* says; for a Linear or Discord one, the text the
-  answer session relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
+  answer service relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
   they typed, each word for word
 
 #### Scenario: A whole comment fits as the answer
@@ -3497,7 +3498,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 #### Scenario: A rephrased question's log file holds the rephrasing
 
 - **WHEN** a log file records the answer to a question that the person
-  answered as rephrased in an answer session
+  answered as rephrased in an answer service
 - **THEN** the log file's body holds `## Question`, `## Rephrased
   question`, `## Discussion` and `## Answer`, in that order, and its
   frontmatter gains no key
@@ -3531,7 +3532,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 
 Every miss file SHALL be `misses/<hash>.md`, `<hash>` being the lowercase
 hex SHA-256 of two parts as UTF-8, joined by one LF with none after:
-for a reply the answer session posted, the surface (`github`, `linear` or `discord`) and the reply's id,
+for a reply the answer service posted, the surface (`github`, `linear` or `discord`) and the reply's id,
 on GitHub its `node_id`; else `file` and the path of the question's log
 file on the questions branch the miss goes to, the first in byte order if
 several; else `message` and the asking message's URL. A writer finding
@@ -3539,21 +3540,21 @@ the name taken SHALL push nothing.
 
 #### Scenario: A retried push of a miss already on the branch pushes nothing
 
-- **WHEN** the answer session retries an owed push of a miss file whose
+- **WHEN** the answer service retries an owed push of a miss file whose
   earlier push had landed
 - **THEN** it pushes nothing, the name being on the branch
 
 #### Scenario: A miss file is named by its reply's id
 
-- **WHEN** an answer session posts on Discord a reply starting
+- **WHEN** an answer service posts on Discord a reply starting
   `Inquisitor: filter 4`, and Discord returns the new message's `id`
-- **THEN** the session then pushes `misses/<hash>.md`, where `<hash>` is
+- **THEN** the service then pushes `misses/<hash>.md`, where `<hash>` is
   the SHA-256 of `discord`, an LF and that `id`
 - **AND** on Linear the id is the comment's `id`, and on GitHub the reply
   comment's `node_id`, used to name miss files only once task 0.31 has
   measured it
 - **AND** the asking agent hashes the id of the reply it reads and looks
-  up that one path, whichever kind of miss file the session wrote
+  up that one path, whichever kind of miss file the service wrote
 
 #### Scenario: A miss with no reply hashes its question's file path
 
@@ -3572,16 +3573,16 @@ the name taken SHALL push nothing.
   in no message, did not need asking
 - **THEN** no miss file is written
 
-### Requirement: Only the answer session's log call names a miss by a reply's id
+### Requirement: Only the answer service's log call names a miss by a reply's id
 
 The `log` command SHALL name a miss file by a reply's id only when called
-with its session option, so that an agent following the skill's
+with its service option, so that an agent following the skill's
 instructions, which forbid that option, never backs an `Inquisitor: ` reply, which counts only with
 its miss file.
 
-#### Scenario: The log command refuses a reply-id miss without its session option
+#### Scenario: The log command refuses a reply-id miss without its service option
 
-- **WHEN** an agent calls the `log` command, without its session option,
+- **WHEN** an agent calls the `log` command, without its service option,
   for a miss named by a GitHub reply's `node_id`
 - **THEN** it refuses, and writes nothing
 
@@ -3601,21 +3602,21 @@ order if several; and SHALL write no miss file when no hit has it.
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
 A **hash-only miss file** SHALL be a miss file with empty frontmatter and
-no body, written only by an answer session and committed as *A citation file
+no body, written only by an answer service and committed as *A citation file
 has one format* gives for a citation, dated midnight UTC on the day it is
 pushed. Being on the branch is its whole authority. The `log` command
-SHALL write one only when called with its session option, as for a handled
+SHALL write one only when called with its service option, as for a handled
 file.
 
-#### Scenario: The log command refuses a hash-only miss file without its session option
+#### Scenario: The log command refuses a hash-only miss file without its service option
 
-- **WHEN** the `log` command is called without its session option to
+- **WHEN** the `log` command is called without its service option to
   write a miss file with no keys and no body
 - **THEN** it refuses, and writes nothing
 
 #### Scenario: A hash-only miss file holds nothing
 
-- **WHEN** an answer session pushes a hash-only miss file
+- **WHEN** an answer service pushes a hash-only miss file
 - **THEN** its frontmatter holds no key and its body is empty, its
   commit's author and committer are `inquisitor <noreply>`, its commit's
   date is midnight UTC on the day of the push, and filter 1's search never
@@ -3680,7 +3681,7 @@ unreadable, and SHALL post nothing from it, its name included.
   name holds a line break followed by `Re: ` and
   another question's URL
 - **THEN** the search shows it only as input labelled unreadable, and the
-  answer session posts no recorded answer linking it
+  answer service posts no recorded answer linking it
 
 #### Scenario: A miss file not named by a hash is only unreadable input
 
@@ -3726,7 +3727,7 @@ GitHub, any such value.
   its `answer_link` or `asked_in` is `https://github.com/o/r/pull/3?x=../`
 - **THEN** filter 1 makes no GitHub API call with that value, and shows the
   file as input
-- **AND** no reader, the answer session included, reads the visibility of
+- **AND** no reader, the answer service included, reads the visibility of
   the repository that `asked_in` names, or follows it, so the file counts as
   private
 
@@ -4148,11 +4149,11 @@ SHALL say so.
 - **THEN** the agent opens no pull request for it, and tells the person it
   was rejected before
 
-### Requirement: An answer session's automatic reply is a verdict, not a person's answer
+### Requirement: An answer service's automatic reply is a verdict, not a person's answer
 
-The agent SHALL NOT log an answer session's `Recorded answer: ` or
+The agent SHALL NOT log an answer service's `Recorded answer: ` or
 `Inquisitor: ` reply as a person's answer, or log a miss for it; the answer
-session logs any miss due, as the `answer-session` spec says. For a
+service logs any miss due, as the `answer-service` spec says. For a
 `Recorded answer: ` reply, the agent SHALL check the place its `Recorded
 in: ` line names through filter 1, act on it only as filter 1 counts it,
 else as input, and push no citation for a lore entry it names.
@@ -4218,7 +4219,7 @@ question. Otherwise it is input.
 
 - **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
   reply starting `Inquisitor: filter 4`, and the miss file on the
-  questions branch of `o/web` has `said` `answer session: clearly filter
+  questions branch of `o/web` has `said` `answer service: clearly filter
   4` and a `said_by`
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says
@@ -4264,7 +4265,7 @@ taking the reply as input.
 #### Scenario: A reply is input until its miss file is pushed
 
 - **WHEN** an agent reads an `Inquisitor: ` reply before the answer
-  session's push of its miss file has landed
+  service's push of its miss file has landed
 - **THEN** the agent looks again a minute later, and acts on the reply
   once the file is there
 - **AND** with no file after the three further looks, the reply is input, and the
@@ -4373,8 +4374,8 @@ A miss file SHALL be pushed directly to `misses/` on the questions branch
 its question's file went to, or, for a question no file holds, the one
 that file would go to, by whoever pushes it, an Igor pushing its worker's
 miss file included, unless *No record goes somewhere more visible than its
-source* bars it. An answer session places its own misses by the
-`answer-session` spec's rules instead.
+source* bars it. An answer service places its own misses by the
+`answer-service` spec's rules instead.
 
 #### Scenario: A miss goes to the questions branch its question's file is on
 
@@ -4383,12 +4384,12 @@ source* bars it. An answer session places its own misses by the
 - **THEN** the agent pushes the miss file to `misses/` on that branch
   directly, and opens no pull request
 
-#### Scenario: An answer session logs its misses without the asker's log file
+#### Scenario: An answer service logs its misses without the asker's log file
 
-- **WHEN** an answer session logs a miss for a question its asker did not
+- **WHEN** an answer service logs a miss for a question its asker did not
   log
-- **THEN** the miss is written, as the `answer-session` spec's *The answer
-  session logs its misses on the questions branch of what the question
+- **THEN** the miss is written, as the `answer-service` spec's *The answer
+  service logs its misses on the questions branch of what the question
   concerns* says
 
 ### Requirement: Lessons from misses land by their scope

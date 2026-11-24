@@ -29,11 +29,11 @@ it again.
 - A person's "that was obvious" is logged as a miss. Reviewing the misses
   produces lessons, each sent where it applies: the skill, a team's lore, or
   one person's memory.
-- An answer session gives a person one place to answer the questions asked
+- An answer service gives a person one place to answer the questions asked
   of them on GitHub, Linear and Discord. A relay identity, the person's own
   bot on each surface, posts each answer for them, and a file on the
   questions branch, or, for a review request or assigned issue, the relay's
-  comment on it, records it as theirs. The session runs the four filters
+  comment on it, records it as theirs. The service runs the four filters
   on each incoming question too: it answers what is already recorded,
   replies to an agent's question that one of the other three filters clearly
   stops, and lets the person decline a question, logging a miss when they
@@ -62,12 +62,12 @@ in shared-skills #112.
 - `gh-post`: the shared post reader, `.agents/lib/gh-shell/`, which tells
   prose's posting hook and the inquisitor's post hook a post's body, that a
   call sends no post, or that it is unreadable.
-- `answer-session`: where a person answers the questions asked of them in
+- `answer-service`: where a person answers the questions asked of them in
   the channels they subscribe to, each answer posted by a relay identity:
   its configuration and setup, the four sources of questions, polling,
   relaying, editing, asking the asker, declining to answer, the filters it
   runs on incoming questions, the misses it logs, where its state lives, the
-  lock, and what the session's model may do while discussing a question with
+  lock, and what the service's model may do while discussing a question with
   the person.
 
 ### Modified Capabilities
@@ -77,22 +77,22 @@ None.
 ## Impact
 
 - New: `.agents/skills/inquisitor/` with its scripts, hooks and tests, and
-  the answer session's mod, built from the prototype tagged
+  the answer service's mod, built from the prototype tagged
   `answer-session-ui-approved-v0.1-33`.
-- The answer session posts through the github-app and discord-bot skills,
-  and on Linear by its own request with linear-app's token; discord-bot as
+- The answer service posts through the github-app and discord-bot skills,
+  and on Linear by the answer service's own HTTP request, with linear-app's token; discord-bot as
   merged in shared-skills PR #1, with its
   `read` changed (task 6.0) to return whether a message's author is a bot
   and which message it replies to.
-- In the answer session's Claude Code session, the model has only its
+- In the answer service's Claude Code session, the model has only its
   conversation, a tool that drafts a reply into the prompt box, a tool
-  that hands its judgement of a message to the session's code in fixed
+  that hands its judgement of a message to the service's code in fixed
   fields, and read-only file tools. Claude Code, not a hook, is to enforce that; task
-  0.34 measures how, and whether it can. The answer session's own code makes
+  0.34 measures how, and whether it can. The answer service's own code makes
   every post, push and fetch, so only answers the person confirmed go out as
   theirs.
-- The answer session's setup writes `~/.local/bin/answer`, a command that
-  starts Claude Code with the answer session open.
+- The answer service's setup writes `~/.local/bin/answer`, a command that
+  starts Claude Code with the answer service open.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter and gh flag tables already there, so the
   inquisitor's post hook reads posts the same way. The reader, and so
@@ -117,7 +117,7 @@ None.
     common post forms, not an agent set on posting unread.
 - The `questions` branch is an orphan branch, pushed with no pull request.
   A repository may also hold `.inquisitor/reviewers`, the logins a
-  posted question may tag. The answer session's setup can create a lore
+  posted question may tag. The answer service's setup can create a lore
   repository for a team that wants one.
 - github-app: its SKILL.md's examples set the script path's shell variable
   `G` in the same command as each use, or write the script's full path,
