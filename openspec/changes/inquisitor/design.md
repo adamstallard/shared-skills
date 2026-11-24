@@ -997,19 +997,18 @@ question unanswered, or their answer lands on that asker's question.
 **Rule:** answer-session spec, *Whom a message reaches is set by its
 mentions*.
 
-Each question in a bot's message has one owner, so two people cannot
-give a bot conflicting answers. An item with a tag line, or the question
-the sentences outside its list make, reaches only that tag line's person,
-whoever the message mentions first; any other bot question reaches only
-the first person its message mentions. A bot question that tags and
-mentions no one, and is no handback and no reply to a relay post, reaches
-every subscriber with write access, rather than no one: the script's tagging
-candidates can all lack write access while another subscriber has it, and
-an agent's thread may have no person in it to notice the question. Such a
-question with no place, one the session places `other`, reaches no one, though its thread may have no
-person in it either: there is nothing to check write access to,
-and showing it to every subscriber of its channel would show people
-questions they may not be able to decide.
+A bot question with a tag line or a mention reaches one person, so two
+people cannot give a bot conflicting answers. A bot question with no tag
+line and no mention, which is no handback and no reply to a relay post,
+reaches every person whose answer session subscribes to the repository it
+concerns and who has write access there, rather than no one. The script's
+tagging candidates can all lack write access while another subscriber has
+it, and an agent's thread may have no person in it to notice the question.
+A question the session can place in no repository (it places it `other`)
+reaches no one, though its thread may have no person in it either. There
+is no repository to check write access to, and showing it to every
+subscriber of its channel would show people questions they may not be
+able to decide.
 
 #### igor's handback marker
 
@@ -1104,6 +1103,10 @@ bullet only asks the question, its task in tasks.md says it.
 - **Can a security advisory's private-fork pull request be merged before
   the advisory is published?** (task 0.13)
 - **Can an Igor worker post?** (task 0.14)
+- **Does GitHub give a review's and a review comment's author?** (task
+  0.11; an issue comment's author is measured) If not, *The log command
+  takes answered_by from the linked comment* waits, before it is built,
+  for a person to choose another source for `answered_by`.
 - **Can the Igor itself run the script's `branch-search` and read a
   collaborator's permission?** (task 0.29, which says what follows if not)
 - **Does the Discord bot token pattern match a real token?** (task 0.33)
@@ -1112,36 +1115,6 @@ bullet only asks the question, its task in tasks.md says it.
 
 **Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement shows the fact false.**
-
-### Undecided
-
-- **Whom an agent tags in a Linear or Discord message.** *A tag line names
-  the person a posted question tags* asks for a mention in that surface's
-  form, but the tagging candidates are GitHub logins, and nothing maps a
-  login to a Linear or Discord user. Options: such a question gets no tag
-  line, so it reaches each subscriber with write access to what it
-  concerns (recommended); or it always gets the fixed tag line `Inquisitor:
-  no one with authority to decide this could be tagged; name deciders in
-  .inquisitor/reviewers.`, which reaches the same people but says no
-  decider could be tagged even when one could.
-- **A headless session posting as the configured login.** *A headless
-  session does not tag its own login* leaves the question untagged. The
-  configured login is the person's own GitHub account, so the post counts
-  as the person's message, which reaches only those it mentions: no answer
-  session shows it. Options: tag the
-  configured login in a headless session even when the post goes out as
-  it, so the person's answer session shows it (recommended); or keep it
-  untagged, seen only by someone reading the thread.
-- **An untagged question's log file.** The answer session shows a
-  questions-branch log file on its own only when the file tags the person.
-  An untagged question's file tags no one, nor does the file of one asked
-  on Linear or Discord, which is logged without its tag line. So a machine
-  that never reads the thread's copy shows such a question to no one, as
-  when the question was posted more than 14 days before that machine's
-  first poll of its channel, the furthest back a first poll reads.
-  Options: accept it (recommended: anyone reading the thread still sees
-  it); or let an untagged file reach subscribers with write access, as an
-  untagged message does.
 
 ### Outside this change
 

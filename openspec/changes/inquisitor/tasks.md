@@ -120,8 +120,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
-      of the person's user id and the line it is on, and a reply to the
-      relay's message, and edit
+      of the answer session's person by user id, and a reply to a
+      message of that person's relay, and edit
       its own message; that Discord marks the author of a bot's or a
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports

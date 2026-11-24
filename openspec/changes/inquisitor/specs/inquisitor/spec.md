@@ -1403,13 +1403,13 @@ string matching the credential patterns.
 
 ### Requirement: A tag line names the person a posted question tags
 
-After the second call, the agent SHALL name the person to tag, as *A
-question in a post tags one person who can decide, if there is one* finds
-them, alone on the question's **tag line**, after any related-decision,
-person-required and concerns lines, in that order: `@` and a GitHub
-login, or in a Linear or Discord message one mention in that surface's
-form. A question that tags no one gets the fixed line of *A question no
-candidate can decide turns to the session's login*.
+After the second call vets a question in a GitHub post, the agent SHALL
+add its **tag line** under any related-decision, person-required and
+concerns lines, which keep that order: `@` and the login that *A
+question in a post tags one person who can decide, if there is one*
+finds, or, if none, the fixed line of *A question no candidate can decide
+turns to the session's login*. An agent's question in a Linear or Discord
+message SHALL carry no tag line, as no GitHub login maps to a user there.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
@@ -1421,6 +1421,11 @@ candidate can decide turns to the session's login*.
   lets it through without the two calls running again
 - **AND** so it does when the fixed line of *A question no candidate can
   decide turns to the session's login* takes the place of `@alice`
+
+#### Scenario: A question in a Linear message carries no tag line
+
+- **WHEN** an agent's bot account asks a question in a Linear comment
+- **THEN** no tag line follows the question, not even the fixed line
 
 ### Requirement: A question another skill requires carries a person-required line
 
@@ -3541,8 +3546,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   question tags `alice`, and the question's hash, which drops tag lines,
   still matches the hash vetted before the tag line was added (*Adding
   the tag line keeps the vetted hash*)
-- **AND** a question asked in a Linear or Discord message is logged
-  without its tag line
+- **AND** a question in an Igor's Linear handback is logged without the
+  tag line the handback puts under it
 - **AND** a related-decision, person-required or concerns line after the
   question (*A related-decision line is one URL on a line of its own*,
   *A question another skill requires carries a person-required line*,
