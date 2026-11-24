@@ -371,7 +371,7 @@ it with `gh pr edit`, and hand back again.
 that final pass at once, without asking first: fix any doc the pull request
 changes, and its title, that still describes work as unfinished or to
 come. Ask a person only before such a fix would delete a result or decision
-the text states. The note ends with one of three sentences about the body:
+the text states. The hook's note then says one of three things about the body:
 
 - *Leave the body as it is*: the call requested no reviewer, or none but
   the author and bots. A bot, `@copilot` or a login ending in `[bot]`,
@@ -383,6 +383,10 @@ the text states. The note ends with one of three sentences about the body:
   author: the hook could not work out who the author is. Compare the
   reviewers it names with the pull request's author
   (`gh pr view --json author`); if any differs, treat it as a body due.
+
+**After a pull request is created,** draft or not, the same hook reminds
+you to add link lines when its body has none. If the pull request has no
+issue, leave its body as it is.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked

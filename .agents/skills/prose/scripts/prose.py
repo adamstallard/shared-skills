@@ -6,8 +6,9 @@ and a pass token, signs nothing and exits 4. The second, with --pass <token>, si
 Both calls of `check` run the repository's pre-commit hook first, if it has one.
 
     prose.py start --goals <goals> | --goals-file <file>
-        Before writing. Prints the rules and opens the first-write gate (see
-        hook-gate below); issues no token.
+        Before writing. Prints the rules and opens the first-write gate, which
+        blocks a session's first file write or post until then; issues no
+        token.
     prose.py check -F <message file, or - for stdin>
             --goals <goals> | --message-goals-file <file> [--amend]
             [--goals-for <pattern> <goals>]... [--goals-file <file>]
@@ -52,18 +53,23 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         once its findings are answered; check refuses to sign a compaction
         without both the --verify and the --reviewed record. --abandon
         discards a compaction started on the file, so the commit gate
-        treats it as ordinary again. `compact <file>` with no flag and every
-        --verify take the files that might refer to the doc, after -- or
-        listed in --paths-from.
+        treats it as ordinary again. The files that might refer to the doc,
+        for `compact <file>` with no flag and for every --verify, follow --
+        or are listed in --paths-from.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
     prose.py hook-handback --host <platform>  the hook after each tool call: when the
-                                              call handed a pull request back, prints
-                                              the current-state pass, a reminder to
-                                              fix any doc, body or title that still
-                                              describes work as unfinished
+                                              call handed a pull request back (gh pr
+                                              create unless a draft without
+                                              reviewers, gh pr ready, gh pr edit
+                                              --add-reviewer), prints that the
+                                              current-state pass is due: fix any doc
+                                              or title that still describes work as
+                                              unfinished. When the call created one
+                                              whose body has no link line, says to
+                                              add link lines
     prose.py hook-gate                        the first-write gate
 
 Standard library only. Changing what is hashed into a trailer or footer (the
@@ -1981,7 +1987,57 @@ BODY_DUE_UNKNOWN = (" Pull request body due if a review was requested from anyon
 BODY_DUE = (" Have a fresh agent write the body from durable sources (specs, decision records, "
             "code and tasks.md), never from the current body, as an introduction for a "
             "first-time reader that says what the pull request builds on. Replace the current "
-            "body rather than updating it, and sign it with its cold read.")
+            "body rather than updating it, and sign it with its cold read. Keep its link lines "
+            "(`Closes #N`, `Part of #N`).")
+# Said after a call that creates a pull request, draft or not, whose body has
+# no link line.
+LINK_NOTE = ("The new pull request's body has no link line: add `Closes #N` for each issue it "
+             "closes and `Part of #N` for each it partly implements. If it has no issue, leave "
+             "the body as it is.")
+# A link line, matched anywhere in the body, mid-sentence too: one of
+# GitHub's closing keywords, or `Part of`, then an optional colon, a space,
+# and an issue as #N, owner/repo#N or its URL. GitHub links no issue from
+# code or an HTML comment, but this reads them too, so such a keyword
+# suppresses the reminder. That is deliberate: reading GitHub's Markdown to
+# skip them kept disagreeing with GitHub, and a missed reminder costs less.
+LINK_LINE = re.compile(
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|part\s+of):?\s+"
+    r"(?:(?:[\w.-]+/[\w.-]+)?#\d+|https?://\S+/issues/\d+)", re.IGNORECASE)
+
+
+def has_link_line(body):
+    """Whether a pull request body holds a link line (LINK_LINE)."""
+    return bool(LINK_LINE.search(body))
+
+
+def created_bodies(payload, host):
+    """The body of each pull request the call creates, draft or not: by
+    `gh pr create` or `gh pr new` (not a dry run), or the GitHub MCP's
+    create_pull_request, whose missing body counts as empty and so gets the
+    reminder. A gh create's body is read as the posting hook reads it. A
+    create with no body flag, such as `--fill`, or with a body the hook
+    cannot read, is left out and gets no reminder, since its body is
+    unknown here."""
+    if handbacks is None:
+        return []
+    kind, tool, tool_input = handbacks.call_of(payload, host)
+    if kind == "mcp":
+        if tool != "create_pull_request":
+            return []
+        body = tool_input.get("body")
+        return [body if isinstance(body, str) else ""]
+    command = tool_input.get("command") if kind == "shell" else None
+    if READER is None or not isinstance(command, str):
+        return []
+    bodies = [text for where, text in gh_bodies(command, payload.get("cwd"))
+              if where.split()[1:3] in (["pr", "create"], ["pr", "new"])
+              and isinstance(text, str)]
+    if bodies:
+        args = [text for text, _ in _gh_args(_words(command.strip()))]
+        flags, _ = handbacks.gh_flags(READER, args[1], args[2:])
+        if handbacks.switch(flags, "--dry-run"):
+            return []
+    return bodies
 
 
 def handbacks_of(payload, host):
@@ -2194,9 +2250,10 @@ FAILED_EVENTS = {"PostToolUseFailure"}
 
 
 def hook_handback(raw, host):
-    """(exit code, stdout, stderr) for the hook after a tool call: the
-    current-state pass a hand-back starts, and whether the pull request's
-    body is due, as context for the agent."""
+    """(exit code, stdout, stderr) for the hook after a tool call, as
+    context for the agent: the current-state pass a hand-back starts, and
+    whether the pull request's body is due; and, after a create whose body
+    has no link line, LINK_NOTE."""
     try:
         payload = json.loads(raw)
     except ValueError:
@@ -2204,10 +2261,15 @@ def hook_handback(raw, host):
     if not isinstance(payload, dict) or payload.get("hook_event_name") in FAILED_EVENTS:
         return 0, "", ""
     found, sole = handbacks_and_sole(payload, host)
-    if not found:
+    notes = []
+    if found:
+        notes.append(HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+                     + body_note(found, sole, payload, host))
+    if not all(has_link_line(body) for body in created_bodies(payload, host)):
+        notes.append(LINK_NOTE)
+    if not notes:
         return 0, "", ""
-    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found)) \
-        + body_note(found, sole, payload, host)
+    note = "prose: " + " ".join(notes)
     if host == "cursor":
         return 0, json.dumps({"additional_context": note}) + "\n", ""
     name = payload.get("hook_event_name")
@@ -3686,7 +3748,9 @@ def main(argv=None):
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
     p_handback = sub.add_parser("hook-handback", help="after a call: the current-state pass "
-                                                       "a hand-back starts; payload on stdin")
+                                                       "a hand-back starts, and the link lines "
+                                                       "a new pull request lacks; payload on "
+                                                       "stdin")
     p_handback.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
     # allow_abbrev=False: an abbreviation such as --paths would make the
