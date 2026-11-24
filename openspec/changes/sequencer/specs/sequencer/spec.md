@@ -8,7 +8,7 @@ code calls another change's code is built after it, needs a model, and
 runs only where one is available. The script publishes the order in one
 issue's body and a block in each ordered item's body, and names each
 reviewer's next review. It orders a cycle by a fixed rule, which a
-person can override, and asks no one. It recommends and never merges.
+person can override. It recommends and never merges.
 
 These terms hold throughout this spec:
 
@@ -62,16 +62,15 @@ These terms hold throughout this spec:
   cannot tell whether the App is installed, every caller, a session
   included, counts it as opened by an account without write access.
 - **A change's hash** is a hash of every file under the change's
-  directory, read from the head the change is read from, which `order`
-  prints for each open change.
+  directory, read from the default branch or pull request head the change
+  is read from.
 - **An edges file** is the model step's output: the pairs of changes it
   checked, each with the two changes' hashes from the `order` run it read,
   and the edges it found.
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
-  of changes** is two changes, each belonging to an open pull request,
-  the same one or not,
-  and **a code edge** is an edge the model step found.
+  of changes** is two changes, each belonging to a different open pull
+  request, so a change that belongs to no pull request is in no pair, and **a code edge** is an edge the model step found.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -269,7 +268,7 @@ checked, and why.
 Where the OpenSpec CLI runs on a change but refuses it, the script SHALL
 take nothing from that change's files, and the order's issue
 SHALL list the change as not checked, with the CLI's reason, and name each
-pair it forms with another open change as unchecked.
+pair of changes it is in as unchecked.
 
 #### Scenario: A change the CLI refuses is not counted as checked
 
@@ -316,7 +315,7 @@ come after that change.
 
 ### Requirement: Two changes that modify one requirement owe a copy, which sets no order
 
-Where two open changes both modify one requirement of one capability, the
+Where both changes of a pair modify one requirement of one capability, the
 order's issue SHALL say that the later of the two in the order must add the
 earlier one's new scenarios to its own copy of the requirement before it
 archives; this finding SHALL add no edge, because archiving replaces a
@@ -347,9 +346,9 @@ repository.
 
 #### Scenario: A Depends on line orders two issues
 
-- **WHEN** #12's body holds the line `Depends on #9 and #10`
-- **THEN** #12 comes after #9 and #10, with the reasons `after #9: depends
-  on it` and `after #10: depends on it`
+- **WHEN** #12's body holds the line `Depends on #9, #10 and #11`
+- **THEN** #12 comes after #9, #10 and #11, with the reasons `after #9:
+  depends on it`, `after #10: depends on it` and `after #11: depends on it`
 
 #### Scenario: A Builds on line orders a stacked change
 
@@ -377,11 +376,6 @@ letters, digits and `-`, and `<repo>` only those, `.` and `_`; other text
 is no reference, here or in a `Builds on:` line's parentheses. A
 reference that names this repository in full, in upper or lower case, SHALL be read as its
 `#<number>`.
-
-#### Scenario: A Depends on line with commas orders each item it names
-
-- **WHEN** #12's body holds the line `Depends on #9, #10, #11`
-- **THEN** #12 comes after #9, #10 and #11
 
 #### Scenario: A reference naming this repository in full orders like a short one
 
@@ -432,13 +426,6 @@ item's repository.
   adamstallard/shared-skills
 - **THEN** #64's line says
   `not counted: builds on octo/lib#31, in another repository`
-
-#### Scenario: A link to another repository's item makes no item wait
-
-- **WHEN** pull request #12's body says `Depends on octo/lib#7`, the issue
-  `octo/lib#7` is open, no edge connects #12 and pull request #15, and
-  #12 was opened earlier
-- **THEN** #12 comes before #15, and #12's block names no wait
 
 #### Scenario: An issue whose only link names another repository is not ordered
 
@@ -495,7 +482,7 @@ once, onto the one merged before it.
 
 - **WHEN** #30 and #33 both change `src/claims.py`, and no edge connects
   them
-- **THEN** #33 stays after #30, where the tiebreak placed it, and #33's
+- **THEN** #33 stays after #30, where the order they were opened in placed it, and #33's
   block says `` merges after #30: both change `src/claims.py`; rebase once
   onto it ``
 
@@ -511,8 +498,6 @@ once, onto the one merged before it.
 Among the items that come after no unplaced item through an edge, the one
 opened earliest SHALL go next, and a cycle SHALL count as one item opened when its
 earliest-opened member was.
-No caller, an Igor's Sequencer role included, SHALL ask a person about a
-place this tiebreak or a cycle's rule decides.
 
 #### Scenario: Two unrelated items are placed by when they were opened
 
@@ -744,8 +729,8 @@ requirement's title, in the order's issue and in the item's block.
 
 ### Requirement: The same inputs give the same order whoever runs the script
 
-Given the same repository state and the same stored checked pairs and code
-edges, the script
+Given the same repository state, the same stored checked pairs and code
+edges, and the same OpenSpec CLI, the script
 SHALL produce byte-identical order text, whichever caller runs it and
 wherever.
 
@@ -774,12 +759,6 @@ SHALL go in a comment.
 
 - **WHEN** the one open issue labelled `sequencer` was opened by
   `github-actions[bot]`
-- **THEN** the script publishes the order in it
-
-#### Scenario: An order issue an installed App opened is used
-
-- **WHEN** the one open issue labelled `sequencer` was opened by the bot
-  account of a GitHub App installed on the repository
 - **THEN** the script publishes the order in it
 
 #### Scenario: The order is never posted as a comment
@@ -819,8 +798,7 @@ and the order is no decision.
 - **WHEN** #43 enters the order, and its body is one paragraph with no
   heading
 - **THEN** its new block's line after `<!-- sequencer:begin -->` is
-  `## Sequencer`, so only the paragraph comes before the body's first
-  heading
+  `## Sequencer`
 
 ### Requirement: Text from a pull request or the model is written inert
 
@@ -993,8 +971,11 @@ order.
 
 A pull request SHALL stop awaiting a reviewer once that reviewer submits
 a review of any kind on its current head commit, as the review's
-`commit_id` in GitHub's pull request reviews API shows. When a push
-changes its head, it SHALL await that reviewer again.
+`commit_id` in GitHub's pull request reviews API shows. It SHALL stop
+awaiting a team once any writer other than the pull request's author
+submits such a review, because GitHub records reviews from users, never
+from teams, and the script reads no team's members. When a push changes
+its head, it SHALL await that reviewer or team again.
 
 #### Scenario: A review of the current head takes a pull request off the queue
 
@@ -1007,6 +988,12 @@ changes its head, it SHALL await that reviewer again.
 - **WHEN** `maya` reviewed #97 at its head commit, and a later push gives
   #97 a new head commit
 - **THEN** #97 awaits `maya` again
+
+#### Scenario: Any writer's review of the current head ends a team's wait
+
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and `li`, a
+  writer who is not #96's author, submits a review of #96's head commit
+- **THEN** #96 no longer awaits `@octo/docs`, and is not its next review
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
@@ -1110,17 +1097,6 @@ concurrency group, so no two of them edit a body at once.
 - **WHEN** two pull requests merge a second apart
 - **THEN** the second run starts only after the first has finished
 
-#### Scenario: An override comment reorders the work
-
-- **WHEN** a person with write access comments `#85 first` on the order's
-  issue about a listed cycle
-- **THEN** a run starts on that comment and places #85 first
-
-#### Scenario: A pull request closed without merging leaves the order
-
-- **WHEN** #88 is closed without merging
-- **THEN** a run starts on that event and removes #88's block
-
 ### Requirement: The workflow's deterministic part needs no secret
 
 The workflow SHALL compute and publish an order with no secret but the
@@ -1220,7 +1196,8 @@ under the checks any caller's edges file gets.
 ### Requirement: The workflow runs no code from a pull request
 
 The workflow SHALL run only the script, from the shared-skills commit that
-`setup-ci` writes into the template, reading pull requests' files as
+`setup-ci` writes into the workflow file, and the OpenSpec CLI at the
+version that file pins, reading pull requests' files as
 data, and SHALL NOT check out or run code from a pull request's head.
 
 #### Scenario: A fork's pull request cannot run code with the token

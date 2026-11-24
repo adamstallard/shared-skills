@@ -9,8 +9,9 @@ into the requirement it bears on, with its evidence in
 `openspec/specs/sequencer/decisions.md` where a rule rests on it, and
 remove the question from design.md.
 
-- [ ] 0.1 GitHub's "blocked by" relations of an issue or pull request can
-      be read through its API with a workflow run's `GITHUB_TOKEN`,
+- [ ] 0.1 Whether a pull request can carry GitHub's "blocked by"
+      relation, and whether an issue's or pull request's relations can be
+      read through GitHub's API with a workflow run's `GITHUB_TOKEN`,
       including a relation to another repository's issue
 - [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
       `pull-requests: write`, can edit the body of a pull request from a fork
@@ -53,7 +54,7 @@ remove the question from design.md.
       characters the spec allows, blocked-by relations, and
       `Builds on:` lines in a change's `proposal.md`
 - [ ] 2.4 Merge waits between pull requests that change a file in common
-- [ ] 2.5 The topological order with the earliest-opened tiebreak, cycles
+- [ ] 2.5 The topological order, placing items no rule orders earliest opened first, cycles
       grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
@@ -100,7 +101,9 @@ remove the question from design.md.
       pairs and code edges do, and printing a change's files only where a
       writer opened its pull request
 - [ ] 3.7 Stop a pull request awaiting a reviewer once their review's
-      `commit_id` is its head commit
+      `commit_id` is its head commit, and awaiting a team once a
+      review with that `commit_id` comes from any writer other than the
+      pull request's author
 - [ ] 3.8 Write every string taken from an issue, a pull request, a
       change's files or the model step as inert inline code, and refuse
       one holding the end marker
@@ -117,7 +120,8 @@ remove the question from design.md.
       *The workflow recomputes the order on GitHub events and once a day*
       names, one concurrency group, `pull_request_target` reading pull
       requests as data, the sequencer script fetched from the shared-skills commit `setup-ci`
-      writes into the template
+      writes into the template, and OpenSpec's CLI installed at a pinned
+      version, 1.16.1 or later
 - [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
       `publish --model api`, one API call with no tools whose reply the
       script parses and validates; an Igor, through the label

@@ -1,41 +1,34 @@
 ## Open Questions
 
-Two questions for the repository's owner come first. Every question
-after those two is a fact nobody has measured: a task in tasks.md's
-section 0, with what the spec does if the fact turns out false.
+One question for the repository's owner comes first. Every question
+after it asks about a fact nobody has measured: a task in tasks.md's section 0,
+with what the spec does if the fact turns out false.
 
-- **When does a team stop awaiting review?** A team counts as one
-  reviewer, and a pull request stops awaiting a reviewer when that
-  reviewer reviews its current head; but a team never reviews, its
-  members do, so under the spec a team awaits until the pull request
-  closes. *Option A:* any writer's review of the current head,
-  other than the author's, takes it off the team's queue. *Option B:* only a
-  review by a member of the team does, which needs the workflow's token
-  to read team membership, not yet measured. *Option C:* keep the spec.
-  *Recommended:* A, which needs no new fact; its cost is that a writer
-  outside the team ends the team's wait. Example: CODEOWNERS gives
-  `@octo/docs` #96's files, and `maya`, a writer, reviews #96's head.
-  Under A, #96 is no longer `@octo/docs`' next review; under B, the same
-  if `maya` is in the team and the token can read that; under C, #96
-  stays `@octo/docs`' next review until it closes.
-- **Should the spec forbid callers to ask a person about a place the
-  tiebreak or a cycle's rule decides?** The tiebreak puts the earliest
-  opened first where no edge orders two items. The requirement *Items no
-  rule orders keep the order they were opened in* ends with a sentence
-  saying no caller asks a person about such a place. No test of the script
-  can check it, since it binds callers, and adamstallard/igor#231 already
-  forbids it for the Igor. *Option A:* keep it. *Option B:* cut it.
-  *Recommended:* B. The published order is the same under both. Example:
-  #82 and #85 form a cycle ordered by rule. Under A, an agent publishing
-  in a session places #82 first and asks nothing; under B, it may first
-  ask the person running it whether to record `#85 first` as an
-  override.
+- **Should the sequencer tie a pull request to an issue by the line forms
+  that pull request #113 accepts?** #113 has the prose skill remind an
+  author whose pull request body has no link line, and treats a body as
+  linked when a closing keyword or `Part of`, then an optional colon, then
+  `#N`, `owner/repo#N` or an issue's URL, appears anywhere, mid-sentence
+  included, in any case. The sequencer ties only on a line that starts
+  with one of them and names `#N` or `owner/repo#N`, with no colon or URL. *Option A:* keep
+  the sequencer's form, and have #113 accept only that form.
+  *Option B:* the sequencer accepts #113's forms. *Option C:* leave the two
+  differing. *Recommended:* A. Prose also names issues that a pull request
+  only mentions, and #113's mid-sentence forms match such prose, which the
+  sequencer's scenario *Naming an issue in prose ties no pull request to
+  it* rules out. Example: #108's body says "Implements the
+  docs part of #107". Under A, #113 reminds #108's author to add a link line,
+  and the order lists #108 as `tied to no issue`; under B, the order ties
+  #108 to #107 and gives #107 its place; under C, #113 stays quiet while
+  the order lists #108 as `tied to no issue`.
 
-- **Can the workflow's token read GitHub's "blocked by" relations,
-  including one to another repository's issue?** (task 0.1) If it can
-  read none, the order reads only `Depends on` and `Builds on:` lines. If
-  it can read all but those to another repository's issues, those are
-  missing from the order's issue.
+- **Can a pull request carry GitHub's "blocked by" relation, and can the
+  workflow's token read the relations, including one to another
+  repository's issue?** (task 0.1) If a pull request cannot carry one, the
+  relation orders only issues. If the token can read none, the order
+  reads only `Depends on` and `Builds on:` lines. If it can read all but
+  those to another repository's issues, the order's issue cannot list
+  those as not counted.
 - **Can a `pull_request_target` run's token edit the body of a pull
   request from a fork?** (task 0.2) If not, the fork's pull request is
   placed but gets no block, as *An item the script cannot edit is named,
