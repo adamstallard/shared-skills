@@ -34,7 +34,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Docs and code comments | with what they describe | yes | yes, with what they describe |
 | Specs | before the code | yes, as the source | yes |
 | Decision records | with the evidence they hold | yes, as the source | yes |
-| PR description | its link lines (`Closes #N`, `Part of #N`) at opening; the rest when a reviewer joins | no | no: regenerated, never updated; it keeps its link lines |
+| PR description | its link lines (`Closes #N`, `Part of #N`) at opening, beside any block a tool writes between its own markers whenever it runs; the rest when a reviewer joins | no | no: an agent regenerates the rest rather than updating it, keeping the link lines and tools' marked blocks |
 | OpenSpec `proposal.md` | once, as a stub | no | no |
 | OpenSpec `design.md` | when an open question for a person arises | only for its open questions | holds open questions only; deleted when none is left |
 | Comments (GitHub, Linear, Discord) | once | as input, such as a review finding to amend into a spec; never as the current state | no: a correction is a new post |

@@ -335,14 +335,17 @@ other goals.
 **A pull request body is written when a reviewer joins:** when the person
 you work for tells you one is joining, or when a review is requested from
 anyone but you and that person. Until then, from the moment the pull
-request opens, the body holds only link lines: `Closes #N` for each issue
-the pull request closes and `Part of #N` for each it partly implements.
-Only these tie a pull request to its issue, and anything more would go
-stale before anyone read it. For the new reader, start a subagent that has
+request opens, the body holds two things only. First, link lines:
+`Closes #N` for each issue the pull request closes and `Part of #N` for
+each it partly implements, since nothing else ties a pull request to its
+issue. Second, any block a tool writes between its own markers, such as
+`<!-- sequencer:begin -->` … `<!-- sequencer:end -->`, since the tool keeps
+it current. Anything more would go stale before anyone read it. For the
+reviewer who joins, start a subagent that has
 not seen the work to write the body from whichever of the specs, decision
 records, code and `tasks.md` the repository has. It is an introduction for
 a first-time reader, naming the pull requests or OpenSpec changes this one
-builds on, and keeps the link lines. Each new reader gets a body written
+builds on, and keeps the link lines and marked blocks. Each new reader gets a body written
 afresh, never an update of the last one, since an update carries stale
 text forward. Nobody rewrites it for the merge, except in a repository
 that squash-merges: there the body becomes the squashed commit's message,
