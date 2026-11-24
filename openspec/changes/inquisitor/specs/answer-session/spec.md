@@ -256,28 +256,6 @@ clones, SHALL have mode 0600.
   folder
 - **THEN** the folder has mode 0700 and the record mode 0600
 
-### Requirement: A Claude Code background session has no terminal attached
-
-The answer session SHALL count as **a Claude Code background session**
-any Claude Code session with no terminal attached, such as one an app
-started from its list of sessions. A session that cannot tell whether a
-terminal is attached (task 0.19) SHALL count as a foreground one, with a
-terminal, so its lock does not mark it as a background session.
-
-#### Scenario: A session started with no terminal is a background session
-
-- **WHEN** an app starts a Claude Code session from its list of sessions,
-  with no terminal attached, and its answer session takes the lock
-- **THEN** that session is a Claude Code background session, and its lock
-  says so
-
-#### Scenario: A session that cannot tell counts as a foreground one
-
-- **WHEN** a session cannot tell whether a terminal is attached, and its
-  answer session takes the lock
-- **THEN** its lock records it as a foreground session, and a second
-  session's refusal names it as one
-
 ### Requirement: A Linear or Discord question is placed by what it concerns
 
 For a Linear or Discord question that no concerns line settles and no
@@ -297,9 +275,6 @@ unrecorded.
   place in the preview
 - **THEN** the session posted no reply by itself, the person was shown the
   question, and the answer is relayed in its thread with no log file pushed
-- **AND** a question there that the model places, sure of it, in `o/api`,
-  public as a Linear automatic post requires, whose decision record
-  filter 1 finds, gets that recorded answer by itself
 
 ### Requirement: A channel's repositories place its questions
 
@@ -850,10 +825,11 @@ with the newest of those answer files beside it, as input.
 ### Requirement: A reply to a relay post is read per surface
 
 A message SHALL count as replying to a relay post as this requirement's
-scenarios show for each surface; in an unthreaded GitHub conversation,
-only the asker's first comment after the relay post, or the first
-comment after it that a bot account posts starting `User says: `, SHALL
-count.
+scenarios show for each surface, and never when one of the person's own
+relay identities posted it. In an unthreaded GitHub conversation, only
+two comments SHALL count: the first one after the relay post by whoever
+asked the question, and the first one after it that a bot account other
+than the person's relays posts starting `User says: `.
 
 #### Scenario: Replies to the relay on each surface are questions
 
@@ -872,6 +848,9 @@ count.
   replying to it
 - **AND** when the asker answers in their own answer session instead of
   commenting, the `User says: ` comment their relay posts counts
+- **AND** when the person's own relay posts a `User says: ` answer to
+  another question there first, that post does not count, and the
+  asker's next comment still does
 
 ### Requirement: Messages judged clearly not questions are ignored
 
@@ -1905,29 +1884,30 @@ hash.
 ### Requirement: One answer session runs on each machine
 
 The answer session SHALL hold a lock, the state folder's file `lock`,
-naming its session's id, name, start and if it is a background one;
-refresh it at least every 30 seconds, stale after 2 minutes
-unrefreshed; and take it only when absent, stale or unparsable, or on a
-takeover. A session SHALL open no answer session while another holds
-a fresh lock, but say which holds it and how to reach it, offering a
-takeover. Before each poll, post and push, it SHALL close if the lock
+naming its session's id, name and start; refresh it at least every 30
+seconds, stale after 2 minutes unrefreshed; and take it only when absent,
+stale or unparsable, or on a takeover. A Claude Code session SHALL open
+no answer session while another's holds a fresh lock, but show what the
+lock names and offer a takeover. Before each
+refresh, poll, post and push, the answer session SHALL close if the lock
 names another id.
 
 #### Scenario: A second session is offered the choice
 
-- **WHEN** a background session named `Answers` holds a fresh lock, and the
-  person types `/answer` in another session
-- **THEN** this session opens no answer session, says that the Claude Code
-  background session `Answers` holds the lock and how to reach it, and
-  offers to take over
+- **WHEN** a session named `Answers` holds a fresh lock, and the person
+  types `/answer` in another session
+- **THEN** this session opens no answer session, names the session holding
+  the lock as `Answers` with its id and start time, and offers to take
+  over
 
 #### Scenario: Taking over stops the old session
 
 - **WHEN** the person takes over from another session's answer session
 - **THEN** the new session replaces the lock, and the old session, finding
-  before its next poll, post or push that the lock names another id,
-  closes its answer session and polls, posts and pushes nothing more,
-  leaving its owed pushes to the new session
+  before its next refresh, poll, post or push that the lock names another
+  id, closes its answer session and refreshes, polls, posts and pushes
+  nothing more,
+  leaving its owed pushes, kept in the state folder, to the new session
 - **AND** it closes though both sessions are named `Answers`, as every
   session the `answer` command starts is
 
@@ -2813,10 +2793,11 @@ pass any other question in a private file.
 
 When an answer with authority is recorded for a question read from its
 thread, the answer session SHALL answer it by itself, whoever asked,
-unless its category, *A recorded answer is posted by itself
-only when no more private than its thread*, *A Linear or Discord question
-in doubt gets no automatic reply* or *No automatic post repeats one in
-its chain of replies* bars it, posting through
+unless the person has no configured login, the question has no place,
+or one of these bars it: its category, *A recorded answer is posted by
+itself only when no more private than its thread*, *A Linear or Discord
+question in doubt gets no automatic reply* or *No automatic post repeats
+one in its chain of replies*. It posts through
 the relay
 
 ```

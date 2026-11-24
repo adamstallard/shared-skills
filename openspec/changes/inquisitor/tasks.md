@@ -139,12 +139,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
-      runs as a Claude Code background session, and how a session tells
-      that it is one, so the lock can record it; a session that cannot
-      tell counts as a foreground one (answer-session spec: *A Claude
-      Code background session has no terminal attached*). If they stop,
-      record it
-      and stop for the repository's owner: a live session's lock would go stale and another
+      has no terminal attached, as when the Claude app starts it from its
+      list of sessions. If they stop, record that and pause until the
+      repository's owner decides: a live session's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App

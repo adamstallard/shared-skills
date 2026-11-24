@@ -337,9 +337,9 @@ patterns.
 
 #### Questions in posts pass the filters, on GitHub only
 
-**The post hook enforces the filters for GitHub posts only, sent through `gh`
-or a GitHub MCP tool, as prose's posting hook covers GitHub only.** A question
-in a Linear or Discord message is covered by the skill's instructions alone.
+**No hook checks a question in a Linear or Discord message; only the
+skill's instructions cover it,** since both hooks share prose's post
+reader, which reads GitHub posts only.
 
 #### One post reader, shared by both hooks
 
@@ -416,9 +416,10 @@ instead of being asked again.
 
 #### Collective questions go on lore's `questions` branch
 
-**Not on igor's `igor-state` branch,** which holds igor's runtime state
-(inquisitor spec: *A question is pushed to the questions branch of what it
-concerns*). The lore repository's branch keeps questions not important
+***Ruled out by a scenario:*** igor's `igor-state` branch, which holds
+igor's runtime state (inquisitor spec: *A question is pushed to the
+questions branch of what it concerns*, scenario *An organization's
+question goes to its lore repository*). **Why:** the lore repository's branch keeps questions not important
 enough to become lore, so nobody asks them again.
 
 #### A way-of-working question gets no log
@@ -1069,9 +1070,8 @@ fails.
   the input holds.
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
-  answer in a post and every issue's decision block (the start of its body
-  before its first heading, or its first section whose heading starts with
-  "Decision", which the spec counts as a decision document) counts as input,
+  answer in a post and every issue's decision block (an inquisitor spec
+  term) counts as input,
   and a post's question tags no one. The task also asks whether the read
   works when `<login>` is an App's `<slug>[bot]`. If not, a pull request
   or issue that a github-app App authored never has an author with write
@@ -1106,6 +1106,8 @@ fails.
 - **Can a security advisory's private-fork pull request be merged before
   the advisory is published?** (task 0.13)
 - **Can an Igor worker post?** (task 0.14)
+- **Can the Igor itself run the script's `branch-search` and read a
+  collaborator's permission?** (task 0.29, which says what follows if not)
 - **Does the Discord bot token pattern match a real token?** (task 0.33)
 
 ### Facts the answer session relies on

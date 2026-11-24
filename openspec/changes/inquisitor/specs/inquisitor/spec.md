@@ -1448,7 +1448,9 @@ the second call prints it, `<skill>` being the requiring skill's name.
 
 The second call SHALL refuse an `ask` naming a requiring skill unless
 the name is lowercase letters, digits and `-`, and SHALL record the name
-with the verdict. The post hook SHALL block a GitHub post in which a
+with the verdict, except for a question with a category, which no GitHub post
+may hold (*The post hook blocks a post holding a question with a
+category*). The post hook SHALL block a GitHub post in which a
 question whose record names a requiring skill lacks that skill's
 person-required line, or any other question carries one.
 
@@ -3363,7 +3365,7 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 #### Scenario: An answered log file's keys
 
 - **WHEN** a log file is pushed with an answer
-- **THEN** it holds `answered_by`, a GitHub login; `authority`, `decision`
+- **THEN** it holds `answered_by`, a GitHub login, ending `[bot]` for a bot; `authority`, `decision`
   or `input`; and `recorded_in`, where the question's
   answer is recorded, as a path from that repository's root or a URL, never
   a lore entry
