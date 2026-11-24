@@ -294,8 +294,8 @@ unrecorded.
 
 #### Scenario: A question with no place gets no automatic reply and no record
 
-- **WHEN** a question on Linear, in a team that is not mapped, concerns an
-  organization, the session's model cannot tell which of two configured
+- **WHEN** an agent's question tagging the person on Linear, in a team
+  that is not mapped, is a collective's question, the session's model cannot tell which of two configured
   lore repositories serves it, and the person answers it, picking no
   place in the preview
 - **THEN** the session posted no reply by itself, the person was shown the
@@ -324,7 +324,7 @@ about another repository or collective SHALL take the model's `place`.
   that `o/lore` serves
 - **AND** a third, clearly about code in the subscribed `o/api`, concerns
   `o/api`, and a fourth, clearly about the unsubscribed `o/infra`, is
-  placed `other`, searched for nothing, and shown to the person
+  placed `other` and searched for nothing
 
 ### Requirement: A Linear or Discord question in doubt gets no automatic reply
 
@@ -411,11 +411,12 @@ writes no miss it cannot place privately*, or with no login configured.
 ### Requirement: Each item of an open-questions section is its own question
 
 The answer session SHALL treat each item of an open-questions section in
-a post, or in a bot account's Linear or Discord message, as its own
-question, numbered from 1 in order among the message's such items. A
-relay post about an item SHALL hold `question <n>: ` right after its
-reserved prefix, and never the item's words. Any other message SHALL be
-one question, and its relay posts name no item.
+a GitHub issue or pull request description, comment or review, whoever
+wrote it, since an agent may post on GitHub under its person's login, or
+in a bot account's Linear or Discord message, as its own question,
+numbered in order from 1. A relay post about an item SHALL hold
+`question <n>: ` right after its reserved prefix, never the item's words.
+Any other message SHALL be one question, whose relay posts name no item.
 
 #### Scenario: Each listed question is shown and answered by itself
 
@@ -897,9 +898,9 @@ says, it puts the question that post asked about back in the queue.
 A bot account's message (*An agent's question comes from a bot account
 or a log file*) SHALL reach only the first person it mentions, or, if it
 mentions no one, each subscriber with write access to what its questions
-concern, save as the next two requirements and *A handback that mentions
-no one goes to the item's assignee* say; any other message, a relayed
-question included (*A relayed question is a person's question*), SHALL
+concern, and no one for a question with no place, except as the next two
+requirements and *A handback that mentions no one goes to the item's
+assignee* say; any other message, a relayed question included, SHALL
 reach each person it mentions. On GitHub, it waits on task 0.21.
 
 #### Scenario: A bot's message reaches only the first person it mentions
@@ -915,6 +916,8 @@ reach each person it mentions. On GitHub, it waits on task 0.21.
   about `o/web` that mentions no one, and the person and Maya subscribe
   to `o/web`, the person with write access there and Maya without
 - **THEN** the person's answer session shows it, and Maya's does not
+- **AND** one in a Linear team mapped to no repository, which the
+  session's model places `other`, reaches no answer session
 
 #### Scenario: A person's message reaches everyone it mentions
 
@@ -972,16 +975,19 @@ as *Whom a message reaches is set by its mentions* does.
 
 ### Requirement: A mention names a user outside code, quotes and links
 
-A **mention** SHALL be of a user, as `@login` on GitHub, on Linear as task
-0.16 records and on Discord as task 0.17 records, outside code spans, code blocks, quoted lines and links; a team mention counts as
-none. On Linear or Discord, this rule is built only once task 0.16 or
-0.17 records that surface's form.
+A **mention** SHALL be of a user, as `@login` on GitHub, on Linear by the
+user id of a mention in the comment's `bodyData`, and on Discord as task
+0.17 records, outside code spans, code blocks, quoted lines and links; a
+team mention counts as none. This rule is built on Linear only once task
+0.16 is done, and on Discord once task 0.17 is.
 
 #### Scenario: A team mention or a mention in code is no mention
 
 - **WHEN** a comment mentions the team `@o/devs`, and `@maya` only in a
   code span, code block, quoted line or link
 - **THEN** it mentions no one
+- **AND** a Linear comment that mentions Maya still mentions her, by the
+  user id in its `bodyData`, after she changes her display name
 
 ### Requirement: A handback is an Igor's comment holding igor's marker
 
@@ -1035,9 +1041,9 @@ them, and never shows them again, even once the newest is answered.
 
 An issue or pull request shown to the person through a question in its
 description or newest handback SHALL never also be shown for a review
-request on it or its assignment. A request or assignment made after the
-relay posts answering or handling all those questions, by the time GitHub
-or Linear gives, SHALL be shown in its own right, as an item question.
+request on it or its assignment. A request or assignment that GitHub or
+Linear dates after the last of those questions was answered or closed
+SHALL be shown in its own right, as an item question.
 Only a relay post naming the item, made after the request and holding no
 `question <n>: `, SHALL answer it.
 
@@ -1174,6 +1180,9 @@ item, the file is shown on its own.
   subscribed repository
 - **THEN** the answer session follows the link, and an answer to that
   handback names the log file
+- **AND** a log file with `asked_from: o/web` whose `asked_in` links a
+  handback on an issue in the subscribed `o/api` is shown on its own,
+  not with that handback
 
 #### Scenario: An Igor's log file follows its Linear handback comment
 

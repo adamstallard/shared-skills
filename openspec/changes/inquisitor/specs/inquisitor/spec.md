@@ -851,7 +851,8 @@ another repository is input* and leave out each file the item's visibility hides
 
 - **WHEN** `branch-search` prints a hit
 - **THEN** an input's `reason` is one of `unconfirmed`, `unanswered`,
-  `miss`, `superseded` and `unreadable`
+  `miss`, `superseded`, `unreadable` and `input`, the last for a file
+  whose own `authority` is `input`
 - **AND** `landed` is `true` when the file's pinned commit has landed, as
   *An answer recorded on a work branch counts for other work once it
   lands* defines, so the file counts for every reader,
@@ -2195,9 +2196,9 @@ its hash, with leading whitespace dropped.
 
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
-A posted question SHALL tag the first of these with write access to what it
-concerns: the approver of the pull request adding the related earlier
-decision; the first login with write access in the
+A question asked in a post SHALL tag the first of these with write access
+to what it concerns: the approver of the pull request adding the question's related
+earlier decision; the first login with write access in the
 `.inquisitor/reviewers` file, one login per line, of the repository it
 concerns, or of the lore repository for a collective's question; the last
 committer of the files it concerns.

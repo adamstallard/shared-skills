@@ -98,12 +98,16 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the `id`; the identity edits its own comment; a reply holds its
       parent's id; and an app user's comment has `user.app` `true` and a
       null `botActor`, the 5 test comments among the team's 77, the other
-      72 having `user.app` `false`. Measured 2026-11-22, for the delete
+      72 having `user.app` `false`; and a comment mentioning the identity
+      holds the mention in `body` only as `@<displayName>`, the user's id
+      only in `bodyData`, as a `suggestion_userMentions` node with
+      `attrs.id`. Measured 2026-11-22, for the delete
       *An automatic post is deleted when another relay post came first*
       needs: an app user called the GraphQL mutation `commentDelete`,
       through Linear's MCP server, on its own comment on a test issue;
       it returned success, and the issue then listed no comments. Not
-      measured: mentions of the person or the relay, an assignment's time,
+      measured: mentions of the person, the line each mention is on, an
+      assignment's time,
       anything read with the person's key, and that no person's account
       can have `user.app` `true`, which only the schema's description says
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,

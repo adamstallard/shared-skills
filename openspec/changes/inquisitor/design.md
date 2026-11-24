@@ -96,9 +96,8 @@ come from one ref, and the date is when the clone last received a change to
 that branch: not when the branch last moved on GitHub, and not a later fetch
 that brought nothing new.
 
-Reviewers are listed in the repository the question concerns, in
-`.inquisitor/reviewers`, one GitHub login per line, decided there in review,
-so every teammate's agent tags the same person.
+The `.inquisitor/reviewers` file is committed and decided in review, so
+every teammate's agent tags the same person.
 
 Visibility, of a lore repository or of the repository a question concerns,
 is read with `gh repo view --json visibility` on the clone's `origin`, which
@@ -594,12 +593,6 @@ slug of the question's words in a file's name reveals nothing more, since the
 file holds the question's text on a questions branch no more visible than the
 question.
 
-#### Alignment with igor PR #216
-
-**The spec states igor PR #216's rules where they touch this change, and
-points to the rest.** igor issue #247 lists where this change departs
-from #216.
-
 ### Answer-session configuration, setup and relay identities
 
 #### Discord is in the first version, through discord-bot
@@ -615,8 +608,8 @@ makes its API calls on each run and exits.
 answer-session spec, *An answer is recorded by a new log file*; *A
 questions-branch answer file records the answer as given*. Because an
 answer counts by its answer file, not by who wrote the comment, no committed
-file lists a person's bots, and no reader has to learn which App wrote a
-comment.
+file lists a person's bots, and counting an answer never needs to know
+which App wrote a comment.
 
 ### Running the answer session
 
@@ -628,7 +621,10 @@ own.** "Asked again" means an asking agent asks a question again because one
 machine has not yet seen what the other recorded, and
 "shown twice" means the person sees one question twice; either costs the
 person only a second look. A case that could record a wrong answer, close a question wrongly,
-leak private content or lose an answer is still raised for a decision.
+leak private content or lose an answer is still raised for a decision. The
+answer-session decision record's *Rejected: A TLA+ model of the answer
+session's owed pushes and automatic posts* lists the further crash and
+two-machine outcomes accepted without one.
 
 #### One answer session runs on each machine
 
@@ -1003,12 +999,16 @@ question unanswered, or their answer lands on that asker's question.
 **Rule:** answer-session spec, *Whom a message reaches is set by its
 mentions*.
 
-A tagged bot question reaches only the first person it mentions, so it has
-one owner: two people cannot give a bot conflicting answers. An untagged
+A bot question reaches only the first person it mentions, and each item
+with a tag line only that line's person, so each has one owner: two people cannot give a bot conflicting answers. An untagged
 one that is no handback and no reply to a relay post reaches every
 subscriber with write access, rather than no one: the script's tagging
 candidates can all lack write access while another subscriber has it, and
-an agent's thread may have no person in it to notice the question.
+an agent's thread may have no person in it to notice the question. An
+untagged one with no place reaches no one, though its thread may have no
+person in it either: there is nothing to check write access to,
+and showing it to every subscriber of its channel would show people
+questions they may not be able to decide.
 
 #### igor's handback marker
 
@@ -1035,14 +1035,11 @@ files, and the newest-handback rule needs no other mechanism.
 
 ### OpenSpec and spec-trace
 
-#### OpenSpec for new work in shared-skills
+#### A skill with no spec lists its edits as tasks
 
-**New work in shared-skills goes through OpenSpec, except UI, which is
-prototyped and then built directly; this change adopts OpenSpec, spec-check
-and spec-trace for the repository.** An existing skill gets its spec in a
-change of its own, skill by skill, as shared-skills issue #57 plans; a change
-that edits a skill with no spec, as this one edits github-app and bug-hunter
-(tasks 5.5, 5.7 and 5.8), lists the edit as a task.
+A change that edits a skill with no spec, as this one edits github-app and
+bug-hunter, lists the edit as a task, since a skill gets its spec only in
+a change of its own, as shared-skills issue #57 plans.
 
 #### spec-trace's template skips the questions branch in this change's merge
 
@@ -1176,18 +1173,6 @@ decides what to build for them.**
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
-
-### For the repository's owner
-
-- **Whom does an untagged bot question with no place reach?** A bot's
-  message that mentions no one reaches each subscriber with write access
-  to what its questions concern (answer-session spec, *Whom a message
-  reaches is set by its mentions*). A question the session's model places
-  nowhere, such as one in a Linear channel naming no repository or one
-  whose `record_verdict` place is `other`, therefore reaches no one and
-  waits unseen. Options: (a) leave it so; (b) send it to every subscriber of
-  its channel. Recommended: (a); (b) would show the person questions they
-  may have no authority to decide.
 
 ### Outside this change
 
