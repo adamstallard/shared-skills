@@ -1041,6 +1041,31 @@ template lacks.
 
 ## Open Questions
 
+### Choices for the repository's owner
+
+- **Does an answer held back by a failed fetch return to the queue on its
+  own?** While GitHub refuses requests for its rate limit, until the reset
+  time it gives, every fetch before a relay post fails, so a confirmed
+  answer goes to the pending list. A channel is off only when setup's
+  identity or posting check fails, so the channel stays on, and *A pending
+  answer whose channel was off returns to the queue* never returns the
+  answer. As written, it waits on the pending list until the person posts
+  it from there, relays it by hand or drops it. The alternative puts the
+  question back in the queue, with the answer's text filled in, once a
+  later poll of its channel succeeds, and posts it once the person
+  confirms it again. Recommended: the alternative, so that an answer is
+  not forgotten on the pending list after a wait that may last an hour.
+- **What if the mod cannot tell whether a session's tools are
+  restricted?** (task 0.34) *Two commands open an answer session* and *An
+  unrestricted session's /answer points to the answer command* need it.
+  The `answer` command opens its session by typing `/answer` in it.
+  Option one: `answer` sets a marker, such as an environment variable,
+  and `/answer` opens the answer session only where it finds the marker;
+  typed in any other session, it tells the person to run `answer`.
+  Option two: drop `/answer` as a command the person types, so `answer`
+  is the only way in, opening the session some other way. Recommended:
+  option one, the smaller change.
+
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built.

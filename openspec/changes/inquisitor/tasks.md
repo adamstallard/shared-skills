@@ -268,14 +268,17 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       has only its conversation, `propose_reply`, `record_verdict` and
       Read, Grep and Glob: permission settings, a startup option such as
       `--allowedTools`, or a mod's own control. Record whether Claude Code
-      enforces it itself rather than through a hook, and what the `answer`
-      command must add to start a session so restricted. Until then, *The
-      session's model has no shell, no writing tool and no web fetch* and
-      the `answer` command's line in
-      *Setup installs the answer command* are not built (answer-session
-      spec). If no control Claude Code enforces exists, the design falls
-      back to hooks and the change cannot be built as written: record it
-      and stop for the repository's owner
+      enforces it itself rather than through a hook, what the `answer`
+      command must add to start a session so restricted, and how the
+      skill's mod tells, from inside a session, whether its tools are so
+      restricted. Until then, *The session's model has no shell, no
+      writing tool and no web fetch*, the command line that *Setup
+      installs the answer command* gives `answer`, *Two commands open an answer
+      session* and *An unrestricted session's /answer points to the answer
+      command* are not built (answer-session spec). If no control Claude Code enforces exists, or
+      the mod cannot tell whether its session is restricted, the change
+      cannot be built as written: record it and stop for the repository's
+      owner
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
       Linear's GitHub integration puts on a team's issues. If not, setup's
       guess for a Linear team names nothing, and setup asks the person

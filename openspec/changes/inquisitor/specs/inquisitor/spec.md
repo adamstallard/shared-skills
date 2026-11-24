@@ -298,8 +298,8 @@ pass all four filters.
 When the agent cannot tell which git repository's code, docs or decisions a
 question is about, **the repository the question concerns** SHALL be the one
 holding the current work, which during an Igor's run is the item's
-repository. A question clearly about another repository SHALL name that one,
-in a run too, where `asked_from` records the item's.
+repository. A question clearly about another repository SHALL concern that one,
+in a run too.
 
 #### Scenario: A question whose repository the agent cannot tell concerns the current work's
 
@@ -312,9 +312,7 @@ in a run too, where `asked_from` records the item's.
 
 - **WHEN**, during an Igor's run on an item of `o/web`, the worker has a
   question clearly about the code of `o/api`
-- **THEN** the repository the question concerns is `o/api`, and the file
-  the Igor pushes for it holds `repository` `o/api` and `asked_from`
-  `o/web`
+- **THEN** the repository the question concerns is `o/api`
 
 ### Requirement: Only four kinds of document are decision documents
 
@@ -949,12 +947,11 @@ leave the reply input.
 
 The Igor SHALL run a worker's `miss-check` only on the repository its
 handback record's concerns lines name for the question the reply
-answers, since a steered worker could pick one an attacker can push a
-backing miss file to. Reading the reply by its id, the Igor takes
-question `<n>` when the reply holds `question <n>: `, else 1 if every
-question in that record is number 1. With no such question or
-repository, or if the reply's `Re: ` line links no handback of the
-Igor's, the reply stays input.
+answers, since injected text could make a worker name one where an
+attacker can push a backing miss file. Reading the reply by id, the Igor
+takes it as answering its `question <n>: `, or question 1 if the
+handback has no open-questions section. Otherwise, or if the reply's
+`Re: ` line links no handback of the Igor's, the reply stays input.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
@@ -1522,8 +1519,8 @@ thread counting as a private repository.
 ### Requirement: An Igor writes the concerns line of a question in its handback
 
 In an Igor's handback comment, the Igor SHALL write each question's
-concerns line where *A question in a post or message names what it
-concerns on a line of its own* calls for one. It SHALL keep each
+concerns line as *A question in a post or message names what it
+concerns on a line of its own* sets for a post. It SHALL keep each
 person-required line its worker's report put after a question.
 
 #### Scenario: An Igor's handback names the repository a question concerns
@@ -3442,14 +3439,6 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `answered_by`, `recorded_in`, `answers`, `handled`, `closes` or
   `said_by`),
   and no hash-only miss file
-
-#### Scenario: A file from the Igor's own inquisitor run names where it was asked from
-
-- **WHEN** the Igor runs the inquisitor skill itself, on an item in
-  `o/web`, and the script, under `IGOR_RUN=igor`, writes a log file for a
-  question about the project
-- **THEN** the script writes the file with no `asked_from` and pushes
-  nothing, and the file the Igor pushes holds `asked_from: "o/web"`
 
 #### Scenario: A miss file's keys
 

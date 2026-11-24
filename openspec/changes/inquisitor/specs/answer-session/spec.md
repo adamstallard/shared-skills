@@ -320,12 +320,13 @@ their answer shows that place.
 ### Requirement: A concerns line settles what an agent's question concerns
 
 An agent's question SHALL concern the place its concerns line names when
-the line, with its inline markup reduced to text, names a place where the
+the line, with inline markup reduced to text, names a place where the
 person has write access: a subscribed repository, or after `lore` a
 configured lore repository. The person's pick of another place for an
-answer overrides it. A question made of several sentences ending in `?`
-SHALL be settled only when each sentence has such a line and all name the
-same place. No other line SHALL settle anything.
+answer overrides it. A question of several sentences ending in `?`
+SHALL be settled only when such a concerns line follows each line one of
+those sentences ends on, all naming one place. Nothing else SHALL settle
+it.
 
 #### Scenario: The line, not the model, places the miss
 
@@ -1756,11 +1757,11 @@ that copy on a machine where it is still open still pushes a log file.
 
 When a question comes on screen and its channel's last poll is over
 about a minute old, the answer session SHALL fetch and show every reply in
-its thread since the question. Before each relay post it SHALL fetch the thread again and post
-nothing if the fetch fails, or, showing what it found, if a relay post
-there answers or handles the question or a reply the person has not seen
-is there. An automatic post held back by a failed
-fetch or an unseen reply leaves its question unanswered.
+its thread since the question. Before each relay post it SHALL fetch
+the thread again and post nothing if the fetch fails, a relay post there
+answers or handles the question, or a reply the person has not seen is
+there, telling the person why. An automatic post so held back leaves its
+question unanswered.
 
 #### Scenario: Replies since the question are shown
 
@@ -1783,6 +1784,12 @@ fetch or an unseen reply leaves its question unanswered.
   is kept pending
 - **AND** had the session been about to post an automatic reply, nothing
   is posted, and the question is shown as unanswered with that reply
+
+#### Scenario: A failed fetch stops the post
+
+- **WHEN** the fetch of a thread just before a relay post fails
+- **THEN** nothing is posted, the person is told, and an answer the
+  person confirmed is kept pending
 
 ### Requirement: An automatic post is deleted when another relay post came first
 
