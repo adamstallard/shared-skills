@@ -2155,8 +2155,8 @@ The post hook SHALL vet the body that the shared post reader (the
 reports as sending no post or a payload that is not JSON, and block one the
 reader reports as unreadable. It SHALL block a post when any body the
 reader returns for it starts with one of the four reserved prefixes the
-`answer-session` spec defines, once reduced as a question in a post is for
-its hash, with leading whitespace dropped.
+`answer-session` spec defines, once its inline markup is reduced and
+leading whitespace dropped.
 
 #### Scenario: A call that sends no post passes the post hook
 

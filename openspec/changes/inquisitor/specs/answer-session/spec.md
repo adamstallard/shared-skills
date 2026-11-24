@@ -911,12 +911,13 @@ reach each person it mentions.
 
 ### Requirement: Each item of a bot's message reaches the person its tag line mentions
 
-In a message that *Whom a message reaches is set by its mentions* counts
-as a bot account's, an item of an open-questions section with a tag line
-(the inquisitor's *A tag line names the person a posted question tags*)
-SHALL reach only the person that line mentions, since each item tags its
-own decider, and an item that tags no one SHALL reach whom its message
-would reach if it mentioned no one.
+In a bot account's message (*Whom a message reaches is set by its
+mentions*), an item of an open-questions section with a tag line (the
+inquisitor's *A tag line names the person a posted question tags*)
+SHALL reach only the person that line mentions, and the one more question
+its sentences outside the section make only the person the first tag line
+under those sentences mentions. An item, or that question, that tags no
+one SHALL reach whom its message would reach if it mentioned no one.
 
 #### Scenario: Each item of a bot's post reaches the person its tag line names
 
@@ -925,6 +926,8 @@ would reach if it mentioned no one.
   with the tag line naming the person
 - **THEN** the person's answer session shows item 2 and not item 1, and
   Maya's shows item 1, if she subscribes to that repository
+- **AND** a question sentence outside the section, with the tag line
+  naming the person, reaches the person and not Maya
 - **AND** an untagged third item reaches each subscriber with write
   access to what it concerns, or, in a handback, the assignee of the
   handed-back issue or pull request

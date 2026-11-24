@@ -735,10 +735,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - (c) A screen the spec needs that v0.1-33 lacks is designed in this
         task from the prototype's existing patterns, in no new visual
         style, with no prototype round of its own: setup, the lock
-        message, where an answer will be recorded and its warning, a
-        post's failure and discord-bot's
-        warnings, why no miss was logged, a channel that is off, and the
-        pending list, which reuses the approved queue's screens
+        message, where an answer will be recorded and the warning when
+        that place is more visible than the thread, the pick of another
+        place, a post's failure, discord-bot's warnings, why no miss was
+        logged, a channel that is off, the rate-limit notice, and the
+        pending list of answers not yet relayed, which reuses the
+        approved queue's screens
       - (d) The screens v0.1-33 added to v0.1-30 are taken as that build
         has them, each in the one place it shows them: the thread's
         replies since the question, including when the asker withdraws

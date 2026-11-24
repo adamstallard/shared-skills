@@ -25,12 +25,11 @@ picker question that was not vetted*; *Questions in posts pass the same
 filters*): an unfiltered picker question at worst reaches the person, while
 a post's unchecked question might be a vulnerability.
 
-The records live in the user's state folder, shared by every session under
-one HOME, since a session spans repositories and a hook's working directory
-can differ from `vet`'s (*Hooks and verdict records*). Apart from them, the
-hooks keep no record of any question, one about a vulnerability included.
-The question log files (*Where the logs live*) are the lasting records; for a
-vulnerability question it is the repository's private security advisory.
+The verdict records live in the user's state folder (this design's *Hooks
+and verdict records*). Apart from them, the hooks keep no record of any
+question. The question log files (*Where the logs live*) are the lasting
+records; for a vulnerability question, the lasting record is the
+repository's private security advisory.
 
 **Ruled out by a scenario** (inquisitor spec: *A hook blocks a picker question
 that was not vetted*):
@@ -58,8 +57,6 @@ The inquisitor decision record's *Rationale: A question is pushed to the
 questions branch of what it concerns* gives why no review is needed and why
 the files are not committed with the work.
 
-- **About one repository, a lore repository included:** repository
-  questions need no lore repository and no igor.
 - **About a collective:** keeping the files off the lore repository's
   default branch leaves that branch holding only the reviewed lore entries
   Igor gives agents. The files hold no `conditions`, the key that marks a
@@ -1000,13 +997,16 @@ question unanswered, or their answer lands on that asker's question.
 **Rule:** answer-session spec, *Whom a message reaches is set by its
 mentions*.
 
-A bot question reaches only the first person it mentions, and each item
-with a tag line only that line's person, so each has one owner: two people cannot give a bot conflicting answers. An untagged
-one that is no handback and no reply to a relay post reaches every
-subscriber with write access, rather than no one: the script's tagging
+Each question in a bot's message has one owner, so two people cannot
+give a bot conflicting answers. An item with a tag line, or the question
+the sentences outside its list make, reaches only that tag line's person,
+whoever the message mentions first; any other bot question reaches only
+the first person its message mentions. A bot question that tags and
+mentions no one, and is no handback and no reply to a relay post, reaches
+every subscriber with write access, rather than no one: the script's tagging
 candidates can all lack write access while another subscriber has it, and
-an agent's thread may have no person in it to notice the question. An
-untagged one with no place reaches no one, though its thread may have no
+an agent's thread may have no person in it to notice the question. Such a
+question with no place, one the session places `other`, reaches no one, though its thread may have no
 person in it either: there is nothing to check write access to,
 and showing it to every subscriber of its channel would show people
 questions they may not be able to decide.
@@ -1057,11 +1057,8 @@ template lacks.
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built.
-Each bullet, or where it says nothing more its task in tasks.md, says
-what the spec does if the fact is false. Task 0.11,
-whether GitHub's API gives a comment's or review's text and author, has no
-bullet: tasks.md records the part measured and what follows if the rest
-fails.
+Each bullet says what the spec does if the fact is false, or, where the
+bullet only asks the question, its task in tasks.md says it.
 
 - **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
   hook does not fire on `AskUserQuestion`, or its exit 2 does not block
@@ -1116,8 +1113,35 @@ fails.
 **Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement shows the fact false.**
 
-igor PR #216's task 4.8 measures the same fact as task 0.21: which App
-wrote a comment.
+### Undecided
+
+- **Whom an agent tags in a Linear or Discord message.** *A tag line names
+  the person a posted question tags* asks for a mention in that surface's
+  form, but the tagging candidates are GitHub logins, and nothing maps a
+  login to a Linear or Discord user. Options: such a question gets no tag
+  line, so it reaches each subscriber with write access to what it
+  concerns (recommended); or it always gets the fixed tag line `Inquisitor:
+  no one with authority to decide this could be tagged; name deciders in
+  .inquisitor/reviewers.`, which reaches the same people but says no
+  decider could be tagged even when one could.
+- **A headless session posting as the configured login.** *A headless
+  session does not tag its own login* leaves the question untagged. The
+  configured login is the person's own GitHub account, so the post counts
+  as the person's message, which reaches only those it mentions: no answer
+  session shows it. Options: tag the
+  configured login in a headless session even when the post goes out as
+  it, so the person's answer session shows it (recommended); or keep it
+  untagged, seen only by someone reading the thread.
+- **An untagged question's log file.** The answer session shows a
+  questions-branch log file on its own only when the file tags the person.
+  An untagged question's file tags no one, nor does the file of one asked
+  on Linear or Discord, which is logged without its tag line. So a machine
+  that never reads the thread's copy shows such a question to no one, as
+  when the question was posted more than 14 days before that machine's
+  first poll of its channel, the furthest back a first poll reads.
+  Options: accept it (recommended: anyone reading the thread still sees
+  it); or let an untagged file reach subscribers with write access, as an
+  untagged message does.
 
 ### Outside this change
 
@@ -1130,8 +1154,3 @@ wrote a comment.
   record; one typed in the answer session and relayed there counts through its
   answer file.
 
-### Left to implementation
-
-- **Task 6.11's details are chosen at implementation,** and each becomes a
-  requirement with a scenario, or a decision-record entry with evidence,
-  when it is made. Task 6.11 lists them and the nearby choices already decided.
