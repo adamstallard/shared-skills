@@ -126,13 +126,15 @@ The skill SHALL treat as an **Igor** one of the igor project's AI teammates,
 and as its **worker** the agent that Igor starts to do an item, a piece of
 work such as an issue or pull request that the Igor holds. **The item's
 repository** SHALL be the GitHub repository holding the item or, for a
-Linear issue, the repository igor runs the item's work in.
+Linear issue, the repository igor runs the item's work in. **The item's
+visibility** SHALL be its repository's, or private for a Linear issue.
 
 #### Scenario: A Linear item's repository is the one its work runs in
 
 - **WHEN** an Igor works a Linear issue, and igor runs that work in
   `o/web`
-- **THEN** the item's repository is `o/web`
+- **THEN** the item's repository is `o/web`, and the item counts as
+  private
 
 ### Requirement: Every question passes four filters before a person sees it
 
@@ -828,10 +830,11 @@ entries of each repository the role works, and the item's visibility.
 The script's `branch-search` command SHALL search one repository's
 questions branch for the question on standard input and print one JSON
 object whose `hits` each hold the file's `path`,
-`question`, any `answer`, a `label` of `decision` or `input` set by this
-spec's checks, an input's `reason`, and `landed`. Given a run's
-item as `--item`, it SHALL also apply *In an Igor's run, a file about
-another repository is input* and leave out each file the item's visibility hides.
+`question`, any `answer`, a `label` of `decision` or `input`, an input's
+`reason`, and `landed`. Given a run's item's repository as `--item`,
+with `--linear` for a Linear issue, it SHALL also apply *In an Igor's
+run, a file about another repository is input* and leave out each file
+the item's visibility hides.
 
 #### Scenario: The branch search prints each hit with the script's labels
 
@@ -865,6 +868,9 @@ another repository is input* and leave out each file the item's visibility hides
   about a private repository
 - **THEN** the first is an `input` hit whose `reason` is `unconfirmed`, and
   the second is in no hit
+- **AND** with `--linear` added, the item counts as private, so the
+  second is shown too, as an `input` hit since it is about another
+  repository
 
 #### Scenario: A branch the command cannot read is reported, not empty
 
@@ -1399,12 +1405,11 @@ string matching the credential patterns.
 
 After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
-them, on the question's **tag line**: `@` and a GitHub login (in a
-Linear or Discord message, one mention in that surface's form; a
-questions-branch file omits that line), or the fixed line of *A question no
-candidate can decide turns to the session's login*, alone on a line
-after any related-decision, person-required and concerns lines, in that
-order.
+them, alone on the question's **tag line**, after any related-decision,
+person-required and concerns lines, in that order: `@` and a GitHub
+login, or in a Linear or Discord message one mention in that surface's
+form. A question that tags no one gets the fixed line of *A question no
+candidate can decide turns to the session's login*.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
@@ -2288,12 +2293,11 @@ scenario gives.
 ### Requirement: A candidate or login that cannot be checked is skipped
 
 The script SHALL skip a candidate whose pull request, approver or GitHub
-login it cannot find. It SHALL pass to a GitHub API call only a login in
+login it cannot find. Before passing a tagging candidate's login or a
+log file's `answered_by` to a GitHub API call, it SHALL check it against
 GitHub's login syntax, 1 to 39 letters, digits and hyphens, with no two
-hyphens together and none first or last, whether the login is a tagging
-candidate's or a log file's `answered_by`, and treat a login in any other
-form as the scenarios below
-say.
+hyphens together and none first or last, and treat a login in any other
+form as the scenarios below say.
 
 #### Scenario: A decision with no known approver is skipped
 
@@ -3548,8 +3552,8 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 ### Requirement: Every miss file is named by one hash
 
 Every miss file SHALL be `misses/<hash>.md`, `<hash>` being the lowercase
-hex SHA-256 of two parts joined by an LF: for a reply the answer session
-posted, the surface (`github`, `linear` or `discord`) and the reply's id,
+hex SHA-256 of two parts as UTF-8, joined by one LF with none after:
+for a reply the answer session posted, the surface (`github`, `linear` or `discord`) and the reply's id,
 on GitHub its `node_id`; else `file` and the path of the question's log
 file on the questions branch the miss goes to, the first in byte order if
 several; else `message` and the asking message's URL. A writer finding

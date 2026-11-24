@@ -262,9 +262,11 @@ to change if it misjudges posts.
 #### When no candidate can decide
 
 **Rule:** inquisitor spec, *A question no candidate can decide turns to the
-session's login*. The login is tagged only on a post going out as someone
-else, since tagging the account a post goes out as would ask the person
-their own question.
+session's login*.
+
+**Why:** the configured login is tagged only on a post going out as
+another account, since tagging the account a post goes out as would ask
+the person their own question.
 
 ### Hooks and verdict records
 
@@ -327,11 +329,12 @@ long as the record lasts.
 and spend no record*. When one question blocks a call, the agent vets that question alone and calls again,
 and the call's other questions need no vetting again.
 
-#### The related-decision line is left out of the hash
+#### The hooks check the related-decision line for credentials
 
 **Rule:** inquisitor spec, *A related-decision line is one URL on a line of
-its own*. Since no vetting sees the line, the hooks check it for credential
-patterns.
+its own*.
+
+**Why:** no vetting sees the line.
 
 ### The shared post reader
 
@@ -576,10 +579,10 @@ mislead.
 #### A person's answer to a handback
 
 **Rule:** inquisitor spec, *An Igor pushes a handback answer only for a
-question its record holds*; *A later Igor run names the answered file only
-from the Igor's record*.
+question its record holds*.
 
-**Why:** a worker steered by text in its item could otherwise attach a
+**Why:** matching by the Igor's handback record, not by the comment's
+text, stops a worker steered by text in its item from attaching a
 person's real comment to a question it does not answer.
 
 #### A later run names the answered file from the Igor's record
@@ -864,9 +867,7 @@ the list the session's code lets the model choose from, so a
 crafted concerns line reaches nowhere new.
 
 A readable miss file is used, not a hash-only one, wherever privacy allows,
-for its value as a log. A hash-only miss file
-only backs a reply, so a decline that posts nothing, where privacy rules
-out a readable file, logs no miss.
+for its value as a log.
 
 #### Two reasons to decline
 

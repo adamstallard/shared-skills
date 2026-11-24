@@ -1279,8 +1279,9 @@ person once.
 The answer session SHALL read GitHub with the person's `gh` login and
 Linear with the person's Linear API key, keeping that key only in memory
 and never in a command's arguments, and SHALL use the GitHub and
-Linear relay identities only to check the identities themselves, and
-to post, edit and delete their own relay posts. On Discord, the Discord relay identity
+Linear relay identities only for the checks of *Setup checks each relay
+identity before its channels are used*, and to post, edit and delete
+their own relay posts. On Discord, the Discord relay identity
 SHALL both read
 and post, in the channels it has been added to.
 
@@ -2276,10 +2277,8 @@ visible item's run* applies.
 When the questions branch is more visible than the question's thread or,
 when it has no thread, than the file it came from, the preview SHALL
 warn, naming both, and let the person confirm the record or reword the
-answer for its readers; nothing SHALL be posted or pushed for it until
-then. A decline that posts a reply may push a hash-only miss instead,
-and one that posts nothing logs no unconfirmed miss (*The answer session
-writes no miss it cannot place privately*).
+answer for its readers; nothing SHALL be posted or pushed for the answer
+until the person chooses.
 
 #### Scenario: The preview warns before a record more visible than its thread
 
@@ -2894,10 +2893,10 @@ more private repository* defines it, stands in for its repository's.
 
 ### Requirement: A recorded answer not posted by itself is shown beside its question
 
-When filter 1 finds an answer with authority that the answer session
-does not post by itself, and for a question from a questions branch, the
-answer session SHALL show the recorded answer beside the question, and
-post only what the person relays or confirms.
+The answer session SHALL show a recorded answer beside its question, and
+post only what the person relays or confirms, when filter 1 finds an
+answer with authority that the session does not post by itself, and
+always for a question with no thread.
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 
