@@ -318,12 +318,18 @@ test('a new session shows nothing until /answer', async ($, on) => {
   expect(await isShown($)).toBe(true)
 })
 
-test('q, the close button and /answer close the band; /answer opens it again where it was', async ($, on) => {
+test('q and the quit button close the band and run /exit; /answer closes it alone and opens it again where it was', async ($, on) => {
   const s = answerSession(on)
+  const exits: string[] = []
+  on('command.run', { command: 'exit' }, ($, e) => (exits.push(e.origin.kind), { text: '' }))
   await s.open($)
   expect(await s.enter($, 'n')).toBe('Question 2 of 17')
-  expect(await s.enter($, 'q')).toContain('Answer session closed')
+  expect(await s.enter($, 'q')).toBe('Answer session closed. Leaving Claude Code.')
   expect(await isShown($)).toBe(false)
+  // /exit runs once the hook that took q has returned.
+  expect(exits).toEqual([])
+  await s.clock.advance(1)
+  expect(exits).toEqual(['plugin'])
   // Closed, a prompt reaches the model again.
   expect((await $.prompt.submit({ ...TYPED, text: 'hello' })).drop).toBeUndefined()
   expect(s.sent).toEqual(['hello'])
@@ -334,10 +340,31 @@ test('q, the close button and /answer close the band; /answer opens it again whe
   await ui.press({ key: 'cmd:q' })
   await ui.unmount()
   expect(await isShown($)).toBe(false)
+  await s.clock.advance(1)
+  expect(exits).toEqual(['plugin', 'plugin'])
   await slash($, 'answer')
   expect(await isShown($)).toBe(true)
   await slash($, 'answer')
   expect(await isShown($)).toBe(false)
+  await s.clock.advance(1)
+  expect(exits).toHaveLength(2)
+})
+
+test('when /exit is refused, q leaves a toast saying how to leave', async ($, on) => {
+  const s = answerSession(on)
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('command.run', { command: 'exit' }, () => {
+    throw new Error('refused')
+  })
+  await s.open($)
+  expect(await s.enter($, 'q')).toContain('Answer session closed')
+  expect(toasts).toEqual([])
+  await s.clock.advance(1)
+  expect(toasts).toEqual(['Type /exit to leave Claude Code.'])
 })
 
 test('a click on a dot opens that question; on summary, the summary; a summary row, its question', async ($, on) => {

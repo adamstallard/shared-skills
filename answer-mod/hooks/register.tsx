@@ -660,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-2'
+const BUILD = 'v0.2-3'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -1265,7 +1265,7 @@ function commands(c: Ctx): Command[] {
 /** Does command `key` on the screen `c` describes, and says what it did. */
 async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<string> {
   const q = c.q
-  if (key === 'q') return closeSession($)
+  if (key === 'q') return quitSession($)
   // b and n sit side by side: back and next through the queue. In a
   // discussion, or while declining, b means back a step, so the queue's
   // keys act only outside them.
@@ -1785,6 +1785,21 @@ async function closeSession($: EngineInterface): Promise<string> {
   await update($, openAtom, () => false)
   await update($, flashAtom, () => null)
   return 'Answer session closed. /answer opens it again where you left off.'
+}
+
+/**
+ * q: closes the band, then leaves Claude Code. The real `answer` starts a
+ * session that exists only for answering, so staying in it strands the person.
+ * `/exit` runs from a timer, once the hook that pressed q has returned: a
+ * command run inside a hook the turn waits on is refused. Should it be refused
+ * anyway, a toast says how to leave.
+ */
+async function quitSession($: EngineInterface): Promise<string> {
+  await closeSession($)
+  $.clock.after(0, () => {
+    $.command.run({ command: 'exit' }).catch(() => $.ui.toast('Type /exit to leave Claude Code.'))
+  })
+  return 'Answer session closed. Leaving Claude Code.'
 }
 
 /** Records what was done with a question and moves to the next new one. */
