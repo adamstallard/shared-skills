@@ -1,0 +1,40 @@
+                                                                                                 [2m╭─────────────────────────────────────────╮
+[0m[38;5;174m ▐[48;5;16m▛███▛█[39m[49m   [1mClaude Code[0m [38;5;246mv2.1.331[39m                                                                  [2m│[0m [38;5;246manswer-mod[39m                              [2m│
+[0m[38;5;174m▝▜[48;5;16m█████[49m█▀[39m  [38;5;246mOpus 5.5 · Claude Ultra[39m                                                               [2m│[0m New question: Dev Patel asks on Linear  [2m│
+[0m[38;5;174m ▝▝   ▝▝ [39m  [38;5;246m~/shared-skills[39m                                                                       [2m│[0m (ENG-442)                               [2m│
+[0m                                                                                                 [2m╰─────────────────────────────────────────╯
+[0m[38;5;220m⚠[39m [38;5;220mCode Mode (experimental) is off for this session, as you chose. To stop being asked, remove CL[2m[39m╭──────────────────────────────────────────╮
+[0m  [38;5;220mshell or settings.json.[39m                                                                       [2m│[0m [38;5;246manswer-mod[39m                               [2m│
+[0m                                                                                                [2m│[0m New question: Priya Nair asks on GitHub  [2m│
+[0m[38;5;246m[48;5;237m❯[39m [38;5;231m/answer[39m [49m                                                                                      [2m│[0m (adamstallard/igor #224)                 [2m│
+[0m[38;5;246m  ⎿  [39manswer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 ha[2m╰──────────────────────────────────────────╯
+[0m                                                                                                  [2m╭────────────────────────────────────────╮
+[0m                                                                                                  [2m│[0m [38;5;246manswer-mod[39m                             [2m│
+[0m                                                                                                  [2m│[0m New question: Igor (reviewer) asks on  [2m│
+[0m                                                                                                  [2m│[0m Discord (#igor-dev)                    [2m│
+[0m                                                                                                  [2m╰────────────────────────────────────────╯
+
+
+
+
+
+[0m[38;5;239m───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m [38;5;246m[-][39m
+[1mAnswer session[0m  [1m[38;5;153m◉[0m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;75m◎[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;75m◈[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [38;5;239m○[39m [1;7m[38;5;153m○[0m [1;7m[38;5;153m○[0m [1;7m[38;5;153m○[0m  [38;5;246msummary[39m  [1m[38;5;153m3 new[0m  [38;5;246m1 of 20 · 0 relayed · 0 for later · 2 done for you[39m      [38;5;246mv0.2-2[39m
+[1mGitHub[0m  ]8;id=390jrs;https://github.com/adamstallard/igor/pull/216\adamstallard/igor #216]8;;\  [38;5;246m12m ago · no replies[39m           [38;5;239m│[39m [38;5;246mCHOOSE AN ANSWER[39m
+[1m[38;5;153mclaude[0m[38;5;246m asks, an agent via the inquisitor[39m                       [38;5;239m│[39m [38;5;153m  1[38;5;246m: [1m[39mYes, filter them by the role's scope[0m[38;5;153m  ★ recommended[39m
+                                                               [38;5;239m│[39m [38;5;153m  [38;5;246m   → A worker never sees another project's questions.[39m
+[1mDuring a run, should the inquisitor's first filter hide [0m       [38;5;239m│[39m
+[1mquestions-branch files about projects the role doesn't work [0m   [38;5;239m│[39m [38;5;153m  2[38;5;246m: [1m[39mNo, show them as input[0m
+[1mon, as it hides lore entries outside the role's scope?[0m         [38;5;239m│[39m [38;5;153m  [38;5;246m   → Workers may read other projects' questions.[39m
+                                                               [38;5;239m│[39m
+The scope filter covers lore entries only. Question files on   [38;5;239m│[39m [38;5;153m  [38;5;246mOr type your own answer in the prompt box[39m
+the lore repository's questions branch can be about any        [38;5;239m│[39m
+project.                                                       [38;5;239m│[39m
+                                                               [38;5;239m│[39m
+[38;5;246mRelated [39m]8;id=6v0yq5;https://github.com/adamstallard/igor/pull/216#decision-3\#216 decision 3: scope is a hard filter]8;;\                [38;5;239m│[39m
+[38;5;153m1–2[38;5;246m: choose[39m   [38;5;153m(t)[38;5;246malk to Claude[39m   [38;5;153m(w)[38;5;246mon't answer[39m   [38;5;153m(l)[38;5;246mater[39m   [38;5;75m✓ New question from Igor (reviewer) on Discord:…[39m   [38;5;153m(b)[38;5;246mack[39m   [38;5;153m(n)[38;5;246mext[39m   [38;5;153m(q)[38;5;246muit[39m
+
+[38;5;244m──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+[39m❯ 
+[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m  [38;5;220m⏵⏵ auto mode on[38;5;246m (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a[39m

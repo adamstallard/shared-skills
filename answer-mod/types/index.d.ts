@@ -111,14 +111,6 @@ export type Returned = {
 }
 
 /**
- * What the person is typing in the band's answer field, on question `id`:
- * `text` as typed, for the preview; `seed`, what the field is drawn holding,
- * changed only to put text back (after a stopped post), since a field keeps
- * the person's typing as long as it is drawn with the same value.
- */
-export type Field = { id: string; text: string; seed: string }
-
-/**
  * One row the session placed in the transcript for something done with a
  * question: what was done (`verb`), and what was posted, prefix included
  * (empty when nothing posts). A view, not the record: it is gone with the
@@ -192,14 +184,14 @@ declare module 'claude-code' {
        * band's close button flip it.
        */
       isOpen: boolean
-      /** The band's answer field: what is typed in it, and on which question; null when empty. */
-      field: Field | null
       /** The rows placed in the transcript, by the id each was placed under. */
       rows: Record<string, PlacedRow>
       /** Placed rows whose post has not landed yet (prototype: for POST_MS), by row id. */
       posting: Record<string, true>
       /** Prototype only: questions that arrived after the session opened, by id. */
       arrived: Record<string, true>
+      /** Questions that arrived while the session was open and have not been shown since, by id: marked in the bar. */
+      marked: Record<string, true>
     }
   }
 }

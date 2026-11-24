@@ -103,19 +103,18 @@ function slash($: Engine, command: string, args = '') {
 type Drawn = {
   redraw(): Promise<unknown>
   find(query: { type?: string; text?: RegExp; key?: string }): Promise<unknown>
-  findAll(query: { type?: string }): Promise<{ props: Record<string, unknown> }[]>
 }
 
 /**
  * Text on screen, drawn as a Text; for a post's words (the question, the
- * replies), as Markdown; or as the answer field's placeholder.
+ * replies), as Markdown.
  */
-async function shown(ui: Pick<Drawn, 'find' | 'findAll'>, text: RegExp): Promise<unknown> {
+async function shown(ui: Pick<Drawn, 'find'>, text: RegExp): Promise<unknown> {
   for (const type of ['Text', 'Markdown']) {
     const found = await ui.find({ type, text })
     if (found) return found
   }
-  return (await ui.findAll({ type: 'Input' })).find(field => text.test(String(field.props.placeholder ?? '')))
+  return undefined
 }
 
 /** Redraws until `query` is on screen: a model call runs on after Enter returns. */
@@ -1359,79 +1358,6 @@ test("the question and a reply are drawn as Markdown; a link in a reply to a que
   await ui.unmount()
 })
 
-test('the answer field previews what it holds; Enter in it relays with no model turn, and a stopped post puts the text back', async ($, on) => {
-  const s = answerSession(on)
-  await s.open($)
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await ui.press({ key: 'dot:1' })
-  await ui.redraw()
-  const field = (await ui.findAll({ type: 'Input' }))[0]
-  expect(field?.key).toBe('answer:eng-412')
-  expect(field?.props.rows).toBe(2)
-  await ui.input({ key: 'answer:eng-412', text: 'Ship it Friday,\nat 10%.', kind: 'change' })
-  await ui.redraw()
-  // The preview, exactly as it will post.
-  expect(await shown(ui, /^POST ON LINEAR AS$/)).toBeDefined()
-  expect(await shown(ui, /Ship it Friday,\nat 10%\./)).toBeDefined()
-  // One letter is not an answer: still on Maya's question.
-  await ui.input({ key: 'answer:eng-412', text: 'y' })
-  await ui.redraw()
-  expect(await ui.find({ key: 'answer:eng-412' })).toBeDefined()
-  await ui.input({ key: 'answer:eng-412', text: 'Ship it Friday,\nat 10%.' })
-  await ui.redraw()
-  expect(await shown(ui, /Relayed to Linear ENG-412/)).toBeDefined()
-  expect(await s.enter($, 'b')).toBe('Question 2 of 17')
-  await ui.redraw()
-  expect(await shown(ui, /RELAYED ON LINEAR AS/)).toBeDefined()
-  expect(await shown(ui, /Ship it Friday,\nat 10%\./)).toBeDefined()
-  // Nothing reached the model, and nothing was put in the prompt box.
-  expect(s.sent).toEqual([])
-  expect(s.filled).toEqual([])
-
-  // Sara replies the moment a post is first tried: the post stops, and the text comes back in the field.
-  await ui.press({ key: 'dot:14' })
-  await s.clock.advance(1_000)
-  await ui.input({ key: 'answer:eng-437', text: 'Keep the banner up.' })
-  await ui.redraw()
-  expect(await shown(ui, /Not posted: Sara Lind replied/)).toBeDefined()
-  expect((await ui.find({ key: 'answer:eng-437' }) as { props: Record<string, unknown> }).props.value).toBe('Keep the banner up.')
-  await ui.input({ key: 'answer:eng-437', text: 'No banner, then.' })
-  await ui.redraw()
-  expect(await shown(ui, /Relayed to Linear ENG-437/)).toBeDefined()
-  expect(s.sent).toEqual([])
-  await ui.unmount()
-})
-
-test("won't answer's reason and reason 3's filter can be picked in the band; a pick posts nothing", async ($, on) => {
-  const s = answerSession(on)
-  await s.open($)
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await s.enter($, 'w')).toContain('choose why')
-  await ui.redraw()
-  const why = await ui.find({ key: 'pick' })
-  expect((why as { props: Record<string, unknown> }).props.options).toHaveLength(4)
-  await ui.select({ key: 'pick', value: '3' })
-  await ui.redraw()
-  expect(await shown(ui, /WHICH FILTER SHOULD HAVE STOPPED IT/)).toBeDefined()
-  await ui.select({ key: 'pick', value: '4' })
-  await ui.redraw()
-  expect(await shown(ui, /ANSWER FOR THE INQUISITOR/)).toBeDefined()
-  expect(await shown(ui, /Inquisitor: Filter 4 \(cheap to reverse\): pick one/)).toBeDefined()
-  // Nothing posted yet: Enter on a note, or (p)ost it, still does that.
-  expect(await shown(ui, /HANDLED BY YOUR CHOICE/)).toBeUndefined()
-  expect(await s.enter($, 'p')).toContain('for the inquisitor')
-  // Reason 1 records the won't-answer and moves on.
-  expect(await s.enter($, 'w')).toContain('choose why')
-  await ui.redraw()
-  await ui.select({ key: 'pick', value: '1' })
-  expect(await s.enter($, 'b')).toBe('Question 2 of 17')
-  await ui.redraw()
-  expect(await shown(ui, /^The conversation is over$/)).toBeDefined()
-  expect(await shown(ui, /nothing was posted/)).toBeDefined()
-  expect(s.sent).toEqual([])
-  await ui.unmount()
-})
-
 test('each question answered or declined leaves a row in the transcript, posting until the post lands', async ($, on) => {
   const s = answerSession(on)
   const placed: string[] = []
@@ -1463,36 +1389,124 @@ test('each question answered or declined leaves a row in the transcript, posting
   await other.unmount()
 })
 
-test('a question arriving while the session is open plays the sound and notifies, once', async ($, on) => {
+/** Whether dot `i`'s glyph is drawn marked: a new question not yet shown. */
+async function isMarked(ui: Pick<Drawn, 'find'>, i: number): Promise<boolean> {
+  const dot = (await ui.find({ key: `dot:${i}` })) as { children?: unknown[] } | undefined
+  return JSON.stringify(dot?.children ?? []).includes('"inverse":true')
+}
+
+/** The bar's "N new", or undefined when nothing is marked. */
+async function newLabel(ui: Pick<Drawn, 'find'>): Promise<string | undefined> {
+  return ((await ui.find({ key: 'dot:new' })) as { text?: string } | undefined)?.text
+}
+
+test('questions arriving while the session is open chime once a poll, toast each for a minute, and stay marked until shown', async ($, on) => {
   const s = answerSession(on)
   const sounds: string[] = []
-  const notes: string[] = []
+  const notes: { text: string; title?: string }[] = []
+  const toasts: { text: string; timeoutMs?: number }[] = []
   on('audio.play', (_, e) => {
     if (e.clip.asset) sounds.push(e.clip.asset)
     return { value: undefined }
   })
   on('ui.notify', (_, e) => {
-    notes.push(e.text)
+    notes.push({ text: e.text, title: e.title })
     return { value: { isSent: true, channel: 'iterm2' } }
   })
+  on('ui.toast', (_, e) => {
+    toasts.push({ text: e.text, timeoutMs: e.timeoutMs })
+    return { value: undefined }
+  })
+  on('ui.log', () => ({ value: undefined }))
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ key: 'dot:17' })).toBeUndefined()
+  expect(await newLabel(ui)).toBeUndefined()
   await s.clock.advance(40_000)
   await ui.redraw()
+  // One poll found two: one chime; a notification and a toast for a minute
+  // each, in dot order.
   expect(sounds).toEqual(['sounds/arrive.wav'])
-  expect(notes).toHaveLength(1)
-  expect(notes[0]).toContain('Dev Patel asks on Linear ENG-442')
-  expect(await ui.find({ key: 'dot:17' })).toBeDefined()
-  expect(await shown(ui, /^1 of 18/)).toBeDefined()
-  expect(await shown(ui, /New question from Dev Patel on Linear: dot 18/)).toBeDefined()
-  // Reopening shows it as part of the queue, with no second alert.
+  expect(notes).toHaveLength(2)
+  expect(notes.map(n => n.title)).toEqual(['Answer session: a new question', 'Answer session: a new question'])
+  expect(notes[0]!.text).toContain('Dev Patel asks on Linear ENG-442 · Import job: Can I raise')
+  expect(notes[1]!.text).toContain('Priya Nair asks on GitHub adamstallard/igor #224')
+  expect(toasts).toEqual([
+    { text: 'New question: Dev Patel asks on Linear (ENG-442)', timeoutMs: 60_000 },
+    { text: 'New question: Priya Nair asks on GitHub (adamstallard/igor #224)', timeoutMs: 60_000 },
+  ])
+  expect(await isMarked(ui, 16)).toBe(false)
+  expect(await isMarked(ui, 17)).toBe(true)
+  expect(await isMarked(ui, 18)).toBe(true)
+  expect(await newLabel(ui)).toBe('2 new')
+  // "2 new" stands for them: the count of every question still new waits.
+  expect(await shown(ui, /^1 of 19 · 0 relayed · 0 for later · 2 done for you$/)).toBeDefined()
+  expect(await shown(ui, /2 new questions, from Dev Patel and Priya Nair: dots 18–19/)).toBeDefined()
+  // The next poll finds one more.
+  await s.clock.advance(30_000)
+  await ui.redraw()
+  expect(sounds).toHaveLength(2)
+  expect(notes).toHaveLength(3)
+  expect(notes[2]!.text).toContain('Igor (reviewer) asks on Discord #igor-dev')
+  expect(toasts[2]).toEqual({ text: 'New question: Igor (reviewer) asks on Discord (#igor-dev)', timeoutMs: 60_000 })
+  expect(await newLabel(ui)).toBe('3 new')
+  expect(await shown(ui, /New question from Igor \(reviewer\) on Discord: dot 20/)).toBeDefined()
+  // Showing a new question clears its mark; "N new" opens the first still marked.
+  await ui.press({ key: 'dot:17' })
+  await ui.redraw()
+  expect(await isMarked(ui, 17)).toBe(false)
+  expect(await newLabel(ui)).toBe('2 new')
+  await ui.press({ key: 'dot:new' })
+  await ui.redraw()
+  expect(await shown(ui, /^19 of 20/)).toBeDefined()
+  expect(await newLabel(ui)).toBe('1 new')
+  // Reopening alerts no more, and the last mark has no time limit: it stays until shown.
   await slash($, 'answer')
   await slash($, 'answer')
-  await s.clock.advance(60_000)
-  expect(sounds).toHaveLength(1)
-  expect(notes).toHaveLength(1)
+  await s.clock.advance(120_000)
+  await ui.redraw()
+  expect(sounds).toHaveLength(2)
+  expect(notes).toHaveLength(3)
+  expect(toasts).toHaveLength(3)
+  expect(await isMarked(ui, 19)).toBe(true)
+  await ui.press({ key: 'dot:19' })
+  await ui.redraw()
+  expect(await newLabel(ui)).toBeUndefined()
+  expect(await shown(ui, /^20 of 20 · 18 new · 0 relayed/)).toBeDefined()
   await ui.unmount()
+})
+
+test('the bar keeps "N new" and the build in 140 and 95 columns, giving up counts first', async ($, on) => {
+  const s = answerSession(on)
+  on('ui.log', () => ({ value: undefined }))
+  on('ui.toast', () => ({ value: undefined }))
+  await s.open($)
+  await s.clock.advance(70_000)
+  const at = (columns: number) => ({
+    ...BAND,
+    props: { ...BAND.props, bodyColumns: columns - 5 },
+    viewport: { columns, rows: 40, isFullscreen: true },
+    surface: 'terminal' as const,
+  })
+  const where = async (ui: Pick<Drawn, 'find'>) => ((await ui.find({ type: 'Text', text: /^(\d+ of \d+( · |$)|\d+ relayed · )/ })) as { text?: string } | undefined)?.text
+  for (const [columns, onQuestion, onSummary] of [
+    [140, '1 of 20 · 0 relayed · 0 for later · 2 done for you', '0 relayed · 0 for later · 2 done for you'],
+    [95, '1 of 20', undefined],
+  ] as const) {
+    for (const [press, expected] of [
+      [undefined, onQuestion],
+      ['dot:summary', onSummary],
+    ] as const) {
+      const band = await $.ui.mount(at(columns))
+      if (press) await band.press({ key: press })
+      await band.redraw()
+      expect(await newLabel(band)).toBe('3 new')
+      expect(await shown(band, /^v0\.2-/)).toBeDefined()
+      expect(await where(band)).toBe(expected)
+      if (press) await band.press({ key: 'dot:0' })
+      await band.unmount()
+    }
+  }
 })
 
 test('a question arriving while the session is closed joins the queue without an alert; the summary stays the summary', async ($, on) => {
@@ -1511,20 +1525,43 @@ test('a question arriving while the session is closed joins the queue without an
   await slash($, 'answer')
   await ui.redraw()
   expect(await ui.find({ key: 'dot:17' })).toBeDefined()
+  // Nothing alerted, so nothing is marked.
+  expect(await newLabel(ui)).toBeUndefined()
+  expect(await isMarked(ui, 17)).toBe(false)
   expect(await shown(ui, /16 questions still new|questions still new/)).toBeDefined()
   expect(await ui.find({ key: 'sum:igor-216-scope' })).toBeUndefined()
   await ui.unmount()
 })
 
-test('where the terminal raises no notifications, the arrival is a toast instead', async ($, on) => {
-  const s = answerSession(on)
-  const toasts: string[] = []
-  on('ui.notify', () => ({ value: { isSent: false, reason: 'no-channel' } }))
-  on('ui.toast', (_, e) => {
-    toasts.push(e.text)
-    return { value: undefined }
+for (const [how, answer] of [
+  ['reports it sent', () => ({ value: { isSent: true as const, channel: 'iterm2' as const } })],
+  ['reports it not sent', () => ({ value: { isSent: false as const, reason: 'no-channel' as const } })],
+  ['rejects', () => {
+    throw new Error('refused')
+  }],
+] as const) {
+  test(`each new question gets its own toast, within 110 characters, and the chime plays, when the notification ${how}`, async ($, on) => {
+    const s = answerSession(on)
+    const toasts: string[] = []
+    const sounds: string[] = []
+    on('ui.notify', answer)
+    on('ui.toast', (_, e) => {
+      toasts.push(e.text)
+      return { value: undefined }
+    })
+    on('audio.play', (_, e) => {
+      if (e.clip.asset) sounds.push(e.clip.asset)
+      return { value: undefined }
+    })
+    on('ui.log', () => ({ value: undefined }))
+    await s.open($)
+    await s.clock.advance(70_000)
+    expect(toasts).toEqual([
+      'New question: Dev Patel asks on Linear (ENG-442)',
+      'New question: Priya Nair asks on GitHub (adamstallard/igor #224)',
+      'New question: Igor (reviewer) asks on Discord (#igor-dev)',
+    ])
+    expect(toasts.every(text => text.length <= 110)).toBe(true)
+    expect(sounds).toEqual(['sounds/arrive.wav', 'sounds/arrive.wav'])
   })
-  await s.open($)
-  await s.clock.advance(40_000)
-  expect(toasts).toEqual(['New question: Dev Patel asks on Linear'])
-})
+}

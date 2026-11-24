@@ -1,40 +1,40 @@
+                                                                                                 ╭─────────────────────────────────────────╮
+ ▐▛███▛█   Claude Code v2.1.331                                                                  │ answer-mod                              │
+▝▜██████▀  Opus 5.5 · Claude Ultra                                                               │ New question: Dev Patel asks on Linear  │
+ ▝▝   ▝▝   ~/shared-skills                                                                       │ (ENG-442)                               │
+                                                                                                 ╰─────────────────────────────────────────╯
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove CL╭──────────────────────────────────────────╮
+  shell or settings.json.                                                                       │ answer-mod                               │
+                                                                                                │ New question: Priya Nair asks on GitHub  │
+❯ /answer                                                                                       │ (adamstallard/igor #224)                 │
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 ha╰──────────────────────────────────────────╯
 
 
-⏺ Prompt dropped by a hook: Question 15 of 17
 
-⏺ Prompt dropped by a hook: Question 16 of 17
 
-⏺ Prompt dropped by a hook: Question 17 of 17
 
-⏺ Prompt dropped by a hook: The summary
 
-⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
-  prompt.submit, turn.start, turn.complete)
 
-❯ /answer
-  ⎿  answer-mod: Answer session closed. /answer opens it again where you left off.
 
-❯ /answer
-  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 2 handled for you: see the summary.
 
-⏺ Prompt dropped by a hook: Nothing to answer here: p or n moves to a question.
+
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ● ◈ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ○ ○ ○ ○  summary  13 new · 2 relayed · 0 for later · 2 done for you · 1 for the inquisitor
-13 questions still new
-2 of 18 relayed this session · 1 answered for you · 1 handled for you · 1 you answered for the inquisitor
-
-● claude         adamstallard/igor #216     │ User says: Show them as input, tagged with their project.
-◈ Maya Ortiz     ENG-412 · Onboarding flag  │ you chose · Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
-◎ jlee           adamstallard/igor #216     │ Recorded answer: See decision 10 in #216: the run id links to the run's ledger row, whic…
-◈ Igor (worker)  #igor-dev                  │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
-● Ben Okafor     adamstallard/igor #221     │ from another machine · User says: Cut it from main; the hotfix branch merges first.
-
-
-
-
-                                                             ✓ New question from Dev Patel on Linear: dot 18   (b)ack   (n)ext   (q)uit
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 new  1 of 19 · 0 relayed · 0 for later · 2 done for you        v0.2-2
+GitHub  adamstallard/igor #216  12m ago · no replies           │ CHOOSE AN ANSWER
+claude asks, an agent via the inquisitor                       │   1: Yes, filter them by the role's scope  ★ recommended
+                                                               │      → A worker never sees another project's questions.
+During a run, should the inquisitor's first filter hide        │
+questions-branch files about projects the role doesn't work    │   2: No, show them as input
+on, as it hides lore entries outside the role's scope?         │      → Workers may read other projects' questions.
+                                                               │
+The scope filter covers lore entries only. Question files on   │   Or type your own answer in the prompt box
+the lore repository's questions branch can be about any        │
+project.                                                       │
+                                                               │
+Related #216 decision 3: scope is a hard filter                │
+1–2: choose   (t)alk to Claude   (w)on't answer   (l)ater   ✓ 2 new questions, from Dev Patel and Priya Nai…   (b)ack   (n)ext   (q)uit
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 41% ⇣ Sat 1a
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a

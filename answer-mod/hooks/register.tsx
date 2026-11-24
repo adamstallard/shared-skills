@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, RenderElement } from 'claude-code'
 
-import type { Answer, Declining, Field, Filter, PlacedRow, Returned, Revision, ThreadSeen, Turn, WontReason } from '../types'
+import type { Answer, Declining, Filter, PlacedRow, Returned, Revision, ThreadSeen, Turn, WontReason } from '../types'
 
 // Prototype only: the questions are fixed examples, and an answer is kept in
 // the session's state instead of being posted by the relay account.
@@ -82,10 +82,10 @@ type Question = {
   branch?: { repo: string }
   /**
    * Prototype only: not in the queue when the session opens. It arrives
-   * ARRIVE_MS after the first /answer, and the session alerts the person
-   * (a notification and a sound) if it is open then.
+   * this many milliseconds after the first /answer, with any others due
+   * then (one poll), and the session alerts the person if it is open then.
    */
-  arrives?: true
+  arrives?: number
   relayAs: string
 }
 
@@ -412,7 +412,7 @@ const QUESTIONS: Question[] = [
     branch: { repo: 'adamstallard/lore' },
     relayAs: 'adamstallard',
   },
-  // Prototype only: arrives while the session is open, to show the alert.
+  // Prototype only: these three arrive while the session is open, to show the alert.
   {
     id: 'eng-442-rate',
     surface: 'linear',
@@ -423,8 +423,38 @@ const QUESTIONS: Question[] = [
     text: 'Can I raise the import job\'s rate limit from `100` to `300` requests a minute tonight?',
     context: 'The nightly import hits the limit at 2:00 and retries for an hour. The provider allows 500.',
     thread: { replies: [] },
-    arrives: true,
+    arrives: 40_000,
     relayAs: 'adam-relay (Linear app)',
+  },
+  {
+    id: 'igor-224-rename',
+    surface: 'github',
+    where: 'adamstallard/igor #224',
+    link: 'https://github.com/adamstallard/igor/pull/224',
+    asker: { name: 'Priya Nair', kind: 'human' },
+    age: 'just now',
+    text: 'Should 0.9 rename `workerPool` to `crew` outright, or keep `workerPool` as an alias for one release?',
+    context: 'Three downstream repositories import `workerPool`. 0.9 is the next minor release.',
+    thread: { replies: [] },
+    arrives: 40_000,
+    relayAs: 'adam-relay[bot]',
+  },
+  {
+    id: 'igor-dev-review-tags',
+    surface: 'discord',
+    where: '#igor-dev',
+    link: 'https://discord.com/channels/example/igor-dev',
+    asker: { name: 'Igor (reviewer)', kind: 'agent', via: 'its inquisitor role' },
+    age: 'just now',
+    text: 'Should a review block a pull request whose new test tags no spec scenario, or only comment on it?',
+    context: 'spec-trace fails CI on an untagged scenario, but not on an untagged test.',
+    options: [
+      { label: 'Only comment', effect: 'The author tags it or explains why not; nothing waits.' },
+      { label: 'Block it', effect: 'The pull request waits until the test names its scenario.' },
+    ],
+    thread: { replies: [] },
+    arrives: 70_000,
+    relayAs: 'adam-relay#4127',
   },
 ]
 
@@ -630,7 +660,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.2-1'
+const BUILD = 'v0.2-2'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-mod__propose_reply'
@@ -658,13 +688,15 @@ const decliningAtom = atom({ plugin: 'answer-mod', key: 'declining' } as const, 
 const threadsAtom = atom({ plugin: 'answer-mod', key: 'threads' } as const, {} as Record<string, ThreadSeen>)
 const readingAtom = atom({ plugin: 'answer-mod', key: 'reading' } as const, {} as Record<string, true>)
 const viewingAtom = atom({ plugin: 'answer-mod', key: 'viewing' } as const, null as { id: string; page: number } | null)
-const fieldAtom = atom({ plugin: 'answer-mod', key: 'field' } as const, null as Field | null)
 const rowsAtom = atom({ plugin: 'answer-mod', key: 'rows' } as const, {} as Record<string, PlacedRow>)
 const postingAtom = atom({ plugin: 'answer-mod', key: 'posting' } as const, {} as Record<string, true>)
 const arrivedAtom = atom({ plugin: 'answer-mod', key: 'arrived' } as const, {} as Record<string, true>)
+const markedAtom = atom({ plugin: 'answer-mod', key: 'marked' } as const, {} as Record<string, true>)
 
-/** Prototype only: how long after the first /answer the arriving question comes in. */
-const ARRIVE_MS = 40_000
+/** How long each new question's toast stays: the most the engine takes. */
+const TOAST_MS = 60_000
+/** A toast's longest text: past about this the toast cuts it. */
+const TOAST_CHARS = 110
 /** Prototype only: how long a post takes to land, so its transcript row shows it posting first. */
 const POST_MS = 1_500
 /** The sound a new question makes while the session is open: a file of the mod's own. */
@@ -858,7 +890,7 @@ function questionBlock(q: Question, returned?: Returned, replies: Reply[] = []):
       ? `${q.asker.name}, an agent asking through ${q.asker.via ?? 'the inquisitor'}`
       : `${q.asker.name}, a person`
   const lines = [
-    `The question, asked on ${SURFACE_NAME[q.surface]} in ${q.where} by ${who}, ${q.age} ago:`,
+    `The question, asked on ${SURFACE_NAME[q.surface]} in ${q.where} by ${who}, ${ago(q.age)}:`,
     `"${q.text}"`,
   ]
   if (q.context) lines.push(`Context the asker gave: ${q.context}`)
@@ -1489,7 +1521,6 @@ async function go($: EngineInterface, i: number, note: string): Promise<string> 
   await update($, editingAtom, () => ({}))
   await update($, decliningAtom, () => null)
   await update($, viewingAtom, () => null)
-  await update($, fieldAtom, () => null)
   const was = queueOf(await read($, arrivedAtom))[await read($, cursorAtom)]
   if (was) await seenAll($, was.id)
   await update($, cursorAtom, () => i)
@@ -1521,6 +1552,8 @@ async function seenAll($: EngineInterface, id: string): Promise<void> {
 /** Question `i` came on screen: its thread is read, unless that was done in the last minute. */
 async function arrive($: EngineInterface, i: number): Promise<void> {
   const one = queueOf(await read($, arrivedAtom))[i]
+  // A new question is marked in the bar until it is shown.
+  if (one && (await read($, markedAtom))[one.id]) await update($, markedAtom, m => without(m, one.id))
   // A questions-branch file has no thread.
   if (!one || one.branch) return
   const seen = (await read($, threadsAtom))[one.id]
@@ -1650,8 +1683,6 @@ async function recheck($: EngineInterface, one: Question): Promise<string | unde
 
 /** The replies since the question and the recorded answer, in full, over the whole band. */
 async function viewAll($: EngineInterface, one: Question): Promise<string> {
-  // The answer field leaves the screen, and what was typed in it goes with it.
-  await update($, fieldAtom, () => null)
   await update($, viewingAtom, () => ({ id: one.id, page: 0 }))
   await update($, flashAtom, () => null)
   return 'Everything since the question, in full'
@@ -1808,8 +1839,6 @@ async function relayRecord($: EngineInterface, one: Question, r: Record_): Promi
 
 /** Won't answer: the band offers the reasons; nothing is recorded until one is chosen. */
 async function startDecline($: EngineInterface, one: Question): Promise<string> {
-  pickRound++
-  await update($, fieldAtom, () => null)
   await update($, decliningAtom, () => ({ id: one.id, stage: 'reason' as const }))
   await update($, flashAtom, () => null)
   return `Won't answer ${one.asker.name}'s question: choose why.`
@@ -1822,7 +1851,6 @@ async function startDecline($: EngineInterface, one: Question): Promise<string> 
  * open with nothing recorded.
  */
 async function backDecline($: EngineInterface, one: Question, d: Declining): Promise<string> {
-  pickRound++
   if (d.stage === 'post' && d.filter === 1) {
     await update($, decliningAtom, () => ({ id: one.id, stage: 'place' as const }))
     if (d.place) await putInBox($, d.place)
@@ -1843,7 +1871,6 @@ function decline($: EngineInterface, one: Question, reason: 1 | 2): Promise<stri
 
 /** Reason 3: the inquisitor should have handled it. The band asks which filter should have stopped it. */
 async function startFilter($: EngineInterface, one: Question): Promise<string> {
-  pickRound++
   await update($, decliningAtom, () => ({ id: one.id, stage: 'filter' as const }))
   await update($, flashAtom, () => null)
   return `The inquisitor should have handled ${one.asker.name}'s question: choose the filter that should have stopped it. Nothing is posted yet.`
@@ -1922,7 +1949,6 @@ const addTurn = ($: EngineInterface, id: string, turn: Turn) =>
   update($, talksAtom, t => ({ ...t, [id]: [...(t[id] ?? []), turn] }))
 
 async function openTalk($: EngineInterface, one: Question): Promise<string> {
-  await update($, fieldAtom, () => null)
   await update($, flashAtom, () => null)
   await update($, talkingAtom, () => one.id)
   return 'Talking to Claude'
@@ -2036,57 +2062,7 @@ async function sendAsk($: EngineInterface, one: Question, text: string): Promise
   return note
 }
 
-// ── the band's own controls: the answer field, the pickers, links ──────
-//
-// The field and the pickers act in the band, without the prompt box: a
-// submit or a pick does what typing it and Enter would, and starts no model
-// turn (talking to Claude still goes through the prompt box).
-
-/** The answer field changed: the band previews it, and a stopped post's notice goes once it says something else. */
-async function fieldInput($: EngineInterface, id: string, value: string): Promise<void> {
-  await update($, fieldAtom, f => (value ? { id, text: value, seed: f?.id === id ? f.seed : '' } : f?.id === id && f.seed ? { ...f, text: '' } : null))
-  await boxChanged($, value)
-}
-
-/**
- * Enter in the answer field: relays what it holds as the answer, after the
- * same read of the thread a post from the prompt box gets. A stopped post
- * puts the text back in the field, for a second Enter. No model turn.
- */
-async function fieldSubmit($: EngineInterface, id: string, value: string): Promise<void> {
-  const c = await snapshot($)
-  const q = c.q
-  const text = value.trim()
-  if (!q || q.id !== id) return $.ui.toast('That question is no longer on screen: nothing was sent.')
-  if (!text) return
-  // One letter is never an answer, here as in the prompt box.
-  if (text.length === 1) return $.ui.toast(`${text} is not an answer: type keys in the prompt box.`)
-  const it = intent(c, text)
-  if (it.kind === 'refused') return $.ui.toast(it.why)
-  const done = await relay($, q, text)
-  if (done.startsWith(NOT_POSTED)) {
-    stoppedWith = text
-    await update($, fieldAtom, () => ({ id, text: value, seed: value }))
-  } else await update($, fieldAtom, () => null)
-}
-
-/**
- * A pick in the band's pickers: why he won't answer, or which filter should
- * have stopped it. Done as its number and Enter would be; nothing posts.
- */
-async function pick($: EngineInterface, id: string, stage: 'reason' | 'filter', value: string): Promise<void> {
-  const c = await snapshot($)
-  if (c.q?.id !== id || c.declining?.stage !== stage || !/^[1-4]$/.test(value)) return
-  const it = intent(c, value)
-  if (it.kind === 'reason' || it.kind === 'filter') await enter($, c, it)
-}
-
-/**
- * Counts the times a picker's stage was entered: each starts its picker on
- * a `choose…` of its own, since a picker keeps the person's last pick for
- * as long as it is drawn with the same value. Not state: a drawing reads it.
- */
-let pickRound = 0
+// ── links to questions in the queue ─────────────────────────────────────
 
 /** The links in a post that lead to a question in the queue: a click on one opens it here. */
 function queueLinks(text: string, queue: Question[]): string[] {
@@ -2136,38 +2112,61 @@ async function placeRow($: EngineInterface, one: Question, a: Answer): Promise<v
 
 // ── a question arriving ─────────────────────────────────────────────────
 //
-// Prototype only: one question arrives ARRIVE_MS after the first /answer.
-// While the session is open its arrival plays the mod's sound and raises a
-// notification, once; a question already in the queue never alerts.
+// Prototype only: questions arrive at their `arrives` time after the first
+// /answer, those due together as one poll. While the session is open a poll
+// that finds any chimes once; each question gets a notification and a toast,
+// and stays marked in the bar until it is shown. A question already in the
+// queue never alerts.
 
 let arrivalDue = false
 
 function scheduleArrival($: EngineInterface): void {
   if (arrivalDue) return
   arrivalDue = true
-  $.clock.after(ARRIVE_MS, () => void arriveNew($))
+  for (const ms of new Set(QUESTIONS.flatMap(one => (one.arrives ? [one.arrives] : [])))) $.clock.after(ms, () => void arriveNew($, ms))
 }
 
-async function arriveNew($: EngineInterface): Promise<void> {
+/** The toast for a new question: who asks and where, within TOAST_CHARS. */
+function toastText(one: Question): string {
+  const place = one.where.split(' · ')[0]
+  const who = `New question: ${one.asker.name} asks on ${SURFACE_NAME[one.surface]}`
+  const full = `${who} (${place})`
+  return full.length <= TOAST_CHARS ? full : cut(who, TOAST_CHARS)
+}
+
+async function arriveNew($: EngineInterface, ms: number): Promise<void> {
   const arrived = await read($, arrivedAtom)
-  const one = QUESTIONS.find(x => x.arrives && !arrived[x.id])
-  if (!one) return
+  const due = QUESTIONS.filter(x => x.arrives === ms && !arrived[x.id])
+  if (!due.length) return
   const before = queueOf(arrived).length
-  await update($, arrivedAtom, a => ({ ...a, [one.id]: true as const }))
+  await update($, arrivedAtom, a => ({ ...a, ...Object.fromEntries(due.map(x => [x.id, true as const])) }))
   // Whoever was on the summary stays on it: the queue grew under them.
-  await update($, cursorAtom, i => (i >= before ? before + 1 : i))
+  await update($, cursorAtom, i => (i >= before ? before + due.length : i))
   if (!(await read($, openAtom))) return
-  const at = queueOf(await read($, arrivedAtom)).findIndex(x => x.id === one.id) + 1
-  await update($, flashAtom, () => `New question from ${one.asker.name} on ${SURFACE_NAME[one.surface]}: dot ${at}`)
-  // Either may not reach the person (no player off macOS, no notifying
-  // terminal): the debug log says which.
+  await update($, markedAtom, m => ({ ...m, ...Object.fromEntries(due.map(x => [x.id, true as const])) }))
+  const queue = queueOf(await read($, arrivedAtom))
+  const dots = due.map(x => queue.findIndex(y => y.id === x.id) + 1)
+  const names = due.map(x => x.asker.name)
+  await update($, flashAtom, () =>
+    due.length === 1
+      ? `New question from ${names[0]} on ${SURFACE_NAME[due[0]!.surface]}: dot ${dots[0]}`
+      : `${due.length} new questions, from ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}: dots ${dots[0]}–${dots[dots.length - 1]}`,
+  )
+  // The chime, the toasts and the notifications go out each on its own, so
+  // none waits on or is stopped by another. A notification that reports
+  // sent may still show nothing (seen on Adam's Mac: only the chime was
+  // heard), so the toasts never depend on it; its result is only logged.
   void $.audio.play({ asset: ARRIVE_SOUND }).catch((err: unknown) => $.ui.log(`arrival sound not played: ${String(err)}`, { to: 'debug' }))
-  const sent = await $.ui
-    .notify(`${one.asker.name} asks on ${SURFACE_NAME[one.surface]} ${one.where}: ${cut(one.text.replace(/`/g, ''), 160)}`, { title: 'Answer session: a new question' })
-    .catch((err: unknown) => ({ isSent: false as const, reason: String(err) }))
-  $.ui.log(sent.isSent ? `arrival notified through ${sent.channel}` : `arrival not notified: ${sent.reason}`, { to: 'debug' })
-  // A terminal that raises no notifications gets a toast instead.
-  if (!sent.isSent) $.ui.toast(`New question: ${one.asker.name} asks on ${SURFACE_NAME[one.surface]}`)
+  // In dot order: the stack draws toasts in the order raised (seen in tmux).
+  for (const one of due) $.ui.toast(toastText(one), { timeoutMs: TOAST_MS })
+  for (const one of due) {
+    void $.ui
+      .notify(`${one.asker.name} asks on ${SURFACE_NAME[one.surface]} ${one.where}: ${cut(one.text.replace(/`/g, ''), 160)}`, { title: 'Answer session: a new question' })
+      .then(
+        sent => $.ui.log(sent.isSent ? `arrival notified through ${sent.channel}` : `arrival not notified: ${sent.reason}`, { to: 'debug' }),
+        (err: unknown) => $.ui.log(`arrival not notified: ${String(err)}`, { to: 'debug' }),
+      )
+  }
 }
 
 export const register: Register = on => {
@@ -2402,12 +2401,7 @@ export const register: Register = on => {
     // Enter and the hint line read it.
     surveyUp = e.props.hasSurvey
     if (e.props.hasSurvey || !(await read($, openAtom))) return next(e)
-    const els = $.ui.resolve(e)
-    const { Box, Text, Button, Link, Markdown } = els
-    // The phones draw no fields: there the prompt box is the only way to type.
-    const Input = 'Input' in els ? els.Input : undefined
-    const Select = 'Select' in els ? els.Select : undefined
-    const field = await read($, fieldAtom)
+    const { Box, Text, Button, Link, Markdown } = $.ui.resolve(e)
     const cursor = await read($, cursorAtom)
     const answers = await read($, answersAtom)
     const draft = await read($, promptAtom)
@@ -2458,6 +2452,9 @@ export const register: Register = on => {
     const mine = QUESTIONS.filter(one => answers[one.id]?.kind === 'handled' && answers[one.id]?.chosen).length
     const handledCount = count('handled') - mine
     const fresh = N - relayed - deferred - waiting - wont - recorded - handledCount - mine
+    // New questions not yet shown: each dot marked, and "N new" in the bar.
+    const marked = await read($, markedAtom)
+    const markedAt = queue.flatMap((one, i) => (marked[one.id] ? [i] : []))
 
     // What Enter would do with the prompt box's text, and the commands on
     // screen; a click on one does what typing its key and Enter does.
@@ -2480,7 +2477,7 @@ export const register: Register = on => {
       if (typeof row === 'object' && row !== null) blanks.add(row)
       return row
     }
-    // A block several rows tall (a post in Markdown, the answer field, a post
+    // A block several rows tall (a post in Markdown, a post
     // cut to its rows) counts as that many rows: its head holds it at that
     // height, and stand-ins of no height fill out its count, so a view still
     // counts what it draws. `take` keeps a view's first rows, shrinking a
@@ -2612,16 +2609,26 @@ export const register: Register = on => {
     const dots = queue.map((one, i) => {
       const a = answers[one.id]
       const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : !a ? '○' : glyphOf(a)
-      const color = i === at ? ACCENT : !a ? RULE : TONE[a.kind]
+      const isMarked = !!marked[one.id]
+      const color = i === at || isMarked ? ACCENT : !a ? RULE : TONE[a.kind]
       // A click on a dot opens that question.
       return (
         <Button key={`dot:${i}`} plain onPress={() => run(goTo($, i))}>
-          <Text color={color} bold={i === at} dimColor={(a?.kind === 'wait' || a?.kind === 'wont') && i !== at}>
+          <Text color={color} bold={i === at || isMarked} inverse={isMarked} dimColor={(a?.kind === 'wait' || a?.kind === 'wont') && i !== at}>
             {glyph}
           </Text>
         </Button>
       )
     })
+    // A click on "N new" opens the first of them.
+    const newLabel = markedAt.length ? `${markedAt.length} new` : ''
+    const toNew = newLabel ? (
+      <Button key="dot:new" plain onPress={() => run(goTo($, markedAt[0]!))}>
+        <Text color={ACCENT} bold>
+          {newLabel}
+        </Text>
+      </Button>
+    ) : null
     const toSummary = (
       <Button key="dot:summary" plain onPress={() => run(goTo($, N))}>
         <Text color={at === N ? ACCENT : undefined} bold={at === N} dimColor={at !== N}>
@@ -2630,28 +2637,46 @@ export const register: Register = on => {
       </Button>
     )
     // Narrower than 120 columns only the counts that are not zero, so the bar keeps its build at the right.
-    const tally = (
-      [
-        [fresh, 'new', true],
-        [relayed, 'relayed', cols >= 120],
-        [deferred, 'for later', cols >= 120],
-        [waiting, 'waiting', false],
-        [wont, "won't answer", false],
-        [recorded + handledCount, 'done for you', false],
-        [mine, 'for the inquisitor', false],
-      ] as const
-    )
-      .filter(([n, , always]) => n > 0 || always)
-      .map(([n, words]) => `${n} ${words}`)
-      .join(' · ')
-    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking to Claude'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
+    // While new questions are marked, "N new" stands for them: the count of
+    // every question still new would read as the same thing, so it waits.
+    const counts = (all: boolean) =>
+      (
+        [
+          [markedAt.length ? 0 : fresh, 'new', !markedAt.length],
+          [relayed, 'relayed', all],
+          [deferred, 'for later', all],
+          [waiting, 'waiting', false],
+          [wont, "won't answer", false],
+          [recorded + handledCount, 'done for you', false],
+          [mine, 'for the inquisitor', false],
+        ] as const
+      )
+        .filter(([n, , always]) => n > 0 || always)
+        .map(([n, words]) => `${n} ${words}`)
+        .join(' · ')
+    const pos = base ? [`${at + 1} of ${N}`] : []
+    // The longest of these that leaves the build room at the right: every
+    // count, then only those above zero, then where this is alone (the
+    // summary's own first rows hold the counts).
+    const wheres = isTalking
+      ? [[...pos, ...(cols >= 120 ? ['talking to Claude'] : [])], pos]
+      : cols >= 120 || !base
+        ? [[...pos, counts(cols >= 120)], [...pos, counts(false)], pos]
+        : [pos]
+    const fixed = 'Answer session'.length + 2 + (2 * N - 1) + 2 + 'summary'.length + (newLabel ? 2 + newLabel.length : 0)
+    const room = cols - fixed - 2 - BUILD.length
+    const where =
+      wheres
+        .map(parts => parts.filter(Boolean).join(' · '))
+        .find(text => !text || 2 + text.length <= room) ?? pos.join('')
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
           <Text bold>Answer session</Text>
           <Box gap={1}>{dots}</Box>
           {toSummary}
-          <Text dimColor>{where}</Text>
+          {toNew}
+          {where ? <Text dimColor>{where}</Text> : null}
         </Box>
         <Text dimColor wrap="truncate-end">
           {BUILD}
@@ -2854,10 +2879,8 @@ export const register: Register = on => {
     const verdictChosen = it.kind === 'command' && it.command.key === 'a' && !!q.verdict
     // `a` and Enter relay filter 1's recorded answer: the preview shows it too.
     const recordChosen = it.kind === 'command' && it.command.key === 'a' && !!q.record
-    // What the band's answer field holds, on this question: previewed when the prompt box holds no answer.
-    const typed = field?.id === base.id && open && !c.editing && !c.declining ? field.text.trim() || undefined : undefined
     const message =
-      (it.kind === 'option' || it.kind === 'relay' ? it.text : verdictChosen ? q.verdict?.reply : recordChosen && q.record ? recordPost(q.record) : undefined) ?? typed
+      it.kind === 'option' || it.kind === 'relay' ? it.text : verdictChosen ? q.verdict?.reply : recordChosen && q.record ? recordPost(q.record) : undefined
     const isHuman = !q.options
     const turns = talks[q.id] ?? []
     const busy = thinking[q.id]
@@ -2914,7 +2937,8 @@ export const register: Register = on => {
             {source}
             <Text dimColor wrap="truncate-end">
               {state}
-              {q.age} ago{threadNote}
+              {ago(q.age)}
+              {threadNote}
             </Text>
           </Box>,
           <Text wrap="truncate-end">
@@ -2935,7 +2959,8 @@ export const register: Register = on => {
             <Text dimColor>
               {' '}
               · {state}
-              {q.age} ago{threadNote}
+              {ago(q.age)}
+              {threadNote}
             </Text>
           </Text>
         </Box>,
@@ -3352,34 +3377,9 @@ export const register: Register = on => {
           <Text color={ACCENT}>{GLYPH.wont} </Text>
           <Text dimColor>{"WON'T ANSWER · CHOOSE WHY"}</Text>
         </Text>,
-        ...picker('reason', 'Why', ([1, 2, 3] as const).map(r => [String(r), `${r}: ${REASONS[r].label}`])),
         ...reasons,
       ]
     }
-    // The choice as a picker, beside the list that says what each does: a pick
-    // does what its number and Enter would. Nothing it picks posts.
-    function picker(stage: 'reason' | 'filter', words: string, choices: [string, string][]): Row[] {
-      if (!Select || !base) return []
-      const id = base.id
-      // It keeps its rows when opened (the list unfolds under it), and what
-      // is below gives way until the pick closes it. One key for both
-      // pickers, so the second does not open as the first closes; each
-      // starts on its own `choose…`, so a pick in the first does not show
-      // in the second, nor an earlier pick when he steps back to one.
-      return [
-        <Box flexDirection="row" flexShrink={0}>
-          <Text>{'  '}</Text>
-          <Select
-            key="pick"
-            label={words}
-            value={`none:${stage}:${pickRound}`}
-            options={[{ value: `none:${stage}:${pickRound}`, label: 'choose…' }, ...choices.map(([value, label]) => ({ value, label }))]}
-            onSelect={value => run(pick($, id, stage, value))}
-          />
-        </Box>,
-      ]
-    }
-
     // A won't-answer, with its reason and what the real skill logged for it.
     const wontColumn = (a: Answer, t: Trim, width: number): Row[] => {
       const r = a.reason ?? 1
@@ -3433,7 +3433,6 @@ export const register: Register = on => {
           <Text color={ACCENT}>{GLYPH.handled} </Text>
           <Text dimColor>{'WHICH FILTER SHOULD HAVE STOPPED IT? · NOTHING IS POSTED YET'}</Text>
         </Text>,
-        ...picker('filter', 'Filter', ([1, 2, 3, 4] as const).map(n => [String(n), `${n}: ${FILTERS[n].name.replace(/^./, x => x.toUpperCase())}`])),
         ...filters,
       ]
     }
@@ -3524,44 +3523,20 @@ export const register: Register = on => {
           )),
         ]
       })
-      // The own words: a field of two rows, typed in here or in the prompt
-      // box; marked chosen while either holds an answer. Enter in the field
-      // relays it, after the preview, as Enter in the prompt box does, and
-      // starts no model turn. Where no field is drawn, the row says to type
-      // in the prompt box.
-      const isWriting = it.kind === 'relay' || (!!typed && it.kind === 'none')
-      const ownLabel = isHuman ? `Reply to ${q.asker.name}` : 'Or your own answer'
-      const ownWords: Row[] = Input
-        ? tall(
-            <Box flexDirection="row">
-              <Box flexDirection="column" width={2} flexShrink={0}>
-                <Text color={ACCENT}>{isWriting ? '▌' : ' '}</Text>
-                <Text color={ACCENT}>{isWriting ? '▌' : ' '}</Text>
-              </Box>
-              <Input
-                key={`answer:${q.id}`}
-                placeholder={`${ownLabel}: type it here, or in the prompt box`}
-                rows={2}
-                value={field?.id === q.id ? field.seed : ''}
-                submitLabel={q.branch ? 'log' : 'relay'}
-                onInput={value => run(fieldInput($, q.id, value))}
-                onSubmit={value => run(fieldSubmit($, q.id, value))}
-              />
-            </Box>,
-            2,
-          )
-        : [
-            <Text wrap="truncate-end">
-              <Text color={ACCENT}>{isWriting ? '▌ ' : '  '}</Text>
-              <Text bold={isWriting} color={isWriting ? ACCENT : undefined} dimColor={!isWriting}>
-                {isHuman ? `Reply to ${q.asker.name}: type it in the prompt box` : 'Or type your own answer in the prompt box'}
-              </Text>
-            </Text>,
-          ]
-      // A field with words in it stays, whatever the room: dropping it would drop them.
+      // Typing in the prompt box is the own words: this row says so, and marks
+      // it chosen while the box holds an answer.
+      const isWriting = it.kind === 'relay'
+      const ownWords = (
+        <Text wrap="truncate-end">
+          <Text color={ACCENT}>{isWriting ? '▌ ' : '  '}</Text>
+          <Text bold={isWriting} color={isWriting ? ACCENT : undefined} dimColor={!isWriting}>
+            {isHuman ? `Reply to ${q.asker.name}: type it in the prompt box` : 'Or type your own answer in the prompt box'}
+          </Text>
+        </Text>
+      )
       const choose: Row[] = isHuman
-        ? ownWords
-        : [...options, ...(t.ownWords || isWriting || typed ? [...(t.optionGap ? [blank()] : []), ...ownWords] : [])]
+        ? [ownWords]
+        : [...options, ...(t.ownWords || isWriting ? [...(t.optionGap ? [blank()] : []), ownWords] : [])]
       // What will post, exactly, once there is something to post.
       // A recorded answer posts with its own prefix; a questions-branch answer is logged, with none.
       const prefix = recordChosen ? RECORDED : q.branch ? '' : PREFIX

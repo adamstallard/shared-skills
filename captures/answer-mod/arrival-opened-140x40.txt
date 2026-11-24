@@ -1,0 +1,40 @@
+                                                                                                 ╭─────────────────────────────────────────╮
+ ▐▛███▛█   Claude Code v2.1.331                                                                  │ answer-mod                              │
+▝▜██████▀  Opus 5.5 · Claude Ultra                                                               │ New question: Dev Patel asks on Linear  │
+ ▝▝   ▝▝   ~/shared-skills                                                                       │ (ENG-442)                               │
+                                                                                                 ╰─────────────────────────────────────────╯
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove CL╭──────────────────────────────────────────╮
+  shell or settings.json.                                                                       │ answer-mod                               │
+                                                                                                │ New question: Priya Nair asks on GitHub  │
+❯ /answer                                                                                       │ (adamstallard/igor #224)                 │
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 ha╰──────────────────────────────────────────╯
+                                                                                                  ╭────────────────────────────────────────╮
+                                                                                                  │ answer-mod                             │
+                                                                                                  │ New question: Igor (reviewer) asks on  │
+                                                                                                  │ Discord (#igor-dev)                    │
+                                                                                                  ╰────────────────────────────────────────╯
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○ ◉ ○ ○  summary  2 new  18 of 20 · 0 relayed · 0 for later · 2 done for you     v0.2-2
+Linear  ENG-442 · Import job  just now · no replies            │   Reply to Dev Patel: type it in the prompt box
+Dev Patel asks                                                 │
+                                                               │
+                                                               │
+Can I raise the import job's rate limit from 100 to 300        │
+requests a minute tonight?                                     │
+                                                               │
+                                                               │
+The nightly import hits the limit at 2:00 and retries for an   │
+hour. The provider allows 500.                                 │
+                                                               │
+                                                               │
+(h)elp me answer   (w)on't answer   (l)ater                                                                    (b)ack   (n)ext   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a

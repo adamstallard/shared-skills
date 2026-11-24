@@ -19,7 +19,7 @@
 
 ⏺ Prompt dropped by a hook: Question 13 of 17
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer         ● ◈ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ◉ ● ○ ○ ○summary  13 of 17 · 12 new · 2 relayed · 0 for later · 2 done for you · 1 for the
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ◉ ● ○ ○ ○  summary  13 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you         v0.2-2
 GitHub  adamstallard/shared-skills #31  1h ago · 1 reply       │ ↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all
 jlee asks                                                      │ Priya Shah · 15m ago
                                                                │ │ Yes, and I think it matters more for reverts than for anything else.
@@ -30,11 +30,11 @@ revert too?                                                    │ │ went in, 
                                                                │ │ later the next reader sees 'Revert "Add retry budget"' and nothing…
                                                                │
                                                                │
-                                                               │   Reply to jlee: type it here, or in the prompt box
+                                                               │   Reply to jlee: type it in the prompt box
                                                                │
 (h)elp me answer   (w)on't answer   (l)ater                                                                    (b)ack   (n)ext   (q)uit
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 41% ⇣ Sat 1a
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 7d 43% ⇣ Sat 1a

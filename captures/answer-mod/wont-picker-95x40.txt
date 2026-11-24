@@ -1,31 +1,31 @@
 
-⏺ answer-mod: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit,
-  prompt.change, tool.call, prompt.suggest, prompt.submit, turn.start, turn.complete)
+ ▐▛███▛█   Claude Code v2.1.331
+▝▜██████▀  Opus 5.5 · Claude Ultra
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Code Mode (experimental) is off for this session, as you chose. To stop being asked, remove
+  CLAUDE_CODE_EXPERIMENTAL_CODE_MODE from your shell or settings.json.
 
 ❯ /answer
-  ⎿  answer-mod: Answer session closed. /answer opens it again where you left off.
-
-❯ /answer
-  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 2
+  ⎿  answer-mod: Answer session open: type in the prompt box, Enter answers. 1 answered and 1
      handled for you: see the summary.
 
-⏺ Prompt dropped by a hook: Nothing to answer here: p or n moves to a question.
+⏺ Prompt dropped by a hook: Question 2 of 17
 
-⏺ Prompt dropped by a hook: Question 1 of 18
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
 
-⏺ Prompt dropped by a hook: Question 2 of 18
 
-⏺ Prompt dropped by a hook: Question 3 of 18
 
-⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ● ◈ ◉ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ○ ○ ○ ○  summary  3 of 18               v0.2-1
-GitHub  adamstallard/igor #216  14m ago · no replies
-claude asks, an agent via the inquisitor
-igor's publicStore setting can't tell an internal lore repository from a private one. How
-should the Igor learn its visibility?
+Answer session  ○ ◉ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ○  summary  2 of 17                 v0.2-2
+Linear  ENG-412 · Onboarding flag  22m ago · no replies
+Maya Ortiz asks
+Can we ship the onboarding flag to 10% on Friday, or should we wait for the metrics review
+on Monday?
+QA signed off this morning, and the flag switches off in minutes. Waiting for the review …
 ⊘ WON'T ANSWER · CHOOSE WHY
-  Why: choose… ▾
   1: The conversation is over
      → The real skill ends the thread: later replies there stop counting as questions.
   2: Not a question
@@ -33,8 +33,8 @@ should the Igor learn its visibility?
   3: The inquisitor should have handled it
      → Choose the filter that should have stopped it, and the session answers for the inq…
 1–3: choose why                                                          go (b)ack  (q)uit
-
+                                                                           ◐ medium · /effort
 ─────────────────────────────────────────────────────────────────────────────── shared-skills ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · 1, 2 or 3 for why, then ⏎ · 7d 41% ⇣ Sat 1a
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · 1, 2 or 3 for why, then ⏎ · 7d 43% …
