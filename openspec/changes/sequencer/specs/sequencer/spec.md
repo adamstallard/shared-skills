@@ -38,10 +38,15 @@ These terms hold throughout this spec:
   repository* define.
 - **A pull request is tied to an issue** when GitHub's closing
   references say it closes the issue, or a line in its body names the issue
-  as `Part of #<number>`. A `Part of` line follows the rules of a
-  `Depends on` line, with `Part of ` in its place. Authors write `Part of`
-  on a pull request that does only part of an issue's work, and `Closes`
-  on the one that completes it; the script checks neither.
+  as `Part of #<number>` or after one of GitHub's closing keywords
+  (`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`,
+  `resolves`, `resolved`, in any case). The script reads closing keywords
+  itself because GitHub gives no closing reference to a pull request whose
+  base is not the default branch. Such a line follows every rule of a
+  `Depends on` line, with its own words in place of `Depends on `.
+  Authors write `Part of` on a pull request that does only part of an
+  issue's work, and `Closes` on the one that completes it; the script does
+  not check which fits.
 - **An outside item** is an issue or pull request in another repository
   that an explicit link names.
 - **An edge** is a rule's finding that one item comes after another, with
@@ -96,11 +101,9 @@ item.
 
 Where open pull requests that writers opened are tied to an issue, the
 issue SHALL share the position of the earliest opened of them, and its
-block SHALL name that pull request. An item that comes after the issue
-SHALL come after each of those pull requests instead, and the earliest
-SHALL come after each item the issue comes after. A tie from a pull
-request no writer opened SHALL neither place an issue nor bring it into
-the order, and a tie to another repository's issue SHALL place nothing.
+block SHALL name that pull request. Each of them SHALL come after what the
+issue comes after, and what comes after the issue SHALL come after each of
+them, but edges between the issue and them SHALL be dropped.
 
 #### Scenario: A spec pull request and its issue share a place
 
@@ -115,11 +118,49 @@ the order, and a tie to another repository's issue SHALL place nothing.
 - **THEN** #107 and #112 are third too, and each one's block says #108 does
   part of it
 
+#### Scenario: A stacked pull request's Closes line ties it
+
+- **WHEN** #64's base is the branch `spec/inquisitor`, so GitHub gives it
+  no closing reference, and its body holds the line `Closes #43`
+- **THEN** #64 is tied to #43, and #43 shares #64's place
+
 #### Scenario: Naming an issue in prose ties no pull request to it
 
 - **WHEN** #108's body says `Implements the docs part of #107` and holds no
   `Part of` line, and nothing else links #107
 - **THEN** the order does not hold #107
+
+#### Scenario: An issue two pull requests close follows the one opened earlier
+
+- **WHEN** #50 and #57 both close issue #43, and #50 was opened earlier
+- **THEN** #43 shares #50's place, and its block names #50
+
+#### Scenario: An issue's own link moves onto every pull request tied to it
+
+- **WHEN** #43's body says `Depends on #61`, #50 closes #43, and #51 says
+  `Part of #43`
+- **THEN** #50 and #51 both come after #61, and #43 shares the place of
+  whichever of them was opened earlier
+
+#### Scenario: An issue that depends on its own parts sets no cycle
+
+- **WHEN** #107's body says `Depends on #108, #109`, and #108 and #109
+  each say `Part of #107`
+- **THEN** #107's edges after #108 and #109 are dropped, so neither of
+  them comes after the other, and #107 shares the place of whichever was
+  opened earlier
+
+#### Scenario: An item after an issue comes after every pull request tied to it
+
+- **WHEN** #108 and #109 say `Part of #107`, #110 closes #107, and #70's
+  body says `Depends on #107`
+- **THEN** #70 comes after #108, #109 and #110
+
+### Requirement: Only a writer's tie to an issue in this repository counts
+
+A tie from a pull request no writer opened SHALL neither place an issue
+nor bring it into the order, since anyone can open a pull request, and a
+tie to another repository's issue SHALL place nothing.
 
 #### Scenario: A tie to another repository's issue moves nothing
 
@@ -127,22 +168,6 @@ the order, and a tie to another repository's issue SHALL place nothing.
   ties #64 to an issue
 - **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
   does not say `tied to no issue`
-
-#### Scenario: An issue two pull requests close follows the one opened earlier
-
-- **WHEN** #50 and #57 both close issue #43, and #50 was opened earlier
-- **THEN** #43 shares #50's place, and its block names #50
-
-#### Scenario: A closed-by issue's own link moves onto its pull request
-
-- **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
-- **THEN** #50 comes after #61, and #43 shares #50's place
-
-#### Scenario: An item after an issue comes after every pull request tied to it
-
-- **WHEN** #108 and #109 say `Part of #107`, #110 closes #107, and #70's
-  body says `Depends on #107`
-- **THEN** #70 comes after #108, #109 and #110
 
 #### Scenario: An outside author's closing reference moves nothing
 
@@ -159,8 +184,8 @@ SHALL say so on its line in the order's issue. The script SHALL add no
 
 #### Scenario: A pull request tied to no issue is listed
 
-- **WHEN** draft pull request #64 closes no issue and holds no `Part of`
-  line, though issue #43 is the work it does
+- **WHEN** draft pull request #64 closes no issue and names none in a
+  `Part of` or `Closes` line, though issue #43 is the work it does
 - **THEN** #64 is listed although it is a draft: its line in the order's
   issue says `tied to no issue`, and no body gains a `Closes` or
   `Part of` line
@@ -229,7 +254,7 @@ checked, and why.
 ### Requirement: A change the OpenSpec CLI refuses is listed as not checked
 
 Where the OpenSpec CLI runs on a change but refuses it, the script SHALL
-take no edge or copy duty from that change's files, and the order's issue
+take nothing from that change's files, and the order's issue
 SHALL list the change as not checked, with the CLI's reason, and name each
 pair it forms with another open change as unchecked.
 
@@ -329,8 +354,11 @@ repository.
 
 A `Depends on` line SHALL be a body line, outside code fences, starting
 `Depends on ` and followed by `#<number>` or `<owner>/<repo>#<number>`
-references separated by commas or `and`. A reference that names this
-repository in full SHALL be read as its `#<number>`.
+references separated by commas or `and`, where `<owner>` holds only
+letters, digits and `-`, and `<repo>` only those, `.` and `_`; other text
+is no reference, here or in a `Builds on:` line's parentheses. A
+reference that names this repository in full SHALL be read as its
+`#<number>`.
 
 #### Scenario: A Depends on line with commas orders each item it names
 
@@ -342,6 +370,12 @@ repository in full SHALL be read as its `#<number>`.
 - **WHEN** #12's body, in the repository adamstallard/shared-skills, holds
   the line `Depends on adamstallard/shared-skills#9`
 - **THEN** #12 comes after #9, with the reason `after #9: depends on it`
+
+#### Scenario: A reference with a mention in it is no reference
+
+- **WHEN** #12's body holds the line `Depends on @org/team#1`
+- **THEN** it gives no edge, is not listed as not counted, and the
+  order's issue writes no `@org/team`
 
 #### Scenario: A Depends on line in a code fence is ignored
 
@@ -750,6 +784,26 @@ shows a body without its comments.
 - **THEN** the script reads none of the cycle overrides or stored code
   edges in its body, edits nothing, and names the issue and its author
 
+### Requirement: The script's text opens with a heading
+
+The line after each `<!-- sequencer:begin -->` marker SHALL be a heading:
+`## Order` in the order's issue, and `## Sequencer` in an item's block,
+because the inquisitor skill (#25) takes an issue's text before its first
+heading as a decision its author made.
+
+#### Scenario: The order is never read as a decision
+
+- **WHEN** the script writes the order's issue body
+- **THEN** the line after `<!-- sequencer:begin -->` is `## Order`
+
+#### Scenario: A block in an issue with no heading is not read as a decision
+
+- **WHEN** #43 enters the order, and its body is one paragraph with no
+  heading
+- **THEN** its new block's line after `<!-- sequencer:begin -->` is
+  `## Sequencer`, so only the paragraph comes before the body's first
+  heading
+
 ### Requirement: Text from a pull request or the model is written inert
 
 The script SHALL write each string taken from an issue, a pull request, a
@@ -757,7 +811,8 @@ change's files or the model step, such as a reason, a requirement's title or
 a file path, as inline code: delimited by a backtick run longer than any in
 it, padded with a space where it starts or ends with a backtick, and with
 its line breaks as spaces, so mentions, links and markers in it render
-inert. It SHALL refuse a string holding `<!-- sequencer:end -->`.
+inert; an outside item's reference is the one exception. It SHALL refuse
+a string holding `<!-- sequencer:end -->`.
 
 #### Scenario: A mention in a model's reason does not notify
 
@@ -795,8 +850,9 @@ link to the order's issue.
 
 #### Scenario: A pull request's block names its place and waits
 
-- **WHEN** #90 is fifth of twelve and waits on #82
-- **THEN** #90's body holds a block saying it is fifth of twelve, that it
+- **WHEN** #90 is in the fifth of twelve places and waits on #82
+- **THEN** #90's body holds a block saying it is in the fifth of twelve
+  places, that it
   waits on #82 with the reason, and linking the order's issue
 
 ### Requirement: The script edits only the text between its markers
@@ -1039,8 +1095,7 @@ concurrency group, so no two of them edit a body at once.
 
 The workflow SHALL compute and publish an order with no secret but the
 token GitHub gives each run, whichever way the repository chose to run the
-model step. The API key, where the repository chose it, only adds
-model-step edges and checked pairs to that order.
+model step.
 
 #### Scenario: A repository with no secrets gets an order
 
@@ -1120,7 +1175,6 @@ file, as a Sequencer Igor sends after running the model step on the issue
 labelled `sequencer: check code`, and publish it with `publish --code-edges`
 under the checks any caller's edges file gets and in the same concurrency
 group.
-What Igor builds to run the model step and dispatch is adamstallard/igor#231's.
 
 #### Scenario: A dispatched edges file is published
 

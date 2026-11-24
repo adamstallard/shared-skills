@@ -46,7 +46,8 @@ including a result that contradicts what design.md assumed.
 - [ ] 2.1 Modifies and cites edges, with their reasons
 - [ ] 2.2 Copy duties
 - [ ] 2.3 `Depends on` lines, outside code fences, with `#<number>` and
-      `<owner>/<repo>#<number>` references, blocked-by relations, and
+      `<owner>/<repo>#<number>` references whose names hold only the
+      characters the spec allows, blocked-by relations, and
       `Builds on:` lines in a change's `proposal.md`
 - [ ] 2.4 Merge waits between pull requests that change a file in common
 - [ ] 2.5 The topological order with the earliest-opened tiebreak, cycles
@@ -66,10 +67,11 @@ including a result that contradicts what design.md assumed.
       in the list of edges not counted when the order does not hold that
       item
 - [ ] 2.12 Tie each issue to the open pull requests that close it or name
-      it in a `Part of` line. Counting only pull requests writers opened
-      and issues in this repository, place the issue with the earliest of
+      it in a `Part of` or closing-keyword line. Counting only pull
+      requests writers opened and issues in this repository, place the issue with the earliest of
       them, put each item that comes after the issue after every one of
-      them, and put the earliest after each item the issue comes after.
+      them, put every one of them after each item the issue comes after,
+      and drop edges between the issue and them.
       Write `tied to no issue` on the line of each open pull request with
       no tie of any kind
 
@@ -78,8 +80,8 @@ including a result that contradicts what design.md assumed.
 - [ ] 3.1 Find or create the order's issue labelled `sequencer`, and stop on
       two
 - [ ] 3.2 Write the order's issue and each item's block between the
-      markers, editing a body only when that text changes, and removing
-      the block of an item that leaves the order
+      markers, each opening with its heading, editing a body only when
+      that text changes, and removing the block of an item that leaves the order
 - [ ] 3.3 Name each item whose body could not be edited
 - [ ] 3.4 Each reviewer's next review, with reviewers from
       `.github/sequencer.json`, GitHub's requests or CODEOWNERS, and
