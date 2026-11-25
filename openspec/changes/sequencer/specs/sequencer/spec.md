@@ -26,12 +26,17 @@ These terms hold throughout this spec:
   `2026-11-24 10:00 UTC`.
 - Two members of one cycle share a place; of them, **the later in the
   order** is the later in the cycle's order, by rule or by override.
-- **The order's issue** is the one issue whose body holds the whole order.
+- **The order's issue** is the one issue whose body holds the whole order:
+  one line per item, giving what it waits on, edges and merge waits
+  alike, with their reasons, and a list of
+  edges not counted.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
   other than `archive/`. **An open change** is one on its repository's default branch or
   in an open pull request's diff against its base. A change **belongs to** the
   earliest-opened open pull request whose diff against its base adds or
-  changes a file in the change's directory that its head still holds, and
+  changes a file in the change's directory that its head still holds,
+  looking first only at pull requests writers opened, and at all of them
+  when none of those does, and
   the order places the
   change where it places that pull request.
 - **A change's requirement** is a requirement that the change's delta adds,
@@ -76,7 +81,7 @@ These terms hold throughout this spec:
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
   of changes** is two changes, each belonging to a different open pull
-  request, so a change that belongs to no pull request is in no pair, and **a code edge** is an edge the model step found.
+  request a writer opened, and no other change is in any pair, and **a code edge** is an edge the model step found.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -172,7 +177,8 @@ them, but edges between the issue and them SHALL be dropped.
 - **WHEN** `zed`, without write access, opens #48 saying `Fixes #43`, and
   #50, opened later by a writer, also closes #43
 - **THEN** #43 shares #50's place, not #48's, and gains no place from #48
-  alone
+  alone, and #48's line lists its tie to #43 as not counted, opened by
+  `zed`
 
 #### Scenario: An installed App's pull request counts as a writer's
 
@@ -185,7 +191,10 @@ them, but edges between the issue and them SHALL be dropped.
 
 Each open pull request with no tie to any issue SHALL say so on its line
 in the order's issue. A tie that moves nothing, such as one to another
-repository's issue, still counts as a tie.
+repository's issue, still counts as a tie. A tie from a pull request no
+writer opened SHALL be listed as not counted, with its author, as an
+edge set by an item no writer opened is, and it still keeps the pull
+request from saying `tied to no issue`.
 
 #### Scenario: A pull request tied to no issue is listed
 
@@ -205,10 +214,9 @@ repository's issue, still counts as a tie.
 
 Where a line starting with a closing keyword, in the body of a pull
 request into the default branch, names an issue that GitHub's closing
-references for the pull request do not hold, as when no keyword of its
-own comes before it, which GitHub's documentation asks for, the pull request's block SHALL name that issue. It
-applies only to pull requests into the default branch, since GitHub
-records closing references for no others.
+references for the pull request do not hold, the pull request's block
+SHALL name that issue. It applies only to pull requests into the default
+branch, since GitHub records closing references for no others.
 
 #### Scenario: A second issue after one keyword is named
 
@@ -434,6 +442,8 @@ item's repository.
 - **THEN** #12 comes after #9, and #12's line in the order's issue says
   `not counted: depends on octo/lib#7, in another repository`, where
   GitHub shows `octo/lib#7` as a link, as it does on every such line
+- **AND** the script makes no request about `octo/lib#7`, and lists the
+  link whether `octo/lib#7` is open or closed
 
 #### Scenario: A blocked-by relation to another repository's issue is listed
 
@@ -456,12 +466,6 @@ item's repository.
   `Depends on octo/lib#7`, and no open pull request is tied to #12
 - **THEN** the order does not hold #12, and the order's issue lists
   `#12: depends on octo/lib#7, in another repository` as not counted
-
-#### Scenario: The script makes no request about another repository's item
-
-- **WHEN** pull request #12's body says `Depends on octo/lib#7`
-- **THEN** the script makes no request about `octo/lib#7`, gives it no
-  place, and lists the link whether `octo/lib#7` is open or closed
 
 ### Requirement: Only edges set by writers count
 
@@ -497,7 +501,7 @@ opened the item setting it.
 
 Where two open pull requests change a file in common, the later of them in
 the order SHALL get a merge wait on the earlier, with a reason naming the
-files in common. A merge wait SHALL move neither pull request in the order
+files in common, when a writer opened the earlier. A merge wait SHALL move neither pull request in the order
 and count in no reviewer's ranking, so each later pull request rebases
 once, onto the one merged before it.
 
@@ -508,6 +512,12 @@ once, onto the one merged before it.
 - **THEN** #33 stays after #30, where the order they were opened in placed it, and #33's
   block says `` merges after #30: both change `src/claims.py`; rebase once
   onto it ``
+
+#### Scenario: An outside author's pull request sets no merge wait
+
+- **WHEN** `zed`, without write access, opens #31 changing `README.md`,
+  and #33, opened later by a writer, also changes it
+- **THEN** #33's block names no merge wait on #31
 
 #### Scenario: A merge wait counts in no reviewer's ranking
 
@@ -736,8 +746,8 @@ Given the same repository state, the same stored checked pairs and code
 edges, and the same OpenSpec CLI, the script
 SHALL produce byte-identical order text, whichever caller runs it and
 wherever. Where a section-0 task picks a method of reading, a caller
-whose token cannot make that method's reads SHALL publish nothing, and
-say which read failed.
+whose token cannot make that method's reads SHALL publish or print no
+order, and say which read failed.
 
 #### Scenario: A session and CI agree
 
@@ -754,9 +764,8 @@ say which read failed.
 
 ### Requirement: The whole order lives in one issue's body
 
-The script SHALL keep the whole order, with each item's waits and their
-reasons, in the body of the open issue labelled `sequencer`, creating it
-when none is open and publishing nothing when more than one is. It SHALL
+The script SHALL keep the whole order in the body of the open issue
+labelled `sequencer`, creating it when none is open and publishing nothing when more than one is. It SHALL
 use that issue only when a writer opened it, or `github-actions[bot]`;
 otherwise it SHALL publish nothing and name the issue and its author.
 Nor SHALL it create the issue as an account it would so refuse. Nothing of the order
@@ -1015,7 +1024,8 @@ its head, it SHALL await that reviewer or team again.
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
-of `.github/sequencer.json` on the default branch. With
+of `.github/sequencer.json` on the default branch, other than its own
+author's. With
 no such list, it SHALL await each reviewer it has requested on GitHub,
 including one GitHub removed from its requests when they reviewed.
 Having never requested anyone, it SHALL await the owners CODEOWNERS gives its changed

@@ -1,8 +1,22 @@
 ## Open Questions
 
-Each question asks about a fact nobody has measured. It names the task in
-tasks.md's section 0 that measures it, and says what the spec does if the
-fact turns out false.
+One question for the repository's owner comes first. Every question after
+it asks about a fact nobody has measured: it names the task in tasks.md's
+section 0 that measures it, and says what the spec does if the fact turns
+out false.
+
+- **Should a push to the default branch trigger a run?** The workflow runs
+  on a push to an open pull request's branch, but issue #43, which records the
+  sequencer's decisions, says "pushes" in general. A commit straight to the default branch can add, revise or
+  archive a change there, or edit `.github/sequencer.json`, which lists the reviewers. *Option A:*
+  also run on a push to the default branch. *Option B:* keep pull request
+  branches only, and narrow issue #43's wording to match. *Recommended:* A: one
+  more event and no new rule, and the order then follows every commit
+  that could change it.
+  Example: a commit to the default branch archives `claims`, which #90's
+  change modifies; under A, the run it starts drops #90's edge from
+  `claims` at once; under B, #90 keeps waiting on `claims` until another
+  event triggers a run, or the daily run does.
 
 - **Can a pull request carry GitHub's "blocked by" relation, and can the
   workflow's token read the relations, including one to another

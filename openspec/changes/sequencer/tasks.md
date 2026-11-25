@@ -52,7 +52,8 @@ remove the question from design.md.
       `<owner>/<repo>#<number>` references whose names hold only the
       characters the spec allows, blocked-by relations, and
       `Builds on:` lines in a change's `proposal.md`
-- [ ] 2.4 Merge waits between pull requests that change a file in common
+- [ ] 2.4 Merge waits between pull requests that change a file in common,
+      on an earlier pull request a writer opened
 - [ ] 2.5 The topological order, placing items no rule orders earliest opened first, cycles
       grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
