@@ -26,8 +26,8 @@ Read, in this order:
 
 1. Every file of the change, listed above, whole, except proposal.md:
    tasks.md, each specs/<capability>/spec.md, and design.md if present,
-   which holds only open questions for a person. proposal.md is a stub
-   nobody keeps current: take only its `Builds on:` lines (item 3). Then
+   which holds only open questions. proposal.md is a stub nobody keeps
+   current: take only its `Builds on:` lines (reading-order item 3). Then
    each decision record listed above. A change holds no record of its own: the
    branch edits a record directly, so for a record the list says the
    branch edits, also read its diff, `git diff <base>...<ref> -- <record>`
@@ -97,10 +97,20 @@ quotes the change and says what is missing.
 9. An interaction with another workflow that silently voids the change (a
    check that flags every pull request of one kind and skips every push of
    another, so a label built on it carries no information).
-10. A fact the change depends on that nobody has measured (whether a stream
-    reports exit codes), stated as if known. It belongs in tasks.md as a task
-    to measure it and in design.md's Open Questions, and anything built on it
-    must degrade honestly when it turns out false.
+10. An unknown the change depends on, stated as if known, or a requirement
+    or scenario that mentions a task, a measurement or its outcome ("if
+    task 2.1 finds"). An unknown is one of two kinds:
+    - A fact about the platform, measured once before building (whether a
+      stream reports exit codes). It belongs in tasks.md as a task to
+      measure it and in design.md's Open Questions, naming that task and
+      the fallback: what the software would do if the fact does not hold,
+      saying what it could not do. No requirement rests on it until the
+      task is done; the requirement is then written from the result.
+    - A condition that varies after launch, by repository, token,
+      installation or caller. A requirement states it as a condition the
+      software checks; when it does not hold, the software falls back and
+      says what it could not do rather than passing silently (checklist
+      item 11).
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
 12. A cut candidate: a rule or scenario a reader would not miss, such as

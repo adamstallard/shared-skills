@@ -80,9 +80,10 @@ When an agent works on anything under `openspec/`, it:
 A decision goes in a requirement and its scenario. One no test can check
 goes in a capability's decision record, described in the next section,
 when it has evidence, and is not written down when it has none. design.md
-holds only open questions for you, and proposal.md is a stub written
-once. Nobody keeps either current, so no agent builds from them. A line
-recording how a decision was amended is an error.
+holds only open questions, each deleted once answered: questions for you,
+and facts waiting on a measurement task in tasks.md. proposal.md is a stub
+written once and never kept current, so no agent builds from it. `check`
+reports a line recording how a decision was amended as an error.
 
 ### Decision records
 
