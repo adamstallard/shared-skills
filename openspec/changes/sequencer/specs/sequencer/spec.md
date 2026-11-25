@@ -550,8 +550,9 @@ triggers give the same order.
 
 #### Scenario: A session with no statements uses its own token
 
-- **WHEN** no workflow run has published, the order's issue holds no
-  statement of a read not made, and a session whose token cannot read
+- **WHEN** the default branch holds the workflow, the order's issue holds
+  no statement of a read not made (no line such as `Permissions were not
+  read: …`), and a session whose token cannot read
   permissions publishes
 - **THEN** it counts writers by author association, the order's issue says
   `Permissions were not read: writers are counted by author association.`,
@@ -701,7 +702,7 @@ SHALL say so in its reason.
 #### Scenario: Two changes that cite each other are ordered by when they were opened
 
 - **WHEN** #82's change cites a requirement #85's adds, and #85's cites one
-  #82's adds, #82 was opened earlier, and no override is recorded
+  #82's adds, #82 was opened earlier, and no writer has commented an override
 - **THEN** the order places #82 then #85 at one place, marked
   `ordered by rule since <time>`, and #82's reason says
   `` before #85 by rule, though it cites #85's `<title>` ``
@@ -721,37 +722,23 @@ SHALL say so in its reason.
   #85
 - **THEN** it prints the cycle as `ordered by rule`, with no time
 
-### Requirement: A cycle override is kept and followed
-
-The order's issue SHALL keep a list of cycle overrides, each naming the
-member a writer put first and linking their comment. The order SHALL put
-that member first and the rest earliest opened first, and its reason
-SHALL give the same link. The cycle's mark SHALL become `ordered by
-override since <time>`, keeping its time, so that later comments are
-still judged against that time.
-
-#### Scenario: An override puts a later-opened member first
-
-- **WHEN** a writer put #85 first, in a cycle where #82
-  and #85 cite each other's requirements and #82 was opened earlier
-- **THEN** #85 comes first, with the reason
-  `` before #82, though it cites #82's `<title>`: chosen at <link to the comment> ``,
-  and #82 comes after it
-
 ### Requirement: A cycle override is read from the order's issue
 
 A run SHALL read a comment on the order's issue as an override when a
-writer posted it in a later UTC minute than
-the cycle's `since` time, and its text starts with `#<n> first`,
-`#<n>` being one of the cycle's members. Of several such comments, the
-latest is the override.
+writer posted it in a later UTC minute than the cycle's `since` time, and
+it starts with `#<n> first`, naming one of the cycle's members. Of several,
+the one posted latest is the override. The order SHALL put that member
+first and the rest earliest opened first, the member's reason SHALL end
+`chosen at <link to the comment>`, and the cycle's mark SHALL become
+`ordered by override since <time>`, with the same time as before.
 
 #### Scenario: A writer's comment overrides the rule
 
-- **WHEN** a writer comments `#85 first` on the order's
-  issue after the cycle of #82 and #85 was listed
-- **THEN** the next run adds the override, linking that comment, and
-  places #85 first
+- **WHEN** #82, #85 and #88, opened in that order, form a cycle, and a
+  writer comments `#88 first` on the order's issue in a later minute than
+  the cycle's `since` time
+- **THEN** the next run that orders, `order` included, places #88, then #82, then #85, and #88's reason
+  ends `chosen at <link to the comment>`
 
 #### Scenario: The latest comment wins, judged against the first time
 
