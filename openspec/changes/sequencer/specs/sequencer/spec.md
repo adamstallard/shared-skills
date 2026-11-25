@@ -15,7 +15,7 @@ These terms hold throughout this spec:
 - **The script** is the skill's script. **A caller** is whatever runs it:
   an agent in a session, the skill's CI workflow, or an Igor, one of the AI
   teammates of adamstallard/igor, whose Sequencer role adamstallard/igor#231
-  specifies.
+  describes.
 - **An item** is an open issue or open pull request that the order holds.
   An item's **number** is its issue or pull request number, and its
   **repository** is the `owner/repo` name of the repository that holds it.
@@ -26,7 +26,7 @@ These terms hold throughout this spec:
 - **The order's issue** is the one issue whose body holds the whole order.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
   other than `archive/`. **An open change** is one on its repository's default branch or
-  on an open pull request's head. A change **belongs to** the
+  in an open pull request's diff against its base. A change **belongs to** the
   earliest-opened open pull request whose diff against its base adds or
   changes a file in the change's directory, and the order places the
   change where it places that pull request.
@@ -44,23 +44,23 @@ These terms hold throughout this spec:
   `resolves`, `resolved`, in any case). Such a line follows every rule of a
   `Depends on` line, with its own words in place of `Depends on `.
 - **An outside item** is an issue or pull request in another repository
-  that an explicit link names.
+  that an explicit link or a tie names.
 - **An edge** is a rule's finding that one item comes after another, with
   its **reason**. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question. Where task 0.5 finds that the
-  workflow's token cannot read permissions, the script instead counts
+  holds the item or comment in question. If task 0.5 finds that the workflow's
+  token cannot read permissions, the script, whoever runs it, instead counts
   the author of an issue, pull request or comment as a writer when
-  GitHub's `author_association` on that item is OWNER, MEMBER or
-  COLLABORATOR. It uses this fallback for every caller, a session
-  included, so that every caller counts the same writers.
+  GitHub's `author_association` on it is OWNER, MEMBER or
+  COLLABORATOR.
   An issue or pull request that a GitHub App's bot account opened
   counts as opened by a writer when that App is installed on the
-  repository, as task 0.7 finds how to detect. Where the workflow's token
-  cannot tell whether the App is installed, every caller, a session
-  included, counts it as opened by an account without write access.
+  repository, detected by the method task 0.7 finds. If task 0.7 finds
+  that the workflow's token cannot tell whether an App is installed, every
+  such issue or pull request counts, whoever runs the script, as opened
+  by an account without write access.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the default branch or pull request head the change
   is read from.
@@ -164,7 +164,7 @@ them, but edges between the issue and them SHALL be dropped.
 #### Scenario: An outside author's closing reference moves nothing
 
 - **WHEN** `zed`, without write access, opens #48 saying `Fixes #43`, and
-  #50, opened by a writer, also closes #43
+  #50, opened later by a writer, also closes #43
 - **THEN** #43 shares #50's place, not #48's, and gains no place from #48
   alone
 
@@ -489,8 +489,8 @@ once, onto the one merged before it.
 #### Scenario: A merge wait counts in no reviewer's ranking
 
 - **WHEN** #28 and #30 both await a reviewer, one item comes after #28 through
-  an edge, none comes after #30 through an edge, and #33 has a merge wait
-  on #30
+  an edge, none comes after #30 through an edge, and #33 and #35 have merge
+  waits on #30
 - **THEN** the order's issue names #28 as that reviewer's next review
 
 ### Requirement: Items no rule orders keep the order they were opened in
@@ -524,8 +524,8 @@ The order SHALL place a cycle's members together at one place, earliest
 opened first, marked `ordered by rule since <time>` with the time the publish that
 first listed the cycle ran, or just `ordered by rule` before any publish
 has listed it, and place each item that comes after any member after
-all of them. A member placed before another member it has an edge after
-SHALL say so in its reason.
+all of them. A cycle whose members change is a new cycle. A member placed before another member, though an edge puts it
+after that one, SHALL say so in its reason.
 
 #### Scenario: Two changes that cite each other are ordered by when they were opened
 
@@ -535,6 +535,13 @@ SHALL say so in its reason.
   `ordered by rule since <time>`, and #82's reason says
   `` before #85 by rule, though it cites #85's `<title>` ``
 - **AND** #91, which cites #85, comes after both
+
+#### Scenario: A cycle that gains a member gets a new time
+
+- **WHEN** the cycle of #82 and #85 was listed at 09:00, and at 10:00 #88
+  joins it
+- **THEN** the 10:00 publish marks the cycle of #82, #85 and #88
+  `ordered by rule since 10:00`
 
 #### Scenario: A cycle not yet published has no time
 
@@ -862,10 +869,11 @@ only those after it.
 
 The order's issue body and each block SHALL lie between the lines
 `<!-- sequencer:begin -->` and `<!-- sequencer:end -->`, and the script
-SHALL change nothing in a body outside them. It SHALL add a new block
-just before the body's last line when that line starts with `prose ✓`,
-so that the signed footer the prose skill puts at the end of posted text
-stays last, and at the body's end otherwise.
+SHALL change nothing in a body outside them. It SHALL add
+a new block just before the body's last line when that line starts with
+`prose ✓`, so that the signed footer the prose skill ends a post with
+stays last, and at the body's
+end otherwise.
 
 #### Scenario: A person's text around a block is untouched
 
@@ -884,6 +892,18 @@ stays last, and at the body's end otherwise.
 
 - **WHEN** #91 enters the order, and its body's last line is a person's text
 - **THEN** its new block is added after that line, at the body's end
+
+### Requirement: The script rereads a body just before writing it
+
+The script SHALL read each body again just before writing it, and write
+its block into that text, so that an edit made while the run computed
+the order is kept.
+
+#### Scenario: An edit made during a run is kept
+
+- **WHEN** a person edits the text around #90's block while a run computes
+  the order
+- **THEN** #90's body keeps the person's edit
 
 ### Requirement: A block is rewritten only when the order or its reasons change
 
@@ -958,7 +978,8 @@ order.
 #### Scenario: Items reached through others count
 
 - **WHEN** #91 comes after #88, which comes after #82, and a reviewer
-  awaits #82 and #84, and only one item comes after #84, directly
+  awaits #82 and #84, #84 is earlier in the order, and only #86
+  comes after #84, with nothing after #86
 - **THEN** #82 counts two items after it, and is that reviewer's next
   review
 
@@ -1176,9 +1197,10 @@ the order it publishes leaves unchecked a pair of changes whose pull requests wr
 ### Requirement: The workflow publishes an edges file a dispatched run carries
 
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
-file, as a Sequencer Igor sends after running the model step on the issue
-labelled `sequencer: check code`, and publish it with `publish --code-edges`
-under the checks any caller's edges file gets.
+file, and publish it with `publish --code-edges`. A dispatched run that a
+newer run in the concurrency group cancels while it waits publishes
+nothing: its pairs stay unchecked, and the label `sequencer: check code`
+stays on the order's issue, so the model step is still asked for.
 
 #### Scenario: A dispatched edges file is published
 
@@ -1191,6 +1213,13 @@ under the checks any caller's edges file gets.
 - **WHEN** a dispatched run carries a pair holding #90, and a push revised
   #90's change after the model step read it
 - **THEN** the workflow's `publish` drops that pair, and the label
+  `sequencer: check code` stays on the order's issue
+
+#### Scenario: A cancelled dispatched run publishes nothing
+
+- **WHEN** a dispatched run waits behind a running one, and an issue
+  comment queues a newer run, which cancels it
+- **THEN** none of its edges is published, and the label
   `sequencer: check code` stays on the order's issue
 
 ### Requirement: The workflow runs no code from a pull request

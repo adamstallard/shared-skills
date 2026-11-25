@@ -51,10 +51,6 @@
   A new block goes above the prose skill's `prose ✓` footer and changes the text that footer hashes, so the footer stops matching. That is harmless. The only posted body prose's hook fetches is a pull request's, when an agent hands the pull request back for review, and it reads only whether the footer says the body's cold read was put off until then, never the hash. An issue body, such as the order's issue, it never fetches.
   Evidence: prose's hook fetches a body only for a pull request being handed back, and calls only `deferred_footer(body)` on it, [.agents/skills/prose/scripts/prose.py:1560-1561](https://github.com/adamstallard/shared-skills/blob/528ae4ec/.agents/skills/prose/scripts/prose.py#L1560-L1561)
 
-- **Rationale: The sequencer recommends a merge order and never merges.**
-  Approving a change is a person's act in the process the skill serves: in this repository, a person approves each specification before its implementation is built. A script that merged would decide what lands without that person, so the sequencer only recommends an order.
-  Evidence: AGENTS.md says to build the implementation on the same branch "once the repository's owner approves that pull request's specification", [AGENTS.md](https://github.com/adamstallard/shared-skills/blob/be45f09b/AGENTS.md)
-
 - **Rationale: The workflow recomputes the order on GitHub events and once a day.**
   Pull request events trigger through `pull_request_target`, not `pull_request`, because a `pull_request` run for a fork's pull request gets a read-only token, which cannot edit that pull request's body. `pull_request_target` has no activity type for a submitted review, so review events come through `pull_request_review`, whose run for a fork's pull request may get a read-only token and publish nothing; the next run with a write token publishes the order.
   Evidence: GitHub's documentation of workflows in forked repositories says a `pull_request` run from a fork gets a read-only `GITHUB_TOKEN`, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflows-in-forked-repositories

@@ -67,19 +67,11 @@ remove the question from design.md.
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
       sets it, counting as a writer's each issue or pull request that an
       installed App's bot opened, and list the rest as not counted
-- [ ] 2.11 List each explicit link that names an outside item as not
-      counted, setting no edge and writing the outside item as plain
-      `owner/repo#N` text: on the line of the item that has the link, or
-      in the list of edges not counted when the order does not hold that
-      item
-- [ ] 2.12 Tie each issue to the open pull requests that close it or name
-      it in a `Part of` or closing-keyword line. Counting only pull
-      requests writers opened and issues in this repository, place the issue with the earliest of
-      them, put each item that comes after the issue after every one of
-      them, put every one of them after each item the issue comes after,
-      and drop edges between the issue and them.
-      Write `tied to no issue` on the line of each open pull request with
-      no tie of any kind
+- [ ] 2.11 List links to outside items, as *A link to another
+      repository's item is listed as not counted* says
+- [ ] 2.12 Tie issues to pull requests, as *An issue takes the place of
+      an open pull request tied to it* and *A pull request tied to no
+      issue is listed* say
 
 ## 3. Publishing
 
@@ -88,7 +80,8 @@ remove the question from design.md.
 - [ ] 3.2 Write the order's issue and each item's block between the
       markers, each opening with its heading, each block giving its place
       without the number of places, editing a body only when that text
-      changes, and removing the block of an item that leaves the order
+      changes, rereading each body just before writing it, and removing
+      the block of an item that leaves the order
 - [ ] 3.3 Name each item whose body could not be edited or holds
       unmatched markers, leaving that body as it is
 - [ ] 3.4 Each reviewer's next review, with reviewers from
