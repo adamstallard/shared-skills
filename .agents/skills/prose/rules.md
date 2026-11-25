@@ -36,7 +36,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Decision records | with the evidence they hold | yes, as the source | yes |
 | PR description | its link lines (`Closes #N`, `Part of #N`) at opening, beside any block a tool writes between its own markers whenever it runs; the rest when a reviewer joins | no | no: an agent regenerates the rest rather than updating it, keeping the link lines and tools' marked blocks |
 | OpenSpec `proposal.md` | once, as a stub | no | no |
-| OpenSpec `design.md` | when an open question for a person arises | only for its open questions | holds open questions only; deleted when none is left |
+| OpenSpec `design.md` | when an open question arises: a question for a person, or a fact waiting on a measurement | only to learn what is still open, never to build from | yes: each question is deleted once answered, and the file with the last |
 | Comments (GitHub, Linear, Discord) | once | as input, such as a review finding to amend into a spec; never as the current state | no: a correction is a new post |
 
 **Each text has its own reader.** A commit holds several: `--goals` names the message's reader, the reviewer, but each doc, spec and comment is read by someone else, who never sees the conversation behind the change. Name that reader for each document: an architecture doc, an API reference and a runbook are read for different reasons. What a reviewer needs to approve the change goes in the message or the PR description, not the doc.

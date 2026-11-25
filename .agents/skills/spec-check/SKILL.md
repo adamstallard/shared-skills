@@ -287,9 +287,17 @@ that the author did it.
   Questions*.
 - **A conflict with another change or pull request** is reported, not edited:
   name it, quote both sides, and leave the other change alone.
-- **A fact nobody has measured** becomes a task in tasks.md and an entry
-  in design.md's *Open Questions*, and the requirement built on it says what
-  happens when it turns out false.
+- **A fact about the platform nobody has measured**, which is measured
+  once before building, becomes a task in tasks.md and an entry in
+  design.md's *Open Questions* naming that task and the fallback: what the
+  software would do if the fact does not hold, saying what it could not
+  do. No requirement rests on the fact until the task is done and checked
+  off; then write the requirement from its result and delete the question.
+- **A condition that varies after launch**, by repository, token,
+  installation or caller, is a requirement: the software checks it and,
+  when it does not hold, falls back and says what it could not do.
+- **No requirement or scenario mentions a task, a measurement or its
+  outcome:** a spec describes the software as built.
 
 Run the mechanical checks again after amending.
 
@@ -449,10 +457,10 @@ Write a decision as a testable requirement and scenario. Failing that,
 write it as a [decision record](#decision-records) entry when evidence
 supports it. Otherwise it is not written down (see *Decision records*).
 
-**design.md holds only open questions for a person:** the questions an
-agent must not decide. Create it, with OpenSpec's *Open Questions* section,
-when the first one arises, and delete it when the last is answered,
-writing each answer as a requirement, a record entry or nothing. A need
+**design.md holds only open questions:** the questions an agent must not
+decide, and the facts nobody has measured yet (see *Fixing*). Create it,
+with OpenSpec's *Open Questions* section, when the first one arises, and
+delete it when the last is answered, writing each answer as a requirement, a record entry or nothing. A need
 this change has of another open change, such as an interface the other
 must provide, goes in that change's issue body, opened if it has none:
 the issue body states the other change's current scope and is read before
