@@ -1,0 +1,13 @@
+cold-read 0123456789abcdef
+
+Finding 1, item 1, reread: «a link counts only when one order holds both items» I read this twice to see what "counts" means here.
+
+Finding 2, item 1, stopped: «This replaces the earlier decision that such a link is a gate» I looked for that decision below and it isn't there.
+
+Item 1, understood: The owner decided that a link puts two items in sequence only when one order holds both. Still open:
+- whether to wait for #12 to be used in real work before writing the spec (the owner is leaning yes);
+- whose cross-repository links count;
+- who may break cycles and how the comment names a repository;
+- several unverified behaviours of the hosting service.
+
+The facts section says each command acts on one root. A change that modifies a shared requirement can only be archived where that requirement lives.

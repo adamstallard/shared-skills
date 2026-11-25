@@ -645,7 +645,7 @@ class ColdReadFindings(unittest.TestCase):
                 ("Item 1: read straight through.\nItem 2, understood: Once.\n", 1,
                  "names item 2, but the brief has items 1 to 1"),
                 ("Item 1: read straight through.\nItem 1, understood:\n", 0,
-                 "a line prose cannot read: 'Item 1, understood:'"),
+                 "does not say what it understood of item 1"),
         ):
             result = self.signing("--cold-read", cold_report(self.token, body, name="bad",
                                                              understood=understood),
@@ -657,6 +657,15 @@ class ColdReadFindings(unittest.TestCase):
         report = cold_report(self.token, "Item 1: read straight through.\n"
                                          "Item 1, understood: The worker takes a command\n"
                                          "   and runs it, always.\n", name="wrapped",
+                             understood=0)
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers())
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_an_understood_line_may_go_on_over_unindented_lines_and_bullets(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n"
+                                         "Item 1, understood:\n"
+                                         "- The worker takes a command.\n\n"
+                                         "It runs it, always.\n", name="bulleted",
                              understood=0)
         signed = self.signing("--cold-read", report, "--dispositions", self.answers())
         self.assertEqual(signed.returncode, 0, signed.stderr)
@@ -986,6 +995,176 @@ class ItemChanged(unittest.TestCase):
         self.assertFalse(prose.item_changed("a b\n", "a b\n", ()))
         self.assertTrue(prose.item_changed("a b\n", "a  b\n", ()))
         self.assertTrue(prose.item_changed("a\n", "", ((1, 1),)))
+
+
+class ColdReportShapes(unittest.TestCase):
+    """Reports whose understood entries run over several lines, or whose
+    findings say "could not tell why", are read. A line below an understood
+    line that could be a finding is still refused. The fixtures are real
+    reports, cut short and with names replaced."""
+
+    FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "cold-read"
+    TOKEN = "0123456789abcdef"
+
+    def read(self, name, count):
+        return prose.read_cold_report(str(self.FIXTURES / name), self.TOKEN, count)
+
+    def body(self, text, count=1):
+        path = REPORTS / "shape.txt"
+        path.write_text(f"cold-read {self.TOKEN}\n\n{text}", encoding="utf-8")
+        return prose.read_cold_report(str(path), self.TOKEN, count)
+
+    def refused(self, text, *words, count=1):
+        with self.assertRaises(prose.Refused) as caught:
+            self.body(text, count)
+        for word in words:
+            self.assertIn(word, str(caught.exception))
+
+    def test_bullets_and_a_paragraph_after_an_understood_line_join_it(self):
+        report = self.read("bullets-after-understood.txt", 1)
+        self.assertEqual(len(report.findings), 2)
+        text = report.understood[1]
+        self.assertTrue(text.startswith("The owner decided that a link"), text)
+        self.assertIn("Still open: - whether to wait for #12", text)
+        self.assertIn("- several unverified behaviours of the hosting service. The facts", text)
+        self.assertTrue(text.endswith("where that requirement lives."), text)
+
+    def test_headings_and_nested_bullets_after_an_understood_line_join_it(self):
+        text = self.read("headed-blocks-after-understood.txt", 1).understood[1]
+        for words in ("what the agent proposes. Decided: - A link counts",
+                      "- #12 is prepared for it now: - it orders by earliest creation time",
+                      "What is decided: - By the owner", "Building waits until #12"):
+            self.assertIn(words, text)
+
+    def test_an_empty_understood_line_takes_its_text_from_the_lines_below(self):
+        report = self.read("empty-understood-then-bullets.txt", 3)
+        self.assertEqual(report.understood[1], "If the edges file does not fit in one input, the "
+                         "caller always splits its pairs across several dispatches.")
+        self.assertTrue(report.understood[2].startswith("- An app's bot account counts"))
+        self.assertTrue(report.understood[2].endswith("and says so."))
+        self.assertTrue(report.understood[3].startswith("- The order's issue writes"))
+        self.assertTrue(report.understood[3].endswith("only when a writer authored it."))
+
+    def test_bold_bullets_between_paragraphs_join_the_understood_line(self):
+        text = self.read("paragraphs-and-bold-bullets.txt", 1).understood[1]
+        self.assertIn("once a day. - **Where the order lives.**", text)
+        self.assertTrue(text.endswith("and the retry behaviour."), text)
+
+    def test_could_not_tell_why_is_read_as_a_finding(self):
+        report = self.read("could-not-tell-why.txt", 2)
+        self.assertEqual([(f.number, f.item) for f in report.findings], [(1, 1), (2, 1), (3, 2)])
+        self.assertEqual(report.findings[1].quote,
+                         "the script first makes a read whose answer is known not to be empty")
+        self.assertTrue(report.findings[2].missing.startswith("CODEOWNERS is needed"))
+
+    def test_a_finding_of_another_kind_is_refused_by_its_kind(self):
+        self.refused("Finding 1, item 1, wondered: «It runs there.» Where?\n"
+                     "Item 1, understood: It runs.\n",
+                     "finding 1 says 'wondered'", "stopped, reread or guessed",
+                     "'Finding 1, item 1, wondered: «It runs there.» Where?'")
+
+    def test_a_line_that_could_be_a_finding_is_never_joined_to_an_understood_line(self):
+        # However it is decorated, a finding joined to an understood text
+        # would never be answered.
+        for line in ("Finding 2, item 1: «x» y",
+                     "**Finding 2**, item 1, stopped: «beta» missing",
+                     "- Finding 2, item 1, guessed: «beta» missing",
+                     "3. Finding 2, item 1, reread: «beta» missing",
+                     "finding 2, item 1, reread: «beta» missing",
+                     "  Finding 2, item 1, could not see: «beta» missing",
+                     "Finding #2, item 1, guessed: «c» hidden",
+                     "`Finding 2, item 1, guessed: «c» hidden`",
+                     "• Finding 2, item 1, guessed: «c» hidden",
+                     "(2) Finding 2, item 1, guessed: «c» hidden",
+                     "**Finding:** 2, item 1, guessed: «c» hidden",
+                     "Finding 2, item 1, guessed: 'c' hidden"):
+            self.refused("Finding 1, item 1, stopped: «alpha» why\n"
+                         "Item 2: read straight through.\n"
+                         f"Item 1, understood: one.\n{line}\nItem 2, understood: two.\n",
+                         "a line prose cannot read", repr(line.strip()), count=2)
+
+    def test_an_understood_text_may_name_another_item(self):
+        report = self.body("Item 1: read straight through.\nItem 2: read straight through.\n"
+                           "Item 1, understood: The token is made here.\n"
+                           "Item 2, understood: The rule\n  narrows the token.\n"
+                           "  Item 1 introduced it.\n- Item 1's token is reused here.\n", count=2)
+        self.assertEqual(report.understood[2], "The rule narrows the token. Item 1 introduced "
+                         "it. - Item 1's token is reused here.")
+
+    def test_an_informal_finding_after_the_understood_lines_is_refused(self):
+        for line in ('Item 2, stopped: "the cache" which cache?',
+                     'Finding: item 2, guessed "expires" when?'):
+            self.refused("Finding 1, item 1, stopped: «alpha» why\n"
+                         "Item 2: read straight through.\n"
+                         f"Item 1, understood: one.\nItem 2, understood: two.\n{line}\n",
+                         "a line prose cannot read", repr(line.strip()), count=2)
+
+    def test_an_understood_text_may_talk_about_findings_and_items(self):
+        report = self.body("Item 1: read straight through.\nItem 1, understood:\n"
+                           "- Findings are numbered from 1.\n"
+                           "  findings without dispositions are refused.\n"
+                           "Item 1 introduced the token.\n")
+        self.assertEqual(report.understood[1], "- Findings are numbered from 1. findings without "
+                         "dispositions are refused. Item 1 introduced the token.")
+
+    def test_an_item_line_naming_a_stop_is_refused(self):
+        for line in ('Item 2 guessed: "the cache" which cache?',
+                     'Item 2 - stopped: "the cache" which cache?',
+                     'Item 2 stopped at "retries" - how many times?'):
+            self.refused("Finding 1, item 2, stopped: «alpha» why\n"
+                         "Item 1: read straight through.\n"
+                         f"Item 1, understood: x.\nItem 2, understood: y.\n{line}\n",
+                         "a line prose cannot read", repr(line), count=2)
+
+    def test_a_finding_near_the_brief_form_after_the_understood_lines_is_refused(self):
+        for line in ('Item 2 (line 14): stopped at "the queue", no idea which queue.',
+                     'Item #2, stopped: "the queue" unclear.',
+                     'Findings 2-3, item 2, guessed: "the queue" and "it".',
+                     'Finding no. 2, item 2, guessed: "the queue" unclear.',
+                     'Item 2 again: I stopped at "the queue".',
+                     'Second finding, item 2, guessed: "the queue"'):
+            self.refused("Finding 1, item 1, guessed: «the cache» which cache?\n"
+                         "Item 2: read straight through.\n"
+                         "Item 1, understood: The worker caches.\n"
+                         f"Item 2, understood: Retries happen always.\n{line}\n",
+                         "a line prose cannot read", repr(line), count=2)
+
+    def test_an_understood_text_may_mention_a_finding(self):
+        report = self.body("Finding 1, item 1, guessed: «it» What is it?\n"
+                           "Item 1, understood: The worker retries a failed upload,\n"
+                           '  though, as in finding 1, I am unsure what "it" is.\n')
+        self.assertTrue(report.understood[1].endswith('as in finding 1, I am unsure what "it" '
+                                                      'is.'), report.understood[1])
+
+    def test_a_misshapen_understood_line_still_leaves_its_item_unsaid(self):
+        self.refused("Item 1: read straight through.\nItem 2: read straight through.\n"
+                     "Item 1, understood: It runs.\nItem 2 - understood - It stops.\n",
+                     "does not say what it understood of item 2", count=2)
+
+    def test_a_report_with_another_first_line_is_refused(self):
+        path = REPORTS / "shape.txt"
+        path.write_text("cold-read 0000000000000000\n\nItem 1: read straight through.\n"
+                        "Item 1, understood: It runs.\n", encoding="utf-8")
+        with self.assertRaises(prose.Refused) as caught:
+            prose.read_cold_report(str(path), self.TOKEN, 1)
+        self.assertIn(f"does not start with 'cold-read {self.TOKEN}'", str(caught.exception))
+
+    def test_a_straight_through_line_ends_the_understood_text_before_it(self):
+        self.refused("Item 1: read straight through.\nItem 1, understood: It runs.\n"
+                     "Item 2: read straight through.\n- It was clear.\n"
+                     "Item 2, understood: It stops.\n",
+                     "a line prose cannot read: '- It was clear.'", count=2)
+
+    def test_an_understood_line_with_no_text_is_refused(self):
+        self.refused("Item 1: read straight through.\nItem 2: read straight through.\n"
+                     "Item 1, understood:\nItem 2, understood: It stops.\n",
+                     "does not say what it understood of item 1", count=2)
+
+    def test_only_indented_lines_go_on_a_finding_or_straight_through_line(self):
+        self.refused("Finding 1, item 1, guessed: «It runs there.» Where?\nIt was unclear.\n"
+                     "Item 1, understood: It runs.\n", "a line prose cannot read: 'It was unclear.'")
+        self.refused("Item 1: read straight through.\n- It was clear.\n"
+                     "Item 1, understood: It runs.\n", "a line prose cannot read: '- It was clear.'")
 
 
 class ColdReadBriefFiles(unittest.TestCase):

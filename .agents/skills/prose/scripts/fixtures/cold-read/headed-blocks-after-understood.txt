@@ -1,0 +1,25 @@
+cold-read 0123456789abcdef
+
+Finding 1, item 1, reread: «only the legend of its record of checked pairs names a repository.» Three appositions stack up before the verb.
+
+Finding 2, item 1, guessed: «the multi-repository spec says how they name another repository's item» That spec is not written yet, so I took "says" to mean "will say".
+
+Item 1, understood: The issue sets down, for whoever writes the spec, what the owner has decided, what the owner is leaning towards, and what the agent proposes.
+
+Decided:
+- A link counts only when one order holds both items it joins.
+- Any other link is always listed as not counted and holds nothing.
+- #12 is prepared for it now:
+  - it orders by earliest creation time, breaking ties by `owner/repo` name, then number;
+  - its machine data identify an item by repository and number.
+
+Leaning, not decided: implement #12 and use it in real work first.
+
+What is decided:
+- By the owner: a link makes an item wait only when one order holds both items.
+
+Still open:
+- whose links count across repositories;
+- what the pointer layout costs.
+
+Building waits until #12 is implemented.

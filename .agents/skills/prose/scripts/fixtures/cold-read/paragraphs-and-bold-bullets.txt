@@ -1,0 +1,15 @@
+cold-read 0123456789abcdef
+
+Finding 1, item 1, reread: «Most of the rules can be read from the changes' own files, with no model:» The list under this line includes a rule that needs a model.
+
+Finding 2, item 1, stopped: «which the loop (step 3) runs with its credentials» "The loop" is used here before step 3 defines it.
+
+Item 1, understood: The owner has decided that the worker gets a fifth role. It recommends, and never enforces, the order in which a team works.
+
+The rules and the script live in a shared skill. That skill's CI workflow runs on repository events and once a day.
+
+- **Where the order lives.** The order is kept in the body of the one open issue with the label.
+- **How the order is computed.** Most of it comes from the changes' files.
+- **Concurrent writes.** A person's session runs outside the workflow's concurrency group, so the later of two concurrent writes wins.
+
+Still open, for the owner to rule on: how the role works as claimed work, and the retry behaviour.

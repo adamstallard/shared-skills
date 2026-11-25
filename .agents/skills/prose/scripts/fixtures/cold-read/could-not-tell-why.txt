@@ -1,0 +1,11 @@
+cold-read 0123456789abcdef
+
+Finding 1, item 1, guessed: «Its requirement is written only then.» I took "its" to mean the requirement for the behaviour the question names.
+
+Finding 2, item 1, could not tell why: «the script first makes a read whose answer is known not to be empty» The passage does not say why an empty answer means a refusal.
+
+Finding 3, item 2, could not tell why: «GitHub refuses the script's read of CODEOWNERS» CODEOWNERS is needed only when there is no configured list.
+
+Item 1, understood: Each open question names a task that measures an unknown fact, and the behaviour that follows from each answer.
+
+Item 2, understood: An app's bot counts as a writer, for what it opens and the reviews it submits, only when the token can tell the app is installed.

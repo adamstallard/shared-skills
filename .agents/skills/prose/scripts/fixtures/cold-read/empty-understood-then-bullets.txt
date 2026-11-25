@@ -1,0 +1,18 @@
+cold-read 0123456789abcdef
+
+Finding 1, item 1, guessed: «each a whole edges file» I took this to mean that each dispatch carries a complete edges file.
+
+Finding 2, item 2, stopped: «posted it in a minute after the cycle's `since` time» At first I read this as "within one minute after".
+
+Item 3: read straight through.
+
+Item 1, understood: If the edges file does not fit in one input, the caller always splits its pairs across several dispatches.
+
+Item 2, understood:
+- An app's bot account counts as a writer only for items it opens and reviews it submits, never for comments.
+- Keys in the record of checked pairs are assigned in sequence. Each row puts the higher key first, and rows are sorted.
+- If the script cannot edit the order's issue, it never edits any item body, and says so.
+
+Item 3, understood:
+- The order's issue writes outside items as plain `owner/repo#number` so they render as links.
+- The script uses the order's issue only when a writer authored it.

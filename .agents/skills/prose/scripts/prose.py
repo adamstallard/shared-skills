@@ -2829,18 +2829,44 @@ REPORT_FORM = ("After its first line, a report holds only findings, each 'Findin
                "<item>, <stopped, reread or guessed>: «<the exact words>» <what was guessed or "
                "missing>', numbered from 1, with any more of it on indented lines below; "
                "'Item <item>: read straight through.' lines; and 'Item <item>, understood: "
-               "<what the item says>' lines. Every item gets findings or the straight-through "
-               "line, never both, and exactly one understood line. Ask the cold reader for its "
+               "<what the item says>' lines, with any more of it on the lines below. Every item "
+               "gets findings or the straight-through line, never both, and exactly one "
+               "understood line. Ask the cold reader for its "
                "report in that form; don't reword it yourself.")
 DISPOSITIONS_FORM = ("After its first line, a dispositions file holds one line per finding: "
                      "'<n>. fixed', or '<n>. kept (asked): <the reason, on one line>' once a "
                      "person chose to keep it; and one line per item, answering its understood "
                      "line: 'Item <n>: matches', 'Item <n>: fixed', or 'Item <n>: kept (asked): "
                      "<the reason, on one line>' once a person chose to keep it.")
-FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed): "
-                     r"«([^«»]*)»(.*)")
+# cold-read.md asks for four kinds of place, and its finding form names three:
+# stopped, reread and guessed. Cold readers often write the fourth as "could
+# not tell why", so FINDING reads that wording too; others are refused.
+# Reading it costs nothing, as a Finding keeps no kind.
+FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), "
+                     r"(stopped|reread|guessed|could not tell why): «([^«»]*)»(.*)")
+# A finding of any other kind, read only to name that kind in its refusal.
+FINDING_KIND = re.compile(r"Finding ([0-9]+), item [0-9]+, ([^:«»]+): «")
 STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
-UNDERSTOOD = re.compile(r"Item ([0-9]+), understood: (.*\S.*)")
+# The text after "understood:" may be empty when the lines below carry it.
+UNDERSTOOD = re.compile(r"Item ([0-9]+), understood:(.*)")
+# FINDING_LIKE matches a line that could be a finding, however decorated. The
+# line holds « or »; or it holds a finding line's core, an item number then a
+# comma and a kind of stop; or, after any markup or list number, it starts with
+# "finding" followed by a number, a # or a colon, or with an item number
+# followed within 20 characters by a comma, a colon or a kind of stop.
+# read_cold_report refuses such a line below an understood line rather than
+# adding it to that line's text, since a finding added there gets no
+# disposition. Any other line is added, such as "Findings are numbered." or
+# "Item 1 introduced it." So may a line meant as an item's own line, such as
+# "Item 2 - read straight through": the later checks then refuse the report,
+# as that item has no understood line, or nothing said about it.
+_STOP = r"(?:stopped|reread|guessed|could not)\b"
+FINDING_LIKE = re.compile(
+    r"[«»]"
+    rf"|item\s*#?\s*[0-9]+\s*,\s*{_STOP}"
+    r"|^[\W\d_]*(?:findings?(?:\W{0,4}(?:no\.?\s*)?[0-9]|\s*[#:])"
+    rf"|item\s*#?\s*[0-9]+[^.«»]{{0,20}}?(?:[,:]|\b{_STOP}))",
+    re.IGNORECASE)
 # kept without "(asked)" is read, so that its refusal can name the finding.
 DISPOSITION = re.compile(r"([0-9]+)\. (?:(fixed)|kept( \(asked\))?:(.*))")
 # The answer to an item's understood line. kept without "(asked)" is read too,
@@ -2945,9 +2971,15 @@ def read_cold_report(path, token, count):
         elif line[:1].isspace() and last == "finding":
             previous = findings[-1]
             findings[-1] = previous._replace(missing=f"{previous.missing} {line.strip()}".strip())
-        elif line[:1].isspace() and last == "understood":
+        elif last == "understood" and not FINDING_LIKE.search(line):
+            # Cold readers often write what they understood as bullets or
+            # paragraphs below the line, so those lines join it.
             understood[-1][1] = f"{understood[-1][1]} {line.strip()}".strip()
         else:
+            kind = FINDING_KIND.match(line.strip())
+            if kind:
+                refuse(f"has a line prose cannot read, as finding {kind.group(1)} says "
+                       f"{kind.group(2)!r}, not stopped, reread or guessed: {line.strip()!r}")
             refuse(f"has a line prose cannot read: {line.strip()!r}")
     for index, finding in enumerate(findings, start=1):
         if finding.number != index:
@@ -2977,7 +3009,7 @@ def read_cold_report(path, token, count):
             refuse(f"says what it understood of item {item} twice")
         said[item] = text
     for item in range(1, count + 1):
-        if item not in said:
+        if not said.get(item):
             refuse(f"does not say what it understood of item {item}: every item gets one "
                    f"'Item {item}, understood: <what the item says>' line, whether it has "
                    "findings or was read straight through")
