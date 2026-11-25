@@ -18,6 +18,54 @@ which platforms enable rewrites and `STRAY` inspects.
   different question, answered by `owns` (the skill's directory in the path), so
   a renamed script stays removable.
 
+## Whether a skill's hooks are on, and what follows
+
+`hooks_switched_on` decides it, per skill. A skill's hooks are on when all
+three hold:
+
+- no opt-out is recorded for it. `disable-hook` records one, through
+  `switch_hook`. So does `install --no-hook`, for each skill it links that was
+  linked to this clone in no target before that install;
+- it is linked into some target;
+- its `default` is `"enabled"`, or at least one of its hooks is wired on some
+  platform, as after `enable-hook` on a default-off skill.
+
+While a skill's hooks are on, `doctor` reports each declared hook that is
+executable but not wired as `UNWIRED`, with the fix `enable-hook`, and `update`
+wires it after the pull (`wire_new_hooks`). A sandboxed run, one with
+`SHARED_SKILLS_TARGET` set and `SHARED_SKILLS_HOOK_HOME` unset, does neither:
+`install` wires nothing in one.
+
+- **Why:** an entry added to a `hook.json` was wired only by `install` or
+  `enable-hook`, so it stayed unwired after `update`, and `doctor` said
+  nothing. prose's handback-notice hook, added in commit 6096389, stayed
+  unwired that way.
+- **Why `--no-hook` records the opt-out:** without it, a default-enabled skill
+  installed with `--no-hook` would read as on, so `doctor` would report its
+  hooks `UNWIRED` and the next `update` would wire them.
+- **Why only for a skill not linked before:** a skill already linked to this
+  clone in any target it belongs in keeps its hook state. So
+  `install --all --no-hook`, run to pick up new skills, turns off no hook the
+  user has on.
+- **The notice for a named installed skill:** when the user names a skill
+  that was already linked to this clone before the install, and its hooks
+  are on, the install prints a line saying its hooks were left as they are,
+  with `disable-hook` as the way to turn them off. Naming it was a request for
+  its hooks to be off, and without the line the user would not learn they are
+  still on. A skill whose hooks are already off gets no line, since
+  `disable-hook` would change nothing. Under `--all` no line is printed:
+  `--all` is how new skills are picked up, so it asks nothing of a skill
+  already installed.
+- **Rejected:** "on" without the link condition. A skill in the clone that is
+  not installed would read as on. So would a skill whose links are all gone
+  but whose wiring was left behind; `doctor` reports that wiring as `ORPHAN`,
+  with the fix `install` or `disable-hook`, and `update` would add to it.
+- **Rejected:** reporting a hook whose script is not executable as `UNWIRED`.
+  `enable-hook` skips such a hook, so the fix would not clear the report. Once
+  it is wired, `doctor` reports it as `BROKEN`; while unwired, nothing reports
+  it.
+- **Stops applying:** if hooks gain a per-entry switch.
+
 ## Mods are linked only into `.claude/skills` targets
 
 A folder with `.claude-plugin/plugin.json` and no `SKILL.md` is a mod, and

@@ -39,17 +39,21 @@ docs/api.md: call the API correctly; see what each error means
 Every changed doc and spec must get goals, except a deleted one. In a merge, a
 changed doc is one the merge itself changed (SKILL.md's *The cold read*).
 Without them the call refuses, naming each file and its kind's default from the
-reader table in [rules.md](rules.md) for you to adjust. A code comment may go
-without, and then gets the table's code-comment row, labelled as a default.
+reader table in [rules.md](rules.md) for you to adjust. A code comment or a
+YAML prose string may go without, and then gets its row of the table, labelled
+as a default.
 
-The first call prints the message's goals; the prose in the change (the
-message, each doc and spec, and the comments the diff touches), each under the
-goals it gets and where they came from (`--goals`, its exact path, the pattern that
-matched, or its kind's default); a warning for any pattern that matches no
-listed file, usually a typo; history-language flags in those comments, as
-warnings; the rules (the pass, rules 1 to 9 in full, the rest as a
-checklist, and how agents cheat on the pass); and the pass token with the
-command to run next.
+The first call prints, in order:
+- the message's goals;
+- the prose in the change: the message, each doc and spec, and the comments
+  and YAML prose strings the diff touches. Each comes under its goals and
+  where they came from: `--goals`, a `--goals-for` naming its exact path,
+  the pattern that matched, or its kind's default;
+- a warning for any pattern that matches no listed file, usually a typo;
+- history-language flags in those comments, as warnings;
+- the rules: the pass, rules 1 to 9 in full, the rest as a checklist, and
+  how agents cheat on the pass;
+- the pass token, with the command to run next.
 
 Each `check` call first runs the repository's pre-commit hook, if any, so a
 formatter rewrites the staged files before you read them and before they are
@@ -116,6 +120,55 @@ three agents:
 Read the brief yourself only when nothing will read your result: read it as
 if it were all you knew, open no other file, and write the report as it
 asks.
+
+## Verbatim text
+
+Some text is kept exactly as written: a saved chat, a sent message, raw
+notes. Declare it, and the pass and the cold read skip it, so no flagged line
+needs a `kept (asked)` answer.
+
+- **A whole file:** a `prose-verbatim` line in the staged `.gitattributes`,
+  with git's own patterns: `chats/** prose-verbatim`. `-prose-verbatim`
+  takes a file back out. The file is left out of the list of prose `check`
+  prints for the pass, needs no reader goals, is
+  never compacted, and is not hidden from `git diff` or `git grep`, as a `-diff` file is.
+  Only `.gitattributes`, staged or committed, declares. `check` refuses
+  when `.git/info/attributes`, which no reviewer sees, mentions
+  `prose-verbatim`, or holds any line while a file is declared, since a
+  macro applied there could declare the file without naming `prose-verbatim`. A file that stops being
+  declared, renamed out of its pattern or its line removed, gets the pass
+  on its whole text.
+- **A block in a doc:** a line holding only `prose:verbatim begin`, and
+  another holding only `prose:verbatim end`, in any comment syntax:
+  `<!-- prose:verbatim begin -->`, `# prose:verbatim end`,
+  `.. prose:verbatim begin`. A marker inside a code fence, in a sentence or
+  in backticks is text. Blocks do not nest; a begin with no end, an end with
+  no begin and a nested begin make `check` stop with the marker's line number;
+  fix the markers and run it again. The rest of the doc still gets the
+  full pass and its own goals. `check` refuses markers in a doc git diffs as
+  binary, made so by the staged or committed `.gitattributes` (`-diff`,
+  `binary`) or by a NUL byte (UTF-16, UTF-32), since its diff shows no block a change
+  touched; declare the whole file instead.
+- **The cold reader never sees verbatim text,** not even as context: the
+  brief shows each block as one line, numbered with the lines it stands for,
+  such as `5-16  [verbatim block: 12 lines not shown]`. A passage beside a
+  block is read without the block's text, but the reader knows text is
+  there.
+- **A compaction keeps each block byte for byte,** markers included: its
+  brief lists the blocks, flags nothing inside them, and `prose compact
+  --verify` fails a compaction that changes, reorders or drops one.
+- **The trailer counts what the commit skipped:** `; verbatim: 2 files, 1
+  block`, after any `; compacted:` part. A file counts when it is declared and
+  the change edits or adds it; a block counts when the change adds or deletes a line in it or
+  on its markers. A doc whose changes all sit inside blocks gets no pass.
+  Text that loses its markers is prose again and gets the pass. A commit
+  that skips nothing has no such part. `verify-staged` and `verify-commit`
+  recompute the counts, from the index or from the commit and the
+  `.gitattributes` it holds, and refuse a value that differs.
+- **`kept (asked)` still means a person chose the line.** No person is asked
+  whether to keep a line of verbatim text, so no such answer is recorded for
+  it. What a reviewer sees is the declaration, in `.gitattributes` or as
+  markers, in the diff.
 
 ## Committing with other skills' trailers, and amending
 

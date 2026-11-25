@@ -16,20 +16,16 @@ often when it is:
   be read first, or read before some task. A link to be read only before
   changing the skill does not count: that file is read only when the skill
   changes;
-- an open OpenSpec change's `proposal.md`, `design.md` or delta specs
-  (`openspec/changes/<change>/specs/<capability>/spec.md`): spec-check's
-  consistency read opens each of them in every open change, once per
-  review round (an agent's work between two hand-backs to a person);
-- declared with `prose-compact` in `.gitattributes`;
-- or an `architecture*.md` or OpenSpec `spec.md` that none of the above covers, read at least 20 times since its last compaction,
-  counting only the last 300 commits behind HEAD. Each such commit counts as
-  one read of the docs it implies: a change in a skill's directory implies its `SKILL.md` and
-  read-first files; a `Bug-hunter:`, `Prose:` or `Spec-check:` trailer
-  implies that skill's `SKILL.md`, and `Spec-check:` also the main specs
-  (`openspec/specs/**/spec.md`) and open OpenSpec changes. No commit implies
-  a read of an architecture doc unless a `SKILL.md` or `AGENTS.md` links it
-  to be read first, and the second bullet already makes such a doc read
-  often. So counted reads make only a main spec read often.
+- an open OpenSpec change's `proposal.md` or `design.md`: spec-check's
+  consistency read opens both in every open change, once per review round;
+- or declared with `prose-compact` in `.gitattributes`.
+
+No other doc is read often. So an OpenSpec `spec.md`, main or delta, is
+checked for compaction only when a `SKILL.md` or `AGENTS.md` links it to be
+read first, or it is declared. Spec-check reads it as often as a proposal,
+but its compactions cut little: OpenSpec's format repeats scenario lines on
+purpose, which a compaction cannot remove, and spec-check keeps history out
+of it.
 
 A `DECISIONS.md` outside `openspec/`, or an ADR (a numbered file such as
 `0001-use-postgres.md` directly in a directory named `adr`, `adrs` or
@@ -131,12 +127,17 @@ the working file.
    - a history marker is left, outside a passage answered `kept:`;
    - the file grew, or is empty.
 
-   Have the compactor fix what it names, stage it, and run `--verify` again
-   until it exits 0. On exit 2 (unstaged changes, a file to search it could
-   not read, or a missing `--answers` file), fix that or narrow the paths,
-   and run it again. A passing `--verify` stores the answers it checked for
-   the staged file, and the later steps and the commit gate read only that
-   copy: an edit to the answers file counts only once `--verify` runs again.
+   Have the compactor fix what `--verify` names. Also have it rejoin any
+   point of the doc it split around another while reordering or merging
+   sentences to save words, so that no sentence returns to an earlier point
+   after a different one (rule 3 of [rules.md](rules.md)). Then stage the
+   file and run `--verify` again, until it exits 0. On exit 2 (unstaged
+   changes, a file to search that `--verify` could not read, or a missing
+   `--answers` file), fix that or narrow the paths, and run it again. A
+   passing `--verify` stores the answers it checked for the staged file,
+   and everything after it, the commit gate included, reads only that
+   stored copy: an edit to the answers file counts only once `--verify`
+   runs again.
 4. Have the compacted file read cold before any review, so the reviews check
    the cold read's fixes too. Write the compaction commit's message file and
    run `prose check`'s first call for it (SKILL.md's *Two calls*), then its signing
@@ -144,7 +145,9 @@ the working file.
    yet: the commit gate refuses until steps 5 to 8 are done, so it lists the
    compaction steps still missing, then prints the cold-read brief. It signs
    at step 10. Follow SKILL.md's *The cold read* in full: a new subagent writes a
-   report, you send its findings back to the compactor to fix, and you
+   report; you send its findings, and each understood line that differs from
+   what you meant, back to the step 2 compactor, which fixes each with the
+   first fix that works of those [rules.md](rules.md)'s step 4 lists; and you
    answer every finding and understood line in the cold read's dispositions
    file, asking a person about any you would keep. Stage the file and run `--verify` again. Keep the
    token, the report and that dispositions file for step 10. A compaction
@@ -259,10 +262,14 @@ every reader runs. An OpenSpec doc gets no list, since spec-check's
 consistency read needs all of it.
 
 The list is ranked by cost: each section's bytes times the doc's estimated
-reads. The reads are the commits among the last 300 that imply a read of the
-doc, by the rules *When it is due* gives for the reads each commit implies.
-Each commit also counts as a read of every `AGENTS.md` and `CLAUDE.md` above
-the files it changes.
+reads. The reads are the commits, among the last 300 behind HEAD and since
+the doc was added, that imply a read of it; merges are skipped. A change in
+a skill's directory implies its `SKILL.md` and read-first files. A
+`Bug-hunter:`, `Prose:` or `Spec-check:` trailer implies that skill's
+`SKILL.md`. Each commit implies every `AGENTS.md` and `CLAUDE.md` in each
+changed file's own directory and every directory above it, up to the
+repository's root, with the files those `AGENTS.md` files link as read
+first; only a `SKILL.md` or `AGENTS.md` has read-first links.
 
 The compactor answers each section with a `Move` line, naming the new file,
 the line that will replace the section and the signal that sends a reader
@@ -290,7 +297,6 @@ later line overrides an earlier one.
 docs/runbook.md prose-compact
 CHANGELOG.md -prose-compact
 docs/architecture.md prose-compact-growth=30 prose-compact-flagged=2000
-openspec/specs/**/spec.md prose-compact-reads=10
 .agents/skills/*/SKILL.md prose-compact-attribution=drop
 ```
 
@@ -304,8 +310,6 @@ openspec/specs/**/spec.md prose-compact-reads=10
   due, 1,000 by default.
 - `prose-compact-flagged-share=<percent>` replaces the share of the file
   those bytes must also be, 10 by default.
-- `prose-compact-reads=<n>` replaces the reads that make a doc read often,
-  20 by default.
 - `prose-compact-attribution=drop` has the compactor drop "who decided"
   credits, such as "(Adam, 2026-10-24)". Without it, they are kept.
 
@@ -326,8 +330,7 @@ it on its own so it stays visible. Propose:
 - a higher `prose-compact-flagged`, `prose-compact-flagged-share`,
   `prose-compact-growth` or `prose-compact-growth-bytes` for a doc that
   keeps coming up due while its
-  compactions cut little, or a higher `prose-compact-reads` when such a doc
-  counts as read often only by its reads.
+  compactions cut little.
 
 **Called by another skill.** A skill that compacts a doc itself, rather
 than waiting for `prose check`'s advice, runs the same steps, may add its own instructions to the compactor's prompt after the

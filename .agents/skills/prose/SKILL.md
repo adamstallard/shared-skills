@@ -28,6 +28,24 @@ docs, specs, commit messages, pull request descriptions, and posts to GitHub,
 Linear and Discord. **Short kinds are not exempt.** Commit subjects and ticket
 comments bloat too.
 
+A YAML string written in sentences is prose too, since a tool may show it to a
+person or an agent as text. OpenSpec, for one, prints a config's `rules:`
+lists to the agent writing a proposal. `prose check` lists a string for the
+pass and the cold read when it has at least six words, starts with a
+capitalised word that is not all capitals, and holds a sentence end: a word
+or code span followed by `.`, `?` or `!`. First, heading lines at the start
+of the string, `# ` to `###### `, are dropped while text follows them, so a
+Markdown title is judged by its body and a script under a `#` comment by its
+commands. Then a marker before the first word, such as `**`, `- `, `1. ` or
+`## `, is skipped, and an opening code span counts as a capitalised word. A
+string that is one `# ` line keeps its `#`, which fails. Keys, paths, SQL,
+step names and most commands fail the test. A script whose first command is
+a capitalised word, such as `Rscript`, can pass it and be listed, with or
+without a comment above it: a known false listing, since telling such a
+script from prose would take more than its first word. A list holding one
+such string is listed as one item, from the key that owns the list to its
+last string.
+
 ## When the pass runs
 
 - **Before every commit that contains prose**, on the staged change and the
@@ -147,12 +165,22 @@ because a reader who misreads with confidence never stops. The line says:
 - whether the code does it, or someone else could make it happen.
 
 **What gets one:** every comment block the change adds to or edits, read
-whole even when one line changed; every doc or spec passage it adds to; and
-every post, whatever its length, except a pull request body posted inside a
-review round, whose cold read comes at the hand-back (see
+whole even when one line changed; every YAML prose string or list of them it
+adds to or edits, read whole with the key lines it is nested under; every doc
+or spec passage it adds to; and every post, whatever its length, except a pull request body
+posted inside a review round, whose cold read comes at the hand-back (see
 [Posting](#posting)). The commit message gets none, so a commit that
 changes no comment or doc signs without one. A doc that git diffs as
-binary is skipped, since prose cannot read it.
+binary is skipped, since prose cannot read it. So is verbatim text: a file
+`.gitattributes` sets `prose-verbatim` on, and a doc's block between
+`prose:verbatim begin` and `prose:verbatim end` marker lines. Verbatim text gets no
+pass and no cold read, so nothing is asked, and the trailer says how many
+files and blocks were skipped. Mark text verbatim when a person asks, and
+offer to when they seem annoyed that the pass would change some text. Never
+mark text you are writing, since it needs the pass, and never without the
+person's yes. Nothing enforces either rule, but the declaration shows in the
+commit, and anyone can undo it.
+[reference.md](reference.md#verbatim-text) has the details.
 
 **A merge's change is only what the merge itself changed:** the passages where
 the staged result differs from every parent, exactly the hunks `git show`
@@ -192,7 +220,9 @@ so the reader needs nothing else.
    Item 2, understood: A person may rerun a failed upload; nothing retries it.
    ```
 
-3. Fix the places the report names, by the rules, and restage. Compare each
+3. Fix each place the report names with the first fix that works of
+   those [rules.md](rules.md)'s step 4 lists: a cut, a move, or a
+   rewording. Restage. Compare each
    understood line with what you meant, and fix the item where they differ.
 4. Answer every finding and every understood line in a dispositions file
    beside the report, such as `dispositions.txt`. Its first line binds it to

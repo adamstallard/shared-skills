@@ -1,5 +1,10 @@
 name: spec-trace
-on: [push, pull_request]
+on:
+  push:
+    # The inquisitor skill pushes its question records to a `questions`
+    # branch with no openspec/, where this check would fail.
+    branches-ignore: [questions]
+  pull_request:
 jobs:
   spec-trace:
     runs-on: ubuntu-latest

@@ -68,14 +68,24 @@ python3 -I $B/summarize.py $S/results/iteration-1
   separate shells, so they see the same API load. Today's skill gives the
   reader its brief by path, as the `path` row below does, so compare
   `current` with `path`, and `baseline` with `baseline`.
-- **The candidate variant:** `python3 -I $B/build_variants.py <skill-dir>
-  <out-dir>` writes the `slim` version to `<out-dir>/slim`; pass that
-  directory to `run_bench.py --skill`. It moves, word for word, the parts of
-  SKILL.md that a review of a change doesn't use into a `reference.md`: the full findings table, archive
-  refusals, stacked changes, most of *Commit*, keeping an evolution line,
-  current-state passes and the TLA+ note. A run reads them there when it
-  commits, hands back a pull request, or checks a stacked change. Its results
-  are below.
+- **The dropped variant, `slim`,** moves, word for word, the parts of
+  SKILL.md that a review of a change doesn't use into a `reference.md`: the
+  full findings table, archive refusals, stacked changes, most of *Commit*,
+  keeping an evolution line, current-state passes and the TLA+ note. A run
+  reads them there when it commits, hands back a pull request, or checks a
+  stacked change. It is dropped (see *Only the review task is measured*,
+  below). Its builder, `build_variants.py`, is not in the tree; commit
+  0c94681 has it. To reproduce slim's rows in the table below, run these
+  after the block above, which makes `$S/baseline`. The first two save the
+  builder in the scratch directory and build slim from that 798a4fd copy;
+  the third runs slim as one more version:
+
+  ```sh
+  git show 0c94681:$B/build_variants.py > $S/build_variants.py
+  python3 -I $S/build_variants.py $S/baseline/.agents/skills/spec-check $S/variants
+  python3 -I $B/run_bench.py --cases $S/cases --work $S/runs \
+      --iteration $S/results/iteration-1 --version slim --skill $S/variants/slim
+  ```
 - **To browse the outputs**, run `python3 -I $B/prep_viewer.py
   <iteration-dir>`. Then, from the skill-creator plugin's directory (under
   `~/.claude/plugins/` once it is installed), run `python3
@@ -161,8 +171,14 @@ What to keep in mind when comparing:
   scenario tested it. The table leaves out the six runs made on it, two each
   of `baseline`, `slim` and `slim-path`.
 - **Only the review task is measured.** No run commits or hands back a pull
-  request, so no run needed `reference.md`. Check a commit flow before
-  adopting `slim`.
+  request, so no run needed `reference.md`. A separate check on 2026-11-09,
+  whose scripts are not part of this benchmark, had `slim` (built from
+  7dce166) commit a change six times. Because `slim` moves the signing steps
+  of *Commit* into `reference.md`, the bar was that every run read it before
+  running `spec_check.py sign`. Only four of the six did, although every run
+  read it before committing and every commit was correct. On that commit
+  task, each `slim` run also used about 40k more tokens than spec-check at
+  7dce166 unmodified. So `slim` is dropped.
 - **At 798a4fd the script missed two record errors.** `check <change>` did
   not report the record errors that `record-no-evidence` and
   `rationale-title-mismatch` plant; `sign` and `check specs` did. Every run

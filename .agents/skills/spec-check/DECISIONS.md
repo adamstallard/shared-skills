@@ -1483,19 +1483,20 @@ a `record` error naming the record to edit.
 
 ## OpenSpec rules ship as a file merged by hand
 
-**Decision.** spec-check ships `opsx-rules.yaml`, a `rules:` block for
+**Decision.** spec-check ships `openspec-rules.yaml`, a `rules:` block for
 `openspec/config.yaml`. When a repository has `openspec/config.yaml` and its agents
-write changes through OpenSpec's /opsx skills, the setup step in SKILL.md
-offers to merge the block in by hand, adding to any `rules:` already there.
-No script reads or writes `config.yaml`.
+write changes through OpenSpec's workflow skills, the setup step in SKILL.md
+offers to merge the block in, adding to any `rules:` already there. Whoever
+runs setup edits `config.yaml`; no script reads or writes it.
 
-**Why.** OpenSpec 1.16.0's `openspec instructions <artifact>`, which the
-/opsx skills call while an agent writes each artifact, shows that
-artifact's list from `rules:` (`dist/core/artifact-graph/instruction-loader.js`).
+**Why.** `rules:` holds one list per artifact (proposal, specs, design), and
+`openspec instructions <artifact>`, which OpenSpec's workflow skills call
+while an agent writes an artifact, shows that artifact's list (read in
+OpenSpec 1.16.0's `dist/core/artifact-graph/instruction-loader.js`).
 So the rules reach an agent that never loads spec-check, at the moment it
 writes. They are advice: the checks and the consistency read still enforce.
-The file is OpenSpec's, so merging by hand leaves its other keys and its
-comments as their owner wrote them.
+`config.yaml` is OpenSpec's, so editing it directly leaves its other keys
+and its comments as their owner wrote them.
 
 **Rejected:**
 - **A script that writes the rules into `config.yaml`.** It would edit a

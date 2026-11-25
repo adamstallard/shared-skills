@@ -84,18 +84,22 @@ class CurrentStateDocs(unittest.TestCase):
                                ("docs/adr/0001-use-x.md", False),
                                ("docs/decisions/0002-architecture-x.md", False),
                                ("skills/adr/SKILL.md", True), ("docs/adr/AGENTS.md", True),
-                               ("docs/adr/architecture.md", True),
+                               ("docs/adr/architecture.md", False),
                                (".agents/skills/decisions/CLAUDE.md", True),
                                (".agents/skills/openspec/DECISIONS.md", False),
-                               ("openspec/specs/seat/decisions.md", True),
-                               ("openspec/changes/fix-x/specs/seat/decisions.md", True),
+                               ("openspec/specs/seat/decisions.md", False),
+                               ("openspec/changes/fix-x/specs/seat/decisions.md", False),
                                (".agents/skills/prose/SKILL.md", True),
                                ("AGENTS.md", True), ("sub/CLAUDE.md", True),
-                               ("docs/architecture.md", True), ("ARCHITECTURE.md", True),
-                               ("openspec/specs/seat/spec.md", True),
+                               ("docs/architecture.md", False), ("ARCHITECTURE.md", False),
+                               ("openspec/specs/seat/spec.md", False),
                                ("openspec/changes/fix-x/proposal.md", True),
                                ("openspec/changes/fix-x/design.md", True),
-                               ("openspec/changes/fix-x/specs/seat/spec.md", True),
+                               ("openspec/changes/fix-x/specs/seat/spec.md", False),
+                               ("sub/openspec/changes/fix-x/design.md", False),
+                               ("openspec/specs/seat/design.md", False),
+                               ("openspec/changes/fix-x/sub/design.md", False),
+                               ("openspec/changes/archive/proposal.md", False),
                                ("openspec/changes/archive/2026-10-01-x/design.md", False),
                                ("openspec/changes/archive/2026-10-01-x/specs/seat/spec.md",
                                 False),
@@ -110,14 +114,13 @@ class CurrentStateDocs(unittest.TestCase):
         repo = Repo()
         self.addCleanup(repo.cleanup)
         repo.write(".gitattributes", "* prose-compact-flagged=500\n"
-                                     "docs/runbook.md prose-compact prose-compact-growth=20 "
-                                     "prose-compact-reads=3\n"
+                                     "docs/runbook.md prose-compact prose-compact-growth=20\n"
                                      "DECISIONS.md -prose-compact\n"
                                      "**/DECISIONS.md prose-compact-attribution=drop\n")
         found = compact.settings(["docs/runbook.md", "DECISIONS.md", "SKILL.md", "README.md",
                                   "a/DECISIONS.md"], str(repo.path))
         self.assertEqual(found["docs/runbook.md"],
-                         compact.Settings(True, 20, False, True, 500, 3, False, False))
+                         compact.Settings(True, 20, False, True, 500, False, False))
         repo.write(".gitattributes", "SKILL.md prose-compact-growth-bytes=750\n")
         self.assertEqual(compact.settings(["SKILL.md", "a.md"], str(repo.path))["SKILL.md"]
                          .growth_bytes, 750)
@@ -131,19 +134,30 @@ class CurrentStateDocs(unittest.TestCase):
                          compact.Settings(True, compact.DEFAULT_GROWTH, flagged=500))
         self.assertEqual(found["README.md"].current, False)
 
-    def test_the_budget_setting_is_gone(self):
+    def test_the_budget_and_reads_settings_are_gone(self):
         repo = Repo()
         self.addCleanup(repo.cleanup)
-        repo.write(".gitattributes", "* prose-compact-budget=500\n")
+        repo.write(".gitattributes", "* prose-compact-budget=500 prose-compact-reads=3\n")
         self.assertFalse(hasattr(compact, "DEFAULT_BUDGET"))
+        self.assertFalse(hasattr(compact, "DEFAULT_READS"))
         self.assertEqual(compact.settings(["SKILL.md"], str(repo.path))["SKILL.md"],
                          compact.Settings(True, compact.DEFAULT_GROWTH))
 
     def test_outside_a_repository_every_path_gets_the_defaults(self):
         found = compact.settings(["SKILL.md"], None)
         self.assertEqual(found["SKILL.md"], compact.Settings(True, compact.DEFAULT_GROWTH))
-        self.assertEqual((found["SKILL.md"].flagged, found["SKILL.md"].reads),
-                         (compact.DEFAULT_FLAGGED, compact.DEFAULT_READS))
+        self.assertEqual(found["SKILL.md"].flagged, compact.DEFAULT_FLAGGED)
+
+    def test_with_no_root_the_working_directorys_attributes_do_not_apply(self):
+        # `prose compact` on a file outside any repository passes no root,
+        # even when run from inside a repository whose .gitattributes match.
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        repo.write(".gitattributes", "SKILL.md prose-compact-growth=7\n")
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(repo.path)
+        self.assertEqual(compact.settings(["SKILL.md"], None)["SKILL.md"].growth,
+                         compact.DEFAULT_GROWTH)
 
 
 class CompactionDue(unittest.TestCase):
@@ -207,30 +221,50 @@ class CompactionDue(unittest.TestCase):
                       "OpenSpec change's proposal)", out)
         self.assertNotIn("compaction due for openspec/changes/archive", out)
 
-    def test_an_open_changes_delta_spec_is_read_often(self):
-        # A consistency read opens every open change's delta specs, as it
-        # does its proposal and design.
-        self.repo.write("openspec/changes/x/specs/seat/spec.md", repeated())
-        self.repo.write("openspec/changes/archive/2026-01-01-y/specs/seat/spec.md", repeated())
-        out = self.check().stdout
-        self.assertIn("compaction due for openspec/changes/x/specs/seat/spec.md: read often (an "
-                      "open OpenSpec change's delta spec)", out)
-        self.assertNotIn("compaction due for openspec/changes/archive", out)
+    def test_an_open_changes_design_is_read_often(self):
+        self.repo.write("openspec/changes/x/design.md", repeated())
+        self.assertIn("compaction due for openspec/changes/x/design.md: read often (an open "
+                      "OpenSpec change's design)", self.check().stdout)
 
-    def test_a_main_spec_is_read_often_once_commits_imply_enough_reads(self):
-        self.repo.write(".gitattributes", "* prose-compact-flagged=50 prose-compact-reads=3\n")
+    def test_no_spec_is_due_however_often_spec_check_reads_it(self):
+        # Delta and main specs, and architecture docs, are never due by
+        # default, whatever their flagged text or the reads that commits
+        # imply. settings reads no prose-compact-reads attribute, so a
+        # leftover line setting it in a repository changes nothing.
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50 prose-compact-reads=0\n")
         self.repo.write("openspec/specs/x/spec.md", "# X\n")
-        self.repo.commit("spec\n\nSpec-check: ✓ 1\n")
-        self.repo.write("a.py", "x = 2\n")
-        self.repo.commit("code\n\nSpec-check: ✓ 2\n")
+        self.repo.write("docs/architecture.md", "# A\n")
+        for n in range(3):
+            self.repo.write("a.py", f"x = {n + 2}\n")
+            self.repo.commit(f"code\n\nSpec-check: ✓ {n}\n")
         self.repo.write("openspec/specs/x/spec.md", repeated())
+        self.repo.write("openspec/changes/x/specs/seat/spec.md", repeated())
+        self.repo.write("docs/architecture.md", repeated())
         self.assertNotIn("compaction due", self.check().stdout)
-        self.repo.git("checkout", "HEAD", "--", "openspec/specs/x/spec.md")
-        self.repo.write("a.py", "x = 3\n")
-        self.repo.commit("more\n\nSpec-check: ✓ 3\n")
+
+    def test_a_spec_linked_to_be_read_first_or_declared_is_due(self):
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50\n"
+                                          "openspec/specs/y/spec.md prose-compact\n")
+        self.repo.write("AGENTS.md", "# A\n\n[The seat spec](openspec/specs/x/spec.md): read "
+                                     "it first.\n")
+        self.repo.commit("guide\n")
         self.repo.write("openspec/specs/x/spec.md", repeated())
-        self.assertIn("compaction due for openspec/specs/x/spec.md: read often (3 reads implied by "
-                      "commits since it was added; 3 make it read often)", self.check().stdout)
+        self.repo.write("openspec/specs/y/spec.md", repeated())
+        out = self.check().stdout
+        self.assertIn("compaction due for openspec/specs/x/spec.md: read often (AGENTS.md links "
+                      "it to be read first)", out)
+        self.assertIn("compaction due for openspec/specs/y/spec.md: read often (declared "
+                      "prose-compact in .gitattributes)", out)
+
+    def test_a_change_that_cuts_exactly_a_tenth_is_a_compaction(self):
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50 "
+                                          "prose-compact-flagged-share=1\n")
+        self.repo.write("SKILL.md", "# Doc\n\n" + "x" * 992 + "\n")
+        self.repo.commit("add\n")
+        body = repeated()
+        self.repo.write("SKILL.md", body + "y" * (899 - len(body)) + "\n")
+        self.assertEqual(len((self.repo.path / "SKILL.md").read_bytes()), 900)
+        self.assertNotIn("compaction due", self.check().stdout)
 
     def test_a_doc_never_compacted_is_not_due_by_growth(self):
         # The removed prose-compact-budget attribute is ignored.
@@ -373,7 +407,7 @@ class CompactionDue(unittest.TestCase):
                       ".gitattributes)", out)
 
     def test_a_decisions_md_or_an_adr_is_never_due_even_declared(self):
-        self.repo.write(".gitattributes", "* prose-compact-flagged=50 prose-compact-reads=0\n"
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50\n"
                                           "*.md prose-compact\n")
         self.repo.write("notes.md", repeated())
         self.repo.write("DECISIONS.md", repeated())
@@ -460,8 +494,8 @@ class ImpliedReads(unittest.TestCase):
         self.repo.write("skills/a/ref.md", "# Ref\n")
         self.repo.write("skills/a/DECISIONS.md", "# D\n")
         self.repo.write("skills/bug-hunter/SKILL.md", "# B\n")
+        self.repo.write("skills/spec-check/SKILL.md", "# S\n")
         self.repo.write("openspec/specs/x/spec.md", "# X\n")
-        self.repo.write("openspec/changes/y/proposal.md", "# Y\n")
         self.repo.write("README.md", "r\n")
         self.repo.commit("base\n")
 
@@ -477,8 +511,8 @@ class ImpliedReads(unittest.TestCase):
 
     def test_each_kind_of_commit_implies_its_reads(self):
         docs = ["skills/a/SKILL.md", "skills/a/ref.md", "skills/a/DECISIONS.md",
-                "skills/bug-hunter/SKILL.md", "openspec/specs/x/spec.md",
-                "openspec/changes/y/proposal.md"]
+                "skills/bug-hunter/SKILL.md", "skills/spec-check/SKILL.md",
+                "openspec/specs/x/spec.md"]
         before = self.reads(dict.fromkeys(docs))
         self.change("skills/a/DECISIONS.md", "touch a\n")
         self.change("README.md", "readme\n\nBug-hunter: 0 bugs found\n")
@@ -487,18 +521,20 @@ class ImpliedReads(unittest.TestCase):
         self.assertEqual({doc: after[doc] - before[doc] for doc in docs},
                          {"skills/a/SKILL.md": 1, "skills/a/ref.md": 1,
                           "skills/a/DECISIONS.md": 0, "skills/bug-hunter/SKILL.md": 1,
-                          "openspec/specs/x/spec.md": 1, "openspec/changes/y/proposal.md": 1})
+                          "skills/spec-check/SKILL.md": 1, "openspec/specs/x/spec.md": 0})
 
-    def test_a_spec_check_value_recording_no_read_implies_no_read_of_the_specs(self):
-        docs = ["openspec/specs/x/spec.md", "openspec/changes/y/proposal.md"]
+    def test_each_trailer_of_a_commit_implies_a_read_of_its_own_skill_only(self):
+        self.repo.write("skills/unprose/SKILL.md", "# U\n")
+        self.repo.commit("add\n")
+        docs = ["skills/bug-hunter/SKILL.md", "skills/spec-check/SKILL.md",
+                "skills/unprose/SKILL.md"]
         before = self.reads(dict.fromkeys(docs))
-        self.change("README.md", "readme\n\nSpec-check: \u2713 abc 0 errors, 0 checks; "
-                    "validate passed; read deferred to the round's end\n")
-        self.change("README.md", "readme\n\nSpec-check: \u2713 abd 0 errors, 0 checks; "
-                    "validate passed; no read due\n")
+        self.change("README.md", "readme\n\nBug-hunter: 0 bugs found\nProse: ok\n"
+                    "Spec-check: ok\n")
         after = self.reads(dict.fromkeys(docs))
         self.assertEqual({doc: after[doc] - before[doc] for doc in docs},
-                         {"openspec/specs/x/spec.md": 0, "openspec/changes/y/proposal.md": 0})
+                         {"skills/bug-hunter/SKILL.md": 1, "skills/spec-check/SKILL.md": 1,
+                          "skills/unprose/SKILL.md": 0})
 
     def test_reads_are_counted_only_since_the_last_compaction(self):
         self.change("skills/a/ref.md", "one\n")
@@ -508,41 +544,44 @@ class ImpliedReads(unittest.TestCase):
 
     def test_commits_before_the_doc_was_added_imply_no_reads(self):
         root = str(self.repo.path)
-        self.change("README.md", "readme\n\nSpec-check: ✓ a\n")
-        self.change("README.md", "readme\n\nSpec-check: ✓ b\n")
-        self.repo.write("openspec/specs/new/spec.md", "# New\n")
+        self.change("README.md", "readme\n\nBug-hunter: 0 bugs found\n")
+        self.change("README.md", "readme\n\nBug-hunter: 0 bugs found\n")
+        self.repo.write("new/bug-hunter/SKILL.md", "# New\n")
         index = compact.index_entries(root)
         reads = compact.implied_reads(root, index, compact.read_first_links(root, index),
-                                      {"openspec/specs/new/spec.md": None})
-        self.assertEqual(reads, {"openspec/specs/new/spec.md": 0})
+                                      {"new/bug-hunter/SKILL.md": None})
+        self.assertEqual(reads, {"new/bug-hunter/SKILL.md": 0})
 
     def test_a_doc_deleted_and_added_again_starts_a_new_history(self):
         root = str(self.repo.path)
-        self.repo.write("openspec/specs/a/spec.md", "# A\n")
+        self.repo.write("a/bug-hunter/SKILL.md", "# A\n")
         self.repo.commit("add\n")
-        self.repo.git("rm", "-q", "openspec/specs/a/spec.md")
+        self.repo.git("rm", "-q", "a/bug-hunter/SKILL.md")
         self.repo.commit("remove\n")
-        self.change("README.md", "readme\n\nSpec-check: ✓ a\n")
-        self.repo.write("openspec/specs/a/spec.md", "# A again\n")
+        self.change("README.md", "readme\n\nBug-hunter: 0 bugs found\n")
+        self.repo.write("a/bug-hunter/SKILL.md", "# A again\n")
         self.repo.commit("add again\n")
         index = compact.index_entries(root)
         reads = compact.implied_reads(root, index, compact.read_first_links(root, index),
-                                      {"openspec/specs/a/spec.md": None})
-        self.assertEqual(reads, {"openspec/specs/a/spec.md": 0})
+                                      {"a/bug-hunter/SKILL.md": None})
+        # Added, deleted, then added again: only the commit that added it
+        # again counts, since it changes the skill's directory.
+        self.assertEqual(reads, {"a/bug-hunter/SKILL.md": 1})
 
     def test_a_subject_naming_a_skill_is_not_a_trailer(self):
         root = str(self.repo.path)
-        self.repo.write("openspec/specs/s/spec.md", "# S\n")
+        self.repo.write("s/bug-hunter/SKILL.md", "# S\n")
         self.repo.commit("add\n")
-        self.change("README.md", "spec-check: tweak the script\n")
+        self.change("README.md", "bug-hunter: tweak the script\n")
         index = compact.index_entries(root)
         reads = compact.implied_reads(root, index, compact.read_first_links(root, index),
-                                      {"openspec/specs/s/spec.md": None})
-        self.assertEqual(reads, {"openspec/specs/s/spec.md": 0})
+                                      {"s/bug-hunter/SKILL.md": None})
+        # Only the commit that added it.
+        self.assertEqual(reads, {"s/bug-hunter/SKILL.md": 1})
 
     def test_a_merge_titled_like_a_trailer_implies_no_read(self):
         root = str(self.repo.path)
-        self.repo.write("openspec/specs/m/spec.md", "# M\n")
+        self.repo.write("m/bug-hunter/SKILL.md", "# M\n")
         self.repo.commit("add\n")
         for n in range(2):
             self.repo.git("checkout", "-q", "-b", f"side{n}")
@@ -550,11 +589,12 @@ class ImpliedReads(unittest.TestCase):
             self.repo.commit(f"side {n}\n")
             self.repo.git("checkout", "-q", "-")
             self.repo.git("merge", "-q", "--no-ff", f"side{n}", "-m", f"Merge pull request #{n}",
-                          "-m", f"spec-check: tweak {n}")
+                          "-m", f"bug-hunter: tweak {n}")
         index = compact.index_entries(root)
         reads = compact.implied_reads(root, index, compact.read_first_links(root, index),
-                                      {"openspec/specs/m/spec.md": None})
-        self.assertEqual(reads, {"openspec/specs/m/spec.md": 0})
+                                      {"m/bug-hunter/SKILL.md": None})
+        # Only the commit that added it.
+        self.assertEqual(reads, {"m/bug-hunter/SKILL.md": 1})
 
     def test_the_log_is_capped(self):
         for n in range(4):

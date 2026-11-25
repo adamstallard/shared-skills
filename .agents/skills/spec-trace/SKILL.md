@@ -6,6 +6,7 @@ description: >-
   CI on a scenario no test tags or a tag that names no scenario. Use when
   writing or changing a test in a repository that has openspec/, when
   archiving an OpenSpec change, when a spec-trace CI step fails, when
+  setting up that CI step or updating the checker commit it pins, when
   editing a test runner's configuration to exclude test files in a
   repository that has adopted spec-trace, or when the user asks to "trace
   tests to specs", "tag the scenario", "which tests cover this spec" or to
@@ -178,6 +179,32 @@ renames needs one too when its name repeats in the capability: its tag
 carries the requirement's name, so the old tag no longer matches. Run
 `check` to confirm.
 
+## The CI pin
+
+The CI step fetches `spec_trace.py` at the shared-skills commit in
+`SPEC_TRACE_SHA`. To choose that commit or update it, ask GitHub for the
+newest commit on main that changed the checker; a later commit would hold
+the same checker. This needs `gh`, installed and signed in:
+
+```bash
+gh api 'repos/adamstallard/shared-skills/commits?sha=main&path=.agents/skills/spec-trace/scripts/spec_trace.py&per_page=1' --jq '.[0].sha'
+```
+
+Put the 40-character SHA it prints in `SPEC_TRACE_SHA`. Don't take it from
+a local clone: one that is stale, on another branch or ahead of GitHub would
+give a wrong pin.
+
+Before pushing, run the checker at that commit from the root of the
+repository whose CI you are setting up:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/<SHA>/.agents/skills/spec-trace/scripts/spec_trace.py" -o /tmp/spec_trace.py
+python3 /tmp/spec_trace.py check
+```
+
+The workflow also pins the OpenSpec version. Change it only on purpose, to
+the version you run locally (`openspec --version`).
+
 ## Adopting or declining it in a repository
 
 spec-trace's hook runs after you write or edit a `spec.md` under
@@ -203,7 +230,8 @@ says `undecided`. On `unknown` it says why, on stderr:
    `openspec/specs/` until its first change is archived, so its baseline
    holds only its comment lines, and `check` requires no tag until then.
 2. Add the CI step from this skill's [README](README.md#ci). It fetches
-   `spec_trace.py` pinned to a full commit SHA of shared-skills.
+   `spec_trace.py` pinned to a full commit SHA of shared-skills; choose the
+   SHA as *The CI pin*, above, says.
 3. Add one line to the repository's AGENTS.md or CLAUDE.md, in its own voice,
    saying that a test tags the OpenSpec scenario it checks with
    `@scenario <capability>: <Scenario name>`, and pointing at this skill.

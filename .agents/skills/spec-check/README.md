@@ -154,9 +154,12 @@ path that breaks them, such as `openspec/docs/<capability>.md`, would
 match every doc in `openspec/docs/`, and `check` would report `record`
 errors in each one.
 
-If your agents write changes through OpenSpec's /opsx skills, the agent can
-merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
-OpenSpec shows them these rules while they write.
+If your agents write changes through OpenSpec's workflow skills, you or your
+agent can merge the `rules:` block of [openspec-rules.yaml](openspec-rules.yaml)
+into `openspec/config.yaml`, as the file's header comment says. OpenSpec then
+shows those agents spec-check's rules for decision records while they write
+each proposal, spec and design. The block changes with spec-check, so merge it
+again after updating spec-check.
 
 ## Examples of what to say
 
@@ -228,15 +231,29 @@ check.
 python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci
 ```
 
-writes `.github/workflows/spec-check.yml`, pinned to the newest pushed
-commit of `spec_check.py` in your clone (`--sha` picks another; `--force`
-replaces an existing workflow). Commit it, then make `spec-check` a
+writes `.github/workflows/spec-check.yml`. Each run of that workflow
+downloads `spec_check.py` from GitHub at the commit the file pins.
+setup-ci finds the newest commit on shared-skills' main that changed
+`spec_check.py` and the newest that changed the workflow template,
+`ci/spec-check.yml`, which setup-ci copies into the file. The pin must
+hold both changes, because setup-ci copies the template as it stands at
+the pin, and the workflow's steps must match the script each run
+downloads. When one of the two commits is in the other's history, the
+later one holds both and is the pin. Otherwise the two commits came from
+branches merged separately, and neither holds the other's change. The
+pin is then the first commit on main's first-parent line whose history
+holds both commits, usually the second merge. setup-ci reads the pin and the template from GitHub with gh, so it
+needs gh installed and signed in, but no clone of shared-skills.
+`--sha <commit>` pins another commit on main instead, and `--force`
+replaces an existing workflow. Commit it, then make `spec-check` a
 required check in the base branch's protection rules, so a pull request
 with an unread change cannot merge. The workflow needs `pull-requests:
 write`, which it declares; a fork's pull request gets a read-only token, so
 there it fails the check without making a draft.
 
-**To update the pin**, run `setup-ci --force` from an updated clone.
+**To update the pin** after shared-skills changes the script or the
+template, run `setup-ci --force` and commit the result. `--force` replaces
+the whole file, discarding any local edit.
 
 ## Troubleshooting
 
