@@ -64,8 +64,9 @@ remove the question from design.md.
       for each pair of changes
 - [ ] 2.7 The record of checked pairs in the order's issue: the legend,
       `code edges:` and `unchecked:`, updated each run, and taking each
-      pair of an edges file whose two hashes match the legend, and the
-      size check that publishes nothing past GitHub's body limit
+      pair of an edges file whose two hashes match the legend; and the size
+      check: past GitHub's body limit, write the note that the order's
+      issue is full, keeping the cycles' lines and the overrides
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text

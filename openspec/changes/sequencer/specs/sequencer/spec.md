@@ -90,9 +90,9 @@ These terms hold throughout this spec:
   the change in the order's issue's record of checked pairs, kept while
   the change stays in that record's legend. A new key is `00` in an empty legend, and otherwise the one after the
   highest in it, counting `0`-`9` then `a`-`z` in each place, or,
-  past `zz`, the lowest free key.
-- **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
-  triage** is the step where an Igor chooses which items to take.
+  past `zz`, the lowest free key. The legend names each change's
+  repository so that a later order spanning repositories can reuse it.
+- **A Sequencer Igor** is an Igor in the Sequencer role.
 
 ## ADDED Requirements
 
@@ -694,8 +694,8 @@ with a reason each, and refuse the whole set when any edge has no reason.
 ### Requirement: The order's issue records which pairs were checked
 
 The order's issue SHALL record the model step's results in three lists:
-`legend:`, one line per change in a pair, giving its key, its name and
-its full hash; `code edges:`, one row `X>Y <reason>` per code
+`legend:`, one line per change in a pair, giving its key, its repository
+as `<owner>/<repo>`, its name and its full hash; `code edges:`, one row `X>Y <reason>` per code
 edge, X coming after Y, so an edge each way is two rows; and
 `unchecked:`, rows `X *` for a change unchecked against every other and
 `X,Y` for one unchecked pair. A pair of listed changes that no row
@@ -708,14 +708,14 @@ names SHALL count as checked with no edge.
   `sequencer-ranks`, finding only that `sequencer-ranks` calls
   `claim_item()` from `add-claims-table`, `claim-retries` has opened since, and
   keys `a3` and `a4` left with their merged changes
-- **THEN** the record reads, with each change's full hash in place of
-  `<hash>`:
+- **THEN** the record reads, in the repository `octo/app`, with each
+  change's full hash in place of `<hash>`:
   ```
   legend:
-  a1 add-claims-table <hash>
-  a2 sequencer-ranks <hash>
-  a5 claim-audit-log <hash>
-  a6 claim-retries <hash>
+  a1 octo/app add-claims-table <hash>
+  a2 octo/app sequencer-ranks <hash>
+  a5 octo/app claim-audit-log <hash>
+  a6 octo/app claim-retries <hash>
   code edges:
   a2>a1 calls claim_item()
   unchecked:
@@ -795,17 +795,24 @@ SHALL add their code edges.
 - **THEN** `publish` takes the edge between #82 and #90, and drops each
   pair the file gives that holds #95 or #77
 
-### Requirement: A full order's issue stops the run
+### Requirement: A full order's issue holds a note in place of the order
 
 Where the order's issue's body would pass GitHub's limit of 65,536
-characters, the script SHALL publish nothing, say the order's issue is
-full, and call no model, whose result it could not publish.
+characters, the script SHALL replace the order under `# Order`, record
+included, with the note `The order's issue is full: <n> open items need
+more than GitHub's 65,536 characters. No order is published until some
+merge or close.`, keeping each cycle's line and the overrides, so their
+comments still count later. It SHALL edit no other body, call no model,
+and remove the label `sequencer: check code`, since no model step runs.
 
-#### Scenario: Too many open changes fill the order's issue
+#### Scenario: Too many open items fill the order's issue
 
-- **WHEN** the order's issue with its record would hold 70,000 characters
-- **THEN** the script edits nothing, says the order's issue is full, and
-  makes no model call
+- **WHEN** 320 open items would make the order's issue hold 70,000
+  characters, and #82 and #90 form a cycle ordered by override
+- **THEN** the order's issue, under `# Order`, holds `The order's issue is
+  full: 320 open items need more than GitHub's 65,536 characters. No order
+  is published until some merge or close.`, the cycle's line and the list
+  of overrides; no item's block changes; and the script makes no model call
 
 ### Requirement: The order says plainly what it did not check
 
@@ -833,7 +840,8 @@ change.`
 
 ### Requirement: The same inputs give the same order whoever runs the script
 
-Given the same repository state, the same record of checked pairs, and the same OpenSpec CLI, the script
+Given the same repository state, the same record of checked pairs, the
+same OpenSpec CLI version and the same minute of publishing, the script
 SHALL produce byte-identical order text, whichever caller runs it and
 wherever. Where a section-0 task picks a method of reading, a caller
 whose token cannot make that method's reads SHALL publish or print no
@@ -938,8 +946,8 @@ change's files, the OpenSpec CLI or the model step, and each reviewer's
 login, as inline code: delimited by a backtick run longer than any in it,
 padded with a space where it starts or ends with a backtick, and with its
 line breaks as spaces, so mentions, links and markers in it render inert.
-An outside item's reference, written as plain `<owner>/<repo>#<number>`
-text built from its parts, is the one exception.
+The exceptions are an outside item's plain `<owner>/<repo>#<number>`
+reference and the fenced record of checked pairs.
 
 #### Scenario: A mention in a model's reason does not notify
 
@@ -1274,9 +1282,9 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 ### Requirement: An API key's model step runs only on events that can change a pair
 
 Where the repository chose its API key, the model step SHALL run only in
-a run triggered by the daily schedule, or by a push to, or the opening,
-reopening or closing without merging of, a pull request a writer opened, since only those
-events can add a pair or change a pair's files, and the daily run retries, and each call is paid for with the repository's key.
+a run triggered by the daily schedule, or by a pull request a writer
+opened being opened, reopened or pushed to, since each call is paid for with the
+repository's key.
 
 #### Scenario: A comment makes no API call
 
@@ -1408,7 +1416,7 @@ and SHALL edit bodies directly, in a session as in the workflow.
 
 #### Scenario: An Igor reads places without editing
 
-- **WHEN** an Igor's work triage runs `order --json`
+- **WHEN** an Igor runs `order --json`
 - **THEN** it gets each item's place, each change's hash and the files of
   changes whose pull requests writers opened, and no body, label or comment
   in the repository changes
