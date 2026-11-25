@@ -4,8 +4,9 @@ the implementation, built on this branch once the spec is approved. Every test t
 
 ## 0. Measure before building
 
-Each task answers one of design.md's open questions. Write each result
-into the requirement it bears on, with its evidence in
+Tasks 0.1, 0.4, 0.6, 0.7 and 0.8 answer design.md's open questions;
+tasks 0.2, 0.3 and 0.5 measure what the workflow's token can do by
+default, which the spec covers whatever they find, so their results go only into the decision record as evidence where a rule rests on them. Write each result into the requirement it bears on, with its evidence in
 `openspec/specs/sequencer/decisions.md` where a rule rests on it, and
 remove the question from design.md.
 
@@ -29,6 +30,10 @@ remove the question from design.md.
 - [ ] 0.7 Whether a pull request's timeline tells apart the two ways a
       review request ends: GitHub clearing it when the reviewer reviews,
       and a person removing it
+- [ ] 0.8 How a refused read of another account's permission, of
+      installations or of "blocked by" relations shows that GitHub refused it:
+      an error status, an empty answer, or a 404 like the one for a
+      missing item
 
 ## 1. Reading the repository
 

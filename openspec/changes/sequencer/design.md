@@ -1,42 +1,26 @@
 ## Open Questions
 
 Each question asks about a fact nobody has measured. It names the task in
-tasks.md's section 0 that measures it, and either says what happens if
-the answer is no or names the requirement that says so.
+tasks.md's section 0 that measures it, and the behaviour to specify once
+it is measured. The requirement for that behaviour is written only then.
 
-- **Can a pull request carry GitHub's "blocked by" relation, and can the
-  workflow's token read the relations, including one to another
-  repository's issue?** (task 0.1) If a pull request cannot carry one, the
-  relation orders only issues. If the token can read none, the script,
-  whoever runs it, reads only `Depends on` and `Builds on:` lines, so
-  that every caller gives the same order, and the order's issue says
-  `"Blocked by" relations were not read.` If it can read all but
-  relations to another repository's issues, the order's issue
-  says `"Blocked by" relations to other repositories were not read.`
-- **Can a `pull_request_target` run's token edit the body of a pull
-  request from a fork?** (task 0.2) If not, *An item the script cannot edit
-  is named, not skipped silently* applies.
-- **Can a `pull_request_review` run for a fork's pull request edit
-  the order's issue and the items' bodies?** (task 0.3) If not, *A run that cannot edit the order's
-  issue edits nothing* applies.
+- **Can a pull request carry GitHub's "blocked by" relation?** (task 0.1)
+  If not, the relation orders only issues.
 - **Does an edges file fit in a `workflow_dispatch` input?** (task 0.4)
   If not, the caller sends its pairs in several dispatches, each a
-  self-contained edges file holding some of the pairs, and sends each only after the run
-  of the one before has finished, so that its own dispatches never cancel
-  each other: GitHub cancels a pending run when a newer one joins the
-  concurrency group. Each run adds to the record of checked pairs those pairs
-  whose changes' hashes still match the file's; a dispatch that a run from
-  another trigger cancels leaves
-  its pairs unchecked until a later model step.
-- **Can the workflow's token read another account's permission?** (task
-  0.5) If not, the spec's term *A writer* gives the `author_association`
-  fallback.
-- **Can the workflow's token tell that a GitHub App is installed on the
-  repository?** (task 0.6) If not, the spec's term *A writer* says that
-  no App's bot account counts as a writer.
+  self-contained edges file holding some of the pairs, and sends each only after the run of the one before has finished, as its status on GitHub shows. Each run adds to the record of checked pairs those pairs whose changes' hashes still match the hashes that dispatch's edges file carries. All the workflow's runs share one concurrency group, and GitHub cancels a waiting run when a newer one joins it, so a dispatch that a run from another trigger cancels leaves its pairs unchecked until a later model step.
+- **How can the script tell that a GitHub App is installed on the
+  repository?** (task 0.6) The task finds which of the permission API,
+  `author_association` or the repository's list of installations tells
+  it, and the spec's term *A writer* then names that method. If no method exists, no App's bot account counts
+  as a writer anywhere, and the scenarios that count an installed App's
+  bot are removed.
 - **Can a pull request's timeline tell apart the two ways a review
   request ends: GitHub clearing it when the reviewer reviews, and a
-  person removing it?** (task 0.7) If not, a pull request awaits every reviewer
-  it ever requested, a removed one included, as *Reviewers come from the
-  repository's config, else from GitHub's requests, else CODEOWNERS*
-  says.
+  person removing it?** (task 0.7) If yes, a reviewer a person removed is no longer awaited: where #98 requested `li` and `maya`, and a person removed `li` before `li` reviewed, #98 awaits `maya` and not `li`. If not, a pull request awaits every reviewer it ever requested, a removed one included. Either way, the spec's reviewers rule already holds.
+- **How does a refused read show that GitHub refused it?** (task 0.8)
+  Each fallback for a read the token cannot make (counting writers by association, counting no App, ordering without "blocked by" relations) needs to tell a refusal from an empty answer, such as a permission read that returns
+  404 both for a refused read and for an account with no access. If a refusal looks like an empty answer or like a 404 for a missing item, the script first makes a read of the same
+  kind whose answer is known not to be empty, such as of its own
+  account's permission before reading others', and treats an empty
+  answer to it as a refusal of every read of that kind.

@@ -62,16 +62,10 @@ These terms hold throughout this spec:
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question. If task 0.5 finds that the workflow's
-  token cannot read permissions, the script, whoever runs it, instead counts
-  the author of an issue, pull request or comment as a writer when
-  GitHub's `author_association` on it is OWNER, MEMBER or
-  COLLABORATOR.
-  A GitHub App's bot account counts as a writer only for the issues and
-  pull requests it opens and the reviews it submits, when that App is installed on the
-  repository, detected by the method task 0.6 finds. If task 0.6 finds
-  that the workflow's token cannot tell whether an App is installed, no
-  App's bot account counts as a writer, whoever runs the script.
+  holds the item or comment in question. A GitHub App's bot account counts
+  as a writer only for the issues and pull requests it opens and the
+  reviews it submits, never for its comments, when that App is installed on
+  the repository.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the default branch or pull request head the change
   is read from.
@@ -192,8 +186,8 @@ them, but edges between the issue and them SHALL be dropped.
 
 #### Scenario: An installed App's pull request counts as a writer's
 
-- **WHEN** a GitHub App installed on the repository opens #90 as its bot
-  account, #90's body holds the line `Part of #43`, and no other pull
+- **WHEN** a GitHub App that the script's token can tell is installed on
+  the repository opens #90 as its bot account, #90's body holds the line `Part of #43`, and no other pull
   request is tied to #43
 - **THEN** #43 shares #90's place
 
@@ -327,11 +321,12 @@ could change them.
 ### Requirement: A change holding anything but files and directories is not checked
 
 Where a change's directory on a pull request's head holds a symlink, or any
-entry other than a regular file or a directory, the script SHALL write none
-of that change's files to disk for the CLI and read none of them, and the
-order's issue SHALL list the change as not checked, saying why, since a
-symlink can point at a secret on the runner. Its pull request SHALL still
-be placed by the rules that read no requirement.
+entry other than a regular file or a directory, the script SHALL read none
+of that change's files and write none to disk, the change SHALL be in no
+pair and have no hash, and the order's issue SHALL list it as not checked,
+saying why, since a symlink can point at a secret on the runner. Its pull
+request SHALL still be placed by explicit links and the time it was opened,
+and still given merge waits.
 
 #### Scenario: A fork's symlink is never followed
 
@@ -481,7 +476,7 @@ link. The script SHALL make no request to an outside item's repository.
 
 #### Scenario: A blocked-by relation to another repository's issue is listed
 
-- **WHEN** GitHub records pull request #14 as blocked by the issue
+- **WHEN** GitHub records the issue #14 as blocked by the issue
   `octo/lib#7`
 - **THEN** #14's line says
   `not counted: blocked by octo/lib#7, in another repository`
@@ -500,6 +495,50 @@ link. The script SHALL make no request to an outside item's repository.
   `Depends on octo/lib#7`, and no open pull request is tied to #12
 - **THEN** the order does not hold #12, and the order's issue lists
   `#12: depends on octo/lib#7, in another repository` as not counted
+
+### Requirement: A token that cannot read permissions counts writers by association
+
+Where the script's token cannot read another account's permission, it SHALL
+count as a writer the author of an issue, pull request or comment whose
+`author_association` is OWNER, MEMBER or COLLABORATOR, the closest
+signal GitHub gives without that read, though it counts some members
+without write access, and the order's issue SHALL say `Permissions were not read: writers are counted by author
+association.`
+
+#### Scenario: A token that cannot read permissions counts collaborators
+
+- **WHEN** the script's token cannot read another account's permission,
+  and `li`, whose `author_association` on #82 is COLLABORATOR, opened #82
+- **THEN** #82 counts as opened by a writer, and the order's issue says
+  `Permissions were not read: writers are counted by author association.`
+
+### Requirement: A token that cannot see installations counts no App
+
+Where the script's token cannot tell whether an App is installed, no
+App's bot account SHALL count as a writer, and the order's issue SHALL say
+`Installed Apps were not read: no App counts as a writer.`
+
+#### Scenario: A token that cannot see installations counts no App
+
+- **WHEN** the script's token cannot tell whether an App is installed, and
+  an App's bot account opened #130
+- **THEN** #130 counts as opened by no writer, and the order's issue says
+  `Installed Apps were not read: no App counts as a writer.`
+
+### Requirement: Relations the token cannot read are named
+
+Where the script's token cannot read "blocked by" relations, the script
+SHALL order by the other links alone, and the order's issue SHALL say
+`"Blocked by" relations were not read.` Where it can read them but not
+those naming another repository's issue, the order's issue SHALL say
+`"Blocked by" relations to other repositories were not read.`
+
+#### Scenario: A token that cannot read relations orders by lines
+
+- **WHEN** the script's token cannot read "blocked by" relations, GitHub
+  records #14 as blocked by #11, and #12's body says `Depends on #9`
+- **THEN** #12 comes after #9, #14 gains no edge from #11, and the order's
+  issue says `"Blocked by" relations were not read.`
 
 ### Requirement: Only edges set by writers count
 
@@ -520,8 +559,8 @@ opened the item setting it.
 
 #### Scenario: An installed App's issue sets an edge
 
-- **WHEN** a GitHub App installed on the repository opens issue #130 as
-  its bot account, and #130's body holds the line `Depends on #9`
+- **WHEN** a GitHub App that the script's token can tell is installed on
+  the repository opens issue #130 as its bot account, and #130's body holds the line `Depends on #9`
 - **THEN** #130 comes after #9, and the order holds both
 
 #### Scenario: A citation set by an outside author's title is not counted
@@ -851,10 +890,9 @@ too old or current.
 
 Given the same repository state, the same record of checked pairs, the
 same OpenSpec CLI version and the same minute of publishing, the script
-SHALL produce byte-identical order text, whoever runs it, wherever, apart from the items it names as having no block because its
-token could not edit them. Where a task in section 0 of tasks.md picks how to read relations,
-permissions or App installation, a caller unable to make those reads SHALL publish or print no
-order, and say which read failed.
+SHALL produce byte-identical order text, whoever runs it, wherever, apart
+from what follows from a read or edit its token could not make, which the
+order's issue names.
 
 #### Scenario: A session and CI agree
 
@@ -863,20 +901,27 @@ order, and say which read failed.
   OpenSpec CLI version, in the same minute
 - **THEN** both produce the same text for the order's issue and every block
 
-#### Scenario: A caller that cannot make a read publishes nothing
+### Requirement: A refused read with no fallback publishes nothing
 
-- **WHEN** task 0.5 found that the workflow's token can read another
-  account's permission, and an agent's session runs `publish` with a
-  token that cannot
-- **THEN** the script edits nothing and says that read failed
+Where GitHub refuses a read the order needs, and no requirement gives that
+read a fallback, the script SHALL publish or print no order, and say which
+read failed.
+
+#### Scenario: A refused read with no fallback publishes nothing
+
+- **WHEN** GitHub refuses the script's read of #96's changed files
+- **THEN** the script edits nothing and says the read of #96's changed
+  files failed
 
 ### Requirement: The whole order lives in one issue's body
 
 The script SHALL keep the whole order in the body of the open issue
 labelled `sequencer`, creating it when none is open and publishing nothing when more than one is. It SHALL
 use that issue only when a writer opened it, or `github-actions[bot]`;
-otherwise it SHALL publish nothing and name the issue and its author.
-Nor SHALL it create the issue as an account it would so refuse. Nothing of the order
+otherwise it SHALL publish nothing and name the issue, its author and why
+its author is not a writer.
+It SHALL NOT create the issue as an account other than a writer or
+`github-actions[bot]`. Nothing of the order
 SHALL go in a comment.
 
 #### Scenario: The first publish creates the order's issue
@@ -1061,9 +1106,9 @@ change, and that text SHALL hold no date or time but each cycle's
 
 When an item leaves the order, by closing, merging or ceasing to be linked,
 the script SHALL remove its block, markers included, and leave the rest of
-its body as it was. An item that closed while the order's issue held the full note keeps its
-block for good, since the script finds blocks to remove through the order
-it replaces, and the note names no item.
+its body as it was. An item that left the order while the order's issue held the note that the
+issue is full keeps its block for good, since the next publish finds
+blocks to remove through the order it replaces, and the note names no item.
 
 #### Scenario: A merged pull request's block is removed
 
@@ -1172,18 +1217,19 @@ its head, it SHALL await that reviewer or team again.
 
 #### Scenario: An installed App's review ends a team's wait
 
-- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and an
-  installed App's bot account submits a review of #96's head commit
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and the bot
+  account of an App that the script's token can tell is installed submits
+  a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request's reviewers SHALL be every login in the
 `reviewers` list of `.github/sequencer.json` on the default branch, other
-than its author's. With no such list, they SHALL be those it requested on
-GitHub, less any a person removed (no one, if task 0.7 finds a removal
-cannot be told from a review); when that leaves none, the owners the default branch's CODEOWNERS
-gives its changed files. It SHALL await each of its reviewers. A team SHALL count as one
+than its author's. With no such list, they SHALL include each reviewer whose
+request on it is open or ended with their review, and no one it never
+requested; when it has never requested a review, they SHALL be the owners
+that the default branch's CODEOWNERS gives its changed files. It SHALL await each of its reviewers. A team SHALL count as one
 reviewer.
 
 #### Scenario: A team is one reviewer
@@ -1205,13 +1251,6 @@ reviewer.
 - **WHEN** `.github/sequencer.json` does not exist, #98 requested `li`,
   `li` reviewed it, and a push then gave #98 a new head commit
 - **THEN** #98 awaits `li` again, and CODEOWNERS is not consulted
-
-#### Scenario: A reviewer a person removed is not awaited
-
-- **WHEN** task 0.7 found that the timeline tells a removal from a review,
-  `.github/sequencer.json` does not exist, #98 requested `li` and `maya`,
-  and a person then removed `li` from #98's requests
-- **THEN** #98 awaits `maya` and not `li`
 
 ### Requirement: Only a dry run takes a reviewer list
 
