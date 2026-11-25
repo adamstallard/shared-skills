@@ -21,14 +21,16 @@ These terms hold throughout this spec:
   **repository** is the `owner/repo` name of the repository that holds it.
 - One item is **opened earlier** than another when GitHub's creation time
   for it is earlier. Where the times are equal, the earlier is the one
-  whose repository's name sorts first, then the one with the lower number;
-  within one repository, that is the lower number.
+  whose repository's name sorts first, then the one with the lower number.
+- Two members of one cycle share a place; of them, **the later in the
+  order** is the later in the cycle's order, by rule or by override.
 - **The order's issue** is the one issue whose body holds the whole order.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
   other than `archive/`. **An open change** is one on its repository's default branch or
   in an open pull request's diff against its base. A change **belongs to** the
   earliest-opened open pull request whose diff against its base adds or
-  changes a file in the change's directory, and the order places the
+  changes a file in the change's directory that its head still holds, and
+  the order places the
   change where it places that pull request.
 - **A change's requirement** is a requirement that the change's delta adds,
   or renames onto a new name, and that no spec on its repository's default
@@ -259,7 +261,8 @@ checked, and why.
 
 - **WHEN** the script runs where `openspec --version` prints `1.14.3`, and
   two open pull requests hold changes
-- **THEN** no edge comes from a change's files, and the order's issue says
+- **THEN** no edge comes from a change's requirements, and the order's
+  issue says
   `Dependencies between requirements were not checked: OpenSpec 1.16.1 or
   later is not installed (this one is 1.14.3).`
 
@@ -319,8 +322,7 @@ Where both changes of a pair modify one requirement of one capability, the
 order's issue SHALL say that the later of the two in the order must add the
 earlier one's new scenarios to its own copy of the requirement before it
 archives; this finding SHALL add no edge, because archiving replaces a
-requirement with the archiving change's whole copy. Inside a cycle, the
-later is the later in the cycle's order, by rule or by override.
+requirement with the archiving change's whole copy.
 
 #### Scenario: The second to archive owes the copy
 
@@ -521,8 +523,8 @@ earliest-opened member was.
 ### Requirement: A cycle's members are ordered by rule
 
 The order SHALL place a cycle's members together at one place, earliest
-opened first, marked `ordered by rule since <time>` with the time the publish that
-first listed the cycle ran, or just `ordered by rule` before any publish
+opened first, marked `ordered by rule since <time>` with the UTC minute at which the
+first publish to list the cycle ran, or just `ordered by rule` before any publish
 has listed it, and place each item that comes after any member after
 all of them. A cycle whose members change is a new cycle. A member placed before another member, though an edge puts it
 after that one, SHALL say so in its reason.
@@ -552,10 +554,9 @@ after that one, SHALL say so in its reason.
 ### Requirement: A cycle override is kept and followed
 
 The order's issue SHALL keep a list of cycle overrides, each naming the
-member a writer put first and linking their comment or,
-for one that `publish --decide` recorded, naming the `--by` login and the
-time. The order SHALL put that member first and the rest earliest opened
-first, and its reason SHALL give the same link, or login and time.
+member a writer put first and linking their comment. The order SHALL put
+that member first and the rest earliest opened first, and its reason
+SHALL give the same link.
 
 #### Scenario: An override puts a later-opened member first
 
@@ -565,18 +566,13 @@ first, and its reason SHALL give the same link, or login and time.
   `` before #82, though it cites #82's `<title>`: chosen at <link to the comment> ``,
   and #82 comes after it
 
-#### Scenario: An override recorded in a session names who chose and when
-
-- **WHEN** an agent runs `publish --decide '#85 first' --by maya`
-- **THEN** the overrides list #85 first, chosen by `maya`, with the time it
-  was recorded
-
 ### Requirement: A cycle override is read from the order's issue
 
 A run SHALL read a comment on the order's issue as an override when a
 writer, and not an App's bot account, posted it after the cycle's
 `ordered by rule since` time, and its text starts with `#<n> first`,
-`#<n>` being one of the cycle's members.
+`#<n>` being one of the cycle's members. Of several such comments, the
+latest is the override.
 
 #### Scenario: A writer's comment overrides the rule
 
@@ -608,26 +604,6 @@ writer, and not an App's bot account, posted it after the cycle's
 - **WHEN** a GitHub App with write access posts `#85 first` on the order's
   issue
 - **THEN** the cycle stays ordered by rule
-
-### Requirement: A session records a cycle override only as that person
-
-In a session, `publish --decide '#<n> first' --by <login>` SHALL add an
-override a person gave in the session to the cycle overrides, and SHALL
-refuse, editing nothing, unless `gh` is logged in as that login and it
-has write access.
-
-#### Scenario: A session choice in another person's name is refused
-
-- **WHEN** `gh` is logged in as `li`, and an agent runs
-  `publish --decide '#85 first' --by maya`
-- **THEN** the script edits nothing and says `gh` is not logged in as
-  `maya`
-
-#### Scenario: A session choice by a person without write access is refused
-
-- **WHEN** `gh` is logged in as `zed`, who has no write access, and an
-  agent runs `publish --decide '#85 first' --by zed`
-- **THEN** the script edits nothing and says `zed` has no write access
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -810,12 +786,12 @@ and the order is no decision.
 ### Requirement: Text from a pull request or the model is written inert
 
 The script SHALL write each string taken from an issue, a pull request, a
-change's files or the model step, such as a reason, and each reviewer's
-login, as inline code: delimited by a backtick run longer than any in
-it, padded with a space where it starts or ends with a backtick, and with
-its line breaks as spaces, so mentions, links and markers in it render
-inert; an outside item's reference is the one exception. It SHALL refuse
-a string holding `<!-- sequencer:end -->`.
+change's files, the OpenSpec CLI or the model step, and each reviewer's
+login, as inline code: delimited by a backtick run longer than any in it,
+padded with a space where it starts or ends with a backtick, and with its
+line breaks as spaces, so mentions, links and markers in it render inert.
+An outside item's reference, written as plain `<owner>/<repo>#<number>`
+text built from its parts, is the one exception.
 
 #### Scenario: A mention in a model's reason does not notify
 
@@ -830,20 +806,6 @@ a string holding `<!-- sequencer:end -->`.
 - **THEN** the block shows it as one code span, delimited by two backticks
   and holding the text x, a backtick, a space and @maya, and GitHub
   notifies no one
-
-#### Scenario: A string holding the end marker is refused
-
-- **WHEN** a model-step edge's reason holds `<!-- sequencer:end -->`
-- **THEN** `publish` refuses that edges set, and publishes none of its
-  edges
-
-#### Scenario: A requirement title holding the end marker sets no edge
-
-- **WHEN** #82's change adds a requirement whose title holds
-  `<!-- sequencer:end -->`, and #90's change modifies it
-- **THEN** that requirement sets no edge, #82's other requirements still
-  do, and the order's issue names #82's change as holding the sequencer's
-  end marker
 
 ### Requirement: Each item's body carries a block giving its place
 
@@ -869,11 +831,10 @@ only those after it.
 
 The order's issue body and each block SHALL lie between the lines
 `<!-- sequencer:begin -->` and `<!-- sequencer:end -->`, and the script
-SHALL change nothing in a body outside them. It SHALL add
-a new block just before the body's last line when that line starts with
-`prose ✓`, so that the signed footer the prose skill ends a post with
-stays last, and at the body's
-end otherwise.
+SHALL change nothing in a body outside them. It SHALL add a new block
+at the body's end, or, when the body's last line starts with `prose ✓`,
+just before that line, so that the prose skill's signed footer stays
+last.
 
 #### Scenario: A person's text around a block is untouched
 
@@ -908,9 +869,8 @@ the order is kept.
 ### Requirement: A block is rewritten only when the order or its reasons change
 
 The script SHALL edit a body only when the text between its markers would
-change, and that text SHALL hold no date or time but these fixed ones: when
-a cycle was first listed, and when a `publish --decide` override was
-recorded.
+change, and that text SHALL hold no date or time but each cycle's
+`ordered by rule since` time.
 
 #### Scenario: An unchanged order edits nothing
 
@@ -932,8 +892,8 @@ its body as it was.
 
 ### Requirement: An item the script cannot edit is named, not skipped silently
 
-Where the script cannot edit an item's body, or the body's marker lines
-are anything but one begin line followed by one end line, the order's
+Where the script cannot edit an item's body, or the body's marker lines,
+where it has any, are other than one begin line followed by one end line, the order's
 issue SHALL name the item as having no block, saying why, and the script
 SHALL leave the body as it is.
 
@@ -1140,6 +1100,20 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 
 - **WHEN** `setup-ci` runs with no choice given
 - **THEN** the workflow it writes runs no model step
+
+### Requirement: An API key's model step runs only on pushes, openings and the daily run
+
+Where the repository chose its API key, the model step SHALL run only in
+a run that the daily schedule, or a push to or the opening of a pull
+request a writer opened, triggers, since anyone else can cause the other
+events, and each call is paid for with the repository's key.
+
+#### Scenario: A comment makes no API call
+
+- **WHEN** a pair of writers' changes is unchecked because the last call
+  failed, and someone comments on an issue
+- **THEN** the run that comment triggers makes no API call, and the pair
+  stays unchecked
 
 ### Requirement: With an API key, the model step is one API call with no tools
 

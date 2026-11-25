@@ -97,15 +97,16 @@ remove the question from design.md.
       `commit_id` is its head commit, and awaiting a team once a
       review with that `commit_id` comes from any writer other than the
       pull request's author
-- [ ] 3.8 Write every string taken from an issue, a pull request, a
-      change's files or the model step as inert inline code, and refuse
-      one holding the end marker
+- [ ] 3.8 Write outside text inert, as *Text from a pull request or the
+      model is written inert* says
 
 ## 4. Cycle overrides
 
 - [ ] 4.1 Count writers' `#<n> first` comments on the order's issue as
-      cycle overrides, and record a session's override with
-      `publish --decide`
+      cycle overrides, and have the skill tell an agent in a session to
+      record a person's choice by posting `#<n> first` there through `gh`
+      as that person, or, where the agent's `gh` acts as an App, whose
+      comments override nothing, to ask the person to post it
 
 ## 5. The CI workflow
 
@@ -117,7 +118,8 @@ remove the question from design.md.
       version, 1.16.1 or later
 - [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
       `publish --model api`, one API call with no tools whose reply the
-      script parses and validates; an Igor, through the label
+      script parses and validates, called only on a push, a pull request's
+      opening or the daily run; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
       existing file without `--force`
