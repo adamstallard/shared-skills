@@ -9,12 +9,15 @@ brief, as staged, with their line numbers: read them there, not on disk,
 where the text can differ. Open no file, and look nothing else up: no
 history, no other docs, no search for what the author meant.
 
-Report every place where you:
-- stopped, or went back to reread;
-- had to guess what a word points at, such as "it", "there", "these" or a
-  name;
-- could not see what a "so", "because", "which" or "therefore" follows from;
-- could not tell why a claim is true, or why it matters to this reader.
+Report every place of these four kinds. The words before each colon below
+are the kind you write in the finding:
+- stopped: you stopped;
+- reread: you went back to reread;
+- guessed: you had to guess what a word points at, such as "it", "there",
+  "these" or a name;
+- could not tell why: you could not see what a "so", "because", "which" or
+  "therefore" follows from, or why a claim is true, or why it matters to
+  this reader.
 
 Write each place as one finding, numbered from 1 in the order you write
 them, in this form:
@@ -22,7 +25,8 @@ them, in this form:
   Finding 1, item 2, guessed: «the exact words» What you guessed, or what was missing.
 
 - "item 2" is the number of the item the words are in.
-- After the item number comes what you did: stopped, reread or guessed.
+- After the item number comes the kind: stopped, reread, guessed or could
+  not tell why.
 - Between « and », copy the words that stopped you exactly as the item has
   them. Leave out line numbers and comment markers such as # or // at the
   start of a line, and write words that run across lines on one line. A
@@ -37,19 +41,28 @@ For an item you read straight through, write one line instead:
 Every item gets findings or that line, never both. Don't suggest a rewrite,
 and don't report wording you read straight through.
 
-Then, after all your findings and straight-through lines, write one line
-for every item, whether it has findings or not, saying what you understood
-it to state:
+Then, after all your findings and straight-through lines, write one
+understood line for every item, whether it has findings or not:
 
   Item 3, understood: The worker always retries a failed upload, by itself.
 
-That line says three things about what the item states:
+That line covers three points, not every detail of the item (a detail that
+stopped you is a finding):
 - who or what does each thing;
 - whether it always happens, or only in some case, and which;
 - whether the code (or whatever the item describes) does it, or someone else
   could make it happen.
 
-Say what you took the item to mean, even where you read it straight through: a misreading you were sure of
-shows only here. Don't suggest a rewrite here either.
+Each understood line is a single line, even for a long item: one or two sentences, with no
+bullets and no line breaks. Semicolons are fine. Say what you took the item
+to mean, even where you read it straight through: a misreading you were sure
+of shows only here. Don't suggest a rewrite here either.
 
-Begin your report with this line, exactly as written:
+Begin your report with the line at the end of this brief's instructions.
+After it come, in this order:
+
+  Finding <n>, item <n>, <stopped, reread, guessed or could not tell why>: «<words>» <what was missing>
+  Item <n>: read straight through.
+  Item <n>, understood: <one line, for every item>
+
+That first line, to copy exactly as written:
