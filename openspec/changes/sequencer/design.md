@@ -22,11 +22,14 @@ answer is no, or only partly yes.
   run with a write token, at the latest the daily one, publishes the
   order.
 - **Does an edges file fit in a `workflow_dispatch` input?** (task 0.4)
-  If not, a Sequencer Igor sends its pairs in several dispatches, each a
-  whole edges file. It sends each only after the run of the one before
-  has finished, because GitHub cancels a pending run when a newer one
-  joins the concurrency group. Each run adds the pairs whose hashes
-  still match to those already stored.
+  If not, the caller sends its pairs in several dispatches, each a
+  self-contained edges file holding some of the pairs, and sends each only after the run
+  of the one before has finished, so that its own dispatches never cancel
+  each other: GitHub cancels a pending run when a newer one joins the
+  concurrency group. Each run adds to the record of checked pairs those pairs
+  whose changes' hashes still match the file's; a dispatch that a run from
+  another trigger cancels leaves
+  its pairs unchecked until a later model step.
 - **Can the workflow's token read another account's permission?** (task
   0.5) If not, writers are decided by `author_association`, as the spec's
   definition of a writer says.

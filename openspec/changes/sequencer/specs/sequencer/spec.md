@@ -67,12 +67,11 @@ These terms hold throughout this spec:
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on it is OWNER, MEMBER or
   COLLABORATOR.
-  An issue or pull request that a GitHub App's bot account opened
-  counts as opened by a writer when that App is installed on the
+  A GitHub App's bot account counts as a writer only for the items it
+  opens and the reviews it submits, when that App is installed on the
   repository, detected by the method task 0.6 finds. If task 0.6 finds
-  that the workflow's token cannot tell whether an App is installed, every
-  such issue or pull request counts, whoever runs the script, as opened
-  by an account without write access.
+  that the workflow's token cannot tell whether an App is installed, no
+  App's bot account counts as a writer, whoever runs the script.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the default branch or pull request head the change
   is read from.
@@ -91,7 +90,9 @@ These terms hold throughout this spec:
   the change in the order's issue's record of checked pairs, kept while
   the change stays in that record's legend. A new key is `00` in an empty legend, and otherwise the one after the
   highest in it, counting `0`-`9` then `a`-`z` in each place, or,
-  past `zz`, the lowest free key.
+  past `zz`, the lowest free key. In the record's `unchecked:` list a row
+  `X,Y` gives the higher key first, and the rows of `code edges:` and
+  `unchecked:` each sort by their first key, then their second, ascending.
 - **A Sequencer Igor** is an Igor in the Sequencer role.
 
 ## ADDED Requirements
@@ -244,7 +245,7 @@ other copies.
 #### Scenario: A stacked pull request's older copy is ignored
 
 - **WHEN** #25 adds the change `inquisitor`, so the change belongs to #25,
-  and #64, stacked on #25, carries an older copy of
+  and #64, stacked on #25, also changes a file in
   `openspec/changes/inquisitor/`
 - **THEN** the script reads and hashes `inquisitor` from #25's head, and
   #64's copy sets no edge and no hash
@@ -409,11 +410,12 @@ hold, gives no edge and is listed as not counted.
 ### Requirement: A Depends on line names items by number, with or without their repository
 
 A `Depends on` line SHALL be a body line, outside code fences, starting
-`Depends on `, matched case-sensitively, then `#<number>` or `<owner>/<repo>#<number>`
-references separated by commas or `and`; `<owner>` holds only letters,
-digits and `-`, and `<repo>` also `.` and `_`. The references SHALL end
-at the first other text, which is ignored. A reference naming this
-repository in full, ignoring case, SHALL read as its `#<number>`. A
+`Depends on ` (case-sensitive), then `#<number>` or `<owner>/<repo>#<number>`
+references separated by commas or `and`, `<owner>` holding letters,
+digits and `-`, `<repo>` adding `.` and `_`. The references SHALL end
+at the first other text, which is ignored. A reference naming in
+full the line's own repository, in either letter case, SHALL read as
+`#<number>`. A
 `Builds on:` line's parentheses SHALL follow the same rules.
 
 #### Scenario: A reference naming this repository in full orders like a short one
@@ -471,14 +473,6 @@ link. The script SHALL make no request to an outside item's repository.
   adamstallard/shared-skills
 - **THEN** #64's line says
   `not counted: builds on octo/lib#31, in another repository`
-
-#### Scenario: A Builds on line naming an issue gives no edge
-
-- **WHEN** #64's change's `proposal.md` says
-  `Builds on: sequencer (adamstallard/shared-skills#43)`, and #43 is an
-  issue
-- **THEN** #64 gains no edge from it, and #64's line says
-  `not counted: builds on #43, an issue`
 
 #### Scenario: An issue whose only link names another repository is not ordered
 
@@ -624,8 +618,8 @@ still judged against that time.
 ### Requirement: A cycle override is read from the order's issue
 
 A run SHALL read a comment on the order's issue as an override when a
-writer, and not an App's bot account, posted it after the cycle's
-`since` time, and its text starts with `#<n> first`,
+writer posted it in a later UTC minute than
+the cycle's `since` time, and its text starts with `#<n> first`,
 `#<n>` being one of the cycle's members. Of several such comments, the
 latest is the override.
 
@@ -819,7 +813,8 @@ and remove the label `sequencer: check code`, since no model step runs.
 ### Requirement: The order says plainly what it did not check
 
 The order's issue SHALL say `Build dependencies between changes' code were
-not checked.` when no model step has checked any pair of changes, and
+not checked.` when some pair of changes exists and no model step has
+checked any, and
 name the unchecked pairs when it checked only some; it SHALL never present
 an unchecked pair as checked. Where no open change exists, it SHALL say
 `Dependencies between requirements were not checked: no open OpenSpec
@@ -844,9 +839,9 @@ change.`
 
 Given the same repository state, the same record of checked pairs, the
 same OpenSpec CLI version and the same minute of publishing, the script
-SHALL produce byte-identical order text, whichever caller runs it and
-wherever. Where a section-0 task picks a method of reading, a caller
-whose token cannot make that method's reads SHALL publish or print no
+SHALL produce byte-identical order text, whoever runs it, wherever, apart from the items it names as having no block because its
+token could not edit them. Where a task in section 0 of tasks.md picks how to read relations,
+permissions or App installation, a caller unable to make those reads SHALL publish or print no
 order, and say which read failed.
 
 #### Scenario: A session and CI agree
@@ -1048,6 +1043,19 @@ its body as it was.
 - **THEN** the next publish removes #82's block, and the order does not
   hold #82
 
+### Requirement: A run that cannot edit the order's issue edits nothing
+
+Where the script cannot edit the order's issue, it SHALL edit no item's
+body either, so no block disagrees with an order's issue it could not
+update, and SHALL say that the order's issue could not be edited.
+
+#### Scenario: A read-only token publishes nothing
+
+- **WHEN** a `pull_request_review` run for a fork's pull request gets a
+  token that cannot edit the order's issue
+- **THEN** the run edits no body, and says the order's issue could not be
+  edited
+
 ### Requirement: An item the script cannot edit is named, not skipped silently
 
 Where the script cannot edit an item's body, or the body's marker lines,
@@ -1133,6 +1141,12 @@ its head, it SHALL await that reviewer or team again.
 - **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and `li`, a
   writer who is not #96's author, submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`, and is not its next review
+
+#### Scenario: An installed App's review ends a team's wait
+
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and an
+  installed App's bot account submits a review of #96's head commit
+- **THEN** #96 no longer awaits `@octo/docs`
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
@@ -1360,12 +1374,16 @@ the order it publishes leaves unchecked a pair of changes.
 ### Requirement: The workflow publishes an edges file a dispatched run carries
 
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
-file, and publish it with `publish --code-edges`.
+file, and publish it with `publish --code-edges`. GitHub cancels a
+dispatched run that waits while a newer run of the workflow joins its
+concurrency group; such a run publishes nothing, and its pairs stay
+unchecked until a later model step checks them.
 
 #### Scenario: A dispatched edges file is published
 
 - **WHEN** a `workflow_dispatch` run carries an edges file whose changes
-  are unchanged
+  are unchanged, and no newer run in the concurrency group cancels it
+  while it waits
 - **THEN** the run publishes its edges
 
 ### Requirement: The workflow runs no code from a pull request
