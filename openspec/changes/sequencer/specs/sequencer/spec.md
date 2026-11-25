@@ -22,6 +22,8 @@ These terms hold throughout this spec:
 - One item is **opened earlier** than another when GitHub's creation time
   for it is earlier. Where the times are equal, the earlier is the one
   whose repository's name sorts first, then the one with the lower number.
+- **A time** in the order's text is a UTC minute, written as
+  `2026-11-24 10:00 UTC`.
 - Two members of one cycle share a place; of them, **the later in the
   order** is the later in the cycle's order, by rule or by override.
 - **The order's issue** is the one issue whose body holds the whole order.
@@ -44,7 +46,9 @@ These terms hold throughout this spec:
   as `Part of #<number>` or after one of GitHub's closing keywords
   (`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`,
   `resolves`, `resolved`, in any case). Such a line follows every rule of a
-  `Depends on` line, with its own words in place of `Depends on `.
+  `Depends on` line, with its own words in place of `Depends on `, and a
+  keyword repeated before a later reference, as in `Closes #10, closes
+  #123`, adds that reference to the line's list.
 - **An outside item** is an issue or pull request that an explicit link
   or a tie names, in a repository whose items the order does not hold.
 - **An edge** is a rule's finding that one item comes after another, with
@@ -59,7 +63,7 @@ These terms hold throughout this spec:
   COLLABORATOR.
   An issue or pull request that a GitHub App's bot account opened
   counts as opened by a writer when that App is installed on the
-  repository, detected by the method task 0.7 finds. If task 0.7 finds
+  repository, detected by the method task 0.6 finds. If task 0.6 finds
   that the workflow's token cannot tell whether an App is installed, every
   such issue or pull request counts, whoever runs the script, as opened
   by an account without write access.
@@ -196,6 +200,22 @@ repository's issue, still counts as a tie.
   ties #64 to an issue
 - **THEN** `octo/lib#7` gets no place, and #64's line in the order's issue
   does not say `tied to no issue`
+
+### Requirement: A closing line naming several issues says which GitHub will not close
+
+Where a line starting with a closing keyword, in the body of a pull
+request into the default branch, names an issue that GitHub's closing
+references for the pull request do not hold, as when no keyword of its
+own comes before it, which GitHub's documentation asks for, the pull request's block SHALL name that issue. It
+applies only to pull requests into the default branch, since GitHub
+records closing references for no others.
+
+#### Scenario: A second issue after one keyword is named
+
+- **WHEN** #108, into the default branch, says `Closes #10, #123`, and
+  GitHub's closing references for #108 hold only #10
+- **THEN** #108 is tied to #10 and #123, and its block says
+  `` GitHub will not close #123: write `Closes` before it ``
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -343,8 +363,9 @@ requirement with the archiving change's whole copy.
 
 An item SHALL come after each item that a GitHub "blocked by" relation or a
 `Depends on` line in its body says it waits on, and a change's pull request
-after each pull request its `proposal.md`'s `Builds on:` lines name in this
-repository.
+after the pull request each of its `proposal.md`'s `Builds on:` lines
+names in a repository the order holds; a number naming no pull request
+gives no edge.
 
 #### Scenario: A Depends on line orders two issues
 
@@ -396,7 +417,7 @@ reference that names this repository in full, in upper or lower case, SHALL be r
 - **WHEN** the only `Depends on #9` in #12's body is inside a code fence
 - **THEN** it gives no edge
 
-### Requirement: A link to another repository's item is listed as not counted
+### Requirement: A link to an outside item is listed as not counted
 
 An explicit link naming an outside item SHALL set no edge, make no item
 wait and bring no issue into the order. The order's issue SHALL list
@@ -523,11 +544,12 @@ earliest-opened member was.
 ### Requirement: A cycle's members are ordered by rule
 
 The order SHALL place a cycle's members together at one place, earliest
-opened first, marked `ordered by rule since <time>` with the UTC minute at which the
-first publish to list the cycle ran, or just `ordered by rule` before any publish
-has listed it, and place each item that comes after any member after
-all of them. A cycle whose members change is a new cycle. A member placed before another member, though an edge puts it
-after that one, SHALL say so in its reason.
+opened first, marked `ordered by rule since <time>` with the time at which
+the cycle was first published, or just `ordered by rule` before any
+publish has listed it, and place each item that comes after any member
+after all of them. A cycle whose members change is a new cycle. A member
+placed before another member, though an edge puts it after that one,
+SHALL say so in its reason.
 
 #### Scenario: Two changes that cite each other are ordered by when they were opened
 
@@ -540,10 +562,11 @@ after that one, SHALL say so in its reason.
 
 #### Scenario: A cycle that gains a member gets a new time
 
-- **WHEN** the cycle of #82 and #85 was listed at 09:00, and at 10:00 #88
-  joins it
+- **WHEN** the publish at 2026-11-24 09:00 UTC first listed the cycle of
+  #82 and #85, and the publish at 10:00 UTC that day is the first to find
+  #88 in it
 - **THEN** the 10:00 publish marks the cycle of #82, #85 and #88
-  `ordered by rule since 10:00`
+  `ordered by rule since 2026-11-24 10:00 UTC`
 
 #### Scenario: A cycle not yet published has no time
 
@@ -582,6 +605,14 @@ latest is the override.
   issue after the cycle of #82 and #85 was listed
 - **THEN** the next run adds the override, linking that comment, and
   places #85 first
+
+#### Scenario: The latest comment wins, judged against the first time
+
+- **WHEN** the cycle of #82 and #85 was first listed at 2026-11-24 09:00
+  UTC, and after that a writer comments `#85 first`, and later another
+  writer comments `#82 first`
+- **THEN** #82 comes first, and the cycle is marked
+  `ordered by override since 2026-11-24 09:00 UTC`
 
 #### Scenario: A comment from someone without write access overrides nothing
 
@@ -871,7 +902,7 @@ the order is kept.
   the order
 - **THEN** #90's body keeps the person's edit
 
-### Requirement: A block is rewritten only when the order or its reasons change
+### Requirement: A block is rewritten only when its text changes
 
 The script SHALL edit a body only when the text between its markers would
 change, and that text SHALL hold no date or time but each cycle's
@@ -1064,9 +1095,10 @@ it with the newer template when given `--force`.
 
 ### Requirement: The workflow recomputes the order on GitHub events and once a day
 
-The workflow SHALL run the script when an issue is opened, edited, closed
-or commented on; when a pull request is opened, edited, marked ready for
-review, reviewed, or closed, merged or not; when a push reaches an open
+The workflow SHALL run the script when an issue is opened, edited, closed,
+reopened or commented on; when a pull request is opened, edited, marked
+ready for review, converted to draft, reviewed, reopened, closed without
+merging, or merged; when a push reaches an open
 pull request's branch; when a Sequencer Igor dispatches it; and once a
 day. All its runs SHALL share one
 concurrency group, so no two of them edit a body at once.
@@ -1176,30 +1208,13 @@ the order it publishes leaves unchecked a pair of changes whose pull requests wr
 ### Requirement: The workflow publishes an edges file a dispatched run carries
 
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
-file, and publish it with `publish --code-edges`. A dispatched run that a
-newer run in the concurrency group cancels while it waits publishes
-nothing: its pairs stay unchecked, and the label `sequencer: check code`
-stays on the order's issue, so the model step is still asked for.
+file, and publish it with `publish --code-edges`.
 
 #### Scenario: A dispatched edges file is published
 
 - **WHEN** a `workflow_dispatch` run carries an edges file whose changes
   are unchanged
 - **THEN** the run publishes its edges
-
-#### Scenario: A dispatched pair whose change was revised leaves the label on
-
-- **WHEN** a dispatched run carries a pair holding #90, and a push revised
-  #90's change after the model step read it
-- **THEN** the workflow's `publish` drops that pair, and the label
-  `sequencer: check code` stays on the order's issue
-
-#### Scenario: A cancelled dispatched run publishes nothing
-
-- **WHEN** a dispatched run waits behind a running one, and an issue
-  comment queues a newer run, which cancels it
-- **THEN** none of its edges is published, and the label
-  `sequencer: check code` stays on the order's issue
 
 ### Requirement: The workflow runs no code from a pull request
 

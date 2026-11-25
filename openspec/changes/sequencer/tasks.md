@@ -21,7 +21,7 @@ remove the question from design.md.
       size of an edges file for a large repository
 - [ ] 0.5 Whether a workflow run's `GITHUB_TOKEN` can read another
       account's permission on the repository
-- [ ] 0.7 How the workflow's token can tell that an issue's or pull
+- [ ] 0.6 How the workflow's token can tell that an issue's or pull
       request's author is the bot account of a GitHub App installed on the
       repository:
       through the permission API, `author_association`, or the
@@ -66,11 +66,11 @@ remove the question from design.md.
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
       sets it, counting as a writer's each issue or pull request that an
       installed App's bot opened, and list the rest as not counted
-- [ ] 2.11 List links to outside items, as *A link to another
-      repository's item is listed as not counted* says
-- [ ] 2.12 Tie issues to pull requests, as *An issue takes the place of
-      an open pull request tied to it* and *A pull request tied to no
-      issue is listed* say
+- [ ] 2.11 List links to outside items, as *A link to an outside item is
+      listed as not counted* says
+- [ ] 2.12 Tie issues to pull requests: place each issue with its pull
+      requests, list each pull request tied to no issue, and name in a
+      pull request's block each issue GitHub will not close
 
 ## 3. Publishing
 
