@@ -284,9 +284,9 @@ The script SHALL read each open change's requirements and deltas only
 through OpenSpec's CLI, from each pull request's head as fetched files,
 never a checkout. It SHALL use the CLI only at 1.16.1 or later, because an
 earlier CLI can drop requirements without saying so. With an older or missing CLI, the script
-SHALL apply no rule that reads a change's requirements or deltas,
-and the order's issue SHALL say requirements' dependencies were not
-checked, and why.
+SHALL apply no rule that reads a change's requirements or deltas, and,
+where some open change exists, the order's issue SHALL say requirements'
+dependencies were not checked, and why.
 
 #### Scenario: A missing CLI checks no requirement
 
@@ -323,6 +323,22 @@ could change them.
 - **WHEN** a fork's pull request #95 changes `openspec/config.yaml`
 - **THEN** the script reads every change, #95's included, with the
   default branch's `openspec/config.yaml`
+
+### Requirement: A change holding anything but files and directories is not checked
+
+Where a change's directory on a pull request's head holds a symlink, or any
+entry other than a regular file or a directory, the script SHALL write none
+of that change's files to disk for the CLI and read none of them, and the
+order's issue SHALL list the change as not checked, saying why, since a
+symlink can point at a secret on the runner. Its pull request SHALL still
+be placed by the rules that read no requirement.
+
+#### Scenario: A fork's symlink is never followed
+
+- **WHEN** a fork's pull request #95 holds its change's `proposal.md` as a
+  symlink to `/proc/self/environ`
+- **THEN** the order's issue lists #95's change as not checked, because it
+  holds a symlink, and the script reads none of its files
 
 ### Requirement: A change the OpenSpec CLI refuses is listed as not checked
 
@@ -745,14 +761,6 @@ of an edges file whose two hashes match the legend, and remove it from
 row for each pair still unchecked. A taken pair's code edges SHALL become
 the file's, none if it gives none.
 
-#### Scenario: A pair naming a change outside the legend is dropped
-
-- **WHEN** an edges file pairs `octo/app claim-retries`, which the legend
-  lists, with `octo/app claim-cleanup`, which left the legend when its pull
-  request merged
-- **THEN** `publish` drops that pair, since the legend holds no hash for
-  `claim-cleanup`, and takes each other pair whose hashes match
-
 #### Scenario: A run with no model keeps an unchanged code edge
 
 - **WHEN** a session's model step recorded #90 after #82 for calling its
@@ -819,9 +827,10 @@ The order's issue SHALL say `Build dependencies between changes' code were
 not checked.` when some pair of changes exists and no model step has
 checked any, and
 name the unchecked pairs when it checked only some; it SHALL never present
-an unchecked pair as checked. Where no open change exists, it SHALL say
-`Dependencies between requirements were not checked: no open OpenSpec
-change.`
+an unchecked pair as checked. Where no open change exists, its only
+statement about requirements SHALL be `Dependencies between requirements
+were not checked: no open OpenSpec change.`, whether the CLI is missing,
+too old or current.
 
 #### Scenario: A partly checked order names the unchecked pairs
 
@@ -849,8 +858,9 @@ order, and say which read failed.
 
 #### Scenario: A session and CI agree
 
-- **WHEN** an agent's session and the CI workflow run the script against the
-  same commit, items and recorded code edges
+- **WHEN** an agent's session and the CI workflow run the script on the
+  same repository state and record of checked pairs, with the same
+  OpenSpec CLI version, in the same minute
 - **THEN** both produce the same text for the order's issue and every block
 
 #### Scenario: A caller that cannot make a read publishes nothing
@@ -907,8 +917,8 @@ SHALL go in a comment.
 
 ### Requirement: Broken markers in the order's issue stop the run
 
-Where the order's issue's marker lines are other than one begin line
-followed by one end line, the script SHALL publish nothing and say so,
+Where the order's issue holds any marker line, but not exactly one begin
+line followed by one end line, the script SHALL publish nothing and say so,
 since that body holds what later runs read back.
 
 #### Scenario: An order issue with broken markers stops the run
@@ -917,6 +927,20 @@ since that body holds what later runs read back.
   `<!-- sequencer:begin -->` lines
 - **THEN** the script edits nothing and says the order's issue's markers
   do not match
+
+### Requirement: An order's issue with no markers gets them
+
+Where the order's issue holds no marker line, as when someone, or Igor's
+setup command `igor init`, adds the label `sequencer` to an issue a writer
+opened, the script SHALL add its text, between
+markers, at the end of the body, keeping the text already there.
+
+#### Scenario: A labelled issue gets the order below its text
+
+- **WHEN** a writer adds the label `sequencer` to their issue #120, whose
+  body is `Sequencer order`, and no other issue holds the label
+- **THEN** the script publishes the order in #120, between markers below
+  `Sequencer order`
 
 ### Requirement: The script's text opens with a heading
 
