@@ -188,7 +188,7 @@ them, but edges between the issue and them SHALL be dropped.
   #50, opened later by a writer, also closes #43
 - **THEN** #43 shares #50's place, not #48's, and gains no place from #48
   alone, and #48's line lists its tie to #43 as not counted, opened by
-  `zed`
+  `zed`, and #48's line does not say `tied to no issue`
 
 #### Scenario: An installed App's pull request counts as a writer's
 
@@ -234,6 +234,12 @@ branch, since GitHub records closing references for no others.
   GitHub's closing references for #108 hold only #10
 - **THEN** #108 is tied to #10 and #123, and its block says
   `` GitHub will not close #123: write `Closes` before it ``
+
+#### Scenario: A stacked pull request gets no closing note
+
+- **WHEN** #64, into #25's branch, says `Closes #10, #123`
+- **THEN** #64 is tied to #10 and #123, and its block has no `GitHub will
+  not close` line
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -371,8 +377,8 @@ come after that change.
 Where both changes of a pair modify one requirement of one capability, the
 order's issue SHALL say that the later of the two in the order must add the
 earlier one's new scenarios to its own copy of the requirement before it
-archives; this finding SHALL add no edge, because archiving replaces a
-requirement with the archiving change's whole copy.
+archives; this finding SHALL add no edge, because whichever change
+archives second can carry the copy.
 
 #### Scenario: The second to archive owes the copy
 
@@ -726,8 +732,8 @@ names SHALL count as checked with no edge.
   code edges:
   a2>a1 calls claim_item()
   unchecked:
-  a6 *
   a5,a2
+  a6 *
   ```
 
 ### Requirement: The record of checked pairs is inert text
@@ -931,10 +937,9 @@ since that body holds what later runs read back.
 
 The line after each `<!-- sequencer:begin -->` marker SHALL be a
 first-level heading: `# Order` in the order's issue, and `# Sequencer` in
-an item's block. The inquisitor spec's *Only four kinds of document are
-decision documents* takes as an issue's decision block its text before
-its first heading, or the first of its sections whose heading starts with
-"Decision"; a first-level heading keeps the script's text out of both.
+an item's block, so that the inquisitor spec's *Only four kinds of
+document are decision documents*, which takes an issue's text before its
+first heading as its decision block, never takes the script's text as one.
 
 #### Scenario: The order is never read as a decision
 
@@ -1165,9 +1170,9 @@ its head, it SHALL await that reviewer or team again.
 A non-draft pull request's reviewers SHALL be every login in the
 `reviewers` list of `.github/sequencer.json` on the default branch, other
 than its author's. With no such list, they SHALL be those it requested on
-GitHub, less any a person removed (none, if task 0.7 finds a removal
-cannot be told from a review); with none of those, the owners CODEOWNERS gives its changed
-files. It SHALL await each of its reviewers. A team SHALL count as one
+GitHub, less any a person removed (no one, if task 0.7 finds a removal
+cannot be told from a review); when that leaves none, the owners the default branch's CODEOWNERS
+gives its changed files. It SHALL await each of its reviewers. A team SHALL count as one
 reviewer.
 
 #### Scenario: A team is one reviewer
@@ -1284,9 +1289,7 @@ day.
 ### Requirement: The workflow's runs share one concurrency group
 
 All the workflow's runs SHALL share one concurrency group, so no two of
-them edit a body at once. GitHub cancels a waiting run when a newer one
-joins the group; a cancelled run publishes nothing, and pairs it would
-have checked stay unchecked until a later model step checks them.
+them edit a body at once.
 
 #### Scenario: Two quick merges run one after the other
 
@@ -1359,13 +1362,6 @@ did not check* says.
   than an edges file
 - **THEN** the script takes no edge from it, and the order says build
   dependencies between changes' code were not checked
-
-#### Scenario: A missing key leaves code unchecked
-
-- **WHEN** a repository that chose its API key holds no `ANTHROPIC_API_KEY`,
-  and no pair was ever checked
-- **THEN** the order is published, saying build dependencies between
-  changes' code were not checked
 
 ### Requirement: With an Igor, the workflow labels the order's issue for the model step
 

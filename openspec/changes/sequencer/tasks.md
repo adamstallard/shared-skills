@@ -66,8 +66,9 @@ remove the question from design.md.
       `code edges:` and `unchecked:` lists, updated each run; taking each
       pair of an edges file whose two hashes match the legend; refusing
       a file that names a change without its repository; and the size
-      check, which past GitHub's body limit writes the note that the
-      order's issue is full, keeping the cycles' lines and the overrides
+      check, which, once the body would pass GitHub's limit, writes in
+      place of the order the note that the order's issue is full, keeping
+      only the cycles' lines
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
