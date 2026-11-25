@@ -6708,8 +6708,9 @@ class FoundByBugHunterHandbackRun7Tests(FoundByBugHunterHandbackRun6Tests):
 
 class PassDueTests(unittest.TestCase):
     """The commit hook prints `current-state pass due for: ...` for a commit
-    that adds a src/ file on a branch with an open change (gate two), and for
-    one that archives a change (SKILL.md, *Current-state passes*)."""
+    that adds a src/ file on a branch that adds or edits an open change
+    (that change's phase two), and for one that archives a change
+    (SKILL.md, *Current-state passes*)."""
 
     def setUp(self):
         self.repo = Repo(self)

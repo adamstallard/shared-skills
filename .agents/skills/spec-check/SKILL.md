@@ -27,6 +27,31 @@ implementation is a separate step.
 
 - `$SC` below is this skill's `scripts/` directory, as an absolute path.
 
+## The two-phase workflow
+
+An OpenSpec change follows the two-phase pull request workflow. **Phase
+one, spec creation and review,** ends when a person approves the spec, in
+a review of its pull request or by saying so. **Phase two, implementation
+and review,** follows, by default before the spec's pull request merges.
+The implementer chooses how the code arrives: pushed onto the spec's pull
+request, or in one or more implementation pull requests stacked on it. The
+change is archived (`openspec archive`) in the pull request that completes
+the implementation: the spec's own when the code is on it, otherwise the last implementation
+pull request to merge. The base branch then never holds an archived change
+whose code is only partly merged, nor implemented code whose change is
+still open. Merging the spec's pull request before its code, which leaves
+the base branch with a spec its code does not meet yet, is an exception;
+the archive still goes in the pull request that completes the code. Review
+in either phase can take several rounds, and the checks below run the same
+way in both.
+
+In phase two, amend the spec on the branch that carries the code when the
+code must do something the spec doesn't say, or when a measurement taken
+during implementation answers one of the change's open questions in
+design.md (see [Fixing](#3-fixing)). The amendment gets the same checks
+as any other spec commit, and the reviewer reviews it with the code, not
+in a round of its own.
+
 ## When
 
 - **The mechanical checks:** before any commit that changes a path under
