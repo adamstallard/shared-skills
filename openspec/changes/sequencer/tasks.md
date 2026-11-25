@@ -62,9 +62,10 @@ remove the question from design.md.
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
       for each pair of changes
-- [ ] 2.7 Model-step checked pairs and edges: validate, take each pair
-      whose two changes still have the file's hashes, record it with them,
-      and keep or drop it on later runs
+- [ ] 2.7 The record of checked pairs in the order's issue: the legend,
+      `code edges:` and `unchecked:`, updated each run, and taking each
+      pair of an edges file whose two hashes match the legend, and the
+      size check that publishes nothing past GitHub's body limit
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
@@ -93,8 +94,7 @@ remove the question from design.md.
 - [ ] 3.5 A test that no command calls a merge, approve, close or reopen
       API
 - [ ] 3.6 `order --json`, which edits nothing, naming each item by
-      repository and number, as the edges file and the stored checked
-      pairs and code edges do, and printing a change's files only where a
+      repository and number, as the edges file does, and printing a change's files only where a
       writer opened its pull request
 - [ ] 3.7 Stop a pull request awaiting a reviewer once their review's
       `commit_id` is its head commit, and awaiting a team once a
@@ -123,7 +123,7 @@ remove the question from design.md.
 - [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
       `publish --model api`, one API call with no tools whose reply the
       script parses and validates, called only in the runs
-      *An API key's model step runs only on pushes, openings and the daily run* names; an Igor, through the label
+      *An API key's model step runs only on events that can change a pair* names; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
       existing file without `--force`

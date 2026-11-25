@@ -1,39 +1,9 @@
 ## Open Questions
 
-Two questions for the repository's owner come first. Each question after
-them asks about a fact nobody has measured: it names the task in tasks.md's
-section 0 that measures it, and says what the spec does if the fact turns
-out false.
-
-- **Should a review request, or its removal, trigger a run?** Either
-  changes a pull request's reviewers, and so the next review the order's
-  issue names for each reviewer, but neither is in the workflow's events,
-  nor in the list of events issue #43 records as decided. *Option A:* add both (`review_requested` and
-  `review_request_removed`). *Option B:* leave them out; the next other
-  event, or the daily run, catches up. *Recommended:* A: two more events
-  and no new rule.
-  Example: `maya` requests `li`'s review on #97; under A, `li`'s next
-  review becomes #97 within minutes; under B, the order's issue may still
-  name another pull request as `li`'s next review until the next day.
-- **What happens when the stored checked pairs outgrow the order's
-  issue?** The order's issue stores each pair of changes the model step has
-  checked, with both changes' hashes, so later runs keep its code edges.
-  The pairs grow with the square of the open changes, at about 150 to
-  200 characters each: 30 open changes make 435 pairs, past GitHub's
-  limit of 65,536 characters on an issue body, and the spec says nothing
-  about it. *Option A:* store each change's hash once, beside the list
-  of pairs, which keeps the same rule (a pair stays checked while both
-  hashes match) in about a third of the space; past the limit, the pairs
-  that do not fit stay unchecked and are named, and count neither for
-  the `sequencer: check code` label that calls an Igor nor for an API
-  call. *Option B:* accept the limit; past it,
-  the script publishes nothing and says the order's issue is full.
-  *Recommended:* A: it postpones the limit to about 45 open changes (990
-  pairs) and
-  degrades to named unchecked pairs instead of no order.
-  Example: a repository with 40 open writers' changes has 780 pairs;
-  under A all of them fit, at about 65 characters each;
-  under B no order is published until changes merge.
+Each question asks about a fact nobody has measured, except the last two,
+which ask the repository's owner. A measurement question names the task
+in tasks.md's section 0 that measures it, and says what the spec does if
+the fact turns out false.
 
 - **Can a pull request carry GitHub's "blocked by" relation, and can the
   workflow's token read the relations, including one to another
@@ -74,3 +44,35 @@ out false.
   reviewer it ever requested, a removed one included: dropping both
   kinds would stop awaiting a reviewer who reviewed, even after a later
   push.
+- **Which data that later runs read back from the order's issue should
+  name a repository?** Issue #100 records the decision that this change's stored
+  data name an item by repository and number, and its displayed text by
+  `#<number>`, so a later order spanning several repositories can reuse
+  them. Later runs read back three things from the order's issue: the record's
+  legend, which names a change by name alone; each cycle's mark
+  (`ordered by rule since <time>`); and the list of overrides the script
+  copies from `#<n> first` comments. The last two sit on lines that name
+  items by `#<number>`. *Option A:* all three name the
+  repository. *Option B:* only the legend does, as `a1
+  adamstallard/shared-skills add-claims-table <hash>`; the cycle marks and overrides
+  count as displayed text, which #100 lets keep `#<number>`. *Option C:* none; a later
+  change letting one order span several repositories rewrites them. *Recommended:* B: only the
+  script reads the legend, at about 30 more characters per change in a
+  pair, while people read the cycle lines.
+  Example: with 50 changes in pairs, B adds about 1,500 characters to a body
+  that may hold 65,536, and leaves `#82 and #90: ordered by rule since
+  2026-11-24 10:00 UTC` as it reads now.
+- **What do readers see once the order's issue is full?** Past GitHub's
+  limit the script publishes nothing, so every block keeps giving a place
+  that is no longer true, a new item gets no block, and the order's issue
+  shows a stale order; "says the order's issue is full" reaches only the
+  run's log. *Option A:* replace the order between the order's issue's
+  markers with a short fixed note saying it is full and how many open
+  changes there are, leaving the blocks. *Option B:* as A, and also
+  replace each item's block with a one-line note linking the order's
+  issue. *Option C:* write nothing, as now. *Recommended:* A: one small
+  edit that fits, where readers look for the order, and each block's link
+  already leads there.
+  Example: with 320 open changes, under A the order's issue reads `The
+  order's issue is full: 320 open changes need more than GitHub's 65,536
+  characters. No order is published until some merge or close.`

@@ -86,6 +86,11 @@ These terms hold throughout this spec:
   belonging to a pull request no writer opened, is in no pair; and **a code edge** is an edge the model step found.
 - **`order`** is the script's command that prints the order, and
   **`publish`** the one that edits bodies.
+- **A change's key** is two lowercase letters or digits that stand for
+  the change in the order's issue's record of checked pairs, kept while
+  the change stays in that record's legend. A new key is `00` in an empty legend, and otherwise the one after the
+  highest in it, counting `0`-`9` then `a`-`z` in each place, or,
+  past `zz`, the lowest free key.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -686,14 +691,61 @@ with a reason each, and refuse the whole set when any edge has no reason.
 - **THEN** the script publishes none of that set's edges, and says which
   edge it refused
 
+### Requirement: The order's issue records which pairs were checked
+
+The order's issue SHALL record the model step's results in three lists:
+`legend:`, one line per change in a pair, giving its key, its name and
+its full hash; `code edges:`, one row `X>Y <reason>` per code
+edge, X coming after Y, so an edge each way is two rows; and
+`unchecked:`, rows `X *` for a change unchecked against every other and
+`X,Y` for one unchecked pair. A pair of listed changes that no row
+names SHALL count as checked with no edge.
+
+#### Scenario: The record lists only edges and unchecked pairs
+
+- **WHEN** the model step checked every pair of `add-claims-table`,
+  `sequencer-ranks` and `claim-audit-log` except `claim-audit-log` with
+  `sequencer-ranks`, finding only that `sequencer-ranks` calls
+  `claim_item()` from `add-claims-table`, `claim-retries` has opened since, and
+  keys `a3` and `a4` left with their merged changes
+- **THEN** the record reads, with each change's full hash in place of
+  `<hash>`:
+  ```
+  legend:
+  a1 add-claims-table <hash>
+  a2 sequencer-ranks <hash>
+  a5 claim-audit-log <hash>
+  a6 claim-retries <hash>
+  code edges:
+  a2>a1 calls claim_item()
+  unchecked:
+  a6 *
+  a5,a2
+  ```
+
+### Requirement: The record of checked pairs is inert text
+
+The record SHALL sit in a code fence longer than any run of backticks in
+it, and each name and reason in it SHALL have its line breaks written as
+spaces. Every row starts with a key, so no row forms a marker line.
+
+#### Scenario: A reason holding a marker stays in its row
+
+- **WHEN** the model step's reason for `a2>a1` holds a line break and then
+  `<!-- sequencer:end -->`
+- **THEN** the record writes that reason on the row `a2>a1`, the line break
+  as a space, and the order's block ends only at the script's own end
+  marker
+
 ### Requirement: A checked pair is kept while both its changes are unchanged
 
-An edges file SHALL name every pair of changes the model step checked.
-`publish` SHALL first drop each pair whose two changes are not both still
-in the order with the hashes the file gives, and take the rest, with any
-edge found. The order's issue SHALL
-record each pair taken with those hashes, and a later run SHALL count the
-pair checked, and keep its edge, while both hashes match.
+Each run SHALL give a new change a new key and `X *`, give a revised
+change its new hash and `X *` in place of every row naming it, and remove a change
+that left every pair, with its rows. `publish` SHALL take each pair of an
+edges file whose two hashes match the legend, as this run has updated it.
+It SHALL remove each taken pair from `unchecked:`: an `X *` row the taken
+pairs cover in part becomes an `X,Y` row for each pair still unchecked. It
+SHALL add their code edges.
 
 #### Scenario: A model-step edge naming an item not in the order is dropped
 
@@ -723,6 +775,18 @@ pair checked, and keep its edge, while both hashes match.
 - **THEN** that run counts the pair as checked, and does not label the
   order's issue `sequencer: check code` for it
 
+#### Scenario: A partly checked new change keeps its unchecked pairs
+
+- **WHEN** the record lists `a1`, `a2`, `a5` and `a6` with the row `a6 *`,
+  and an edges file checks `a6` with `a1` and with `a2`, finding no edge
+- **THEN** `a6 *` becomes the row `a6,a5`
+
+#### Scenario: A merged change leaves the record
+
+- **WHEN** the record lists `a2` with the rows `a2>a1 calls claim_item()`
+  and `a5,a2`, and `a2`'s pull request merges
+- **THEN** the next run removes `a2` from the legend and both rows
+
 #### Scenario: An unrelated change keeps a file's edges
 
 - **WHEN** the model step checked #82 and #90 and found #90 after #82, and
@@ -730,6 +794,18 @@ pair checked, and keep its edge, while both hashes match.
   revised and #77 merges
 - **THEN** `publish` takes the edge between #82 and #90, and drops each
   pair the file gives that holds #95 or #77
+
+### Requirement: A full order's issue stops the run
+
+Where the order's issue's body would pass GitHub's limit of 65,536
+characters, the script SHALL publish nothing, say the order's issue is
+full, and call no model, whose result it could not publish.
+
+#### Scenario: Too many open changes fill the order's issue
+
+- **WHEN** the order's issue with its record would hold 70,000 characters
+- **THEN** the script edits nothing, says the order's issue is full, and
+  makes no model call
 
 ### Requirement: The order says plainly what it did not check
 
@@ -757,8 +833,7 @@ change.`
 
 ### Requirement: The same inputs give the same order whoever runs the script
 
-Given the same repository state, the same stored checked pairs and code
-edges, and the same OpenSpec CLI, the script
+Given the same repository state, the same record of checked pairs, and the same OpenSpec CLI, the script
 SHALL produce byte-identical order text, whichever caller runs it and
 wherever. Where a section-0 task picks a method of reading, a caller
 whose token cannot make that method's reads SHALL publish or print no
@@ -1136,11 +1211,10 @@ it with the newer template when given `--force`.
 The workflow SHALL run the script when an issue is opened, edited, closed,
 reopened or commented on, a comment on a pull request included; when a
 pull request is opened, edited, marked
-ready for review, converted to draft, reviewed, reopened, closed without
-merging, or merged; when a push reaches the default branch or an open
+ready for review, converted to draft, reviewed, given or relieved of a
+review request, reopened, closed without merging, or merged; when a push reaches the default branch or an open
 pull request's branch; when a Sequencer Igor dispatches it; and once a
-day. All its runs SHALL share one
-concurrency group, so no two of them edit a body at once.
+day.
 
 #### Scenario: Pull request events trigger through pull_request_target
 
@@ -1154,6 +1228,20 @@ concurrency group, so no two of them edit a body at once.
 - **WHEN** a commit straight to the default branch adds `li` to the
   `reviewers` list in `.github/sequencer.json`
 - **THEN** a run starts, and the order's issue names `li`'s next review
+
+#### Scenario: A review request starts a run
+
+- **WHEN** `.github/sequencer.json` lists no reviewers, so GitHub's
+  requests decide them, `maya` requests
+  `li`'s review on #97, which is not a draft, and `li` awaits no other
+  pull request
+- **THEN** a run starts, and the order's issue names #97 as `li`'s next
+  review
+
+### Requirement: The workflow's runs share one concurrency group
+
+All the workflow's runs SHALL share one concurrency group, so no two of
+them edit a body at once.
 
 #### Scenario: Two quick merges run one after the other
 
@@ -1183,12 +1271,12 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 - **WHEN** `setup-ci` runs with no choice given
 - **THEN** the workflow it writes runs no model step
 
-### Requirement: An API key's model step runs only on pushes, openings and the daily run
+### Requirement: An API key's model step runs only on events that can change a pair
 
 Where the repository chose its API key, the model step SHALL run only in
-a run triggered by the daily schedule, or by a push to or the opening of
-a pull request a writer opened, since only those events can add a pair or
-change a pair's files, and each call is paid for with the repository's key.
+a run triggered by the daily schedule, or by a push to, or the opening,
+reopening or closing without merging of, a pull request a writer opened, since only those
+events can add a pair or change a pair's files, and the daily run retries, and each call is paid for with the repository's key.
 
 #### Scenario: A comment makes no API call
 
@@ -1284,9 +1372,8 @@ environment variables or files, never inside a command line.
 
 ### Requirement: Data names an item by its repository and number
 
-`order --json`, an edges file, and the checked pairs and code edges the
-order's issue stores SHALL name each item, and each change's pull request,
-by its repository and its number together. Text the script publishes
+`order --json` and an edges file SHALL name each item, and each change's
+pull request, by its repository and its number together. Text the script publishes
 SHALL write an item as `#<number>`. `publish` SHALL refuse an edges file
 that names an item by number alone.
 
@@ -1296,14 +1383,6 @@ that names an item by number alone.
   adamstallard/shared-skills, and the order holds #82
 - **THEN** the output names that item by the repository
   `adamstallard/shared-skills` and the number 82
-
-#### Scenario: A stored code edge names both items by repository and number
-
-- **WHEN** `publish` stores the model step's edge of #90 after #82 in the
-  order's issue, in the repository adamstallard/shared-skills
-- **THEN** the stored edge names each of the two by the repository
-  `adamstallard/shared-skills` and its number, and the order's line for
-  #90 says `after #82`
 
 #### Scenario: An edges file naming an item by number alone is refused
 
