@@ -637,9 +637,9 @@ the rule that an agent asks only through the picker.
 
 **The code puts each message to judge into the session's conversation as a prompt of its own, holding the message as quoted data, at times when the model is not answering the person; the model then answers through `record_verdict`.** Whether a mod can prompt its own model is still open (task 0.37).
 
-The approved prototype, build v0.1-33, shows a mod filling the prompt box
-and registering a tool the model calls by name, but not prompting its own
-model.
+The approved prototype, build v0.2-9, shows that a mod can fill the prompt
+box and register a tool for its model to call, as `record_verdict` is, but
+not that a mod can prompt its own model, so task 0.37 stays open.
 
 ### Relaying answers
 

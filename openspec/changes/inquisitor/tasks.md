@@ -2,8 +2,8 @@
 
 - [x] G.1 The repository's owner approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1 names
-      the approved build's tag. Done: build v0.1-33, tagged
-      `answer-session-ui-approved-v0.1-33`
+      the approved build's tag. Done: build v0.2-9, which covers both,
+      tagged `answer-mod-approved-v0.2-9`
 
 Gate two: the tasks below follow on this branch once the repository's owner approves the
 spec.
@@ -679,15 +679,34 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       tell a bot's message and a reply to a relay post, as task 0.17 found
       on 2026-11-19; this task changes `read` to return both
 - [ ] 6.1 The answer mod, built in the skill's `answer-mod/` folder from the tag
-      `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
-      commit fc3c35f), the only build the mod
-      starts from. It descends
-      from v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5)
-      and contains all of it, including declining and the list of
-      questions answered or handled for the person. The mod takes its
-      questions from task 6.3's polls instead of the prototype's made-up
-      ones. Four rules decide what is built:
-      - (a) Keep the approved screens' layout and interaction: the band, which is the mod's panel above the prompt box,
+      `answer-mod-approved-v0.2-9` on shared-skills (build v0.2-9,
+      commit a16c60d), the only build the mod starts from. It descends
+      from v0.1-33 (`answer-session-ui-approved-v0.1-33`, commit fc3c35f)
+      and v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5)
+      and builds on both, keeping declining and the list of questions
+      answered or handled for the person. The mod takes its questions
+      from task 6.3's polls instead of the prototype's made-up ones.
+      Compared with v0.1-33, v0.2-9 drops the answer field and the
+      pickers inside the mod's panel, so answers are typed in the prompt
+      box and reasons and filters are chosen from numbered lists. It
+      adds:
+      - posts drawn as Markdown;
+      - long text cut by the terminal with an ellipsis, and `(v)iew all`
+        in the key row only while something that key would show whole is
+        cut;
+      - a transcript row for each question acted on, whose `view` opens
+        that question;
+      - a bar, holding a dot per question and a tally, that fits its
+        width and has no title;
+      - new-question alerts: a chime for each poll that finds any, a
+        toast and a notification for each question naming who asks and
+        where, and the question's dot marked and `N new` in the tally
+        until the question is shown;
+      - `q` leaving Claude Code, unlisted in the key row to save room,
+        with the opening message saying `Ctrl+C twice to leave.`
+
+      Four rules decide what is built:
+      - (a) Keep v0.2-9's layout and interaction: the band, which is the mod's panel above the prompt box,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
         reorganising them is not.
@@ -727,7 +746,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           in a new file;
         - the question on screen kept in the state folder, not the mod's
           `$.store`, so a restarted session opens on it.
-      - (c) A screen the spec needs that v0.1-33 lacks is designed in this
+      - (c) A screen the spec needs that v0.2-9 lacks is designed in this
         task from the prototype's existing patterns, in no new visual
         style, with no prototype round of its own: setup, the lock
         message, where an answer will be recorded and the warning when
@@ -736,7 +755,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         logged, a channel that is off, the rate-limit notice, and the
         pending list of answers not yet relayed, which reuses the
         approved queue's screens
-      - (d) The screens v0.1-33 added to v0.1-30 are taken as that build
+      - (d) The screens v0.1-33 added to v0.1-30 are taken as v0.2-9
         has them, each in the one place it shows them: the thread's
         replies since the question, including when the asker withdraws
         it; filter 1's recorded answer shown with the

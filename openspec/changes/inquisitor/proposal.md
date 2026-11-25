@@ -78,7 +78,7 @@ None.
 
 - New: `.agents/skills/inquisitor/` with its scripts, hooks and tests, and
   the answer service's mod, built from the prototype tagged
-  `answer-session-ui-approved-v0.1-33`.
+  `answer-mod-approved-v0.2-9` on shared-skills, as task 6.1 says.
 - The answer service posts through the github-app and discord-bot skills,
   and on Linear by the answer service's own HTTP request, with linear-app's token; discord-bot as
   merged in shared-skills PR #1, with its
