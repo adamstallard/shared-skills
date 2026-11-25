@@ -157,9 +157,10 @@ Prose: ✓ 4d593e935186:9138830a72a2
 
 You read your own text knowing what you meant, so you fill its gaps without
 seeing them. Before a text is signed, an agent that has never seen the
-conversation reads it and reports every place it stopped, reread or guessed.
-For every item it also says in one line what it understood the item to state,
-because a reader who misreads with confidence never stops. The line says:
+conversation reads it and reports every place it stopped, reread, guessed or
+could not tell why. For each text it also says in one line what it
+understood that text to state, because a reader who misreads with confidence
+never stops. The line says:
 - who or what does each thing;
 - whether it always happens, or only in some case;
 - whether the code does it, or someone else could make it happen.

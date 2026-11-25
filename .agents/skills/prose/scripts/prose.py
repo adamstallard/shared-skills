@@ -2826,8 +2826,8 @@ def print_cold_read(token, items, next_command, stream=None, root=None, texts=No
 
 # What a report and a dispositions file must look like, for their refusals.
 REPORT_FORM = ("After its first line, a report holds only findings, each 'Finding <n>, item "
-               "<item>, <stopped, reread or guessed>: «<the exact words>» <what was guessed or "
-               "missing>', numbered from 1, with any more of it on indented lines below; "
+               "<item>, <stopped, reread, guessed or could not tell why>: «<the exact words>» "
+               "<what was guessed or missing>', numbered from 1, with any more of it on indented lines below; "
                "'Item <item>: read straight through.' lines; and 'Item <item>, understood: "
                "<what the item says>' lines. Every item gets findings or the straight-through "
                "line, never both, and exactly one understood line. Ask the cold reader for its "
@@ -2837,7 +2837,7 @@ DISPOSITIONS_FORM = ("After its first line, a dispositions file holds one line p
                      "person chose to keep it; and one line per item, answering its understood "
                      "line: 'Item <n>: matches', 'Item <n>: fixed', or 'Item <n>: kept (asked): "
                      "<the reason, on one line>' once a person chose to keep it.")
-FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed): "
+FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed|could not tell why): "
                      r"«([^«»]*)»(.*)")
 STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
 UNDERSTOOD = re.compile(r"Item ([0-9]+), understood: (.*\S.*)")

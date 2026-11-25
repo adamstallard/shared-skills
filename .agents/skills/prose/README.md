@@ -30,22 +30,23 @@ the rules were on the agent's screen before it signed. Nothing proves the agent
 followed them.
 
 **A cold read.** Before it signs a changed comment, doc passage, YAML string
-written in sentences, or post, the agent has a fresh agent, one that never saw
-the conversation, read it and report where it stopped, reread or guessed,
-quoting the words. For every item
-it also says in one line what it understood: who does each thing, whether it
-always happens, and whose doing it is. That line catches a confident
-misreading, which makes no reader stop. The agent then answers every finding
-and every understood line. A finding is either fixed or kept. The script
-checks a fixed one by its item having changed since the brief, or its quoted
-words being gone from the file; a person decides a kept one. An understood
-line matches what the agent meant, or else is fixed or kept; a fixed one is
-checked by its item having changed alone. The signing call refuses without
-a report and those answers, both bound to that pass's token, and refuses a
-kept one unless the agent says a person was asked. An agent that cannot ask
-leaves the change unsigned, and hands each finding or understood line it would
-keep back to its caller.
-Nothing proves a fresh agent wrote the report, or that the person was asked.
+written in sentences, or post, the agent has a fresh agent read each of these
+texts. The fresh agent never saw the conversation in which the text was
+written. It quotes the words at every place it stopped, reread, guessed what a
+word points at, or could not tell why a claim holds. For each text it also says
+in one line what it understood: who does each thing, whether it always happens,
+and whether the code does it or someone could make it happen. That line catches
+a confident misreading, which makes no reader stop. The agent then answers
+every finding and every understood line: fixed, or kept, which leaves the text
+as it is. prose's signing script checks a fixed finding by its text having
+changed since the fresh agent read it, or by the quoted words being gone from
+the file. It checks a fixed understood line only by its text having changed. A
+person decides each kept one. The signing call refuses without the report and
+those answers, both bound to that pass's token, and refuses a kept one unless
+the agent says a person was asked. An agent that cannot ask leaves the change
+unsigned, and hands each finding or understood line it would keep back to its
+caller. Nothing proves a fresh agent wrote the report, or that the person was
+asked.
 
 To install it, ask your agent to install the `prose` skill; the
 `manage-skills` skill does the rest, hooks included.

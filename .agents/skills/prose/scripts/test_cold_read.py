@@ -579,6 +579,16 @@ class ColdReadFindings(unittest.TestCase):
             if problem != "holds only its first line":
                 self.assertIn("'Item <item>: read straight through.'", result.stderr)
 
+    def test_could_not_tell_why_is_a_kind_of_finding(self):
+        self.refused(self.signing("--cold-read", cold_report(
+            self.token, "Finding 1, item 1, could not tell: «It runs there.» Why?\n",
+            name="why-bad")), "a line prose cannot read")
+        report = cold_report(self.token, "Finding 1, item 1, could not tell why: «It runs "
+                                         "there.» Why there?\n", name="why")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): a test"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
     def test_a_finding_may_go_on_over_indented_lines(self):
         report = cold_report(self.token, "Finding 1, item 1, guessed: «It runs there.»\n"
                                          "   What runs, and where?\n", name="wrapped")
