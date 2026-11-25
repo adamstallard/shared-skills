@@ -4,33 +4,23 @@ the implementation, built on this branch once the spec is approved. Every test t
 
 ## 0. Measure before building
 
-Tasks 0.1, 0.4, 0.6, 0.7 and 0.8 answer design.md's open questions;
-tasks 0.2, 0.3 and 0.5 measure what the workflow's token can do by
-default, which the spec covers whatever they find, so their results go only into the decision record as evidence where a rule rests on them. Write each result into the requirement it bears on, with its evidence in
+Each task answers one of design.md's open questions. Write each result into the requirement or term it bears on, with its evidence in
 `openspec/specs/sequencer/decisions.md` where a rule rests on it, and
 remove the question from design.md.
 
 - [ ] 0.1 Whether a pull request can carry GitHub's "blocked by"
-      relation, and whether an issue's or pull request's relations can be
-      read through GitHub's API with a workflow run's `GITHUB_TOKEN`,
-      including a relation to another repository's issue
-- [ ] 0.2 Whether a `pull_request_target` run's `GITHUB_TOKEN`, with
-      `pull-requests: write`, can edit the body of a pull request from a fork
-- [ ] 0.3 Whether a `pull_request_review` run for a fork's pull request gets
-      a `GITHUB_TOKEN` that can edit issue and pull request bodies
-- [ ] 0.4 The largest input a `workflow_dispatch` run accepts, against the
+      relation
+- [ ] 0.2 The largest input a `workflow_dispatch` run accepts, against the
       size of an edges file for a large repository
-- [ ] 0.5 Whether a workflow run's `GITHUB_TOKEN` can read another
-      account's permission on the repository
-- [ ] 0.6 How the workflow's token can tell that an issue's or pull
+- [ ] 0.3 How the workflow's token can tell that an issue's or pull
       request's author is the bot account of a GitHub App installed on the
       repository:
       through the permission API, `author_association`, or the
       repository's list of installations
-- [ ] 0.7 Whether a pull request's timeline tells apart the two ways a
+- [ ] 0.4 Whether a pull request's timeline tells apart the two ways a
       review request ends: GitHub clearing it when the reviewer reviews,
       and a person removing it
-- [ ] 0.8 How a refused read of another account's permission, of
+- [ ] 0.5 How a refused read of another account's permission, of
       installations or of "blocked by" relations shows that GitHub refused it:
       an error status, an empty answer, or a 404 like the one for a
       missing item
@@ -84,7 +74,7 @@ remove the question from design.md.
 - [ ] 2.9 Count an edge only when a writer opened every item whose text
       sets it, counting each issue or pull request that an installed
       App's bot opened as opened by a writer, the App's installation
-      read as task 0.6 finds, and list the rest as not counted
+      read as task 0.3 finds, and list the rest as not counted
 - [ ] 2.10 List links to outside items, as *A link to an outside item is
       listed as not counted* says
 - [ ] 2.11 Tie issues to pull requests: place each issue with its pull
@@ -116,6 +106,11 @@ remove the question from design.md.
       pull request's author
 - [ ] 3.8 Write outside text inert, as *Text from a pull request or the
       model is written inert* says
+- [ ] 3.9 Fall back where the token cannot read permissions, installations
+      or "blocked by" relations, and say so; where the repository has the
+      workflow, also apply in a session, or in an Igor's run of `order`,
+      each fallback the order's issue names, as *Other callers follow the
+      fallbacks the workflow wrote* says
 
 ## 4. Cycle overrides
 

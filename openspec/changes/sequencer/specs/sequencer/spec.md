@@ -66,6 +66,10 @@ These terms hold throughout this spec:
   as a writer only for the issues and pull requests it opens and the
   reviews it submits, never for its comments, when that App is installed on
   the repository.
+- **A statement of a read not made** is one of the sentences that *A token
+  that cannot read permissions counts writers by association*, *A token
+  that cannot see installations counts no App* and *Relations the token
+  cannot read are named* write in the order's issue.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the default branch or pull request head the change
   is read from.
@@ -389,8 +393,8 @@ come after that change.
 An item SHALL come after each item that a GitHub "blocked by" relation or a
 `Depends on` line in its body says it waits on, and a change's pull request
 after the pull request each `Builds on:` line in its `proposal.md` names;
-a `Builds on:` line naming an issue, or a repository the order does not
-hold, gives no edge and is listed as not counted.
+a `Builds on:` line naming an issue gives no edge and is listed as not
+counted.
 
 #### Scenario: A Depends on line orders two issues
 
@@ -525,6 +529,47 @@ App's bot account SHALL count as a writer, and the order's issue SHALL say
 - **THEN** #130 counts as opened by no writer, and the order's issue says
   `Installed Apps were not read: no App counts as a writer.`
 
+### Requirement: Other callers follow the fallbacks the workflow wrote
+
+Where the default branch holds
+`.github/workflows/sequencer.yml`, a session's run, or an Igor's run of
+`order`, since an Igor publishes only through the workflow, SHALL apply the fallback of each statement of a read not made that
+the order's issue holds, and any fallback its own token needs, so that, while the workflow's
+token has the limits it noted, a session's publish and the workflow run it
+triggers give the same order.
+
+#### Scenario: A session counts writers as the workflow did
+
+- **WHEN** the default branch holds `.github/workflows/sequencer.yml`, the
+  order's issue says `Permissions were not read: writers are counted by
+  author association.`, and a session whose token can read permissions
+  publishes
+- **THEN** the session counts writers by author association, and the
+  workflow run its edit triggers changes nothing
+
+#### Scenario: A session with no statements uses its own token
+
+- **WHEN** no workflow run has published, the order's issue holds no
+  statement of a read not made, and a session whose token cannot read
+  permissions publishes
+- **THEN** it counts writers by author association, the order's issue says
+  `Permissions were not read: writers are counted by author association.`,
+  and the next workflow run replaces that with its own token's results
+
+### Requirement: The workflow, and callers without it, read with their own token
+
+A workflow run, and any caller where the default branch holds no
+`.github/workflows/sequencer.yml`, SHALL use only its own token's reads,
+whatever statements of reads not made the order's issue holds.
+
+#### Scenario: The workflow reads with its own token
+
+- **WHEN** the order's issue says `Permissions were not read: writers are
+  counted by author association.`, and a workflow run whose token can
+  read permissions publishes
+- **THEN** it counts writers by permission, and the order's issue no
+  longer says permissions were not read
+
 ### Requirement: Relations the token cannot read are named
 
 Where the script's token cannot read "blocked by" relations, the script
@@ -539,6 +584,14 @@ those naming another repository's issue, the order's issue SHALL say
   records #14 as blocked by #11, and #12's body says `Depends on #9`
 - **THEN** #12 comes after #9, #14 gains no edge from #11, and the order's
   issue says `"Blocked by" relations were not read.`
+
+#### Scenario: A token that cannot read other repositories' relations says so
+
+- **WHEN** the script's token reads #14's relation to #11 but not #15's
+  relation to `octo/lib#7`
+- **THEN** #14 comes after #11, #15 gains no edge from `octo/lib#7`, and
+  the order's issue says `"Blocked by" relations to other repositories
+  were not read.`
 
 ### Requirement: Only edges set by writers count
 
@@ -846,10 +899,10 @@ the file's, none if it gives none.
 Where the order's issue's body would pass 65,536 characters, the script SHALL replace the order under `# Order`, record
 included, with the note `The order's issue is full: <n> open items need
 more than GitHub's 65,536 characters. No order is published until some
-merge or close.`, keeping each cycle's line, whose time later
-overrides are judged by. It SHALL edit no other body, even that of an
-item that closes while the note stands, call no model, and remove the label `sequencer: check
-code`.
+merge or close.`, keeping each cycle's members and its `since <time>`
+mark, whose time later overrides are judged by. It SHALL edit no other body, call no
+model, and remove the label `sequencer: check
+code`, since no model step runs.
 
 #### Scenario: Too many open items fill the order's issue
 
@@ -857,7 +910,8 @@ code`.
   characters, and #82 and #90 form a cycle ordered by override
 - **THEN** the order's issue, under `# Order`, holds `The order's issue is
   full: 320 open items need more than GitHub's 65,536 characters. No order
-  is published until some merge or close.` and the cycle's line; no item's block changes; the label `sequencer: check code`
+  is published until some merge or close.` and the cycle's members and
+  mark; no item's block changes; the label `sequencer: check code`
   is removed; and the script makes no model call
 
 ### Requirement: The order says plainly what it did not check
@@ -891,8 +945,9 @@ too old or current.
 Given the same repository state, the same record of checked pairs, the
 same OpenSpec CLI version and the same minute of publishing, the script
 SHALL produce byte-identical order text, whoever runs it, wherever, apart
-from what follows from a read or edit its token could not make, which the
-order's issue names.
+from what follows from a read or edit its token could not make, or from a
+fallback it applied because the order's issue named it; the order's issue
+names each such difference.
 
 #### Scenario: A session and CI agree
 
@@ -1154,7 +1209,7 @@ SHALL leave the body as it is.
 The order's issue SHALL name, for each reviewer, the open pull request,
 not authored by them, that they should review next: of
 those awaiting their review, the one with the most other items after it,
-directly or through a chain of edges, merge waits not counting, and on a tie the one earlier in the
+directly or through a chain of edges, and on a tie the one earlier in the
 order.
 
 #### Scenario: The pull request that unblocks most is reviewed first
