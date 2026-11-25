@@ -223,7 +223,9 @@ request from saying `tied to no issue`.
 Where a line starting with a closing keyword, in the body of a pull
 request into the default branch, names an issue that GitHub's closing
 references for the pull request do not hold, the pull request's block
-SHALL name that issue; pull requests into other branches are left out,
+SHALL name that issue, putting no issue number after a closing keyword, so
+GitHub does not read the note as closing it; pull requests into other
+branches get no such note,
 since GitHub records closing references only for pull requests into the
 default branch.
 
@@ -232,12 +234,13 @@ default branch.
 - **WHEN** #108, into the default branch, says `Closes #10, #123`, and
   GitHub's closing references for #108 hold only #10
 - **THEN** #108 is tied to #10 and #123, and its block says
-  `` GitHub will not close #123: write `Closes` before it ``
+  `` #123 is not among GitHub's closing references: write `Closes` before it ``
 
 #### Scenario: A stacked pull request gets no closing note
 
 - **WHEN** #64, into #25's branch, says `Closes #10, #123`
-- **THEN** #64's block has no `GitHub will not close` line
+- **THEN** #64's block has no `is not among GitHub's closing references`
+  line
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -324,19 +327,20 @@ could change them.
 ### Requirement: A change holding anything but files and directories is not checked
 
 Where a change's directory on a pull request's head holds a symlink, or any
-entry other than a regular file or a directory, the script SHALL read none
+entry but a regular file or directory, the script SHALL read none
 of that change's files and write none to disk, the change SHALL be in no
 pair and have no hash, and the order's issue SHALL list it as not checked,
-saying why, since a symlink can point at a secret on the runner. Its pull
-request SHALL still be placed by explicit links and the time it was opened,
-and still given merge waits.
+saying why, since a symlink can point at a secret on the runner. The change's
+pull request SHALL still be placed by explicit links outside the change's
+files and by its opening time, and given merge waits.
 
 #### Scenario: A fork's symlink is never followed
 
 - **WHEN** a fork's pull request #95 holds its change's `proposal.md` as a
   symlink to `/proc/self/environ`
 - **THEN** the order's issue lists #95's change as not checked, because it
-  holds a symlink, and the script reads none of its files
+  holds a symlink, and the script reads none of its files and writes none
+  to disk
 
 ### Requirement: A change the OpenSpec CLI refuses is listed as not checked
 
@@ -503,8 +507,7 @@ link. The script SHALL make no request to an outside item's repository.
 
 Where the script's token cannot read another account's permission, it SHALL
 count as a writer the author of an issue, pull request, review or comment whose
-`author_association` is OWNER, MEMBER or COLLABORATOR, though it counts
-some members without write access, as its statement tells readers, and the order's issue SHALL say `Permissions were not read: writers are counted by author
+`author_association` is OWNER, MEMBER or COLLABORATOR, and the order's issue SHALL say `Permissions were not read: writers are counted by author
 association.`
 
 #### Scenario: A token that cannot read permissions counts collaborators
@@ -1033,9 +1036,11 @@ than `github-actions[bot]`.
 
 ### Requirement: Broken markers in the order's issue stop the run
 
-Where the order's issue holds any marker line, but not exactly one begin
-line followed by one end line, the script SHALL publish nothing and say so,
-since that body holds what later runs read back.
+A marker line is a whole line that is exactly `<!-- sequencer:begin -->`
+or `<!-- sequencer:end -->`. Where the order's issue holds marker lines but
+not exactly one begin line followed by one end line, the script SHALL
+publish nothing and say so, since the order's issue holds the stored code
+edges and cycle marks that later runs read back.
 
 #### Scenario: An order issue with broken markers stops the run
 
@@ -1046,9 +1051,8 @@ since that body holds what later runs read back.
 
 ### Requirement: An order's issue with no markers gets them
 
-Where the order's issue holds no marker line, as when someone, or Igor's
-setup command `igor init`, adds the label `sequencer` to an issue a writer
-opened, the script SHALL add its text, between
+Where the order's issue holds no marker line, as when someone adds the label `sequencer` to an issue a writer
+opened, the script SHALL add the order, between
 markers, at the end of the body, keeping the text already there.
 
 #### Scenario: A labelled issue gets the order below its text
@@ -1484,7 +1488,9 @@ did not check* says.
 
 Where the repository chose an Igor, `publish`, as the workflow runs it,
 SHALL keep the order's issue labelled `sequencer: check code` exactly while
-the order it publishes leaves unchecked a pair of changes.
+the order it publishes leaves unchecked a pair of changes, and not while the
+order's issue holds the note that it is full (*A full order's issue holds
+a note in place of the order*), since no model step runs then.
 
 #### Scenario: An unchecked order is labelled for an Igor
 
@@ -1558,12 +1564,12 @@ names a change without its repository.
 
 ### Requirement: The script prints the order for callers without editing anything
 
-`order` SHALL print the order, each item's place, its edges with
-reasons, the explicit links to outside items, the cycles, the
-shared names for the model step, each open change's hash or, for a change holding a symlink, why it has
-none, and a change's
-files only where a writer opened its pull request, as JSON with `--json`,
-and SHALL write to no issue or pull request; `publish` SHALL be the only command that edits,
+`order` SHALL print, as text, or as JSON with `--json`: the order, each
+item's place, its edges with reasons, the explicit links to outside items,
+the cycles, the shared names for the model step, each open change's hash
+or, where the change holds an entry but a file or directory, why it has
+none, and each change's files where a writer opened its pull request.
+`publish` SHALL be the only command that edits,
 and SHALL edit bodies directly, in a session as in the workflow.
 
 #### Scenario: A session publishes without the workflow
