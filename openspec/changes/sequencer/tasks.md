@@ -43,7 +43,7 @@ remove the question from design.md.
       and report a missing or older CLI as *The script reads OpenSpec
       changes only through the OpenSpec CLI* says
 - [ ] 1.4 List a change the CLI refuses as not checked, with the CLI's
-      reason, and its pairs as unchecked
+      reason
 - [ ] 1.5 Select the issues the order holds, as *The order holds every
       open pull request and the issues linked to the work* says
 
@@ -62,11 +62,12 @@ remove the question from design.md.
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
       for each pair of changes
-- [ ] 2.7 The record of checked pairs in the order's issue: the legend,
-      `code edges:` and `unchecked:`, updated each run, and taking each
-      pair of an edges file whose two hashes match the legend; and the size
-      check: past GitHub's body limit, write the note that the order's
-      issue is full, keeping the cycles' lines and the overrides
+- [ ] 2.7 The record of checked pairs in the order's issue: its legend,
+      `code edges:` and `unchecked:` lists, updated each run; taking each
+      pair of an edges file whose two hashes match the legend; refusing
+      a file that names a change without its repository; and the size
+      check, which past GitHub's body limit writes the note that the
+      order's issue is full, keeping the cycles' lines and the overrides
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
@@ -95,7 +96,7 @@ remove the question from design.md.
 - [ ] 3.5 A test that no command calls a merge, approve, close or reopen
       API
 - [ ] 3.6 `order --json`, which edits nothing, naming each item by
-      repository and number, as the edges file does, and printing a change's files only where a
+      repository and number, and printing a change's files only where a
       writer opened its pull request
 - [ ] 3.7 Stop a pull request awaiting a reviewer once their review's
       `commit_id` is its head commit, and awaiting a team once a

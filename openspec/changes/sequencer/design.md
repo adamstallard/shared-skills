@@ -1,9 +1,8 @@
 ## Open Questions
 
-Each question asks about a fact nobody has measured, except the last,
-which asks the repository's owner. A measurement question names the task
-in tasks.md's section 0 that measures it, and says what the spec does if
-the fact turns out false.
+Each question asks about a fact nobody has measured. It names the task in
+tasks.md's section 0 that measures it, and says what happens if the
+answer is no, or only partly yes.
 
 - **Can a pull request carry GitHub's "blocked by" relation, and can the
   workflow's token read the relations, including one to another
@@ -44,18 +43,3 @@ the fact turns out false.
   reviewer it ever requested, a removed one included: dropping both
   kinds would stop awaiting a reviewer who reviewed, even after a later
   push.
-- **How does an edges file name a change when one pull request holds two?**
-  An edges file names each item by repository and number, and its edges
-  run item to item (#90 after #82), but the order's issue's record of checked
-  pairs keys its rows by change, through its `legend:`, and nothing stops a pull request from holding two changes. So
-  `publish` cannot tell which of #90's changes a pair or an edge means.
-  *Option A:* an edges file names each change by repository and name, as
-  the legend does, in its pairs and edges. *Option B:* the script treats a
-  pull request holding two or more changes as one change, hashing all
-  their files together. *Recommended:* A: each pair and edge in the file then
-  maps through the legend to one row of the record, and the script still writes `after #82` for readers.
-  Example: #82 holds `add-claims-table`, and #90 holds
-  `claim-audit-log` and `claim-retries`; under A the file
-  says `octo/app claim-retries` comes after `octo/app add-claims-table`;
-  under B a revision of `claim-audit-log` also unchecks every pair of
-  `claim-retries`.

@@ -78,7 +78,8 @@ These terms hold throughout this spec:
   is read from.
 - **An edges file** is the model step's output: the pairs of changes it
   checked, each with the two changes' hashes from the `order` run it read,
-  and the edges it found.
+  and the code edges it found. Its pairs and edges name each change by
+  repository and name, as a line of the record's legend does.
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
   of changes** is two changes, each belonging to a different open pull
@@ -90,8 +91,7 @@ These terms hold throughout this spec:
   the change in the order's issue's record of checked pairs, kept while
   the change stays in that record's legend. A new key is `00` in an empty legend, and otherwise the one after the
   highest in it, counting `0`-`9` then `a`-`z` in each place, or,
-  past `zz`, the lowest free key. The legend names each change's
-  repository so that a later order spanning repositories can reuse it.
+  past `zz`, the lowest free key.
 - **A Sequencer Igor** is an Igor in the Sequencer role.
 
 ## ADDED Requirements
@@ -686,8 +686,8 @@ with a reason each, and refuse the whole set when any edge has no reason.
 
 #### Scenario: A model-step edge with no reason is refused
 
-- **WHEN** the model step's edges include #90 after #82 with an empty
-  reason
+- **WHEN** the model step's edges include `octo/app claim-retries` after
+  `octo/app add-claims-table` with an empty reason
 - **THEN** the script publishes none of that set's edges, and says which
   edge it refused
 
@@ -747,12 +747,13 @@ It SHALL remove each taken pair from `unchecked:`: an `X *` row the taken
 pairs cover in part becomes an `X,Y` row for each pair still unchecked. It
 SHALL add their code edges.
 
-#### Scenario: A model-step edge naming an item not in the order is dropped
+#### Scenario: A pair naming a change outside the legend is dropped
 
-- **WHEN** the model step's edges include #90 after #400, and #400 is not
-  in the order
-- **THEN** `publish` drops the pair of #90 and #400, and takes the edges
-  file's other pairs
+- **WHEN** an edges file pairs `octo/app claim-retries`, which the legend
+  lists, with `octo/app claim-cleanup`, which left the legend when its pull
+  request merged
+- **THEN** `publish` drops that pair, since the legend holds no hash for
+  `claim-cleanup`, and takes each other pair whose hashes match
 
 #### Scenario: A run with no model keeps an unchanged code edge
 
@@ -793,7 +794,7 @@ SHALL add their code edges.
   before `publish` runs, issue #120 gains a comment, #95's change is
   revised and #77 merges
 - **THEN** `publish` takes the edge between #82 and #90, and drops each
-  pair the file gives that holds #95 or #77
+  pair the file gives that holds #95's or #77's change
 
 ### Requirement: A full order's issue holds a note in place of the order
 
@@ -812,7 +813,8 @@ and remove the label `sequencer: check code`, since no model step runs.
 - **THEN** the order's issue, under `# Order`, holds `The order's issue is
   full: 320 open items need more than GitHub's 65,536 characters. No order
   is published until some merge or close.`, the cycle's line and the list
-  of overrides; no item's block changes; and the script makes no model call
+  of overrides; no item's block changes; the label `sequencer: check code`
+  is removed; and the script makes no model call
 
 ### Requirement: The order says plainly what it did not check
 
@@ -1070,8 +1072,8 @@ SHALL leave the body as it is.
 
 The order's issue SHALL name, for each reviewer, the open pull request,
 not authored by them, that they should review next: of
-those awaiting their review, the one with the most items after it through
-edges, followed directly or not, and on a tie the one earlier in the
+those awaiting their review, the one with the most other items after it,
+directly or through a chain of edges, merge waits not counting, and on a tie the one earlier in the
 order.
 
 #### Scenario: The pull request that unblocks most is reviewed first
@@ -1137,8 +1139,8 @@ its head, it SHALL await that reviewer or team again.
 A non-draft pull request's reviewers SHALL be every login in the
 `reviewers` list of `.github/sequencer.json` on the default branch, other
 than its author's. With no such list, they SHALL be those it requested on
-GitHub that no person has since removed, including one whose request
-GitHub cleared on their review; with none of those, the owners CODEOWNERS gives its changed
+GitHub, less any a person removed (none, if task 0.7 finds a removal
+cannot be told from a review); with none of those, the owners CODEOWNERS gives its changed
 files. It SHALL await each of its reviewers. A team SHALL count as one
 reviewer.
 
@@ -1167,6 +1169,13 @@ reviewer.
 - **WHEN** `.github/sequencer.json` does not exist, #98 requested `li`,
   `li` reviewed it, and a push then gave #98 a new head commit
 - **THEN** #98 awaits `li` again, and CODEOWNERS is not consulted
+
+#### Scenario: A reviewer a person removed is not awaited
+
+- **WHEN** task 0.7 found that the timeline tells a removal from a review,
+  `.github/sequencer.json` does not exist, #98 requested `li` and `maya`,
+  and a person then removed `li` from #98's requests
+- **THEN** #98 awaits `maya` and not `li`
 
 ### Requirement: Only a dry run takes a reviewer list
 
@@ -1264,7 +1273,8 @@ model step.
 
 #### Scenario: A repository with no secrets gets an order
 
-- **WHEN** a repository holding no secret runs the workflow
+- **WHEN** a repository holding no secret, where no pair was ever checked,
+  runs the workflow
 - **THEN** it publishes the order, saying build dependencies between
   changes' code were not checked
 
@@ -1317,13 +1327,15 @@ did not check* says.
 
 #### Scenario: A reply that does not parse checks nothing
 
-- **WHEN** the model's reply is prose rather than the edges' structure
+- **WHEN** no pair was ever checked, and the model's reply is prose rather
+  than an edges file
 - **THEN** the script takes no edge from it, and the order says build
   dependencies between changes' code were not checked
 
 #### Scenario: A missing key leaves code unchecked
 
-- **WHEN** a repository that chose its API key holds no `ANTHROPIC_API_KEY`
+- **WHEN** a repository that chose its API key holds no `ANTHROPIC_API_KEY`,
+  and no pair was ever checked
 - **THEN** the order is published, saying build dependencies between
   changes' code were not checked
 
@@ -1378,12 +1390,14 @@ environment variables or files, never inside a command line.
 - **THEN** the run hands the title to the script as data and runs nothing
   from it
 
-### Requirement: Data names an item by its repository and number
+### Requirement: Data names an item by repository and number, and a change by repository and name
 
-`order --json` and an edges file SHALL name each item, and each change's
-pull request, by its repository and its number together. Text the script publishes
-SHALL write an item as `#<number>`. `publish` SHALL refuse an edges file
-that names an item by number alone.
+`order --json` SHALL name each item, and each change's pull request, by
+its repository and its number together, so a later order spanning
+repositories can reuse it, and an edges file SHALL name each
+change by its repository and its name. Text the script publishes SHALL
+write an item as `#<number>`. `publish` SHALL refuse an edges file that
+names a change without its repository.
 
 #### Scenario: order --json names an item by repository and number
 
@@ -1392,10 +1406,10 @@ that names an item by number alone.
 - **THEN** the output names that item by the repository
   `adamstallard/shared-skills` and the number 82
 
-#### Scenario: An edges file naming an item by number alone is refused
+#### Scenario: An edges file naming a change without its repository is refused
 
-- **WHEN** an edges file's edge names its two items as 90 and 82, with no
-  repository
+- **WHEN** an edges file's edge names its two changes as `claim-retries`
+  and `add-claims-table`, with no repository
 - **THEN** `publish` publishes none of that file's edges, and says which
   edge it refused
 
