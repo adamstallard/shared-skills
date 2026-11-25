@@ -50,33 +50,39 @@ remove the question from design.md.
 ## 2. The rules
 
 - [ ] 2.1 Modifies and cites edges, with their reasons
-- [ ] 2.2 The copies owed: which change owes each copy
-- [ ] 2.3 `Depends on` lines, outside code fences, with `#<number>` and
-      `<owner>/<repo>#<number>` references whose names hold only the
-      characters the spec allows, blocked-by relations, and
+- [ ] 2.2 `Depends on` lines, outside code fences, with `#<number>` and
+      `<owner>/<repo>#<number>` references whose owner and repository
+      names hold only the characters *A Depends on line names items by
+      number, with or without their repository* allows, blocked-by
+      relations, read as task 0.1 finds, and
       `Builds on:` lines in a change's `proposal.md`
-- [ ] 2.4 Merge waits between pull requests that change a file in common,
-      on an earlier pull request a writer opened
-- [ ] 2.5 The topological order, placing items no rule orders earliest opened first, cycles
-      grouped, ordered earliest opened first and marked `ordered by rule`,
-      and cycle overrides placed as overridden
-- [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
-      for each pair of changes
-- [ ] 2.7 The record of checked pairs in the order's issue: its legend,
-      `code edges:` and `unchecked:` lists, updated each run; taking each
-      pair of an edges file whose two hashes match the legend; refusing
+- [ ] 2.3 Merge waits between pull requests that change a file in common,
+      only where a writer opened the earlier one
+- [ ] 2.4 The topological order: items no rule orders go earliest opened
+      first; each cycle takes one place, its members ranked earliest
+      opened first and its line marked `ordered by rule`, unless an
+      override counts, which puts its member first
+- [ ] 2.5 The backticked names, such as `claim_item()`, that both
+      changes' `tasks.md` files hold, printed for the model step for each
+      pair of changes
+- [ ] 2.6 The record of checked pairs in the order's issue: its legend,
+      `code edges:` and `unchecked:` lists, updated each run; taking the code
+      edges of each pair in an edges file whose two changes' hashes match
+      the legend's current ones, and dropping the rest; refusing
       a file that names a change without its repository; and the size
       check, which, once the body would pass GitHub's limit, writes in
       place of the order the note that the order's issue is full, keeping
       only the cycles' lines
-- [ ] 2.8 The statements of what the order did not check
-- [ ] 2.9 A test that two runs on the same inputs give byte-identical text
-- [ ] 2.10 Count an edge only when a writer opened every item whose text
-      sets it, counting as a writer's each issue or pull request that an
-      installed App's bot opened, and list the rest as not counted
-- [ ] 2.11 List links to outside items, as *A link to an outside item is
+- [ ] 2.7 The statements of what the order did not check, as *The order
+      says plainly what it did not check* says
+- [ ] 2.8 A test that two runs on the same inputs give byte-identical text
+- [ ] 2.9 Count an edge only when a writer opened every item whose text
+      sets it, counting each issue or pull request that an installed
+      App's bot opened as opened by a writer, the App's installation
+      read as task 0.6 finds, and list the rest as not counted
+- [ ] 2.10 List links to outside items, as *A link to an outside item is
       listed as not counted* says
-- [ ] 2.12 Tie issues to pull requests: place each issue with its pull
+- [ ] 2.11 Tie issues to pull requests: place each issue with its pull
       requests, list each pull request tied to no issue, and name in a
       pull request's block each issue GitHub will not close
 

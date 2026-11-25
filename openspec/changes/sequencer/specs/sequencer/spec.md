@@ -225,8 +225,9 @@ request from saying `tied to no issue`.
 Where a line starting with a closing keyword, in the body of a pull
 request into the default branch, names an issue that GitHub's closing
 references for the pull request do not hold, the pull request's block
-SHALL name that issue. It applies only to pull requests into the default
-branch, since GitHub records closing references for no others.
+SHALL name that issue; pull requests into other branches are left out,
+since GitHub records closing references only for pull requests into the
+default branch.
 
 #### Scenario: A second issue after one keyword is named
 
@@ -372,29 +373,6 @@ come after that change.
 - **WHEN** #91 names a requirement that the default branch's specs hold
 - **THEN** that citation gives no edge
 
-### Requirement: Two changes that modify one requirement owe a copy, which sets no order
-
-Where both changes of a pair modify one requirement of one capability, the
-order's issue SHALL say that the later of the two in the order must add the
-earlier one's new scenarios to its own copy of the requirement before it
-archives; this finding SHALL add no edge, because whichever change
-archives second can carry the copy.
-
-#### Scenario: The second to archive owes the copy
-
-- **WHEN** #82 and #90 both modify *Claims expire after an hour*, and #82
-  comes first in the order
-- **THEN** the order's issue says #90 must add #82's new scenarios of
-  *Claims expire after an hour* to its copy before it archives, and neither
-  item gains an edge from it
-
-#### Scenario: The copy owed inside a cycle follows the cycle's order
-
-- **WHEN** #82, opened earlier, and #90 both modify *Claims expire after an
-  hour* and form a cycle through other edges, ordered by rule, and then a writer's `#90 first` overrides it
-- **THEN** the order's issue first says #90 owes the copy, and after the
-  override says #82 owes it
-
 ### Requirement: Explicit links order the items they connect
 
 An item SHALL come after each item that a GitHub "blocked by" relation or a
@@ -415,6 +393,13 @@ hold, gives no edge and is listed as not counted.
   `Builds on: inquisitor (adamstallard/shared-skills#25)`, in the
   repository adamstallard/shared-skills
 - **THEN** #64 comes after #25, with the reason `after #25: builds on it`
+
+#### Scenario: A Builds on line naming an issue is listed
+
+- **WHEN** #64's change's `proposal.md` says
+  `Builds on: claims (adamstallard/shared-skills#43)`, and #43 is an issue
+- **THEN** #64 gains no edge from it, and #64's line says
+  `not counted: builds on #43, an issue`
 
 #### Scenario: A blocked-by relation orders two items
 
@@ -972,7 +957,7 @@ reference and the fenced record of checked pairs.
 
 #### Scenario: Backticks and line breaks stay inside the code
 
-- **WHEN** a reason is ``x` `` followed by a line break and `@maya`
+- **WHEN** a reason is the letter x and a backtick, then a line break, then `@maya`
 - **THEN** the block shows it as one code span, delimited by two backticks
   and holding the text x, a backtick, a space and @maya, and GitHub
   notifies no one
@@ -1052,7 +1037,9 @@ change, and that text SHALL hold no date or time but each cycle's
 
 When an item leaves the order, by closing, merging or ceasing to be linked,
 the script SHALL remove its block, markers included, and leave the rest of
-its body as it was.
+its body as it was. An item that closed while the order's issue held the full note keeps its
+block for good, since the script finds blocks to remove through the order
+it replaces, and the note names no item.
 
 #### Scenario: A merged pull request's block is removed
 
@@ -1188,12 +1175,6 @@ reviewer.
   and `li` authored #97
 - **THEN** #97 awaits `maya`'s review, and every other non-draft open pull
   request awaits both
-
-#### Scenario: A pull request requesting no one falls back to CODEOWNERS
-
-- **WHEN** `.github/sequencer.json` does not exist, #96 requests no
-  reviewer, and CODEOWNERS gives `@maya` the files it changes
-- **THEN** #96 is awaiting `@maya`'s review
 
 #### Scenario: A requested reviewer who has reviewed stays a reviewer
 
@@ -1441,7 +1422,7 @@ names a change without its repository.
 ### Requirement: The script prints the order for callers without editing anything
 
 `order` SHALL print the order, each item's place, its edges with
-reasons, the links to outside items, the cycles, the copies owed, the
+reasons, the explicit links to outside items, the cycles, the
 shared names for the model step, each open change's hash, and a change's
 files only where a writer opened its pull request, as JSON with `--json`,
 and SHALL write to no issue or pull request; `publish` SHALL be the only command that edits,
