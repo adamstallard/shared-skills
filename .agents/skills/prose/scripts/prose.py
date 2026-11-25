@@ -1972,13 +1972,23 @@ PR_BODY_TOOLS = {"create_pull_request", "update_pull_request"}
 HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its title. "
                  "It was handed back for review ({what}): flag and fix any that still describes "
                  "work as unfinished or to come.")
-# Appended to HANDBACK_PASS when no review was requested from anyone but the
-# author and bots.
-BODY_KEPT = (" Leave the body as it is: a body is written only when a person other than the "
-             "author joins as a reviewer.")
-# Appended to HANDBACK_PASS when a review was requested from someone other
-# than the author (BODY_DUE_KNOWN), or may have been, because the author is
-# unknown (BODY_DUE_UNKNOWN). BODY_DUE follows either.
+# Appended to HANDBACK_PASS when the body has been written and no review was
+# requested from anyone but the author and bots.
+BODY_KEPT = (" Leave the body as it is: it has been written, and nobody new was asked to "
+             "review it. A reader who has read a body won't reread it, so an update is wasted.")
+# Appended to HANDBACK_PASS in BODY_KEPT's place when the hook could not read
+# the body.
+BODY_UNREAD = (" This hook could not read the body. If it holds only link lines and blocks a "
+               "tool writes between its own markers, write it now, whoever reviews it, the "
+               "person you work for included; otherwise leave it as it is.")
+# Appended to HANDBACK_PASS when the body has never been written
+# (BODY_DUE_FIRST), whoever reviews it; when a review was requested from
+# a person other than the author, bots aside (BODY_DUE_KNOWN); or when one
+# may have been, because the author is unknown (BODY_DUE_UNKNOWN). BODY_DUE
+# follows each.
+BODY_DUE_FIRST = (" Pull request body due: it holds only link lines and blocks a tool writes "
+                  "between its own markers, and the pull request now goes to its first "
+                  "reviewer, whoever that is, the person you work for included.")
 BODY_DUE_KNOWN = (" Pull request body due: a review was requested from {reviewers}, not the "
                   "author ({author}).")
 BODY_DUE_UNKNOWN = (" Pull request body due if a review was requested from anyone but the "
@@ -1988,13 +1998,13 @@ BODY_DUE = (" Have a fresh agent write the body from durable sources (specs, dec
             "code and tasks.md), never from the current body, as an introduction for a "
             "first-time reader that says what the pull request builds on. Replace the current "
             "body rather than updating it, and sign it with its cold read. Keep its link lines "
-            "(`Closes #N`, `Part of #N`).")
+            "(`Closes #N`, `Part of #N`) and any block a tool writes between its own markers.")
 # Said after a call that creates a pull request, draft or not, whose body has
 # no link line.
 LINK_NOTE = ("The new pull request's body has no link line: add a line starting `Closes #N` for "
              "each issue it closes and one starting `Part of #N` for each it partly implements. "
-             "A keyword mid-sentence makes no link line. If it has no issue, leave the body as "
-             "it is.")
+             "A keyword mid-sentence makes no link line. If it has no issue, it needs no link "
+             "line.")
 # A link line, read as the sequencer skill's spec reads a pull request's
 # tie to an issue: a line that starts with `Part of`, or with one of
 # GitHub's closing keywords in any letter case, then one space and #N or
@@ -2012,6 +2022,39 @@ LINK_LINE = re.compile(
 def has_link_line(body):
     """Whether a pull request body holds a link line (LINK_LINE)."""
     return any(LINK_LINE.match(line) for line in re.split(r"\r\n|\r|\n", body))
+
+
+# A line that opens or closes a block a tool writes into a pull request's
+# body, such as `<!-- sequencer:begin -->`; group 1 names the tool.
+TOOL_MARKER = re.compile(r"\s*<!--\s*([\w.-]+):(begin|end)\s*-->\s*")
+
+
+def unwritten_body(body):
+    """Whether a pull request's body has never been written: leaving out
+    its prose footer, each line is blank, a link line (LINK_LINE), or
+    inside a block from a `<!-- name:begin -->` line to its
+    `<!-- name:end -->` line. A begin with no matching end makes the lines after it count as written,
+    so a malformed block never asks for a body that may be there. A link
+    line counts whatever follows its #N, so `Fixes #12: <a sentence>`
+    alone is unwritten. Counting only a bare #N would call `Closes #12
+    (partly)` written, and the first reviewer would get no body."""
+    lines = re.split(r"\r\n|\r|\n", split_footer(body)[0])
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        opening = TOOL_MARKER.fullmatch(line)
+        if opening and opening.group(2) == "begin":
+            end = next((j for j in range(i + 1, len(lines))
+                        if (m := TOOL_MARKER.fullmatch(lines[j]))
+                        and m.group(1) == opening.group(1) and m.group(2) == "end"), None)
+            if end is None:
+                return False
+            i = end + 1
+            continue
+        if line.strip() and not LINK_LINE.match(line):
+            return False
+        i += 1
+    return True
 
 
 def created_bodies(payload, host):
@@ -2126,24 +2169,40 @@ def run_gh(args, payload):
     return out.stdout if out.returncode == 0 else None
 
 
-def pr_author(handback, sole, payload, host):
-    """The login of the author of the pull request a hand-back requests
-    reviews on, or None when it cannot be told without guessing.
-
-    A create's author is the account gh is signed in as. The hook's own
-    `gh api user` sees that same account only when nothing else in the
-    command can change gh's identity (sole). The GitHub MCP server signs in
-    on its own, so its create's author is unknown. An existing pull
-    request's author comes from `gh pr view`."""
-    if handback.kind == "create":
-        if handback is not sole or not handback.what.startswith("gh "):
-            return None
-        login = run_gh(["api", "user", "--jq", ".login"], payload)
-    elif findable(handback, payload, host):
-        login = pr_field(handback, payload, "author", ".author.login")
-    else:
+def pr_view(handback, payload, host):
+    """(author's login, body) of the existing pull request a hand-back
+    names, from one `gh pr view --json author,body`; either is None when
+    gh does not give it. None when findable says the pull request cannot
+    be looked up, or when gh fails."""
+    if not findable(handback, payload, host):
         return None
-    login = (login or "").strip()
+    args = ["pr", "view", *([handback.selector] if handback.selector else []),
+            "--json", "author,body"]
+    if handback.repo:
+        args += ["-R", handback.repo]
+    try:
+        data = json.loads(run_gh(args, payload) or "")
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    author, body = data.get("author"), data.get("body")
+    login = author.get("login") if isinstance(author, dict) else None
+    login = login.strip() if isinstance(login, str) else ""
+    return login or None, body if isinstance(body, str) else None
+
+
+def creator(handback, sole, payload):
+    """The login of the author of the pull request a create makes, or None
+    when it cannot be told without guessing. It is the account gh is
+    signed in as. The hook's own `gh api user` sees that same account only
+    when the create is the command's sole hand-back and nothing else in
+    the command, such as a `cd` or a GH_TOKEN= assignment, can change where
+    or as whom gh runs (handbacks_in's sole). The GitHub MCP server signs in on its own, so its create's author is
+    unknown."""
+    if handback is not sole or not handback.what.startswith("gh "):
+        return None
+    login = (run_gh(["api", "user", "--jq", ".login"], payload) or "").strip()
     return login or None
 
 
@@ -2156,17 +2215,39 @@ def is_bot(login):
 
 
 def body_note(found, sole, payload, host):
-    """What the hand-back note says of the pull request's body: due when a
-    review is requested from a person other than the author; may be due
-    when the author is unknown; else left as it is. Bots are left out
-    before pr_author looks the author up, so a hand-back that requests
-    reviews only from bots runs no gh."""
-    joining, unknown = [], []
+    """What the hand-back note says of the pull request's body.
+
+    It is due, whoever reviews, when the body has never been written
+    (unwritten_body). Otherwise it is due when a review is requested from
+    a person other than the author, and may be due when the author is
+    unknown. Otherwise it is left as it is, with BODY_UNREAD in place of
+    BODY_KEPT when a body could not be read.
+
+    When the call makes one create, that create's body is the one the call
+    gave, as created_bodies reads it, and reading it runs no gh. With
+    several creates in one call, their bodies count as unread. Any other hand-back's
+    body and author come from one gh call (pr_view). A create's author is
+    looked up (creator) only when its body has been written and it
+    requests a review from a person, never from bots alone."""
+    creates = [h for h in found if h.kind == "create"]
+    given = created_bodies(payload, host) if creates else []
+    joining, unknown, unread = [], [], False
     for handback in found:
+        if handback.kind == "create":
+            view = None
+            body = given[0] if len(creates) == 1 and len(given) == 1 else None
+        else:
+            view = pr_view(handback, payload, host)
+            body = view[1] if view else None
+        if body is None:
+            unread = True
+        elif unwritten_body(body):
+            return BODY_DUE_FIRST + BODY_DUE
         people = [r for r in handback.reviewers if not is_bot(r)]
         if not people:
             continue
-        author = pr_author(handback, sole, payload, host)
+        author = creator(handback, sole, payload) if handback.kind == "create" \
+            else view[0] if view else None
         if author is None:
             unknown += people
         else:
@@ -2177,7 +2258,7 @@ def body_note(found, sole, payload, host):
             author=", ".join(sorted({a for _, a in joining}))) + BODY_DUE
     if unknown:
         return BODY_DUE_UNKNOWN.format(reviewers=", ".join(unknown)) + BODY_DUE
-    return BODY_KEPT
+    return BODY_UNREAD if unread else BODY_KEPT
 
 
 def hook_post(raw, host):

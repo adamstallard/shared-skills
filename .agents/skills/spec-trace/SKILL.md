@@ -163,8 +163,8 @@ yet.
   says names no scenario, change the tag to the scenario's current name, or
   delete it if the scenario is gone. Most such tags name a scenario the
   change removes or renames.
-- A pull request body is written only once a reviewer other than its
-  author is requested, since nobody reads it before then; until then it
+- A pull request body is written only once the pull request goes to
+  anyone for review, since nobody reads it before then; until then it
   holds only link lines such as `Closes #N`. When a reviewer joins a pull
   request that carries the implementation (a spec's pull request counts
   once code is on it), the agent that writes the body pastes into it the
