@@ -39,7 +39,7 @@
       }
     },
     {
-      "summary": "After a pull request is handed back for review, tells the agent the current-state pass that is due.",
+      "summary": "After a pull request is handed back for review, tells the agent the current-state pass that is due; after one is created without link lines, says to add them.",
       "command": "scripts/handback-notice.sh",
       "events": {
         "claude": {

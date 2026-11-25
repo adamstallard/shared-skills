@@ -332,19 +332,27 @@ gh pr create --title "..." --body-file signed.md
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
 
-**A pull request body is written when someone other than its author is
-about to read it:** when you are told a reviewer is joining, or when a
-review is requested from someone else. Until then, since `gh pr create`
-needs a body, one signed line naming what the pull request implements is
-enough. For the new reader, a subagent that has not seen the work writes
-the body from whichever of the specs, decision records, code and
-`tasks.md` the repository has. It is an introduction for a first-time
-reader, naming the pull requests or changes this one builds on. Each new
-reader gets a body written afresh, never an update of the last one, since
-an update carries stale text forward. Nobody rewrites it for the merge,
-except in a repository that squash-merges, where the body becomes the
-commit message. Never point an agent's brief at a body, such as its lists
-of what is decided or open, as a record of what is settled: nobody keeps a
+**A pull request body is written when a reviewer joins:** when the person
+you work for tells you one is joining, or when a review is requested from
+anyone but you and that person. Until then, from the moment the pull
+request opens, the body holds two things only. First, link lines: a line
+starting with `Closes #N`, or another of GitHub's closing keywords, for
+each issue the pull request closes, and one starting with `Part of #N`
+for each it partly implements. GitHub and the sequencer, which orders
+open pull requests, tie a pull request to its issue through these lines;
+a `Part of` mid-sentence ties it to nothing. Second, any block a tool writes between its own markers, such as
+`<!-- sequencer:begin -->` … `<!-- sequencer:end -->`, since the tool keeps
+it current. Anything more would go stale before anyone read it. For the
+reviewer who joins, start a subagent that has
+not seen the work to write the body from whichever of the specs, decision
+records, code and `tasks.md` the repository has. It is an introduction for
+a first-time reader, naming the pull requests or OpenSpec changes this one
+builds on, and keeps the link lines and marked blocks. Each new reader gets a body written
+afresh, never an update of the last one, since an update carries stale
+text forward. Nobody rewrites it for the merge, except in a repository
+that squash-merges: there the body becomes the squashed commit's message,
+so whoever merges rewrites it as that commit message. Never point an
+agent's brief at a body as a record of what is settled: nobody keeps a
 body current.
 
 **The title is kept current.** The agent that pushes an implementation
@@ -368,7 +376,7 @@ it with `gh pr edit`, and hand back again.
 that final pass at once, without asking first: fix any doc the pull request
 changes, and its title, that still describes work as unfinished or to
 come. Ask a person only before such a fix would delete a result or decision
-the text states. The note ends with one of three sentences about the body:
+the text states. The hook's note then says one of three things about the body:
 
 - *Leave the body as it is*: the call requested no reviewer, or none but
   the author and bots. A bot, `@copilot` or a login ending in `[bot]`,
@@ -380,6 +388,10 @@ the text states. The note ends with one of three sentences about the body:
   author: the hook could not work out who the author is. Compare the
   reviewers it names with the pull request's author
   (`gh pr view --json author`); if any differs, treat it as a body due.
+
+**After a pull request is created,** draft or not, the same hook reminds
+you to add link lines when its body has none. If the pull request has no
+issue, leave its body as it is.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked
