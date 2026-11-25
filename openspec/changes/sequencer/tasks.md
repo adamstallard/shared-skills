@@ -21,8 +21,6 @@ remove the question from design.md.
       size of an edges file for a large repository
 - [ ] 0.5 Whether a workflow run's `GITHUB_TOKEN` can read another
       account's permission on the repository
-- [ ] 0.6 Whether an issue transferred into a repository keeps the
-      creation time it had
 - [ ] 0.7 How the workflow's token can tell that an issue's or pull
       request's author is the bot account of a GitHub App installed on the
       repository:
@@ -34,7 +32,8 @@ remove the question from design.md.
 - [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
       `pyright --strict`: read the open issues and pull requests through
       `gh`, with creation times, closing references, `Part of` lines,
-      blocked-by relations, requested reviewers, drafts and changed files
+      blocked-by relations, requested reviewers, the review-request events
+      in each pull request's timeline, drafts and changed files
 - [ ] 1.2 Find each open change on the default branch and on each open pull
       request's head, and the pull request it belongs to
 - [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.1 or later,
@@ -104,9 +103,10 @@ remove the question from design.md.
 
 - [ ] 4.1 Count writers' `#<n> first` comments on the order's issue as
       cycle overrides, and have the skill tell an agent in a session to
-      record a person's choice by posting `#<n> first` there through `gh`
-      as that person, or, where the agent's `gh` acts as an App, whose
-      comments override nothing, to ask the person to post it
+      record a person's choice by posting `#<n> first` there with the
+      person's own `gh` login, or, in a project whose agents act as a
+      GitHub App through the github-app skill, to ask the person to post
+      it, since an App's comments override nothing
 
 ## 5. The CI workflow
 
@@ -128,7 +128,9 @@ remove the question from design.md.
 ## 6. Docs
 
 - [ ] 6.1 `.agents/skills/sequencer/SKILL.md`: when to run it, the session's
-      model step, the commands, and the `Part of` line for a pull request
-      that does only part of an issue's work
+      model step, the commands, the identity a session's `publish` runs as
+      (the App's, through the github-app skill, in a project wired to
+      one), and the `Part of` line for a pull request that does only part
+      of an issue's work
 - [ ] 6.2 The README's skills table
 

@@ -45,8 +45,8 @@ These terms hold throughout this spec:
   (`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`,
   `resolves`, `resolved`, in any case). Such a line follows every rule of a
   `Depends on` line, with its own words in place of `Depends on `.
-- **An outside item** is an issue or pull request in another repository
-  that an explicit link or a tie names.
+- **An outside item** is an issue or pull request that an explicit link
+  or a tie names, in a repository whose items the order does not hold.
 - **An edge** is a rule's finding that one item comes after another, with
   its **reason**. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
@@ -556,7 +556,9 @@ after that one, SHALL say so in its reason.
 The order's issue SHALL keep a list of cycle overrides, each naming the
 member a writer put first and linking their comment. The order SHALL put
 that member first and the rest earliest opened first, and its reason
-SHALL give the same link.
+SHALL give the same link. The cycle's mark SHALL become `ordered by
+override since <time>`, keeping its time, so that later comments are
+still judged against that time.
 
 #### Scenario: An override puts a later-opened member first
 
@@ -570,7 +572,7 @@ SHALL give the same link.
 
 A run SHALL read a comment on the order's issue as an override when a
 writer, and not an App's bot account, posted it after the cycle's
-`ordered by rule since` time, and its text starts with `#<n> first`,
+`since` time, and its text starts with `#<n> first`,
 `#<n>` being one of the cycle's members. Of several such comments, the
 latest is the override.
 
@@ -697,25 +699,14 @@ change.`
   its issue says `Dependencies between requirements were not checked: no
   open OpenSpec change.`
 
-### Requirement: Every place a rule decides gives its reason
-
-Each item placed after another by an edge SHALL show the edge's reason,
-naming the other item and, where a requirement set the edge, the
-requirement's title, in the order's issue and in the item's block.
-
-#### Scenario: A reason names the rule and the requirement
-
-- **WHEN** #90 comes after #82 because it modifies #82's *Claims expire
-  after an hour*
-- **THEN** both the order's issue and #90's block say
-  `` after #82: modifies its `Claims expire after an hour` ``
-
 ### Requirement: The same inputs give the same order whoever runs the script
 
 Given the same repository state, the same stored checked pairs and code
 edges, and the same OpenSpec CLI, the script
 SHALL produce byte-identical order text, whichever caller runs it and
-wherever.
+wherever. Where a section-0 task picks a method of reading, a caller
+whose token cannot make that method's reads SHALL publish nothing, and
+say which read failed.
 
 #### Scenario: A session and CI agree
 
@@ -723,13 +714,21 @@ wherever.
   same commit, items and recorded code edges
 - **THEN** both produce the same text for the order's issue and every block
 
+#### Scenario: A caller that cannot make a read publishes nothing
+
+- **WHEN** task 0.5 found that the workflow's token can read another
+  account's permission, and an agent's session runs `publish` with a
+  token that cannot
+- **THEN** the script edits nothing and says that read failed
+
 ### Requirement: The whole order lives in one issue's body
 
-The script SHALL keep the whole order in the body of the open issue
-labelled `sequencer`, creating it when none is open and publishing nothing
-when more than one is. It SHALL use that issue only when a writer opened
-it, or `github-actions[bot]`; otherwise it SHALL
-publish nothing and name the issue and its author. Nothing of the order
+The script SHALL keep the whole order, with each item's waits and their
+reasons, in the body of the open issue labelled `sequencer`, creating it
+when none is open and publishing nothing when more than one is. It SHALL
+use that issue only when a writer opened it, or `github-actions[bot]`;
+otherwise it SHALL publish nothing and name the issue and its author.
+Nor SHALL it create the issue as an account it would so refuse. Nothing of the order
 SHALL go in a comment.
 
 #### Scenario: The first publish creates the order's issue
@@ -737,6 +736,12 @@ SHALL go in a comment.
 - **WHEN** the script publishes in a repository with no open issue labelled
   `sequencer`
 - **THEN** it opens one, labelled `sequencer`, whose body holds the order
+
+#### Scenario: No order issue is created that would be refused
+
+- **WHEN** no issue labelled `sequencer` is open, and the script runs as an
+  App's bot account that it cannot tell is installed
+- **THEN** it opens no issue, publishes nothing, and says why
 
 #### Scenario: An order issue the workflow opened is used
 
@@ -870,7 +875,7 @@ the order is kept.
 
 The script SHALL edit a body only when the text between its markers would
 change, and that text SHALL hold no date or time but each cycle's
-`ordered by rule since` time.
+`since` time.
 
 #### Scenario: An unchanged order edits nothing
 
@@ -1134,8 +1139,8 @@ did not check* says.
 
 #### Scenario: No unchecked pair makes no call
 
-- **WHEN** an outside account's comment triggers a run, and every pair of
-  changes whose pull requests writers opened is checked
+- **WHEN** a writer's push triggers a run, and every pair of changes whose
+  pull requests writers opened is checked
 - **THEN** the script makes no API call
 
 #### Scenario: A reply that does not parse checks nothing
