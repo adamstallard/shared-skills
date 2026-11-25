@@ -333,18 +333,20 @@ gh pr create --title "..." --body-file signed.md
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
 
-**A pull request body is written when a reviewer joins:** when the person
-you work for tells you one is joining, or when a review is requested from
-anyone but you and that person. Until then, from the moment the pull
-request opens, the body holds two things only. First, link lines: a line
+**A pull request body is written when it gets a first-time reader:** when a pull
+request whose body was never written goes to anyone for review, the
+person you work for included, and again for each new reader who joins
+after someone has read it. Never update a body for someone who has read
+it: they won't reread it. Until its first reviewer, the body holds two
+things only. First, link lines: a line
 starting with `Closes #N`, or another of GitHub's closing keywords, for
 each issue the pull request closes, and one starting with `Part of #N`
 for each it partly implements. GitHub and the sequencer, which orders
 open pull requests, tie a pull request to its issue through these lines;
 a `Part of` mid-sentence ties it to nothing. Second, any block a tool writes between its own markers, such as
 `<!-- sequencer:begin -->` … `<!-- sequencer:end -->`, since the tool keeps
-it current. Anything more would go stale before anyone read it. For the
-reviewer who joins, start a subagent that has
+it current. Anything more would go stale before anyone read it. For each
+first-time reader, start a subagent that has
 not seen the work to write the body from whichever of the specs, decision
 records, code and `tasks.md` the repository has. It is an introduction for
 a first-time reader, naming the pull requests or OpenSpec changes this one
@@ -377,22 +379,27 @@ it with `gh pr edit`, and hand back again.
 that final pass at once, without asking first: fix any doc the pull request
 changes, and its title, that still describes work as unfinished or to
 come. Ask a person only before such a fix would delete a result or decision
-the text states. The hook's note then says one of three things about the body:
+the text states. The hook's note then says one of four things about the body:
 
-- *Leave the body as it is*: the call requested no reviewer, or none but
-  the author and bots. A bot, `@copilot` or a login ending in `[bot]`,
-  reviews the diff whatever the body says.
-- *Pull request body due*: a review was requested from another person. A new
-  reader joins, so have the body written afresh, as above, and sign it
-  without `--defer-cold-read`.
+- *Leave the body as it is*: the body has been written, and the call
+  requested no reviewer, or none but the author and bots. A bot,
+  `@copilot` or a login ending in `[bot]`, reviews the diff whatever the
+  body says.
+- *Pull request body due*: the body holds only link lines and marked
+  blocks, whoever reviews; or a review was requested from a person other
+  than the author, bots aside.
+  Have the body written afresh, as above, and sign it without
+  `--defer-cold-read`.
 - *Pull request body due if* a review was requested from anyone but the
   author: the hook could not work out who the author is. Compare the
   reviewers it names with the pull request's author
   (`gh pr view --json author`); if any differs, treat it as a body due.
+- *This hook could not read the body*: if it holds only link lines and
+  marked blocks, treat it as a body due; otherwise leave it as it is.
 
 **After a pull request is created,** draft or not, the same hook reminds
-you to add link lines when its body has none. If the pull request has no
-issue, leave its body as it is.
+you to add link lines when its body has none. A pull request with no
+issue needs none.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked
