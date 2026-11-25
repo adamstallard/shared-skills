@@ -26,6 +26,9 @@ remove the question from design.md.
       repository:
       through the permission API, `author_association`, or the
       repository's list of installations
+- [ ] 0.7 Whether a pull request's timeline tells apart the two ways a
+      review request ends: GitHub clearing it when the reviewer reviews,
+      and a person removing it
 
 ## 1. Reading the repository
 
@@ -58,7 +61,7 @@ remove the question from design.md.
       grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step,
-      for each pair of changes whose pull requests writers opened
+      for each pair of changes
 - [ ] 2.7 Model-step checked pairs and edges: validate, take each pair
       whose two changes still have the file's hashes, record it with them,
       and keep or drop it on later runs
@@ -119,8 +122,8 @@ remove the question from design.md.
       version, 1.16.1 or later
 - [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
       `publish --model api`, one API call with no tools whose reply the
-      script parses and validates, called only on a push, a pull request's
-      opening or the daily run; an Igor, through the label
+      script parses and validates, called only in the runs
+      *An API key's model step runs only on pushes, openings and the daily run* names; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
       existing file without `--force`
