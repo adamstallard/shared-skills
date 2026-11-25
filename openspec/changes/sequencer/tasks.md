@@ -13,10 +13,10 @@ remove the question from design.md.
       relation, and whether an issue's or pull request's relations can be
       read through GitHub's API with a workflow run's `GITHUB_TOKEN`,
       including a relation to another repository's issue
-- [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
+- [ ] 0.2 Whether a `pull_request_target` run's `GITHUB_TOKEN`, with
       `pull-requests: write`, can edit the body of a pull request from a fork
-- [ ] 0.3 A `pull_request_review` run for a fork's pull request gets a
-      `GITHUB_TOKEN` that can edit issue and pull request bodies
+- [ ] 0.3 Whether a `pull_request_review` run for a fork's pull request gets
+      a `GITHUB_TOKEN` that can edit issue and pull request bodies
 - [ ] 0.4 The largest input a `workflow_dispatch` run accepts, against the
       size of an edges file for a large repository
 - [ ] 0.5 Whether a workflow run's `GITHUB_TOKEN` can read another

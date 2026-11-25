@@ -67,8 +67,8 @@ These terms hold throughout this spec:
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on it is OWNER, MEMBER or
   COLLABORATOR.
-  A GitHub App's bot account counts as a writer only for the items it
-  opens and the reviews it submits, when that App is installed on the
+  A GitHub App's bot account counts as a writer only for the issues and
+  pull requests it opens and the reviews it submits, when that App is installed on the
   repository, detected by the method task 0.6 finds. If task 0.6 finds
   that the workflow's token cannot tell whether an App is installed, no
   App's bot account counts as a writer, whoever runs the script.
@@ -304,6 +304,19 @@ checked, and why.
   `Dependencies between requirements were not checked: OpenSpec 1.16.1 or
   later is not installed (this one is 1.14.3).`
 
+### Requirement: The CLI reads the default branch's OpenSpec settings
+
+The script SHALL run the CLI with `openspec/config.yaml` and
+`openspec/schemas/` from the default branch, never a pull request's,
+because those choose how the CLI reads files and a fork's pull request
+could change them.
+
+#### Scenario: A fork's settings are not used
+
+- **WHEN** a fork's pull request #95 changes `openspec/config.yaml`
+- **THEN** the script reads every change, #95's included, with the
+  default branch's `openspec/config.yaml`
+
 ### Requirement: A change the OpenSpec CLI refuses is listed as not checked
 
 Where the OpenSpec CLI runs on a change but refuses it, the script SHALL
@@ -371,8 +384,8 @@ requirement with the archiving change's whole copy.
 
 #### Scenario: The copy owed inside a cycle follows the cycle's order
 
-- **WHEN** #82 and #90 both modify *Claims expire after an hour*, they form
-  a cycle ordered by rule, and then a writer's `#90 first` overrides it
+- **WHEN** #82, opened earlier, and #90 both modify *Claims expire after an
+  hour* and form a cycle through other edges, ordered by rule, and then a writer's `#90 first` overrides it
 - **THEN** the order's issue first says #90 owes the copy, and after the
   override says #82 owes it
 
@@ -485,8 +498,8 @@ link. The script SHALL make no request to an outside item's repository.
 
 An edge SHALL count only when a writer opened every item whose text sets
 it. For an edge from changes' files or the model step, those items are both
-changes' pull requests; for a `Depends on` or `Builds on:` line, the item
-holding the line; for a blocked-by relation, the blocked item. The order's
+changes' pull requests; for a `Depends on` line, the item holding it;
+for a `Builds on:` line, the pull request its change belongs to; for a blocked-by relation, the blocked item, whoever added the relation. The order's
 issue SHALL list the edges that do not count, each with the account that
 opened the item setting it.
 
@@ -735,11 +748,11 @@ spaces. Every row starts with a key, so no row forms a marker line.
 
 Each run SHALL give a new change a new key and `X *`, give a revised
 change its new hash and `X *` in place of every row naming it, and remove a change
-that left every pair, with its rows. `publish` SHALL take each pair of an
-edges file whose two hashes match the legend, as this run has updated it.
-It SHALL remove each taken pair from `unchecked:`: an `X *` row the taken
-pairs cover in part becomes an `X,Y` row for each pair still unchecked. It
-SHALL add their code edges.
+that left every pair, with its rows. `publish` SHALL then take each pair
+of an edges file whose two hashes match the legend, and remove it from
+`unchecked:`: an `X *` row the taken pairs cover in part becomes an `X,Y`
+row for each pair still unchecked. A taken pair's code edges SHALL become
+the file's, none if it gives none.
 
 #### Scenario: A pair naming a change outside the legend is dropped
 
@@ -792,13 +805,13 @@ SHALL add their code edges.
 
 ### Requirement: A full order's issue holds a note in place of the order
 
-Where the order's issue's body would pass GitHub's limit of 65,536
-characters, the script SHALL replace the order under `# Order`, record
+Where the order's issue's body would pass 65,536 characters, the script SHALL replace the order under `# Order`, record
 included, with the note `The order's issue is full: <n> open items need
 more than GitHub's 65,536 characters. No order is published until some
-merge or close.`, keeping each cycle's line and the overrides, so their
-comments still count later. It SHALL edit no other body, call no model,
-and remove the label `sequencer: check code`, since no model step runs.
+merge or close.`, keeping each cycle's line, whose time later
+overrides are judged by. It SHALL edit no other body, even that of an
+item that closes while the note stands, call no model, and remove the label `sequencer: check
+code`.
 
 #### Scenario: Too many open items fill the order's issue
 
@@ -806,8 +819,7 @@ and remove the label `sequencer: check code`, since no model step runs.
   characters, and #82 and #90 form a cycle ordered by override
 - **THEN** the order's issue, under `# Order`, holds `The order's issue is
   full: 320 open items need more than GitHub's 65,536 characters. No order
-  is published until some merge or close.`, the cycle's line and the list
-  of overrides; no item's block changes; the label `sequencer: check code`
+  is published until some merge or close.` and the cycle's line; no item's block changes; the label `sequencer: check code`
   is removed; and the script makes no model call
 
 ### Requirement: The order says plainly what it did not check
@@ -899,8 +911,8 @@ SHALL go in a comment.
 
 - **WHEN** the one open issue labelled `sequencer` was opened by an
   account without write access to the repository
-- **THEN** the script reads none of the cycle overrides or stored code
-  edges in its body, edits nothing, and names the issue and its author
+- **THEN** the script reads no override from its comments and no stored
+  code edge from its body, edits nothing, and names the issue and its author
 
 ### Requirement: Broken markers in the order's issue stop the run
 
@@ -1272,7 +1284,9 @@ day.
 ### Requirement: The workflow's runs share one concurrency group
 
 All the workflow's runs SHALL share one concurrency group, so no two of
-them edit a body at once.
+them edit a body at once. GitHub cancels a waiting run when a newer one
+joins the group; a cancelled run publishes nothing, and pairs it would
+have checked stay unchecked until a later model step checks them.
 
 #### Scenario: Two quick merges run one after the other
 
@@ -1374,10 +1388,7 @@ the order it publishes leaves unchecked a pair of changes.
 ### Requirement: The workflow publishes an edges file a dispatched run carries
 
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
-file, and publish it with `publish --code-edges`. GitHub cancels a
-dispatched run that waits while a newer run of the workflow joins its
-concurrency group; such a run publishes nothing, and its pairs stay
-unchecked until a later model step checks them.
+file, and publish it with `publish --code-edges`.
 
 #### Scenario: A dispatched edges file is published
 
