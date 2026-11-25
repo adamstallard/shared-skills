@@ -79,7 +79,7 @@ remove the question from design.md.
 ## 3. Publishing
 
 - [ ] 3.1 Find or create the order's issue labelled `sequencer`, and stop on
-      two
+      two open order issues, or on broken markers in it
 - [ ] 3.2 Write the order's issue and each item's block between the
       markers, each opening with its heading, each block giving its place
       without the number of places, editing a body only when that text

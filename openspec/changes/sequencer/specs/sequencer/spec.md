@@ -58,7 +58,7 @@ These terms hold throughout this spec:
 - **An outside item** is an issue or pull request that an explicit link
   or a tie names, in a repository whose items the order does not hold.
 - **An edge** is a rule's finding that one item comes after another, with
-  its **reason**. **A cycle** is a set of items whose edges lead from each
+  its **reason**; a finding that an item comes after itself is no edge. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
@@ -301,16 +301,15 @@ checked, and why.
 ### Requirement: A change the OpenSpec CLI refuses is listed as not checked
 
 Where the OpenSpec CLI runs on a change but refuses it, the script SHALL
-take nothing from that change's files, and the order's issue
-SHALL list the change as not checked, with the CLI's reason, and name each
-pair of changes it is in as unchecked.
+apply no rule that reads that change's requirements or deltas, and the
+order's issue SHALL list the change as not checked, with the CLI's reason.
 
 #### Scenario: A change the CLI refuses is not counted as checked
 
 - **WHEN** `openspec show --json` refuses #93's change, and #82 and #90
   hold changes it reads
 - **THEN** the order's issue lists #93's change as not checked, quoting the
-  CLI's reason, and names #82 and #93, and #90 and #93, as unchecked pairs
+  CLI's reason
 
 ### Requirement: A change that modifies another change's requirement comes after it
 
@@ -377,7 +376,7 @@ An item SHALL come after each item that a GitHub "blocked by" relation or a
 `Depends on` line in its body says it waits on, and a change's pull request
 after the pull request each `Builds on:` line in its `proposal.md` names;
 a `Builds on:` line naming an issue, or a repository the order does not
-hold, gives no edge.
+hold, gives no edge and is listed as not counted.
 
 #### Scenario: A Depends on line orders two issues
 
@@ -405,7 +404,7 @@ hold, gives no edge.
 ### Requirement: A Depends on line names items by number, with or without their repository
 
 A `Depends on` line SHALL be a body line, outside code fences, starting
-`Depends on `, ignoring case, then `#<number>` or `<owner>/<repo>#<number>`
+`Depends on `, matched case-sensitively, then `#<number>` or `<owner>/<repo>#<number>`
 references separated by commas or `and`; `<owner>` holds only letters,
 digits and `-`, and `<repo>` also `.` and `_`. The references SHALL end
 at the first other text, which is ignored. A reference naming this
@@ -436,13 +435,12 @@ repository in full, ignoring case, SHALL read as its `#<number>`. A
 
 ### Requirement: A link to an outside item is listed as not counted
 
-An explicit link naming an outside item SHALL set no edge, make no item
-wait and bring no issue into the order. The order's issue SHALL list
-it as not counted, on the line of the item that has the link or, where the
-order does not hold that item, in its list of edges not counted, and SHALL
-write the outside item as plain `<owner>/<repo>#<number>` text, which
-GitHub turns into a link. The script SHALL make no request to an outside
-item's repository.
+An explicit link or a tie naming an outside item SHALL move nothing and
+bring no issue into the order. The order's issue SHALL list such an explicit
+link as not counted, on the line of the item that has it or, where the order does
+not hold that item, in its list of edges not counted, writing the outside
+item as plain `<owner>/<repo>#<number>` text, which GitHub turns into a
+link. The script SHALL make no request to an outside item's repository.
 
 #### Scenario: A Depends on line naming another repository is listed and orders nothing
 
@@ -468,6 +466,14 @@ item's repository.
   adamstallard/shared-skills
 - **THEN** #64's line says
   `not counted: builds on octo/lib#31, in another repository`
+
+#### Scenario: A Builds on line naming an issue gives no edge
+
+- **WHEN** #64's change's `proposal.md` says
+  `Builds on: sequencer (adamstallard/shared-skills#43)`, and #43 is an
+  issue
+- **THEN** #64 gains no edge from it, and #64's line says
+  `not counted: builds on #43, an issue`
 
 #### Scenario: An issue whose only link names another repository is not ordered
 
@@ -816,14 +822,27 @@ SHALL go in a comment.
 - **THEN** the script reads none of the cycle overrides or stored code
   edges in its body, edits nothing, and names the issue and its author
 
+### Requirement: Broken markers in the order's issue stop the run
+
+Where the order's issue's marker lines are other than one begin line
+followed by one end line, the script SHALL publish nothing and say so,
+since that body holds what later runs read back.
+
+#### Scenario: An order issue with broken markers stops the run
+
+- **WHEN** a writer's edit leaves the order's issue with two
+  `<!-- sequencer:begin -->` lines
+- **THEN** the script edits nothing and says the order's issue's markers
+  do not match
+
 ### Requirement: The script's text opens with a heading
 
 The line after each `<!-- sequencer:begin -->` marker SHALL be a
 first-level heading: `# Order` in the order's issue, and `# Sequencer` in
 an item's block. The inquisitor spec's *Only four kinds of document are
-decision documents* reads an issue's text before its first heading, or a
-section headed "Decision", as its decision block, and the heading keeps
-the script's text out of both, since the order is no decision.
+decision documents* takes as an issue's decision block its text before
+its first heading, or the first of its sections whose heading starts with
+"Decision"; a first-level heading keeps the script's text out of both.
 
 #### Scenario: The order is never read as a decision
 
@@ -1032,13 +1051,13 @@ its head, it SHALL await that reviewer or team again.
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
-A non-draft pull request SHALL await every login in the `reviewers` list
-of `.github/sequencer.json` on the default branch, other than its
-author's. With no such list, it SHALL await each reviewer it requested on
+A non-draft pull request's reviewers SHALL be every login in the
+`reviewers` list of `.github/sequencer.json` on the default branch, other
+than its author's. With no such list, they SHALL be those it requested on
 GitHub that no person has since removed, including one whose request
-GitHub cleared on their review (task 0.7 measures whether the two can be
-told apart). Awaiting no one that way, it SHALL await the owners
-CODEOWNERS gives its changed files. A team SHALL count as one reviewer.
+GitHub cleared on their review; with none of those, the owners CODEOWNERS gives its changed
+files. It SHALL await each of its reviewers. A team SHALL count as one
+reviewer.
 
 #### Scenario: A team is one reviewer
 
@@ -1167,9 +1186,9 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 ### Requirement: An API key's model step runs only on pushes, openings and the daily run
 
 Where the repository chose its API key, the model step SHALL run only in
-a run that the daily schedule, or a push to or the opening of a pull
-request a writer opened, triggers, since anyone else can cause the other
-events, and each call is paid for with the repository's key.
+a run triggered by the daily schedule, or by a push to or the opening of
+a pull request a writer opened, since only those events can add a pair or
+change a pair's files, and each call is paid for with the repository's key.
 
 #### Scenario: A comment makes no API call
 
