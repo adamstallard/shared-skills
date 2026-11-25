@@ -3,7 +3,7 @@
 - **Can a pull request carry GitHub's "blocked by" relation?** (task 0.1)
   If not, the relation orders only issues.
 - **Does an edges file fit in a `workflow_dispatch` input?** (task 0.2)
-  If not, the caller that ran the model step, a session or an Igor, sends its pairs in several dispatches, each a complete edges file with its own hashes, holding some of the pairs, and sends each only after the run the one before started has finished, as that run's status on GitHub shows, so no dispatch is cancelled while it waits. Each run adds to the record of checked pairs those pairs whose changes' hashes still match the hashes that dispatch's edges file carries, and drops the rest, which stay unchecked.
+  If not, the Igor that ran the model step, an agent that dispatches the workflow with its results, sends its pairs in several dispatches. Each is a self-contained edges file with the hashes of the changes its pairs name, sent after the run started by the previous dispatch has finished. A dispatch that a newer run in the shared concurrency group cancels while it waits leaves its pairs unchecked until a later model step.
 - **How can the script tell that a GitHub App is installed on the
   repository?** (task 0.3) The task finds which of the permission API,
   `author_association` or the repository's list of installations tells

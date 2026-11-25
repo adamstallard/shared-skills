@@ -237,8 +237,7 @@ default branch.
 #### Scenario: A stacked pull request gets no closing note
 
 - **WHEN** #64, into #25's branch, says `Closes #10, #123`
-- **THEN** #64 is tied to #10 and #123, and its block has no `GitHub will
-  not close` line
+- **THEN** #64's block has no `GitHub will not close` line
 
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
@@ -503,10 +502,9 @@ link. The script SHALL make no request to an outside item's repository.
 ### Requirement: A token that cannot read permissions counts writers by association
 
 Where the script's token cannot read another account's permission, it SHALL
-count as a writer the author of an issue, pull request or comment whose
-`author_association` is OWNER, MEMBER or COLLABORATOR, the closest
-signal GitHub gives without that read, though it counts some members
-without write access, and the order's issue SHALL say `Permissions were not read: writers are counted by author
+count as a writer the author of an issue, pull request, review or comment whose
+`author_association` is OWNER, MEMBER or COLLABORATOR, though it counts
+some members without write access, as its statement tells readers, and the order's issue SHALL say `Permissions were not read: writers are counted by author
 association.`
 
 #### Scenario: A token that cannot read permissions counts collaborators
@@ -532,8 +530,8 @@ App's bot account SHALL count as a writer, and the order's issue SHALL say
 ### Requirement: Other callers follow the fallbacks the workflow wrote
 
 Where the default branch holds
-`.github/workflows/sequencer.yml`, a session's run, or an Igor's run of
-`order`, since an Igor publishes only through the workflow, SHALL apply the fallback of each statement of a read not made that
+`.github/workflows/sequencer.yml`, a run in a session, or an Igor's run of
+`order`, SHALL apply the fallback of each statement of a read not made that
 the order's issue holds, and any fallback its own token needs, so that, while the workflow's
 token has the limits it noted, a session's publish and the workflow run it
 triggers give the same order.
@@ -562,6 +560,15 @@ A workflow run, and any caller where the default branch holds no
 `.github/workflows/sequencer.yml`, SHALL use only its own token's reads,
 whatever statements of reads not made the order's issue holds.
 
+#### Scenario: A session without the workflow ignores the statements
+
+- **WHEN** the default branch holds no `.github/workflows/sequencer.yml`,
+  the order's issue says `Permissions were not read: writers are counted
+  by author association.`, and a session whose token can read permissions
+  publishes
+- **THEN** it counts writers by permission, and the order's issue no
+  longer says permissions were not read
+
 #### Scenario: The workflow reads with its own token
 
 - **WHEN** the order's issue says `Permissions were not read: writers are
@@ -575,7 +582,8 @@ whatever statements of reads not made the order's issue holds.
 Where the script's token cannot read "blocked by" relations, the script
 SHALL order by the other links alone, and the order's issue SHALL say
 `"Blocked by" relations were not read.` Where it can read them but not
-those naming another repository's issue, the order's issue SHALL say
+those naming another repository's issue, the script SHALL leave relations
+to other repositories out of the order's issue, which SHALL say
 `"Blocked by" relations to other repositories were not read.`
 
 #### Scenario: A token that cannot read relations orders by lines
@@ -587,10 +595,10 @@ those naming another repository's issue, the order's issue SHALL say
 
 #### Scenario: A token that cannot read other repositories' relations says so
 
-- **WHEN** the script's token reads #14's relation to #11 but not #15's
-  relation to `octo/lib#7`
-- **THEN** #14 comes after #11, #15 gains no edge from `octo/lib#7`, and
-  the order's issue says `"Blocked by" relations to other repositories
+- **WHEN** the script's token reads #14's relation to #11, and GitHub
+  refuses its read of #15's relations to other repositories' issues
+- **THEN** #14 comes after #11, #15 gains no edge, and the order's issue
+  says `"Blocked by" relations to other repositories
   were not read.`
 
 ### Requirement: Only edges set by writers count
@@ -871,8 +879,8 @@ the file's, none if it gives none.
 
 - **WHEN** the model step checked #82 and #95 and found no edge, and a
   later run finds both changes' files unchanged
-- **THEN** that run counts the pair as checked, and does not label the
-  order's issue `sequencer: check code` for it
+- **THEN** that run counts the pair as checked, and does not list it as
+  unchecked
 
 #### Scenario: A partly checked new change keeps its unchecked pairs
 
@@ -902,7 +910,7 @@ more than GitHub's 65,536 characters. No order is published until some
 merge or close.`, keeping each cycle's members and its `since <time>`
 mark, whose time later overrides are judged by. It SHALL edit no other body, call no
 model, and remove the label `sequencer: check
-code`, since no model step runs.
+code`, which asks for a model step.
 
 #### Scenario: Too many open items fill the order's issue
 
@@ -975,8 +983,7 @@ labelled `sequencer`, creating it when none is open and publishing nothing when 
 use that issue only when a writer opened it, or `github-actions[bot]`;
 otherwise it SHALL publish nothing and name the issue, its author and why
 its author is not a writer.
-It SHALL NOT create the issue as an account other than a writer or
-`github-actions[bot]`. Nothing of the order
+Nothing of the order
 SHALL go in a comment.
 
 #### Scenario: The first publish creates the order's issue
@@ -984,12 +991,6 @@ SHALL go in a comment.
 - **WHEN** the script publishes in a repository with no open issue labelled
   `sequencer`
 - **THEN** it opens one, labelled `sequencer`, whose body holds the order
-
-#### Scenario: No order issue is created that would be refused
-
-- **WHEN** no issue labelled `sequencer` is open, and the script runs as an
-  App's bot account that it cannot tell is installed
-- **THEN** it opens no issue, publishes nothing, and says why
 
 #### Scenario: An order issue the workflow opened is used
 
@@ -1013,7 +1014,22 @@ SHALL go in a comment.
 - **WHEN** the one open issue labelled `sequencer` was opened by an
   account without write access to the repository
 - **THEN** the script reads no override from its comments and no stored
-  code edge from its body, edits nothing, and names the issue and its author
+  code edge from its body, edits nothing, and names the issue, its author
+  and that its author is not a writer
+
+### Requirement: Only a writer's account or the workflow creates the order's issue
+
+The script SHALL create the order's issue only as a writer that is no App's
+bot account, or as `github-actions[bot]`, since a workflow token that cannot
+tell an App is installed would refuse an issue opened by any App other
+than `github-actions[bot]`.
+
+#### Scenario: No order issue is created that would be refused
+
+- **WHEN** no issue labelled `sequencer` is open, and the script runs as an
+  installed App's bot account other than `github-actions[bot]`
+- **THEN** it opens no issue, publishes nothing, and says that a person or
+  the workflow must open it
 
 ### Requirement: Broken markers in the order's issue stop the run
 
@@ -1111,7 +1127,7 @@ only those after it.
 The order's issue body and each block SHALL lie between the lines
 `<!-- sequencer:begin -->` and `<!-- sequencer:end -->`, and the script
 SHALL change nothing in a body outside them. It SHALL add a new block
-at the body's end, or, when the body's last line starts with `prose ✓`,
+at the body's end, or, when the body's last non-blank line starts with `prose ✓`,
 just before that line, so that the prose skill's signed footer stays
 last.
 
@@ -1424,7 +1440,9 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 Where the repository chose its API key, the model step SHALL run only in
 a run triggered by the daily schedule, or by a pull request a writer
 opened being opened, reopened or pushed to, since each call is paid for with the
-repository's key.
+repository's key. A pair whose checking run GitHub cancels while it waits
+in the concurrency group waits for the next such run, at the latest the
+daily one.
 
 #### Scenario: A comment makes no API call
 
@@ -1483,13 +1501,14 @@ the order it publishes leaves unchecked a pair of changes.
 ### Requirement: The workflow publishes an edges file a dispatched run carries
 
 The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
-file, and publish it with `publish --code-edges`.
+file, and publish it with `publish --code-edges`, which SHALL take an
+edges file from any caller as it does from a dispatched run.
 
 #### Scenario: A dispatched edges file is published
 
 - **WHEN** a `workflow_dispatch` run carries an edges file whose changes
-  are unchanged, and no newer run in the concurrency group cancels it
-  while it waits
+  are unchanged, and GitHub does not cancel it while it waits behind
+  another run in the concurrency group
 - **THEN** the run publishes its edges
 
 ### Requirement: The workflow runs no code from a pull request
@@ -1541,7 +1560,8 @@ names a change without its repository.
 
 `order` SHALL print the order, each item's place, its edges with
 reasons, the explicit links to outside items, the cycles, the
-shared names for the model step, each open change's hash, and a change's
+shared names for the model step, each open change's hash or, for a change holding a symlink, why it has
+none, and a change's
 files only where a writer opened its pull request, as JSON with `--json`,
 and SHALL write to no issue or pull request; `publish` SHALL be the only command that edits,
 and SHALL edit bodies directly, in a session as in the workflow.
