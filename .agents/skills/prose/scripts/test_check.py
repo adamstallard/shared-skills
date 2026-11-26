@@ -48,7 +48,7 @@ class RulesFile(unittest.TestCase):
 
     GOOD = ("# Title\n\nPrinciple.\n\n## Scope\n\nS.\n\n## The pass\n\nP.\n\n"
             "## The rules, most important first\n\n"
-            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 10))
+            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, prose.RULES_IN_FULL + 1))
             + "## How agents cheat on this pass\n\n- One.\n")
 
     def read(self, text):
@@ -73,7 +73,7 @@ class RulesFile(unittest.TestCase):
     def test_a_good_file_splits_into_its_parts(self):
         preamble, heading, rules, cheats = self.read(self.GOOD)
         self.assertEqual(heading, "## The rules, most important first")
-        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 10)])
+        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, prose.RULES_IN_FULL + 1)])
         self.assertEqual(rules[0][2], "### 1. Rule 1\nBody 1.")
 
     def test_a_missing_or_misordered_section_is_refused(self):
@@ -875,7 +875,8 @@ class Check(unittest.TestCase):
             self.assertIn(f"\n### {number}. ", out)
         self.assertIn("Before: The hook reports commits landed without trailers skipped.", out)
         self.assertIn("a sentence lengthened to read once beats a shorter one read twice", out)
-        self.assertIn("  [ ] 10. Say who acts", out)
+        self.assertIn("\n### 10. Say who acts, and on what, by the words alone\n", out)
+        self.assertIn("  [ ] 11. One topic per block", out)
         self.assertIn("  [ ] 14. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
