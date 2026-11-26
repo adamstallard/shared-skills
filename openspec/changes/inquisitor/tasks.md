@@ -218,8 +218,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `https://github.com/<owner>/<repo>/issues/<n>#issuecomment-<id>`,
       `…/pull/<n>#issuecomment-<id>` for a pull request's comment,
       `…/pull/<n>#discussion_r<id>` and `…/pull/<n>#pullrequestreview-<id>`.
-      Not measured: the URL a posting command prints to the asking agent,
-      which needs a post, and an Igor's handback URL
+      Measured 2026-11-26 on a private repository of this repository's
+      owner: `gh issue comment` printed
+      `https://github.com/<owner>/<repo>/issues/<n>#issuecomment-<id>`,
+      the same string as that comment's REST `html_url` and GraphQL
+      `url`. Not measured: the URL `gh pr comment` prints, and an Igor's handback URL
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-service spec's *A pending
@@ -341,6 +344,29 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       can feed `igor lore-search` the question on standard input, or which
       other way #216 gives the command to take it (inquisitor spec: *In an
       Igor's run, filter 1 searches through igor*)
+- [ ] 0.41 A way to remove every other plugin's tools from the answer
+      session, including a tool registered after start, while those
+      plugins stay on (answer-service spec: *The answer launcher starts a
+      restricted session with other plugins off*). Measured 2026-11-26,
+      Claude Code 2.1.332, with a test mod registering one tool at start
+      and one 6 seconds later, the built-in easel plugin, and a second
+      test mod standing in for the answer mod:
+      - `--disallowedTools` with `mcp__<plugin>` or `mcp__<plugin>__*`
+        removed all of that plugin's tools, the late one included;
+        calling one failed with "No such tool available". No rule means
+        "every plugin but one": `mcp__*` removed the stand-in's own tool
+        too. So the launcher would name each enabled plugin, as it does
+        to turn them off, and pass the option again on every resume: a
+        session resumed without it had the tools back, and the model ran
+        them
+      - the stand-in's `tool.list` hook, keeping only its own tool and
+        the allowed built-in tools, removed every other tool, the late
+        one and easel's included, at start and on resume. Another mod
+        can add its tool back: a mod loaded before the stand-in, which
+        registered a tool and re-added it in its own `tool.list` hook,
+        had that tool called by the model; loaded after the stand-in,
+        its tool stayed removed. In both orders `$.tool.list()` listed
+        the re-added tool, so the tool check would see it
 
 ## 1. Shared post reader
 

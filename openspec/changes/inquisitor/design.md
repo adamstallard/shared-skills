@@ -1075,11 +1075,15 @@ does if the fact does not hold.
 - **Can setup read a relay identity's posting rights in a channel?** (task
   0.20) Where no check can, setup runs the skill's own check only, and a
   post the channel refuses for permission turns that channel off.
-- **Does an asking agent's `asked_in` equal the URL the answer service
-  builds?** (task 0.23) Where they differ, both sides write and compare
-  one canonical form. Where Linear or Discord changes a posted question's
-  words, a question asked there matches no logged file by hash, so the
-  answer service cannot tie it to its log file.
+- **Do the URL `gh pr comment` prints and an Igor's handback URL equal
+  the URL the answer service builds?** (task 0.23) If not, the side
+  that records the URL and the answer service both write and compare
+  one canonical form.
+- **What does a question posted on Discord match?** (task 0.23)
+  discord-bot rewrites `@name` to `<@id>` before it sends, and Discord
+  drops whitespace at the end of a message, so the posted question
+  matches no logged file by hash, and the answer service cannot tie it
+  to its log file.
 - **How does each surface report a refused post?** (task 0.25) A refusal
   the answer service cannot place counts as refused for its text, so the
   answer waits for the person.
@@ -1095,6 +1099,12 @@ does if the fact does not hold.
   tool?** (task 0.39) If not, nothing refuses such a call: its
   `propose_reply` draft still lands only in the prompt box, and its
   `record_verdict` call can still only pick among the code's actions.
+- **Can the answer session remove other plugins' tools while those
+  plugins stay on?** (task 0.41) `--disallowedTools` can, given each
+  plugin by name, just as turning plugins off needs; the answer mod's
+  `tool.list` hook can too, but another mod's hook can add its tool
+  back. Until the owner picks one, the launcher turns the other plugins
+  off.
 
 ### Outside this change
 
