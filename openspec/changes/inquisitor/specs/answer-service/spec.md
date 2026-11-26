@@ -2047,10 +2047,13 @@ from choosing what the code does beyond a closed set.
 - **THEN** its fields are `question`, one of `yes`, `no` (clearly not a
   question) and `unclear`; `category`, one of `secret`, `vulnerability`,
   `personal` and `none`; `filter`, the filter that clearly stops the
-  question, `1` to `4`, or `none`, with `hit` only for `1`, the number
-  of the filter 1 hit with authority that answers it, among those the code
-  listed; `place`, unless a concerns line that settles the question or a
-  questions-branch file holding it already fixes its place: one of the
+  question, `1` to `4`, or `none`; `hit`, only with `filter` `1`: the
+  position, counting from 1, in `search`'s `hits` of the hit that answers
+  the question with authority, as the inquisitor's *Only an answer with
+  authority stops a question* defines it; `place`, unless the question's
+  concerns line (*A concerns line settles what an agent's question
+  concerns*) or a file on a questions branch holding the question already
+  fixes its place: one of the
   places the code listed (each subscribed repository and each configured
   lore repository, with a mapped channel's default places marked),
   `other` for a repository or collective outside them, or `none` when the model cannot tell; `none` on GitHub places it in its thread's repository, in a
@@ -2059,11 +2062,12 @@ from choosing what the code does beyond a closed set.
   question that gets `place`, `place_sure`, `yes` or `no`,
   whether the model is sure of `place` (*A Linear or Discord question in
   doubt gets no automatic reply*)
-- **AND** the model judges a message in two turns: on the message, it
+- **AND** the model judges a message in two turns: in the first, it
   sets `question`, `category` and whichever of `place` and `place_sure`
-  the question has; then the code runs `search` with those, unless
-  `place` is `other`, and puts filter 1's hits, if any, before the model,
-  and on them it sets `filter` and `hit`
+  the question has; the code then runs `search` with those, unless
+  `place` is `other`, and puts `search`'s `hits`, if any, before the
+  model; in the second, which follows even with no search or no hits,
+  the model, after considering any hits, sets `filter`, and for `1` `hit`
 - **AND** the code acts on a turn's fields once the model's reply in that
   turn ends, a later
   accepted call's value replacing an earlier one's, and a field that no
