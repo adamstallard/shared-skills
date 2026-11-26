@@ -2366,6 +2366,16 @@ visible item's run* applies.
 - **THEN** the preview shows that the question and the answer will be
   recorded on the questions branch of `o/api`, which is private
 
+#### Scenario: The preview reports a branch visibility it could not read
+
+- **WHEN** the person is about to confirm an answer to a question about
+  the private `o/api`, having picked in the preview the questions branch
+  of the lore repository `o/lore`, whose visibility cannot be read
+- **THEN** the preview says that the service could not read the
+  visibility of `o/lore` and treated it as public, and so warns that the
+  record would go somewhere more visible (the inquisitor's *An
+  unreadable visibility that changes an outcome is reported*)
+
 #### Scenario: The preview says when nothing will be recorded
 
 - **WHEN** the person is about to confirm an answer to a question with no

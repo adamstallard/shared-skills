@@ -479,6 +479,36 @@ post goes.
   names or links the entry, save under the exceptions *Nothing about a
   repository goes somewhere more visible* lists
 
+### Requirement: An unreadable visibility that changes an outcome is reported
+
+When counting a visibility that cannot be read as *An unreadable
+visibility counts against sharing* says changes what is posted, pushed
+or warned about, the answer service SHALL say which repository's
+visibility it could not read and how it treated it: in the preview of
+an answer being confirmed, and otherwise where it shows the question.
+Outside an Igor's run, which has no person to tell, the agent SHALL tell
+the person in its session the same.
+
+#### Scenario: The answer service reports a visibility it could not read
+
+- **WHEN** a question in an issue of the public `o/web` has as its
+  recorded answer a log file on the questions branch of `o/web` whose
+  `asked_from` names `o/api`, and the visibility of `o/api` cannot be
+  read
+- **THEN** the answer service does not post the answer on its own, and
+  where it shows the question it says that it could not read the
+  visibility of `o/api` and treated it as private, so it did not post
+  the answer
+
+#### Scenario: The agent reports a visibility it could not read
+
+- **WHEN** outside an Igor's run, the agent leaves the private `o/api`
+  out of a post to `o/web` because it cannot read the visibility of
+  `o/web` and so counts it as public
+- **THEN** it tells the person in its session that it could not read the
+  visibility of `o/web` and treated it as public, so nothing about
+  `o/api` is posted there
+
 ### Requirement: A collective's question is bounded by the repository it was asked from
 
 A question about a collective SHALL be bounded, save as *The answerer's
