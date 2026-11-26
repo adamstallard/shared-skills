@@ -14,7 +14,11 @@ are the kind you write in the finding:
 - stopped: you stopped;
 - reread: you went back to reread;
 - guessed: you had to guess what a word points at, such as "it", "there",
-  "these" or a name;
+  "these" or a name; or you took a meaning from context that the words,
+  read literally, don't say, because they name a different actor, object,
+  condition or result. Report such a place even when you are sure what was
+  meant, and after » give both readings: a reader who takes the words
+  literally leaves with the wrong meaning and never knows it.
 - could not tell why: you could not see what a "so", "because", "which" or
   "therefore" follows from, or why a claim is true, or why it matters to
   this reader.
@@ -27,8 +31,8 @@ them, in this form:
 - "item 2" is the number of the item the words are in.
 - After the item number comes the kind: stopped, reread, guessed or could
   not tell why.
-- Between « and », copy the words that stopped you exactly as the item has
-  them. Leave out line numbers and comment markers such as # or // at the
+- Between « and », copy the words the finding is about exactly as the item
+  has them. Leave out line numbers and comment markers such as # or // at the
   start of a line, and write words that run across lines on one line. A
   quote holds neither « nor ».
 - After », say what you guessed or what was missing. It may go on over
@@ -38,8 +42,7 @@ For an item you read straight through, write one line instead:
 
   Item 3: read straight through.
 
-Every item gets findings or that line, never both. Don't suggest a rewrite,
-and don't report wording you read straight through.
+Every item gets findings or that line, never both. Don't suggest a rewrite.
 
 Then, after all your findings and straight-through lines, write one
 understood line for every item, whether it has findings or not:
