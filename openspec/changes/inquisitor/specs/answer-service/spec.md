@@ -160,9 +160,10 @@ question is from; the name proves nothing about who asked.
 #### Scenario: A relayed question is a person's, whoever's relay posted it
 
 - **WHEN** a GitHub comment starting `User asks: ` from an App tags the
-  person, and clearly fails filter 4
-- **THEN** it counts as a person's question, so nothing is posted by
-  itself and filter 4's verdict is only suggested
+  person, with a question that would clearly fail filter 4 were it an
+  agent's
+- **THEN** it counts as a person's question, so filter 4 does not judge
+  it, nothing is posted by itself and no verdict is suggested
 
 #### Scenario: A relayed question is shown as from its relay bot's account
 
@@ -2049,7 +2050,8 @@ from choosing what the code does beyond a closed set.
 - **THEN** its fields are `question`, one of `yes`, `no` (clearly not a
   question) and `unclear`; `category`, one of `secret`, `vulnerability`,
   `personal` and `none`; `filter`, the filter that clearly stops the
-  question, `1` to `4`, or `none`; `hit`, only with `filter` `1`: the
+  question, `1` to `4`, or `none`, its set for a person's question being
+  only `1` and `none`; `hit`, only with `filter` `1`: the
   position, counting from 1, in `search`'s `hits` of the hit that answers
   the question with authority, as the inquisitor's *Only an answer with
   authority stops a question* defines it; `place`, unless the question's
@@ -2419,9 +2421,9 @@ file names.
 - **WHEN** the answer service's own filter 2, 3 or 4 reply goes out on a thread
   copy an unanswered log file holds
 - **THEN** a handled file naming that log file is pushed
-- **AND** the service does the same for a `Recorded answer: ` post and for any decline, agreeing to a shown recorded answer or suggested verdict included, with a thread or without, being the only
-  writer of handled files under the inquisitor's *Only an answer service
-  writes a handled file*
+- **AND** a handled file is pushed the same way for any `Recorded answer: `
+  post, the service's or the person's, and for any decline, whether the
+  question has a thread or not
 
 #### Scenario: A handled file closes only the file it names
 
@@ -2534,7 +2536,8 @@ giving one of two reasons:
 1. **Nothing to answer:** the conversation is over, or it isn't a
    question. Nothing SHALL be posted and no miss logged; this question
    SHALL close, and other questions in its thread SHALL stay as they are.
-2. **The inquisitor should have handled it.**
+2. **The inquisitor should have handled it**, on an agent's question
+   only, since only an agent has an inquisitor to learn from a miss.
 
 #### Scenario: Declining with nothing to answer posts nothing
 
@@ -2553,8 +2556,7 @@ giving one of two reasons:
 
 ### Requirement: Declining for the inquisitor posts the picked filter's reply
 
-Under the second reason, on a person's question as on an agent's, the
-person SHALL pick the filter that should have stopped the question: 1,
+Under the second reason, the person SHALL pick the filter that should have stopped the question: 1,
 already answered; 2, can wait; 3, not a real question (one option has merit); or 4, cheap to
 reverse. The answer service SHALL show them the exact post of that
 filter's reply, and post it, naming the question, only once they confirm
@@ -2569,13 +2571,6 @@ it.
   be posted, posts it naming the question only once the person confirms
   it, and logs a miss file whose `filter` is `"4"` and whose `said` is
   that note
-
-#### Scenario: A person's question can be answered for the inquisitor
-
-- **WHEN** the person declines a person's question on Linear for the
-  inquisitor, picks filter 2, and confirms
-- **THEN** the Linear relay posts the filter 2 `Inquisitor: ` text in the
-  question's comment thread
 
 ### Requirement: A filter 2 to 4 reply the person chose says they chose it
 
@@ -2666,8 +2661,7 @@ the advice to take the option with merit.
 
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
-Under the second reason of *The person can decline to answer*, the person MAY give a note, and on an agent's
-question the answer service SHALL log a
+Under the second reason of *The person can decline to answer*, the person MAY give a note, and the answer service SHALL log a
 miss against the picked filter. The miss's `said` is the note or, with
 none, `the inquisitor should have handled it`. It SHALL push the miss
 only once the decline's post is out or, when it posts nothing, once the
@@ -2680,13 +2674,6 @@ person confirms it.
 - **THEN** only once the post has gone out is a miss file pushed whose
   `filter` is `"2"` and whose `said` is
   `the inquisitor should have handled it`
-
-#### Scenario: A person's question logs no miss
-
-- **WHEN** the person declines a person's question for the inquisitor
-  with any filter, or agrees to a recorded answer or a suggested verdict
-  that the service shows beside a person's question
-- **THEN** no miss file is pushed, hash-only or not
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
 
@@ -2883,8 +2870,7 @@ more private repository* defines it, stands in for its repository's.
 - **WHEN** a private repository's decision document answers a question
   asked in a Linear thread
 - **THEN** nothing is posted by itself; the recorded answer is shown
-  beside the question, and posted only if the person agrees, as
-  *Agreeing to a shown recorded answer is a filter 1 decline* says
+  beside the question, and posted only if the person agrees
 
 #### Scenario: A public record is posted by itself in a Discord thread
 
@@ -2909,10 +2895,9 @@ always for a question with no thread.
 
 ### Requirement: Agreeing to a shown recorded answer is a filter 1 decline
 
-The person may agree to a recorded answer shown beside a question: a
+Agreeing to a recorded answer shown beside an agent's question is a
 decline under the second reason with filter 1, naming that record, which
-the answer service SHALL handle exactly as *Declining for the inquisitor
-posts the picked filter's reply* and the requirements after it say.
+the answer service SHALL handle exactly as any such decline.
 
 #### Scenario: Agreeing on a question with no thread is a filter 1 decline
 
@@ -2929,6 +2914,25 @@ posts the picked filter's reply* and the requirements after it say.
 - **THEN** the relay posts the recorded answer in the thread, and the
   answer service pushes a handled file naming that log file and no
   answer file, besides the decline's miss
+
+### Requirement: Agreeing to a recorded answer shown beside a person's question posts it
+
+When the person agrees to a recorded answer shown beside a person's
+question, the answer service SHALL post it, once the person confirms its
+preview, in the form *The person's filter 1 reply links the record they
+chose* sets, with the warning of *The preview warns when a filter 1
+record is more private than the thread* where that applies. The post
+marks the question answered (*The thread is the durable record of an
+answer*), and the service SHALL push no miss file and no answer file.
+
+#### Scenario: Agreeing to a person's question's recorded answer posts it with no miss
+
+- **WHEN** a person's question in a public repository is shown with a
+  recorded answer from a private repository's decision document, and the
+  person agrees to it
+- **THEN** the preview warns that posting shows the record exists, and
+  once the person confirms, the relay posts the reply starting
+  `Recorded answer: ` and no miss file is pushed
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
 
@@ -3076,15 +3080,6 @@ shown to the person. The answer service SHALL trust any such line.
 - **AND** if the person declines it for the inquisitor, the only filter
   offered is filter 1
 
-#### Scenario: A marked question posted with the person's own login gets no filter 2 to 4 reply
-
-- **WHEN** an agent posts a question that clearly fails filter 3, followed
-  by `Inquisitor: a person must decide this (required by spec-trace).`,
-  and posts it with the person's own `gh` login, so the answer service
-  counts it as a person's question
-- **THEN** no filter is suggested and nothing is posted by itself; a
-  decline for the inquisitor offers only filter 1
-
 #### Scenario: Filter 1 still answers a marked question
 
 - **WHEN** such a question has an answer with authority recorded
@@ -3102,19 +3097,21 @@ shown to the person. The answer service SHALL trust any such line.
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 
-On a person's question, a relayed one included, on an agent's question
-of the fourth source, a questions-branch log file, and on an agent's
-question no concerns line settles, the answer service SHALL post
-nothing by itself, but show the question with its suggested verdict,
-unless it carries a person-required line, which gets no suggestion. Agreeing
-to the verdict is a decline under the second reason, *The inquisitor should
-have handled it*, with that filter.
+On a fourth-source question and on an agent's question that no concerns
+line settles, the answer service SHALL post no filter 2 to 4 reply by
+itself, but show its verdict as a suggestion; a question carrying a
+person-required line gets none. Agreeing to the verdict is a decline
+under the second reason with that filter. Filters 2 to 4 SHALL NOT
+judge a person's question, since their fixed `Inquisitor: ` texts are
+no reply to a person.
 
-#### Scenario: A person's question only gets a suggestion
+#### Scenario: A person's question gets no suggested verdict and no filter to decline with
 
-- **WHEN** a person's question clearly fails filter 4
-- **THEN** nothing is posted by itself; the question is shown with
-  filter 4 as its suggested verdict
+- **WHEN** a person's question would clearly fail filter 4 were it an
+  agent's
+- **THEN** filter 4 does not judge it and nothing is posted by itself;
+  the question is shown with no suggested verdict, and declining it offers only the first reason,
+  nothing to answer
 
 #### Scenario: An agent's questions-branch question only gets a suggestion
 

@@ -516,7 +516,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
       the answer service cites an `active` entry in scope by naming it in
-      a reason 2 decline with filter 1. Its commit names no person. It sends none for a question with a category,
+      a reason 2 decline with filter 1 or by agreeing to it as a shown
+      recorded answer. Its commit names no person. It sends none for a question with a category,
       none where *A lore entry that stops a question gets a citation
       file* bars it by visibility, and none for a cited entry not `active` or out
       of scope. A push it cannot make stays pending as `log`'s does,
@@ -740,8 +741,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           where the prototype reads only the person's `User says: ` post,
           local state deciding only what the spec leaves to it, such as a
           question declined with nothing posted;
-        - agreeing to a recorded answer as a reason 2 decline with filter
-          1, writing no answer file, where the
+        - agreeing to a recorded answer writing no answer file, whether
+          a reason 2 decline with filter 1 on an agent's question or a
+          post on a person's question, where the
           prototype treats it as its own path and logs the recorded answer
           in a new file;
         - the question on screen kept in the state folder, not the mod's
@@ -862,7 +864,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
           question carrying a person-required line always shown to the
           person unless filter 1 answers it, the line found by its fixed
           wording after markup is reduced;
-        - declining with its two reasons, and reason 2's posts;
+        - declining with its two reasons, the second only on an agent's
+          question, and reason 2's posts;
         - the misses on the questions branch, none for reason 1, for
           a person's question or for an item question, and a miss against filter 1
           for an agent's question the answer service answers by itself;
