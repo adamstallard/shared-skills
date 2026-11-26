@@ -733,7 +733,7 @@ Repository questions SHALL need no lore repository and no igor.
 
 The answer mod SHALL open the answer service by itself whenever a Claude
 Code session starts or resumes whose environment holds the marker the
-`answer` command sets, unless another session holds the lock (*One answer service runs on each machine*) or the session's model can call a tool outside the set *The answer service opens only beside its own tools* allows, and in no other session.
+`answer` command sets, unless another session holds the lock (*One answer service runs on each machine*) or the session's tool list holds a tool outside the set *The answer service opens only beside its own tools* allows, and in no other session.
 
 #### Scenario: Running answer opens the answer service
 
@@ -761,14 +761,14 @@ Code session starts or resumes whose environment holds the marker the
   did not start starts or resumes
 - **THEN** no answer service opens
 
-### Requirement: The answer launcher starts a restricted session with other plugins off
+### Requirement: The answer launcher starts a restricted session
 
 The `answer` launcher SHALL pass the person's arguments on to Claude
-Code, refusing `--name`, `--tools`, `--strict-mcp-config` and
-`--settings`, and SHALL add on every run the session name `Answers`, the
-fullscreen layout, the answer marker, the tool restriction, and every
-enabled plugin but the answer mod turned off for that session, since
-another plugin's tool would keep the answer service closed.
+Code, exiting with an error, before starting it, when they hold
+`--name`, `--tools` or `--strict-mcp-config`. It SHALL add on every run
+the session name `Answers`, the fullscreen layout, the answer marker
+(*Only a session with the answer marker opens the answer service*) and
+the tool restriction.
 
 #### Scenario: The answer launcher starts a restricted session
 
@@ -777,16 +777,51 @@ another plugin's tool would keep the answer service closed.
   in Claude Code's fullscreen layout, with the session's tools restricted
   by `--tools Read,Grep,Glob` and `--strict-mcp-config`, as *The
   service's model has no shell, no writing tool and no web fetch* says,
-  and with every plugin `claude plugin list` reports enabled, other than
-  the answer mod, turned off for that session through `--settings`'s
-  `enabledPlugins`
+  and every enabled plugin still on
+
+### Requirement: The answer mod strips other tools from the answer session
+
+In a session holding the answer marker, the answer mod's `tool.list`
+hook SHALL keep only the mod's own tools and Read, Grep and Glob, and
+drop every other tool, so other plugins stay on with only their tools
+removed. In a session without the marker, the hook SHALL change nothing.
+
+#### Scenario: Another mod's tool is stripped at start
+
+- **WHEN** the person runs `answer`, and another installed mod registers
+  the tool `mcp__other__post_anything` as the session starts
+- **THEN** the session's model cannot call `mcp__other__post_anything`,
+  and the answer service opens
+
+#### Scenario: A tool registered later is stripped
+
+- **WHEN** the answer service is open, and another mod registers the
+  tool `mcp__other__late_post`
+- **THEN** the session's model cannot call `mcp__other__late_post`, and
+  the answer service stays open
+
+#### Scenario: A session without the marker keeps every tool
+
+- **WHEN** a session without the answer marker starts, and another mod
+  registers `mcp__other__post_anything`
+- **THEN** that session's model can call `mcp__other__post_anything`
+
+#### Scenario: A tool another mod adds back keeps the answer service closed
+
+- **WHEN** the person runs `answer`, and a mod loaded before the answer
+  mod, whose `tool.list` hook therefore runs after the answer mod's, adds
+  its tool `mcp__other__sneak` back
+- **THEN** the answer service does not open, and tells the person that
+  `mcp__other__sneak` comes from the mod or MCP server `other`, which
+  must be turned off first (*The answer service opens only beside its
+  own tools*)
 
 ### Requirement: The script installs the answer mod
 
 The script's `install-mod` command SHALL link
 `~/.claude/skills/inquisitor-answer-mod`, where Claude Code loads mods from, to
 the skill's `answer-mod/` folder, and `~/.local/bin/answer` to that folder's
-`answer` launcher (*The answer launcher starts a restricted session with other plugins off*); leave alone,
+`answer` launcher (*The answer launcher starts a restricted session*); leave alone,
 saying so, anything else at either path; and say when `~/.local/bin` is not on `PATH`. Its
 `uninstall-mod` command SHALL remove only those links.
 
@@ -2168,27 +2203,20 @@ since a thread's text can steer the model.
 
 ### Requirement: The answer service opens only beside its own tools
 
-When the answer service would open, the answer mod SHALL read the tools
-its session's model can call. If any tool is neither the mod's own nor
+When the answer service would open, the answer mod SHALL read its
+session's tool list, after its own hook has stripped it. If any tool is neither the mod's own nor
 Read, Grep or Glob, the answer service SHALL not open, and the mod SHALL
 tell the person each such tool's name and the mod or MCP server it
 comes from, the part between the `__`s of an `mcp__<name>__<tool>`
 name.
 
-#### Scenario: Another mod's tool keeps the answer service closed
-
-- **WHEN** the person runs `answer`, and another installed mod registers
-  the tool `mcp__other__post_anything`
-- **THEN** the answer service does not open, and tells the person that
-  `mcp__other__post_anything`, from the mod or MCP server `other`, must
-  be turned off first
-
-#### Scenario: A session without the launcher's restriction stays closed
+#### Scenario: A session without the launcher's restriction loses Bash
 
 - **WHEN** a session holding the answer marker was started without
-  `answer`'s restriction, so its model can call Bash
-- **THEN** the answer service does not open, and names `Bash` among the
-  tools to remove
+  `answer`'s restriction, so Claude Code offers Bash
+- **THEN** the answer mod's hook strips Bash with every other tool but
+  its own, Read, Grep and Glob (*The answer mod strips other tools from
+  the answer session*), and the answer service opens
 
 #### Scenario: Only its own tools let it open
 
@@ -2203,12 +2231,13 @@ session while it is open, the answer mod SHALL abort any running turn,
 tell the person which tool joined and end the session, since a tool
 registered mid-turn is offered to the model within that turn.
 
-#### Scenario: A tool that joins later ends the session
+#### Scenario: A tool added back later ends the session
 
-- **WHEN** the answer service is open and the tool
-  `mcp__linear__save_comment` joins the session's tools
+- **WHEN** the answer service is open, and another mod loaded before the
+  answer mod registers `mcp__other__sneak`, which its `tool.list` hook
+  adds back after the answer mod's hook strips it
 - **THEN** the mod aborts any running turn, tells the person that
-  `mcp__linear__save_comment` from `linear` joined, and ends the session,
+  `mcp__other__sneak` from `other` joined, and ends the session,
   keeping what any exit keeps (*Local state is per machine, in the state
   folder*)
 

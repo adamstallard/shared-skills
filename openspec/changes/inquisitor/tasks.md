@@ -344,10 +344,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       can feed `igor lore-search` the question on standard input, or which
       other way #216 gives the command to take it (inquisitor spec: *In an
       Igor's run, filter 1 searches through igor*)
-- [ ] 0.41 A way to remove every other plugin's tools from the answer
+- [x] 0.41 A way to remove every other plugin's tools from the answer
       session, including a tool registered after start, while those
-      plugins stay on (answer-service spec: *The answer launcher starts a
-      restricted session with other plugins off*). Measured 2026-11-26,
+      plugins stay on (answer-service spec: *The answer mod strips other
+      tools from the answer session*). Done 2026-11-26,
       Claude Code 2.1.332, with a test mod registering one tool at start
       and one 6 seconds later, the built-in easel plugin, and a second
       test mod standing in for the answer mod:
@@ -355,18 +355,23 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         removed all of that plugin's tools, the late one included;
         calling one failed with "No such tool available". No rule means
         "every plugin but one": `mcp__*` removed the stand-in's own tool
-        too. So the launcher would name each enabled plugin, as it does
-        to turn them off, and pass the option again on every resume: a
+        too. This way needs each enabled plugin named, and the option
+        passed again on every resume: a
         session resumed without it had the tools back, and the model ran
         them
       - the stand-in's `tool.list` hook, keeping only its own tool and
         the allowed built-in tools, removed every other tool, the late
-        one and easel's included, at start and on resume. Another mod
+        one and easel's included, at start and on resume, and the
+        stand-in's `$.tool.list()` then listed none of them. In a session
+        started with no `--tools`, it stripped Bash and Write too, and
+        the model could call neither. Another mod
         can add its tool back: a mod loaded before the stand-in, which
         registered a tool and re-added it in its own `tool.list` hook,
         had that tool called by the model; loaded after the stand-in,
         its tool stayed removed. In both orders `$.tool.list()` listed
-        the re-added tool, so the tool check would see it
+        the re-added tool, so a check reading that list sees it, and
+        refuses in the second order too, though the model could not call
+        the tool there
 
 ## 1. Shared post reader
 
@@ -890,8 +895,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       check of the session's tools and its ending the session when a
       tool joins (*The answer service opens only beside its own tools*;
       *A tool joining an open answer service ends the session*); the
-      `answer` launcher with other plugins off (*The answer launcher
-      starts a restricted session with other plugins off*); the script's
+      `answer` launcher (*The answer launcher starts a restricted
+      session*); the mod's `tool.list` hook stripping other tools (*The
+      answer mod strips other tools from the answer session*); the script's
       `install-mod` and `uninstall-mod` commands
       (*The script installs the answer mod*); and the mod opening the
       answer service only in a session `answer` started, by the marker
@@ -907,8 +913,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       and the README's section on the answer service:
       installing the answer mod with `install-mod`, then running `answer`,
       and running `uninstall-mod` before uninstalling the skill, so no link
-      outlives the skill's folder; that a tool from another mod or MCP
-      server keeps the answer service closed, naming it;
+      outlives the skill's folder; that the answer session strips other
+      plugins' tools, and that a tool another mod adds back keeps the
+      answer service closed, the service naming the tool;
       setup; what to do when a relay check fails, and that no post but
       the answer service's starts with a reserved prefix
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the

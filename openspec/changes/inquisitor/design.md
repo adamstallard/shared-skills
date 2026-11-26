@@ -1099,12 +1099,6 @@ does if the fact does not hold.
   tool?** (task 0.39) If not, nothing refuses such a call: its
   `propose_reply` draft still lands only in the prompt box, and its
   `record_verdict` call can still only pick among the code's actions.
-- **Can the answer session remove other plugins' tools while those
-  plugins stay on?** (task 0.41) `--disallowedTools` can, given each
-  plugin by name, just as turning plugins off needs; the answer mod's
-  `tool.list` hook can too, but another mod's hook can add its tool
-  back. Until the owner picks one, the launcher turns the other plugins
-  off.
 
 ### Outside this change
 
