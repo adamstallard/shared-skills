@@ -1038,9 +1038,6 @@ does if the fact does not hold.
   decision?** (task 0.8) A spec or decision record file leads through blame and a
   commit to a pull request and its reviews. If not, the script skips the
   tagging order's first candidate.
-- **Can the script find the GitHub login of the last person to commit to a
-  file?** (task 0.5) Git records a name and an email, not a login. If not, the
-  script skips the tagging order's third candidate.
 - **Can the agent open, and write in, a repository's private security
   advisory?** (task 0.10) That needs private vulnerability reporting enabled,
   or an admin or security-manager role. If not, an agent asking a
@@ -1061,9 +1058,6 @@ does if the fact does not hold.
   permission?** (task 0.29) Without the first, the call fails and the
   worker's search names each questions branch as not searched; without
   the second, every hit is `input`.
-- **Does the Discord token pattern match a real token?** (task 0.33) If
-  not, the secret scan misses the relay's Discord token until the pattern
-  takes the measured shape.
 - **Can an Igor worker feed `igor lore-search` its standard input?** (task
   0.40) If not, the call fails, so filter 1 in an Igor's run searches no
   lore and says so.
@@ -1081,10 +1075,6 @@ does if the fact does not hold.
 - **Can setup read a relay identity's posting rights in a channel?** (task
   0.20) Where no check can, setup runs the skill's own check only, and a
   post the channel refuses for permission turns that channel off.
-- **Does GitHub report which App wrote a comment, in a form no account can
-  take on?** (task 0.21) Until it is measured, the answer service has no
-  GitHub relaying and posts nothing on GitHub. If GitHub does not, the
-  repository's owner decides what to build.
 - **Does an asking agent's `asked_in` equal the URL the answer service
   builds?** (task 0.23) Where they differ, both sides write and compare
   one canonical form. Where Linear or Discord changes a posted question's
@@ -1100,14 +1090,6 @@ does if the fact does not hold.
   mod see its marker on start and resume?** (task 0.30) If a part fails,
   the command line or the marker changes to what works before `answer` is
   built.
-- **Does every GitHub comment the answer service replies to have a stable
-  `node_id`?** (task 0.31) Until it is measured, no miss file is named by
-  a GitHub reply's `node_id`, so the answer service posts on GitHub none of three
-  replies to an agent's question: the reply a person's decline posts, the
-  automatic `Inquisitor: ` reply, and filter 1's `Recorded answer: ` reply.
-- **How does Claude Code restrict a session's tools?** (task 0.34) If
-  Claude Code enforces no such control itself, the change cannot be built
-  as written, and building stops for the repository's owner.
 - **Can the person's Linear key read Linear's GitHub-integration links?**
   (task 0.35) If not, setup's guess for a Linear team names nothing, and
   setup asks the person.
@@ -1117,6 +1099,21 @@ does if the fact does not hold.
   tool?** (task 0.39) If not, nothing refuses such a call: its
   `propose_reply` draft still lands only in the prompt box, and its
   `record_verdict` call can still only pick among the code's actions.
+
+### Questions for the repository's owner
+
+- **Can the person turn another mod off for the answer session alone?**
+  On the owner's machine an installed mod's tool kept a session started
+  with `answer`'s flags from being restricted to the service's own tools
+  (task 0.34), so the answer service stays closed until that mod is off.
+  If a mod can be turned off only everywhere, using the answer service
+  means giving up every such mod in every session.
+- **What happens to the session when a tool joining it closes the answer
+  service?** The conversation still holds the thread text the model was
+  shown, and the model now has a tool that may post or write, so the
+  next prompt the person types could let that text steer it. The
+  choices are that the answer mod tells the person to end the session,
+  or ends it itself.
 
 ### Outside this change
 

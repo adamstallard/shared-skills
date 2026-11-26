@@ -38,10 +38,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
       for a caller without push access and when `<login>` is an App's
       `<slug>[bot]`, or fails in a way the script can tell from "no access"
-- [ ] 0.5 The GitHub login of the last person to commit to a file can be
+- [x] 0.5 The GitHub login of the last person to commit to a file can be
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
-      returns, or the script must skip that candidate
+      returns, or the script must skip that candidate. Done 2026-11-26
+      with gh 2.103.2: `commits?path=README.md` gave each commit's
+      `author.login` and `author.type` on shared-skills, and on cli/cli
+      gave `author` `null` for 2 of the file's 30 newest commits, which
+      name no GitHub account, so the script skips them
 - [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
       marker on igor's handback comments on GitHub and on Linear, a marker that no text the
       Igor quotes from its item can produce, by which the answer service
@@ -67,8 +71,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `IssueComment` has `author { login }`. Measured 2026-11-23 for an
       App's issue comment: GraphQL gives `author { __typename: "Bot",
       login: "<slug>" }`, without `[bot]`, and REST's `user.login` gives
-      `<slug>[bot]`; task 0.21 still checks that no account can take on
-      the `<slug>[bot]` form. The task also checks that
+      `<slug>[bot]`, a form task 0.21 found no account can take on. The task also checks that
       re-requesting a review adds a new `review_requested` timeline
       event, by which *An item that asks the person something is shown
       once* dates a request. Measured 2026-11-26 with read-only calls on
@@ -168,12 +171,19 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       repositories. On Linear and Discord, record whether the skill's
       check reads a team's or channel's permission, or setup must read it
       itself
-- [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
+- [x] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app`. The GitHub rules that tell a bot's or an
-      App's comment from a person's rest on it, relaying on GitHub
-      included
+      App's comment from a person's rest on this fact, relaying on GitHub
+      included. Done 2026-11-26 with read-only REST calls on the 100
+      newest issue comments of each of cli/cli, microsoft/vscode and
+      vercel/next.js: the 174 comments carrying a
+      `performed_via_github_app` all had `user.type` `Bot` and a
+      `user.login` equal to its `slug` followed by `[bot]`; none of the
+      126 without one had type `Bot` or a login ending `[bot]`. GitHub documents that a username holds
+      only alphanumeric characters and hyphens, so no account can take on
+      `[bot]`
 - [ ] 0.23 That the URL an asking agent records as `asked_in`, and the
       handback comment URL an Igor records, equals character for character
       the URL the answer service builds from what it polls, on GitHub,
@@ -202,7 +212,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         description's (`[` comes back as `\[`); Discord drops whitespace at the end of the whole message, and
         discord-bot rewrites `@name` to `<@id>` before it
         sends.
-      Not measured: every GitHub comparison, and an Igor's handback URL
+      Measured 2026-11-26 with read-only calls on cli/cli: REST's
+      `html_url` equalled GraphQL's `url` for all 60 issue comments, all
+      40 review comments and both reviews read, in the forms
+      `https://github.com/<owner>/<repo>/issues/<n>#issuecomment-<id>`,
+      `…/pull/<n>#issuecomment-<id>` for a pull request's comment,
+      `…/pull/<n>#discussion_r<id>` and `…/pull/<n>#pullrequestreview-<id>`.
+      Not measured: the URL a posting command prints to the asking agent,
+      which needs a post, and an Igor's handback URL
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-service spec's *A pending
@@ -220,32 +237,53 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       questions branches with the script*), and whether the Igor's App
       token can read a collaborator's permission
 - [ ] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
-      with the tool restriction task 0.34 finds, starts Claude Code
+      with `--tools Read,Grep,Glob --strict-mcp-config`, starts Claude Code
       named `Answers` in its fullscreen layout, and that the mod sees
       `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
       tool restriction still in force after the resume
       (answer-service spec: *The script installs the answer mod*;
       *Only a session with the answer marker opens the answer
       service*)
-- [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
+- [x] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
       comment the answer service replies to (an issue comment, a pull
       request comment and a review comment), and that an edit leaves it
       unchanged (inquisitor spec: *Every miss file is named by one hash*).
-      If a check fails, find a GitHub id that passes all three
-- [ ] 0.33 That the Discord bot token shape in *The credential patterns are
+      If a check fails, find a GitHub id that passes all three. Done
+      2026-11-26 with read-only calls on cli/cli: all 102 comments read
+      (40 issue comments, 22 pull request comments, 40 review comments)
+      had a REST `node_id` equal to GraphQL's `id`, with GraphQL's
+      `databaseId` equal to REST's `id`; the 3 of them edited after
+      posting kept that `id`, their `userContentEdits` history hanging
+      from it
+- [x] 0.33 That the Discord bot token shape in *The credential patterns are
       a closed list of token shapes* matches the relay's real token: run
       the pattern against the token discord-bot holds, printing only
       whether it matched and each part's length, never the token. If it
-      does not match, record the shape measured
-- [ ] 0.34 How Claude Code restricts a session's tools so that its model
+      does not match, record the shape measured. Done 2026-11-26 on the
+      token in discord-bot's keychain entry: the pattern matched it
+      whole, as three parts of 26, 6 and 38 URL-safe base64 characters
+- [x] 0.34 How Claude Code restricts a session's tools so that its model
       has only its conversation, `propose_reply`, `record_verdict` and
       Read, Grep and Glob: permission settings, a startup option such as
       `--allowedTools`, or a mod's own control. Record whether Claude Code
       enforces it itself rather than through a hook, and what the `answer`
       command must add to start a session so restricted (answer-service
       spec: *The service's model has no shell, no writing tool and no web
-      fetch*; *The script installs the answer mod*)
+      fetch*; *The script installs the answer mod*). Done 2026-11-26,
+      Claude Code 2.1.332: `--tools Read,Grep,Glob` leaves exactly those
+      built-in tools, so the model cannot run a command; MCP servers' tools
+      stay unless `--strict-mcp-config` is added, and another mod's
+      registered tool stays even then, as a test mod's did and as one of
+      the person's own installed mods' did. A mod sees the whole list:
+      `$.tool.list()` at `session.start` and a `tool.list` hook, which
+      receives the list as `{ value }`, both listed the other mods' tools, each named
+      `mcp__<mod or server>__<tool>`; without `--strict-mcp-config`,
+      connector tools arrived about 15 seconds after start, and under the
+      launcher's flags a mod's tool registered 8 seconds after start
+      joined the list, each change seen by the hook; in a session
+      started without the flags, the mod saw Bash and the other built-in
+      tools
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
       Linear's GitHub integration puts on a team's issues (answer-service
       spec: *Setup guesses the repositories a Linear or Discord channel
@@ -264,7 +302,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       that character and a word through `$.prompt.fill`, and a script
       pressed Enter through tmux: only `/` ran as a command when a word followed it
       (`/probe047` never reached the mod's `prompt.submit` hook, while
-      `/usr/bin/probe` reached the model), while `!`, `#`, `&`
+      `/usr/bin/probe` reached the model); `!`, `#`, `&`
       and every other character reached the model as a plain prompt; a filled
       `!echo … > <file>` reached the model as text, not as a shell
       command
@@ -566,7 +604,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       gaps `none`. A scenario about what the agent does is tagged on a
       test that checks SKILL.md states the rule. An expected gap is a
       scenario only igor's unbuilt work can make pass, or one whose rule
-      waits on a measuring task such as 0.21 or 0.31. It gets no test, not even a skipped
+      waits on an open measuring task. It gets no test, not even a skipped
       one, and is listed by name under this task
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
@@ -801,7 +839,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
       model gets only its conversation, `propose_reply`, `record_verdict`
       and Read, Grep and Glob (answer-service spec: *The service's model
-      has no shell, no writing tool and no web fetch*); the `answer`
+      has no shell, no writing tool and no web fetch*), and the mod's
+      check of the session's tools (*The answer service opens only
+      beside its own tools*); the `answer`
       launcher and the script's `install-mod` and `uninstall-mod` commands
       (*The script installs the answer mod*); and the mod opening the
       answer service only in a session `answer` started, by the marker
@@ -817,7 +857,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       and the README's section on the answer service:
       installing the answer mod with `install-mod`, then running `answer`,
       and running `uninstall-mod` before uninstalling the skill, so no link
-      outlives the skill's folder;
+      outlives the skill's folder; that a tool from another mod or MCP
+      server keeps the answer service closed, naming it;
       setup; what to do when a relay check fails, and that no post but
       the answer service's starts with a reserved prefix
 - [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the

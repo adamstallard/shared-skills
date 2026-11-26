@@ -122,3 +122,15 @@
   The hook can hold the picker to vetted questions only because Claude Code runs it before the picker opens, an exit 2 stops the call with the hook's message reaching the model, and the call's input holds each question's text, to match against the verdict a second call recorded for it.
   Evidence: Claude Code's hooks reference documents that exit code 2 from a `PreToolUse` hook blocks the call and feeds stderr to Claude, https://code.claude.com/docs/en/hooks
   Evidence: on 2026-11-26, in Claude Code 2.1.332, a `PreToolUse` hook on `AskUserQuestion` that exited 2 ran before any picker opened, blocked the call, and the model quoted its stderr; its input held `questions[].question` and `questions[].options[].label`, recorded in tasks 0.1 to 0.3, [tasks.md](../../changes/inquisitor/tasks.md)
+
+- **Rationale: The credential patterns are a closed list of token shapes.**
+  This entry explains the Discord bot token's shape, which no prefix marks, so the pattern rests on the lengths of its three parts.
+  Evidence: on 2026-11-26 the pattern matched the token discord-bot holds as a whole, three URL-safe base64 parts of 26, 6 and 38 characters, recorded in task 0.33, [tasks.md](../../changes/inquisitor/tasks.md)
+
+- **Rationale: A question in a post tags one person who can decide, if there is one.**
+  This entry explains finding the last commit's author by login: git records a commit's author as a name and an email, so GitHub gives a login only for a commit it links to an account, and a commit it links to none gives no login and its candidate is skipped.
+  Evidence: on 2026-11-26, GitHub's commits listing for a file gave `author` `null` for 2 of the 30 newest commits to cli/cli's `README.md`, and a login for the rest, recorded in task 0.5, [tasks.md](../../changes/inquisitor/tasks.md)
+
+- **Rationale: Every miss file is named by one hash.**
+  This entry explains naming a GitHub reply's miss file by its `node_id`: the id must be the same in REST and GraphQL, present on every comment kind the answer service replies to, and unchanged by an edit, or an asking agent and the answer service would compute different names for one reply.
+  Evidence: on 2026-11-26, all 102 issue, pull request and review comments read on cli/cli had a REST `node_id` equal to GraphQL's `id`, and the 3 edited after posting kept it, recorded in task 0.31, [tasks.md](../../changes/inquisitor/tasks.md)

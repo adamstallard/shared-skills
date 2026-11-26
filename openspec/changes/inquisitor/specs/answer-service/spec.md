@@ -185,6 +185,19 @@ webhook). Every other question SHALL count as **a person's question**.
   mentioning the person
 - **THEN** it is a person's question, not an agent's
 
+### Requirement: A GitHub App's comment is told by its Bot author
+
+The answer service SHALL count a GitHub comment as a GitHub App's when
+its REST `user` has `type` `Bot` and a login ending `[bot]`, and SHALL
+take the App's slug to be that login without `[bot]`.
+
+#### Scenario: A GitHub App's comment names its App
+
+- **WHEN** a GitHub comment's REST `user` is `igor-web[bot]`, of `type`
+  `Bot`
+- **THEN** it is a GitHub App's comment, from the App whose slug is
+  `igor-web`
+
 ### Requirement: The queue is ordered oldest asked first
 
 **The queue** is this machine's list of unanswered questions, other than
@@ -720,11 +733,13 @@ Repository questions SHALL need no lore repository and no igor.
 
 The answer mod SHALL open the answer service by itself whenever a Claude
 Code session starts or resumes whose environment holds the marker the
-`answer` command sets, unless another session holds the lock (*One answer service runs on each machine*), and in no other session.
+`answer` command sets, unless another session holds the lock (*One answer service runs on each machine*) or the session's model can call a tool outside the set *The answer service opens only beside its own tools* allows, and in no other session.
 
 #### Scenario: Running answer opens the answer service
 
-- **WHEN** the person runs `answer`
+- **WHEN** the person runs `answer`, and the session's model can call
+  only the tools *The answer service opens only beside its own tools*
+  allows
 - **THEN** a session named `Answers` starts, and the answer service opens
   in it with no prompt typed
 
@@ -752,9 +767,9 @@ saying so, anything else at either path; and say when `~/.local/bin` is not on `
 
 - **WHEN** the person runs `answer`
 - **THEN** it starts Claude Code in a session named `Answers`, in
-  Claude Code's fullscreen layout, with the session's tools restricted as
-  *The service's model has no shell, no writing tool and no web fetch*
-  says
+  Claude Code's fullscreen layout, with the session's tools restricted by
+  `--tools Read,Grep,Glob` and `--strict-mcp-config`, as *The service's
+  model has no shell, no writing tool and no web fetch* says
 
 #### Scenario: The script installs the answer mod
 
@@ -2105,8 +2120,9 @@ from choosing what the code does beyond a closed set.
 ### Requirement: The service's model has no shell, no writing tool and no web fetch
 
 In a session the `answer` launcher starts, the model SHALL have only its
-conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
-enforced by Claude Code's own tool restriction, never by a hook. The service's code SHALL
+conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob:
+enforced for built-in and MCP tools by Claude Code's own tool restriction,
+never by a hook reading a call's command line. The service's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
 
@@ -2129,6 +2145,44 @@ since a thread's text can steer the model.
 
 - **WHEN** the person asks the model what `src/retry.go` does
 - **THEN** the model reads and searches the code with Read, Grep and Glob
+
+
+### Requirement: The answer service opens only beside its own tools
+
+When it would open, and whenever its session's tool list changes, the
+answer mod SHALL read the tools its session's model can call. While any
+is neither the mod's own nor Read, Grep or Glob, the answer service SHALL
+stay or become closed, and SHALL tell the person each such tool's name,
+with the mod or MCP server named between the `__` of an
+`mcp__<name>__<tool>` name, since Claude Code's
+launch options leave other mods' tools in place.
+
+#### Scenario: Another mod's tool keeps the answer service closed
+
+- **WHEN** the person runs `answer`, and another installed mod registers
+  the tool `mcp__other__post_anything`
+- **THEN** the answer service does not open, and tells the person that
+  `mcp__other__post_anything`, from the mod or MCP server `other`, must
+  be turned off first
+
+#### Scenario: A tool that joins later closes the answer service
+
+- **WHEN** the answer service is open and the tool
+  `mcp__linear__save_comment` joins the session's tools
+- **THEN** the answer service closes, naming that tool and `linear`
+
+#### Scenario: A session without the launcher's restriction stays closed
+
+- **WHEN** a session holding the answer marker was started without
+  `answer`'s restriction, so its model can call Bash
+- **THEN** the answer service does not open, and names `Bash` among the
+  tools to remove
+
+#### Scenario: Only its own tools let it open
+
+- **WHEN** the session's model can call only `propose_reply`,
+  `record_verdict`, Read, Grep and Glob
+- **THEN** the answer service opens
 
 ### Requirement: A rephrased question is answered with its rephrasing
 

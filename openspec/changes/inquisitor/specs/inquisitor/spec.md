@@ -2204,9 +2204,9 @@ leading whitespace dropped.
 A question asked in a post SHALL tag the first of these with write access
 to what it concerns: the approver of the pull request adding the question's related
 earlier decision; the first login with write access in the
-`.inquisitor/reviewers` file, one login per line, of the repository it
-concerns, or of the lore repository for a collective's question; the last
-committer of the files it concerns.
+`.inquisitor/reviewers` file (one login per line) of the repository it
+concerns, or of the lore repository for a collective's question; and,
+for a question about files, the author of the last commit to them.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -2227,12 +2227,12 @@ committer of the files it concerns.
 - **THEN** the script reads `.inquisitor/reviewers` from the team's lore
   repository, not from the repository holding the current work
 
-#### Scenario: The last committer is tagged last
+#### Scenario: The last commit's author is tagged last
 
 - **WHEN** a question has no related earlier decision and the repository
   has no `.inquisitor/reviewers`
-- **THEN** the question tags the last person to commit to the files it
-  concerns, when that person has write access
+- **THEN** the question tags the author of the last commit to the files
+  it concerns, when that author has write access
 
 ### Requirement: A question no candidate can decide turns to the session's login
 
