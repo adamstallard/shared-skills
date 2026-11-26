@@ -210,7 +210,7 @@ so the reader needs nothing else.
    change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
    `cold-read.txt` beside `msg.txt`. The brief asks for one line per
-   finding, quoting the words that stopped the reader, one line for each
+   finding, quoting the words the finding is about, one line for each
    item read straight through, and one understood line for every item:
 
    ```text
@@ -220,6 +220,11 @@ so the reader needs nothing else.
    Item 2: read straight through.
    Item 2, understood: A person may rerun a failed upload; nothing retries it.
    ```
+
+   If the signing call refuses the report itself, because a line is not in
+   the brief's form or an item has no line, give the same brief file to
+   another new subagent. Never edit a report or ask its reader to rewrite
+   it: a reader revising its own report is no longer reading cold.
 
 3. Fix each place the report names with the first fix that works of
    those [rules.md](rules.md)'s step 4 lists: a cut, a move, or a

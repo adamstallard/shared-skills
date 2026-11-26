@@ -1,4 +1,4 @@
-"""Compaction: rule 8 ("what is, not how it got here") over a whole file.
+"""Compaction: rule 9 ("what is, not how it got here") over a whole file.
 
 Four parts, all standard library only:
 
@@ -18,13 +18,14 @@ Four parts, all standard library only:
 - `brief_moves()`, `changed_descriptions()` and `cost_report()`: the
   reading cost. The brief lists the sections reading_cost.py finds that
   could move to a linked file, ranked by bytes times the doc's estimated
-  reads; `prose check` measures the skill descriptions a change sets; and
+  reads; `prose check` measures each SKILL.md `description` a change sets,
+  the text an agent loads for every installed skill; and
   `prose cost` lists both for a whole repository, the descriptions by size
   and the sections by cost.
 
 A DECISIONS.md or an ADR is written for people, and agents never read or
-write one, so no trigger makes it due, even when .gitattributes declares it
-(see human_only).
+write one, so no trigger makes it due, even when .gitattributes sets
+`prose-compact` on it (see `human_only()` below).
 """
 
 import bisect
@@ -461,8 +462,10 @@ NARRATIVE = re.compile(
     r"|\b(?:we|I|they)\s+(?:first\s+|then\s+|later\s+)?(?:tried|attempted)\b"
     r"|\bpreviously\b", re.I)
 
-# Prose's rule 9 cuts filler and throat-clearing, and its list of how agents
-# cheat names a "Note:" line added in place of a rewrite.
+# Prose's rule 10 cuts filler and throat-clearing, and its list of how agents
+# cheat names a "Note:" line added in place of a rewrite. A match only flags a
+# passage for the compactor to answer for, so this lists common filler, not
+# every kind, and nothing else has to stay in step with it.
 FILLER = re.compile(
     r"(?:^|(?<=[.!?]\s)|(?<=^[-*+]\s))(?:\*\*|_)?(?:Note|NB|Clarification|Important)(?:\*\*|_)?:"
     r"|\b(?:it is|it's) (?:worth|important to) (?:noting|note|mentioning|mention|remembering)\b"
