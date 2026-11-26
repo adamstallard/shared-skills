@@ -100,12 +100,17 @@ quotes the change and says what is missing.
 10. An unknown the change depends on, stated as if known, or a requirement
     or scenario that mentions a task, a measurement or its outcome ("if
     task 2.1 finds"). An unknown is one of two kinds:
-    - A fact about the platform, measured once before building (whether a
-      stream reports exit codes). It belongs in tasks.md as a task to
-      measure it and in design.md's Open Questions, naming that task and
-      the fallback: what the software would do if the fact does not hold,
-      saying what it could not do. No requirement rests on it until the
-      task is done; the requirement is then written from the result.
+    - A fact about the platform (whether a stream reports exit codes).
+      Its fallback is what the software would do if the fact does not
+      hold. Say whether a quick experiment looks enough to settle the
+      fact, and whether its fallback is a redesign, a stop or a decision
+      for the owner. If either is so, the fix is to measure the fact now
+      and write the requirement from the result. Otherwise the fact
+      belongs in tasks.md as a task to measure it once before building,
+      and in design.md's Open Questions, naming that task and the
+      fallback, including how the software would tell its user what it
+      could not do. No requirement rests on the fact until the task is
+      done; the requirement is then written from the result.
     - A condition that varies after launch, by repository, token,
       installation or caller. A requirement states it as a condition the
       software checks; when it does not hold, the software falls back and

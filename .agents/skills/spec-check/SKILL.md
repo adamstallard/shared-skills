@@ -312,12 +312,21 @@ that the author did it.
   Questions*.
 - **A conflict with another change or pull request** is reported, not edited:
   name it, quote both sides, and leave the other change alone.
-- **A fact about the platform nobody has measured**, which is measured
-  once before building, becomes a task in tasks.md and an entry in
-  design.md's *Open Questions* naming that task and the fallback: what the
-  software would do if the fact does not hold, saying what it could not
-  do. No requirement rests on the fact until the task is done and checked
-  off; then write the requirement from its result and delete the question.
+- **A fact about the platform nobody has measured** is measured while you
+  write the spec when a quick experiment settles it. Write the requirement
+  from the result, with no task or Open Question.
+- **A fact whose fallback is a redesign, a stop or a decision for the
+  owner** is measured before the spec goes for review, even when measuring
+  is costly. Its fallback is what the software would do if the fact does
+  not hold, and here that would change the design under review, so a
+  reviewer can't judge the spec without the fact.
+- **A fact with any other fallback, whose measurement is costly or needs
+  the implementation,** is deferred. It becomes a task in tasks.md, done
+  once before building, and an entry in design.md's *Open Questions*
+  naming that task and the fallback, including how the software would tell
+  its user what it could not do. No requirement rests on the fact until
+  the task is done and checked off; then write the requirement from its
+  result and delete the question.
 - **A condition that varies after launch**, by repository, token,
   installation or caller, is a requirement: the software checks it and,
   when it does not hold, falls back and says what it could not do.
@@ -483,7 +492,7 @@ write it as a [decision record](#decision-records) entry when evidence
 supports it. Otherwise it is not written down (see *Decision records*).
 
 **design.md holds only open questions:** the questions an agent must not
-decide, and the facts nobody has measured yet (see *Fixing*). Create it,
+decide, and the facts waiting on a measurement task (see *Fixing*). Create it,
 with OpenSpec's *Open Questions* section, when the first one arises, and
 delete it when the last is answered, writing each answer as a requirement, a record entry or nothing. A need
 this change has of another open change, such as an interface the other
