@@ -80,7 +80,7 @@
   Evidence: task 0.11's measurement on 2026-11-04, which found an issue comment's author in GraphQL's `IssueComment` as `author { login }`, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: The log command takes answered_by from the linked comment.**
-  The command adds `[bot]` to a bot author's login so that, before task 0.21 tells a bot's comment, a bot's answer counts only as input: a login holding `[bot]` fails the login syntax check of *A candidate or login that cannot be checked is skipped*, which shows the answer as input, while the bare slug GraphQL gives would pass as a person's login.
+  The command adds `[bot]` to a bot author's login so that the login never passes as a person's: a login holding `[bot]` fails the login syntax check of *A candidate or login that cannot be checked is skipped*, which shows the answer as input, while the bare slug GraphQL gives would pass as a person's login.
   Evidence: a measurement on 2026-11-23 of an App's issue comment, which GraphQL gave as `author { __typename: "Bot", login: "<slug>" }` and REST as `user.login` `<slug>[bot]`, recorded under task 0.11 in [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: A lore decision record counts.**

@@ -640,7 +640,7 @@ the rule that an agent asks only through the picker.
 This rests on task 0.37, still open. The approved prototype, build
 v0.2-9, shows that a mod can fill the prompt box and register a tool for
 its model to call, as `record_verdict` is, but not that a mod can submit
-a prompt so that the model answers it. If it cannot, task 0.37 says to
+a prompt so that the model answers it. If it cannot, task 0.37's Open Question says to
 build the answer service as a standalone UI instead of a mod.
 
 ### Relaying answers
@@ -1014,11 +1014,11 @@ template lacks.
 
 ## Open Questions
 
-### Facts measured before building
+In both lists below, the task each bullet names measures its fact before
+anything resting on it is built, and the bullet says what the software
+does if the fact does not hold.
 
-The task each bullet names measures its fact before anything is built.
-Each bullet says what the spec does if the fact is false, or, where the
-bullet only asks the question, its task in tasks.md says it.
+### Facts measured before building
 
 - **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
   hook does not fire on `AskUserQuestion`, or its exit 2 does not block
@@ -1062,16 +1062,98 @@ bullet only asks the question, its task in tasks.md says it.
   vulnerability, and tells the person only that a vulnerability question
   is blocking, without the question's text.
 
-Tasks 0.11, 0.13, 0.14, 0.29 and 0.33 measure the rest: whether GitHub
-gives review authors and logs re-requests, whether an advisory's
-private-fork pull request can merge before publication, whether an Igor
-worker can post, whether the Igor can run `branch-search` and read a
-collaborator's permission, and whether the Discord token pattern matches
-a real token. Each task says what follows if its fact is false.
+- **Does GitHub give a review's author, and date a re-requested review?**
+  (task 0.11) If a review or review comment has no author, *The log
+  command takes answered_by from the linked comment* needs another source
+  for `answered_by` before it is built. If re-requesting a review adds no
+  new `review_requested` event, a re-request keeps the first request's
+  date, from before the answers, and is not shown as an item question.
+- **Can an advisory's private-fork pull request merge before the advisory
+  is published?** (task 0.13) While unmeasured, or if it can, the agent
+  commits the regression test to the advisory's private fork, and
+  describes the weakness there, only on the word of the advisory's
+  publisher. If the fork merges only at publication, the agent does so
+  without that word.
+- **Can an Igor worker's `gh` post from a login in the home directory igor
+  gives it?** (task 0.14) If it can, a worker could post outside its
+  Igor: a breach to report to igor. The skill does the same either way.
+- **Can the Igor run `branch-search` and read a collaborator's
+  permission?** (task 0.29) Without the first, the call fails and the
+  worker's search names each questions branch as not searched; without
+  the second, every hit is `input`.
+- **Does the Discord token pattern match a real token?** (task 0.33) If
+  not, the secret scan misses the relay's Discord token until the pattern
+  takes the measured shape.
+- **Can an Igor worker feed `igor lore-search` its standard input?** (task
+  0.40) If not, the call fails, so filter 1 in an Igor's run searches no
+  lore and says so.
 
 ### Facts the answer service relies on
 
-**Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 in tasks.md measure facts the answer service relies on, such as how each surface returns a message's text, how GitHub tells a bot's comment (0.21), how Claude Code restricts a session's tools (0.34) and whether a mod can prompt its own model (0.37). Each task says what the spec does if its measurement shows the fact false.**
+- **What form does igor's handback marker take?** (task 0.6) Until it is
+  recorded, no comment counts as a handback.
+- **Does a `304` answer count against GitHub's rate limit?** (task 0.15)
+  If it does, the `ETag`s save none of the limit, and a person with many
+  subscriptions meets the rate-limit wait more often, with their agents'
+  `gh` calls refused too until the reset; the repository's owner then
+  decides whether the poll changes.
+- **Can the answer service work on Linear?** (task 0.16) If any part of
+  the task fails, Linear stays off and the README says so. An
+  assignment is dated by when a poll first finds it; if the person's key
+  can read when an issue was assigned, that time dates it instead.
+- **Can the answer service work on Discord?** (task 0.17) If any part of
+  the task fails, Discord stays off and the README says so.
+- **Does a command the mod runs reach a `PreToolUse` hook?** (task 0.18)
+  If a post hook sees a relay post, building stops for the repository's
+  owner.
+- **Do a mod's timers run while its session is idle?** (task 0.19) If
+  not, building the answer service stops until the repository's owner
+  decides: a live session's lock would go stale and another session would
+  take it without asking.
+- **Can setup read a relay identity's posting rights in a channel?** (task
+  0.20) Where no check can, setup runs the skill's own check only, and a
+  post the channel refuses for permission turns that channel off.
+- **Does GitHub report which App wrote a comment, in a form no account can
+  take on?** (task 0.21) Until it is measured, the answer service has no
+  GitHub relaying and posts nothing on GitHub. If GitHub does not, the
+  repository's owner decides what to build.
+- **Does an asking agent's `asked_in` equal the URL the answer service
+  builds?** (task 0.23) Where they differ, both sides write and compare
+  one canonical form. Where Linear or Discord changes a posted question's
+  words, a question asked there matches no logged file by hash, so the
+  answer service cannot tie it to its log file.
+- **How does each surface report a refused post?** (task 0.25) A refusal
+  the answer service cannot place counts as refused for its text, so the
+  answer waits for the person.
+- **Do the person-required and concerns lines come back unchanged from
+  Linear and Discord?** (task 0.28) If not, the answer service matches the
+  form each surface returns.
+- **Does the `answer` command start the session it should, and does the
+  mod see its marker on start and resume?** (task 0.30) If a part fails,
+  the command line or the marker changes to what works before `answer` is
+  built.
+- **Does every GitHub comment the answer service replies to have a stable
+  `node_id`?** (task 0.31) Until it is measured, no miss file is named by
+  a GitHub reply's `node_id`, so the answer service posts on GitHub none of three
+  replies to an agent's question: the reply a person's decline posts, the
+  automatic `Inquisitor: ` reply, and filter 1's `Recorded answer: ` reply.
+- **How does Claude Code restrict a session's tools?** (task 0.34) If
+  Claude Code enforces no such control itself, the change cannot be built
+  as written, and building stops for the repository's owner.
+- **Can the person's Linear key read Linear's GitHub-integration links?**
+  (task 0.35) If not, setup's guess for a Linear team names nothing, and
+  setup asks the person.
+- **Can a mod prompt its own model, unattended?** (task 0.37) If not,
+  building the mod stops, and the answer service is designed as a
+  standalone UI, prototyped for the owner's approval. Until the task lists
+  every first character on which the prompt box runs a submitted prompt
+  as a command, `propose_reply` refuses only `!` and `/`.
+- **Which Linear app user is an Igor's?** (task 0.38) If no form tells an
+  Igor's app user from another, no Linear comment is a handback.
+- **Does Claude Code put an `agentId` on a subagent's call to a mod's
+  tool?** (task 0.39) If not, nothing refuses such a call: its
+  `propose_reply` draft still lands only in the prompt box, and its
+  `record_verdict` call can still only pick among the code's actions.
 
 ### Outside this change
 

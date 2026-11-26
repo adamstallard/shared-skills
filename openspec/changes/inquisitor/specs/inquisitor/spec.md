@@ -76,8 +76,6 @@ report*, meant wherever this spec says the agent tells or reports to the
 person, is its reply in the session, or, with no person in it, its run's
 output.
 
-*Task 0.N* is that task in this change's tasks.md.
-
 *The first call* and *the second call* are the two runs of the skill's
 script that *Two calls prove the filters ran* defines. *A verdict* is what
 the second call records for a question, and *a vetted question* is one whose
@@ -788,9 +786,6 @@ returns. If the command fails, the search SHALL search no lore and say so.
 - **WHEN** filter 1 runs in an Igor's run
 - **THEN** the script runs `igor lore-search` with no argument and the
   question on standard input
-- **AND** if igor PR #216's task 4.5 finds a worker cannot feed the
-  command its standard input, the script passes the question the other
-  way #216 gives the command to take the text
 
 #### Scenario: An Igor's own inquisitor run searches lore through igor's command
 
@@ -1679,7 +1674,7 @@ SHALL hand back surviving questions, prepared.
 A session with no person in it SHALL NOT use the picker. An Igor worker
 SHALL ask only through its Igor. Any other
 such session SHALL ask in a post if the script finds its `gh` can comment
-where the question goes (task 0.9), tagged as *A question in a post tags
+where the question goes, tagged as *A question in a post tags
 one person who can decide, if there is one* and *A question no candidate
 can decide turns to the session's login* say; if not, it SHALL ask nowhere,
 stop only work needing the answer, and report it.
@@ -3012,7 +3007,7 @@ command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
 record as `answered_by` the comment's author login, followed by `[bot]`
 when GitHub types the author as a `Bot`, ignoring any login the agent
-passed, which a crafted thread can steer. Once task 0.21 shows how to tell a bot, it SHALL also write `authority: input` for a bot author.
+passed, which a crafted thread can steer, and SHALL write `authority: input` for a bot author.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3022,7 +3017,7 @@ passed, which a crafted thread can steer. Once task 0.21 shows how to tell a bot
 - **AND** given an `answer_link` to a comment the App `x` wrote, the file
   names `x[bot]`, which fails GitHub's login syntax, so filter 1 shows
   the answer as input
-- **AND** once task 0.21 is measured, given `authority: decision` and an
+- **AND** given `authority: decision` and an
   `answer_link` to a comment `igor-x[bot]` wrote, it writes
   `authority: input`
 
@@ -3555,8 +3550,7 @@ the name taken SHALL push nothing.
 - **THEN** the service then pushes `misses/<hash>.md`, where `<hash>` is
   the SHA-256 of `discord`, an LF and that `id`
 - **AND** on Linear the id is the comment's `id`, and on GitHub the reply
-  comment's `node_id`, used to name miss files only once task 0.31 has
-  measured it
+  comment's `node_id`
 - **AND** the asking agent hashes the id of the reply it reads and looks
   up that one path, whichever kind of miss file the service wrote
 
@@ -3998,26 +3992,24 @@ request text and comments.
 
 Until the agent can read that a weakness's advisory is published, a
 regression test that fails before the weakness's fix SHALL land on no
-public branch. Only if **task 0.13 holds** (GitHub merges the advisory's
-private fork only at publication) or the publisher said the fork merges only
-at publication (**the publisher's word**, enough whatever task 0.13
-shows) SHALL the agent
+public branch. Only if the advisory's publisher said its private fork
+merges only at publication (**the publisher's word**) SHALL the agent
 commit that test in the fork or describe the weakness in a fork commit;
 else the advisory's text holds the description.
 
-#### Scenario: Task 0.13 or the publisher's word lets the fork hold the test and the description
+#### Scenario: The publisher's word lets the fork hold the test and the description
 
-- **WHEN** the advisory is unpublished, and task 0.13 holds or the agent
-  has the publisher's word
+- **WHEN** the advisory is unpublished, and the agent has the publisher's
+  word
 - **THEN** the agent commits the regression test in the private fork, and
   on no public branch
 - **AND** its fork commit messages say what the weakness was and why the
   fix closes it
 
-#### Scenario: Without either, the fork holds neither
+#### Scenario: Without the publisher's word, the fork holds neither
 
-- **WHEN** the advisory is unpublished, task 0.13 does not hold, and the
-  agent lacks the publisher's word
+- **WHEN** the advisory is unpublished, and the agent lacks the
+  publisher's word
 - **THEN** it commits the regression test nowhere until the advisory is
   published
 - **AND** its fork commit messages describe neither the weakness nor how

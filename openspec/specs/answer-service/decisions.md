@@ -26,10 +26,10 @@
   Holds while: the session's Read, Grep and Glob have no path limit, and nothing the model drafts is posted before the person confirms it.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: A repository whose committed Claude Code settings or direnv `.envrc` set `INQUISITOR_ANSWER=1` makes the person's ordinary session there open the answer service, where a crafted thread could steer a model that has a shell.**
-  Because: the cost is accepted: only a repository the person trusts to load its settings or `.envrc` can set the variable there, and that trust already lets it run any command in their sessions through the same files.
+- **Constraint: A repository whose committed Claude Code settings or direnv `.envrc` set the marker the `answer` command sets makes the person's ordinary session there open the answer service, where a crafted thread could steer a model that has a shell.**
+  Because: the cost is accepted: only a repository the person trusts to load its settings or `.envrc` can set the marker there, and that trust already lets it run any command in their sessions through the same files.
   Evidence: a project's committed Claude Code settings set both `env` and `hooks`, https://code.claude.com/docs/en/settings; and direnv runs an allowed `.envrc` as a bash script, https://direnv.net/
-  Holds while: the answer mod opens the answer service on `INQUISITOR_ANSWER=1` alone.
+  Holds while: the answer mod opens the answer service on an environment marker alone.
   Paths: .agents/skills/inquisitor/answer-mod/
 
 - **Constraint: Each rule that depends on igor states what holds once the igor change it needs lands, with no clause for igor before that change.**
@@ -77,7 +77,7 @@
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
 
 - **Rationale: An agent's question comes from a bot account or a log file.**
-  A message counts as a bot account's by a mark the surface, not the account, sets on its author. On Linear an app user's comment has `user.app` `true`, with a null `botActor`, so a reader checking `botActor` would count every agent as a person; on Discord a bot's message has `author.bot` `true`, and a person's user object has no `bot` key. Of 77 comments in a test team, the 5 an app identity posted had `user.app` `true` and the other 72 `false`, and every message a bot posted in a test thread had `author.bot` `true`. That a person's Linear account cannot take on `app` rests only on the schema's description, untested, and a Discord webhook's message and GitHub's mark (task 0.21) are not measured.
+  A message counts as a bot account's by a mark the surface, not the account, sets on its author. On Linear an app user's comment has `user.app` `true`, with a null `botActor`, so a reader checking `botActor` would count every agent as a person; on Discord a bot's message has `author.bot` `true`, and a person's user object has no `bot` key. Of 77 comments in a test team, the 5 an app identity posted had `user.app` `true` and the other 72 `false`, and every message a bot posted in a test thread had `author.bot` `true`. That a person's Linear account cannot take on `app` rests only on the schema's description, untested, a Discord webhook's message is not measured, and neither is whether an account can take on GitHub's mark (task 0.21).
   Evidence: Linear's GraphQL schema describes `User.app` as "Whether this account represents an installed application rather than a person", https://linear.app/developers/graphql
   Evidence: Discord documents `bot` on its user object, https://discord.com/developers/docs/resources/user#user-object
   Evidence: the 2026-11-19 measurements, recorded in tasks 0.16 and 0.17, [tasks.md](../../changes/inquisitor/tasks.md)

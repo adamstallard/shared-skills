@@ -10,16 +10,13 @@ spec.
 
 ## 0. Measure before building
 
-Record each result on its task's line below, and as Evidence in the
-decision record of each capability whose requirement cites or waits on
-it. Task 0.29's result goes in igor issue #247's body instead, since it
-is a fact about igor's host. In the same commit, drop the task from
-design.md's Open Questions unless its result leaves a choice to the
-repository's owner, and rewrite each requirement and scenario that waits on that
-task to its result: drop its wait, and drop or restate a scenario written
-for before the result, such as *Nothing is relayed on GitHub before task
-0.21*. spec-trace fails CI on a scenario no test tags, and no test can
-check such a scenario once the task is done. Numbers 0.22, 0.24, 0.26, 0.27, 0.32
+design.md's Open Questions say what the software does if each task's
+fact does not hold. Record each result on its task's line below, and as
+Evidence in the decision record of each capability it bears on; task
+0.29's result goes in igor issue #247's body instead, since it is a fact
+about igor's host. In the same commit, write the requirements the result
+supports, and drop the task's Open Question unless the result leaves a
+choice to the repository's owner. Numbers 0.22, 0.24, 0.26, 0.27, 0.32
 and 0.36 have no task, so that the other tasks keep their numbers.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -61,17 +58,12 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       App's issue comment: GraphQL gives `author { __typename: "Bot",
       login: "<slug>" }`, without `[bot]`, and REST's `user.login` gives
       `<slug>[bot]`; task 0.21 still checks that no account can take on
-      that form. If a review or review comment has no author, that
-      requirement needs another source for `answered_by` before it is
-      built. Not measured: a review and a
+      that form. Not measured: a review and a
       review comment, for which GitHub documents the same `author` through
       GraphQL's `Comment` interface. The task also checks that
       re-requesting a review adds a new `review_requested` timeline
       event, by which *An item that asks the person something is shown
-      once* dates a request. If it does not, a request counts as made
-      when a poll first finds it pending. A review re-requested while the
-      first request is still pending then keeps that first date, before
-      the answers, and is not shown as an item question
+      once* dates a request
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, and by the specs of igor PRs #174
       and #175 it still can't once they land, though neither is built to
@@ -79,20 +71,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       everything except Igor-worker mode, which waits for what igor issue
       #247 lists
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
-      request be merged before the advisory is published. Until it
-      shows the merge waits, fork commit messages describe the weakness
-      only on the word of the person who will publish the advisory
+      request be merged before the advisory is published
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
-      the home directory igor gives it rather than in its environment;
-      if it can, the login is a breach to report to igor
+      the home directory igor gives it rather than in its environment
 - [ ] 0.15 That a conditional request answered `304`, sent with the
       person's `gh` login, does not count against the rate limit, as
       GitHub documents (answer-service spec: *The poll reads every GitHub
-      question source*). If it does count, the `ETag`s save none of the
-      limit, and a person with many subscriptions meets the rate-limit
-      wait more often, with their agents' `gh` calls refused too until
-      the reset; the repository's owner then decides whether the poll
-      changes
+      question source*)
 - [ ] 0.16 How the answer service finds, on Linear with the person's key,
       mentions of the person and of the relay, and the line each is on,
       which tells whether it is a tag line, and replies to a relay
@@ -100,13 +85,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       linear-app identity with a host command and learn the comment's URL;
       that the identity can edit its own comment; and that Linear marks a
       comment's author as an app user in a form no person's account can
-      take on. If any fails, Linear
-      stays off and the README says so. The task also finds whether the
+      take on. The task also finds whether the
       person's key can read when an issue was assigned, which *An item
       that asks the person something is shown once* compares with when
-      the item's questions were answered. If it cannot, Linear stays on,
-      and an assignment counts as made when a poll first finds it, so one
-      first found after those answers is shown as an item question. Measured 2026-11-19 as an app
+      the item's questions were answered. Measured 2026-11-19 as an app
       identity on a test issue: a host command's GraphQL `commentCreate` returns the
       comment's `id` and `url`, while the Linear MCP's tools return only
       the `id`; the identity edits its own comment; a reply holds its
@@ -132,7 +114,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       webhook's message in a form no person's account can take on; and
       that a relay whose `check` reports
       `messageContent` `true` reads a message that doesn't mention the bot.
-      If any fails, Discord stays off and the README says so. Measured
+      Measured
       2026-11-19 in a test thread: the identity reads a channel's history
       and a thread's, a reply holds a `message_reference` to its message,
       the identity edits its own message and, as *An automatic post is
@@ -141,56 +123,23 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       id, a webhook's message, and the Message Content read
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
-      sees a relay post. If a hook does
-      see it, record it and stop for the repository's owner
+      sees a relay post
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
-      has no terminal attached. If they stop, record that and stop building the answer service until the
-      repository's owner decides: a live session's lock would go stale and another
-      session would take it without asking
+      has no terminal attached
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App
       installation's access to each subscribed repository itself, since
       github-app's `check` reads only the identity's configured
       repositories. On Linear and Discord, record whether the skill's
-      check reads a team's or channel's permission or setup must. Where no
-      check can, setup runs the skill's own check only, and a post a
-      channel refuses later turns that channel off
+      check reads a team's or channel's permission, or setup must read it
+      itself
 - [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
-      `performed_via_github_app`. These are not built until it is
-      measured:
-      - on GitHub, the answer-service's *Relay posts start with a
-        reserved prefix*;
-      - on GitHub, the question state *The thread is the durable record
-        of an answer* reads from relay posts, which needs relay posts
-        recognised;
-      - task 6.4's GitHub relaying, which is every requirement that posts
-        through the relay on GitHub and needs that question state;
-      - on GitHub, each rule that tells a bot account's comment by its
-        `[bot]` author login: *A
-        handback is an Igor's comment holding igor's marker*, *An
-        agent's question comes from a bot account or a log file*, *A
-        relayed question is a person's question*, and, in the inquisitor
-        spec, *An agent logs a bot's comment only as input* and the rule of
-        *The log command takes answered_by from the linked comment* that
-        writes `authority: input` for a bot's comment;
-      - on GitHub, the rules that must tell whether an agent or a person
-        asked:
-        *Whom a message reaches is set by its mentions*, *Each item of a
-        bot's message reaches the person its tag line mentions*, *A bot's
-        message to a relay reaches the relay's person*, the
-        automatic `Inquisitor: ` reply of *A clear filter 2 to 4 failure
-        gets its fixed reply by itself*, and every miss a decline logs (*A decline for
-        the inquisitor logs a miss once it takes effect*).
-
-      The three GitHub replies task 0.31 names wait on task 0.31 as well,
-      since their miss files are named by the reply's `node_id`.
-
-      If GitHub reports which App wrote a comment, the rules above are
-      built as the spec states them; if not,
-      the repository's owner decides what to build
+      `performed_via_github_app`. The GitHub rules that tell a bot's or an
+      App's comment from a person's rest on it, relaying on GitHub
+      included
 - [ ] 0.23 That the URL an asking agent records as `asked_in`, and the
       handback comment URL an Igor records, equals character for character
       the URL the answer service builds from what it polls, on GitHub,
@@ -202,7 +151,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       do decides whether a question asked there matches its logged file
       by hash (the inquisitor spec's *Among files with the same question,
       only the newest answer counts*), and whether task 0.28's lines are
-      found. A miss file is named by its reply's id, so it does not depend on how a surface returns text. Measured 2026-11-19 on a test
+      found. Measured 2026-11-19 on a test
       Linear issue and a test Discord thread:
       - a Discord message's URL is
         `https://discord.com/channels/<guild id>/<channel id>/<message
@@ -228,83 +177,65 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       (required by spec-trace).` and `Concerns: o/web` in a Linear comment
       and a Discord message, read each back as the answer service would,
       and record whether their words come back unchanged once markup is
-      reduced. If not, record the form each surface returns, which the
-      answer service then matches (answer-service spec: *A question with a
+      reduced, or the form each surface returns (answer-service spec: *A question with a
       person-required line gets no filter 2 to 4 reply*; *A concerns line
       settles what an agent's question concerns*)
 - [ ] 0.29 Whether an Igor's host has Python and the inquisitor skill
       installed for the Igor's own process, not only for its workers, so
       the Igor can run `branch-search` (inquisitor spec: *The Igor reads
       questions branches with the script*), and whether the Igor's App
-      token can read a collaborator's permission. Without the first, the
-      call fails and the worker's search names each questions branch as
-      not searched; without the second, every hit is `input`
+      token can read a collaborator's permission
 - [ ] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
-      with the tool restriction task 0.34 finds added, starts Claude Code
+      with the tool restriction task 0.34 finds, starts Claude Code
       named `Answers` in its fullscreen layout, and that the mod sees
       `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
       tool restriction still in force after the resume
       (answer-service spec: *The script installs the answer mod*;
       *Only a session with the answer marker opens the answer
-      service*). If a part fails, the command line or the variable is
-      changed to what works before `answer` is built
+      service*)
 - [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
       comment the answer service replies to (an issue comment, a pull
       request comment and a review comment), and that an edit leaves it
       unchanged (inquisitor spec: *Every miss file is named by one hash*).
-      Until it is measured, no miss file is named by a GitHub reply's
-      `node_id`. So three GitHub replies to an agent's question are not
-      built: the reply a person's decline posts, the automatic
-      `Inquisitor: ` reply, and filter 1's `Recorded answer: ` reply. If a check fails,
-      the GitHub id that names a miss file is changed to one the
-      measurement shows passes these three checks, before miss files are
-      named on GitHub
+      If a check fails, find a GitHub id that passes all three
 - [ ] 0.33 That the Discord bot token shape in *The credential patterns are
       a closed list of token shapes* matches the relay's real token: run
       the pattern against the token discord-bot holds, printing only
       whether it matched and each part's length, never the token. If it
-      does not match, the pattern is changed to the shape measured
+      does not match, record the shape measured
 - [ ] 0.34 How Claude Code restricts a session's tools so that its model
       has only its conversation, `propose_reply`, `record_verdict` and
       Read, Grep and Glob: permission settings, a startup option such as
       `--allowedTools`, or a mod's own control. Record whether Claude Code
       enforces it itself rather than through a hook, and what the `answer`
-      command must add to start a session so restricted. Until then, *The
-      service's model has no shell, no writing tool and no web fetch* and
-      the `answer` launcher (*The script installs the answer mod*) are
-      not built (answer-service spec). If no control Claude
-      Code enforces exists, the change cannot be built as written: record
-      it and stop for the repository's owner
+      command must add to start a session so restricted (answer-service
+      spec: *The service's model has no shell, no writing tool and no web
+      fetch*; *The script installs the answer mod*)
 - [ ] 0.35 Whether the person's Linear key reads the GitHub links that
-      Linear's GitHub integration puts on a team's issues. If not, setup's
-      guess for a Linear team names nothing, and setup asks the person
-      (answer-service spec: *Setup guesses the repositories a Linear or
-      Discord channel concerns*).
+      Linear's GitHub integration puts on a team's issues (answer-service
+      spec: *Setup guesses the repositories a Linear or Discord channel
+      concerns*)
 - [ ] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, have the model answer
       it with a tool call, unattended, and detect when the model's reply in
-      that turn has ended. If it cannot,
-      record it and stop building the mod: the answer service is then
-      designed as a standalone UI, not a Claude Code mod, and prototyped
-      for the owner's approval. If it can, also list every first character
-      on which the prompt box runs a submitted prompt as a command;
-      *propose_reply refuses a draft the prompt box would run* refuses each
+      that turn has ended; and list every first character on which the
+      prompt box runs a submitted prompt as a command (*propose_reply
+      refuses a draft the prompt box would run*)
 - [ ] 0.38 How the answer service tells, with the person's Linear key,
       that a Linear app user is an Igor's, in a form no other app user can
       take on, as the `igor-` slug tells an Igor's App on GitHub: for
       example by the user id of the Linear identity an Igor is configured
       with, or by a name igor requires of its Linear app. Task 0.16
       measured that Linear marks an app user's comment, with `user.app`
-      `true`; which app user is an Igor's is not measured. On Linear, *A handback is an Igor's comment holding igor's
-      marker* is built only once this is measured. If
-      no such form exists, no Linear comment is a handback for good
+      `true`; which app user is an Igor's is not measured
 - [ ] 0.39 Whether Claude Code puts an `agentId` on a subagent's or a
-      forked conversation's call to a mod's tool. If not, nothing refuses
-      such a call: its `propose_reply` draft still lands only in the
-      prompt box, and its `record_verdict` call can still only pick among
-      the actions the code offers (answer-service spec: *Claude's draft
-      goes to the prompt box, never to a post*)
+      forked conversation's call to a mod's tool (answer-service spec:
+      *Claude's draft goes to the prompt box, never to a post*)
+- [ ] 0.40 Once igor PR #216's task 4.5 reports, whether an Igor worker
+      can feed `igor lore-search` the question on standard input, or which
+      other way #216 gives the command to take it (inquisitor spec: *In an
+      Igor's run, filter 1 searches through igor*)
 
 ## 1. Shared post reader
 
@@ -390,9 +321,7 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor
-        lore-search`, passing the question on standard input, or the
-        other way igor PR #216 gives the command if its task 4.5 finds a
-        worker cannot.
+        lore-search`, passing the question on standard input.
       - It applies the authority rules:
         - scope by the short name outside an Igor, and inside one as
           igor's `scopeMatches` gives it (igor's);
@@ -656,12 +585,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       guard. The builder sets when each kind passes a filter, and those
       conditions are reviewed with the implementation
 - [ ] 5.8 Add to bug-hunter's SKILL.md the inquisitor spec's rules for a
-      weakness whose advisory is unpublished. Task 0.13 measures whether
-      GitHub can merge the advisory's private-fork pull request before
-      publication. When it shows the merge waits, or the advisory's
-      publisher says it does, the regression test lands in the private
-      fork, and fork commit messages may describe the weakness. Without
-      either, the test lands nowhere until publication, and then on a
+      weakness whose advisory is unpublished. When the advisory's publisher
+      says the private fork merges only at publication, the regression
+      test lands in the private fork, and fork commit messages may
+      describe the weakness. Without that, the test lands nowhere until publication, and then on a
       public branch (*Before publication, a weakness's test and
       description reach only the private fork*). Commit messages on a
       public branch never describe the weakness before publication (*A
@@ -831,7 +758,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       has no shell, no writing tool and no web fetch*); the `answer`
       launcher and the script's `install-mod` and `uninstall-mod` commands
       (*The script installs the answer mod*); and the mod opening the
-      answer service only where `INQUISITOR_ANSWER=1` is set (*Only a
+      answer service only in a session `answer` started, by the marker
+      task 0.30 confirmed (*Only a
       session with the answer marker opens the answer service*). SKILL.md
       tells an agent using the skill, when the person wants to answer the questions asked
       of them, to offer to install the answer mod and then to tell them

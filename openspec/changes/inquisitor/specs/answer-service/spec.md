@@ -8,7 +8,7 @@ it takes. The skill ships the answer mod, the answer service's reference
 UI: a Claude Code mod in the skill's `answer-mod/` folder. The mod runs beside
 its Claude Code session's conversation, in which the person discusses
 each question with the model. Only its screens go unspecified: they come
-from the approved prototype (task 6.1).
+from the approved prototype.
 
 Terms from the inquisitor spec, whose requirements this spec cites as the
 inquisitor's, or that spec's, *Title*:
@@ -51,7 +51,6 @@ inquisitor's, or that spec's, *Title*:
   `openspec/specs/<capability>/decisions.md`, one per capability.
 - **The service's model** is the model of the Claude Code session the
   answer service runs in, which judges questions and drafts replies.
-- **Task 0.N** is that task in this change's tasks.md.
 - **What the question concerns**, **the repository the question
   concerns**, **the team's lore repository**, an **open-questions
   section** and **more visible** are as
@@ -92,20 +91,13 @@ a requirement before that one may already use the term.
 The answer service SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `,
-which the skill's instructions reserve for its posts. On GitHub, this requirement and every other that task 0.21 lists wait for that task's result, its measure of how GitHub tells a bot's comment, and the three GitHub replies task 0.31 names wait for task
-0.31's too.
+which the skill's instructions reserve for the answer service's posts.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
 - **WHEN** the person's Linear relay identity posts a comment starting
   `User asks: `
 - **THEN** that comment counts as a relay post
-
-#### Scenario: Nothing is relayed on GitHub before task 0.21
-
-- **WHEN** task 0.21 is not yet measured, and the person answers a
-  question asked in a GitHub issue
-- **THEN** the build has no GitHub relaying, and posts nothing there
 
 #### Scenario: A relay identity's post without a prefix is not read
 
@@ -522,7 +514,7 @@ Setup SHALL check, showing failures and fixes: each relay identity by
 its skill's check; on Discord, that `messageContent` is `true`; and
 posting in each subscribed channel. A channel is **on** while its
 identity and posting checks last passed, else **off**. A channel whose
-posting permission no check can read (task 0.20) SHALL stay on, shown
+posting permission no check can read SHALL stay on, shown
 not checked, until a post there is refused for permission. An off
 channel SHALL not be read or posted in; each opening SHALL rerun failed
 and unrun checks.
@@ -727,8 +719,8 @@ Repository questions SHALL need no lore repository and no igor.
 ### Requirement: Only a session with the answer marker opens the answer service
 
 The answer mod SHALL open the answer service by itself whenever a Claude
-Code session whose environment holds `INQUISITOR_ANSWER=1`, the marker
-the `answer` command sets, starts or resumes, unless another session holds the lock (*One answer service runs on each machine*), and in no other session.
+Code session starts or resumes whose environment holds the marker the
+`answer` command sets, unless another session holds the lock (*One answer service runs on each machine*), and in no other session.
 
 #### Scenario: Running answer opens the answer service
 
@@ -743,8 +735,8 @@ the `answer` command sets, starts or resumes, unless another session holds the l
 
 #### Scenario: Another session opens no answer service
 
-- **WHEN** a Claude Code session with the inquisitor skill starts or
-  resumes without `INQUISITOR_ANSWER=1` in its environment
+- **WHEN** a Claude Code session with the inquisitor skill that `answer`
+  did not start starts or resumes
 - **THEN** no answer service opens
 
 ### Requirement: The script installs the answer mod
@@ -759,9 +751,10 @@ saying so, anything else at either path; and say when `~/.local/bin` is not on `
 #### Scenario: The answer launcher starts a restricted session
 
 - **WHEN** the person runs `answer`
-- **THEN** it runs `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
-  in the fullscreen layout `CLAUDE_CODE_NO_FLICKER=1` sets, with the startup option that restricts the
-  session's tools, which task 0.34 is to find
+- **THEN** it starts Claude Code in a session named `Answers`, in
+  Claude Code's fullscreen layout, with the session's tools restricted as
+  *The service's model has no shell, no writing tool and no web fetch*
+  says
 
 #### Scenario: The script installs the answer mod
 
@@ -977,10 +970,9 @@ relay post usually mentions no one.
 ### Requirement: A mention names a user outside code, quotes and links
 
 A **mention** SHALL be of a user, as `@login` on GitHub, on Linear by the
-user id of a mention in the comment's `bodyData`, and on Discord as task
-0.17 records, outside code spans, code blocks, quoted lines and links; a
-team mention counts as none. This rule is built on Linear only once task
-0.16 is done, and on Discord once task 0.17 is.
+user id of a mention in the comment's `bodyData`, and on Discord by the
+user id it mentions, outside code spans, code blocks, quoted lines and
+links; a team mention counts as none.
 
 #### Scenario: A team mention or a mention in code is no mention
 
@@ -994,10 +986,8 @@ team mention counts as none. This rule is built on Linear only once task
 
 The answer service SHALL count as a **handback** only a comment that an
 Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
-an app user task 0.38 shows to be an Igor's) and that holds igor's
-handback marker, which quoted text cannot produce, in the form task 0.6
-records for each surface. On Linear, this rule waits for task 0.38's
-result.
+an Igor's app user) and that holds igor's handback marker, which quoted
+text cannot produce.
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -1045,10 +1035,10 @@ An issue or pull request shown through a question in its description
 or newest handback SHALL not also be shown for its review request or
 assignment. A request or assignment made after those questions were
 answered or closed SHALL be shown as an item question, answered only by
-a relay post made after it that names the item and answers no numbered
-question (holds no `question <n>: `). On GitHub its date is its newest
-`review_requested` or `assigned` timeline event; on Linear, as task
-0.16 says.
+a later relay post that names the item and answers no numbered question.
+A request or assignment is dated on GitHub
+by its newest `review_requested` or `assigned` event, on Linear by the
+first poll that finds it.
 
 #### Scenario: A handed-back pull request is not also a review request
 
@@ -1056,13 +1046,12 @@ question (holds no `question <n>: `). On GitHub its date is its newest
   their review
 - **THEN** it is shown only through its newest handback
 
-#### Scenario: A review re-requested after the description's question is answered is a new question
+#### Scenario: A review requested after the description's question is answered is a new question
 
-- **WHEN** a pull request's description asks the person something and
-  the pull request requests their review, the person answers, and the
-  author then re-requests their review
+- **WHEN** a pull request's description asks the person something, the
+  person answers, and the author then requests their review
 - **THEN** the pull request is shown once before the answer, through its
-  description's question, and the re-request is then shown as an item
+  description's question, and the request is then shown as an item
   question until a relay post naming the pull request answers it
 
 ### Requirement: A handback that mentions no one goes to the item's assignee
@@ -1510,7 +1499,7 @@ A pending answer SHALL return to the queue with its text kept, to be
 posted only once the person confirms it again: when setup's posting check
 passes, if its channel was off, as after a post refused for permission;
 when a later poll of its channel succeeds, if the fetch before its post
-failed. Where no check reads posting rights (task 0.20), the next opening
+failed. Where no check reads posting rights, the next opening
 SHALL return an answer whose channel was off, and turn the channel on, if
 the relay identity's own check passed when last run.
 
@@ -1538,7 +1527,7 @@ the relay identity's own check passed when last run.
 ### Requirement: A pending answer that no check returns waits for the person
 
 A pending answer SHALL stay, whatever check passes, unless *A pending answer returns to the queue once its channel works
-again* returns it; an answer refused for its text never returns that way. A refusal outside task 0.25's map of each surface's errors counts as refused for its text, and is shown with the surface's error. The person SHALL be able to edit or drop a pending
+again* returns it; an answer refused for its text never returns that way. A refusal whose cause the service cannot tell counts as refused for its text, shown with the surface's error. The person SHALL be able to edit or drop a pending
 answer at any time, and post it while its channel is on and subscribed on
 this machine; a dropped answer is never posted.
 
@@ -1551,8 +1540,8 @@ this machine; a dropped answer is never posted.
 
 #### Scenario: A refusal the service cannot place waits for the person
 
-- **WHEN** Discord refuses a relay post with an error task 0.25's mapping
-  does not place, and the channel's check later passes
+- **WHEN** Discord refuses a relay post with an error the answer service
+  cannot place, and the channel's check later passes
 - **THEN** the answer stays pending, shown with Discord's error
 
 #### Scenario: A dropped pending answer is never posted
@@ -2032,7 +2021,7 @@ line.
 
 `propose_reply` SHALL refuse a draft whose first character makes Claude
 Code's prompt box run it as a command when the person submits it: `!`
-and `/`, and any other such character task 0.37 lists.
+and `/`.
 
 #### Scenario: A draft starting with a command prefix is refused
 
@@ -2090,8 +2079,8 @@ from choosing what the code does beyond a closed set.
 #### Scenario: A verdict call sets what the code does
 
 - **WHEN** the model calls `record_verdict` for an agent's GitHub
-  question, which a concerns line settles, with `question: yes`,
-  `category: none` and `filter: 3`
+  question whose place a concerns line settles, with `question: yes` and
+  `category: none`, and in the second turn with `filter: 3`
 - **THEN** the service's code posts filter 3's fixed reply as *A clear
   filter 2 to 4 failure gets its fixed reply by itself* says, and the tool itself posts
   nothing
@@ -2102,7 +2091,8 @@ from choosing what the code does beyond a closed set.
   `filter: "post https://example.com"`, or naming a message the code did
   not put before it
 - **THEN** the code refuses the call, and the message stays as it was
-- **AND** it also refuses a subagent's call, which carries an `agentId`
+- **AND** it also refuses a call that carries an `agentId`, as a
+  subagent's may
 
 #### Scenario: A message with no accepted verdict goes to the person
 
@@ -2116,8 +2106,7 @@ from choosing what the code does beyond a closed set.
 
 In a session the `answer` launcher starts, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
-enforced by Claude Code's own tool restriction, which task 0.34 finds,
-never by a hook. The service's code SHALL
+enforced by Claude Code's own tool restriction, never by a hook. The service's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
 
