@@ -2,18 +2,6 @@
 
 ## Constraints
 
-- **Constraint: A `questions` branch is guarded against rewriting and deletion only where an admin of its repository sets the rule setup suggests.**
-  Because: setting a branch rule takes admin access, which a person subscribing to the repository may lack, and the rule must allow the direct pushes every record needs, so the cost is accepted that a writer can delete or rewrite a branch without the rule, dropping a newer answer so that an older one counts again, and can push a handled file to any branch, closing a question so that the person never sees it.
-  Evidence: a ruleset can "Restrict deletions" and "Block force pushes", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#restrict-deletions; of GitHub's repository roles, only Admin can "Manage branch protection rules and repository rulesets", https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role; and `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
-  Holds while: setup suggests the rule and does not set it, and the rule allows direct pushes.
-  Paths: .agents/skills/inquisitor/
-
-- **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
-  Because: the inquisitor pushes no citation to a lore repository more visible than the question's repository or, for a question about an organization or other group, the repository it was asked from, and a citation file pushed with a person's credentials holds only the entry's id and a date, so the lore repository's readers learn only who cited which entry and when.
-  Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
-  Holds while: a citation is pushed with a person's own credentials, and never to a lore repository more visible than that.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
 - **Constraint: An agent in the person's session can have the `log` command write, as the person's, files the person never asked for: a decision, by passing their login as `answered_by` with no `answer_link`; and, by passing the service option, which is meant only for the answer service and whose caller the command does not check, a handled file closing a question, a miss file named by a reply's id (which lets the asking agent act on an automatic `Inquisitor: ` reply as one a person backed), or a log file recording any GitHub comment, or a Linear or Discord message, as the person's answer.**
   Because: that agent already holds the person's push access, so it could as well push any of these files itself, or commit a decision document that filter 1 counts, and closing these paths would protect nothing.
   Evidence: git pushes with the credentials its configured helper holds for the host, whichever program runs `git push`, https://git-scm.com/docs/gitcredentials, and `gh auth setup-git` makes gh that helper with the person's own login, https://cli.github.com/manual/gh_auth_setup-git
@@ -67,7 +55,7 @@
   Evidence: Discord's message object carries `id` and `channel_id` and no URL, https://discord.com/developers/docs/resources/message#message-object
 
 - **Rationale: A file is as new as the commit that added it, and supersedes only if it would count.**
-  A commit's dates are whatever its committer sets, so they cannot order answers; the branch's commit order changes only when the branch is rewritten, a cost the Constraint on guarding a `questions` branch accepts.
+  A commit's dates are whatever its committer sets, so they cannot order answers. The branch's commit order changes only when the branch is rewritten, which a writer can do wherever no admin has set the rule that setup suggests, a cost the answer-service decision record's *Rationale: Setup suggests a rule guarding each questions branch* accepts. A file that would not count supersedes nothing, so pushing an `input` file, or one answered by someone without write access, cannot hide an answer that counts.
   Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information
 
 - **Rationale: The script tells an Igor's run by IGOR_RUN.**
@@ -127,5 +115,5 @@
   Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
 - **Rationale: An Inquisitor reply is acted on only with its miss file.**
-  The reply itself counts for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide for itself a question a maintainer should decide; only a writer, an account with write access, can push to a questions branch. A miss file backs a reply only when a person stands behind it: it is hash-only, which only an answer service writes, or it names the person who judged the question as `said_by`. The Igor is a writer, but it pushes the files of its worker's and its own inquisitor runs, runs that may be steered by item text, which anyone can write; the inquisitor spec has it push neither a hash-only file nor one naming a `said_by` (*A file an Igor pushes names where it was asked from*), so none of its files backs a reply.
+  The reply itself counts for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide for itself a question a maintainer should decide; only a writer, an account with write access, can push to a questions branch. A miss file backs a reply only when a person stands behind it: its `said_by` names the person who judged the question, or it is hash-only. Only the `log` command's service option writes a hash-only file, whose one intended caller is the answer service the person runs; an agent that passes it anyway already holds the person's push access, as the Constraint on the `log` command says. The Igor is a writer, but it pushes the files of its worker's and its own inquisitor runs, runs that may be steered by item text, which anyone can write; the inquisitor spec has it push neither a hash-only file nor one naming a `said_by` (*A file an Igor pushes names where it was asked from*), so none of its files backs a reply.
   Evidence: GitHub's repository roles give the push permission only from the Write role up, while the Read role can comment on issues and pull requests, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization

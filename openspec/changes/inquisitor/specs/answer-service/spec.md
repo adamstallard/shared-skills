@@ -1238,6 +1238,12 @@ every lore repository's questions and default branches.
 - **THEN** it polls each channel that is on for everything since that
   channel's poll position, and saves each new poll position
 
+#### Scenario: The next poll starts about 60 seconds after one ends
+
+- **WHEN** a poll of a channel ends while the answer service stays open
+- **THEN** the answer service polls that channel again about 60 seconds
+  later
+
 #### Scenario: A new channel is read from 14 days back
 
 - **WHEN** the answer service polls a newly subscribed repository for the
@@ -2743,7 +2749,7 @@ The service SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A question placed in no subscribed or lore repository for any other reason names no repository whose rules go unread, so it SHALL be searched in `global` lore alone.
+`global` lore entry may contradict an unread repository's rules. A question that names no repository at all has no decision documents to search and no rules that go unread, so it SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 

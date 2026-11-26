@@ -637,15 +637,17 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it
-- [ ] 5.6 `README.md` says that setup suggests a rule blocking force
-      pushes to a `questions` branch and its deletion, which only an admin
-      can set; that without it anyone with write access can rewrite or
-      delete the branch; and that with it a writer can still push a handled
-      file that hides a question from the person (the inquisitor decision record's constraint on guarding a
-      `questions` branch); and that spec-trace's workflow skips pushes to
-      the `questions` branch (task 5.9), which holds none of the project's files; a
+- [ ] 5.6 `README.md` says each of the following. Setup suggests a rule blocking
+      force pushes to a `questions` branch and its deletion, which only an
+      admin can set. Without it, anyone with write access can rewrite or
+      delete the branch; with it, a writer can still push a handled file
+      that hides a question from the person (the answer-service decision
+      record's *Rationale: Setup suggests a rule guarding each questions
+      branch*). spec-trace's workflow skips pushes to the `questions`
+      branch (task 5.9), since that branch holds none of the project's
+      files. A
       repository owner must make any other workflow that checks those
-      files on push skip that branch too, or it fails there
+      files on push skip that branch too, or it fails there.
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large

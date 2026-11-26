@@ -3606,9 +3606,9 @@ order if several; and SHALL write no miss file when no hit has it.
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
 A **hash-only miss file** SHALL be a miss file with empty frontmatter and
-no body, written only by an answer service and committed as *A citation file
-has one format* gives for a citation, dated midnight UTC on the day it is
-pushed. Being on the branch is its whole authority. The `log` command
+no body, committed like a citation (*A citation file has one
+format*): by `inquisitor <noreply>`, its commit's message naming the file's path,
+dated midnight UTC on the day it is pushed. It counts by being on the branch alone. The `log` command
 SHALL write one only when called with its service option, as for a handled
 file.
 
