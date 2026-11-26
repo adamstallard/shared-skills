@@ -1846,7 +1846,7 @@ from the first call's filter 1 hits for the question.
 ### Requirement: The second call records all its verdicts or none
 
 The second call SHALL refuse a field missing or matching the credential
-patterns, a question the first call did not take or left without a
+patterns, a question the first call did not take, a question left without a
 verdict, and a token spent or over 2 hours old, recording nothing and
 keeping the token. Else it SHALL record each verdict, its field, any
 related earlier decision and the time, kept by the hash of the question's
