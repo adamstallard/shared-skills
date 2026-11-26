@@ -1086,10 +1086,6 @@ does if the fact does not hold.
 - **Do the person-required and concerns lines come back unchanged from
   Linear and Discord?** (task 0.28) If not, the answer service matches the
   form each surface returns.
-- **Does the `answer` command start the session it should, and does the
-  mod see its marker on start and resume?** (task 0.30) If a part fails,
-  the command line or the marker changes to what works before `answer` is
-  built.
 - **Can the person's Linear key read Linear's GitHub-integration links?**
   (task 0.35) If not, setup's guess for a Linear team names nothing, and
   setup asks the person.
@@ -1099,21 +1095,6 @@ does if the fact does not hold.
   tool?** (task 0.39) If not, nothing refuses such a call: its
   `propose_reply` draft still lands only in the prompt box, and its
   `record_verdict` call can still only pick among the code's actions.
-
-### Questions for the repository's owner
-
-- **Can the person turn another mod off for the answer session alone?**
-  On the owner's machine an installed mod's tool kept a session started
-  with `answer`'s flags from being restricted to the service's own tools
-  (task 0.34), so the answer service stays closed until that mod is off.
-  If a mod can be turned off only everywhere, using the answer service
-  means giving up every such mod in every session.
-- **What happens to the session when a tool joining it closes the answer
-  service?** The conversation still holds the thread text the model was
-  shown, and the model now has a tool that may post or write, so the
-  next prompt the person types could let that text steer it. The
-  choices are that the answer mod tells the person to end the session,
-  or ends it itself.
 
 ### Outside this change
 

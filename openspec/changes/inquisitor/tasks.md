@@ -236,14 +236,35 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       the Igor can run `branch-search` (inquisitor spec: *The Igor reads
       questions branches with the script*), and whether the Igor's App
       token can read a collaborator's permission
-- [ ] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
+- [x] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
       with `--tools Read,Grep,Glob --strict-mcp-config`, starts Claude Code
       named `Answers` in its fullscreen layout, and that the mod sees
       `INQUISITOR_ANSWER=1` when the session starts and resumes, with the
       tool restriction still in force after the resume
       (answer-service spec: *The script installs the answer mod*;
       *Only a session with the answer marker opens the answer
-      service*)
+      service*). Done 2026-11-26, Claude Code 2.1.332, started outside
+      any other Claude session: the session was named `Answers` in the
+      terminal title and the prompt box, ran on tmux's alternate screen,
+      staying on the normal screen without `CLAUDE_CODE_NO_FLICKER=1`, and the mod read the
+      marker `1` with the restriction in force. Run again with
+      `--resume <id>` added, it kept the id, the marker and the
+      restriction; `/resume` inside the session raised no new
+      `session.start` and kept the marker and the restriction; a plain
+      `claude --resume <id>` kept the name but had no marker, and every
+      tool. A session started inside
+      another Claude session took that session's name instead. Passing
+      `--settings '{"enabledPlugins":{"<id>":false}}'` turned plugins off
+      for that session alone: a test mod, the built-in easel plugin and
+      the person's two installed mods were gone from it, and
+      `claude plugin list --json` still showed them enabled afterwards;
+      a `"*"` key turned nothing off. A mod's `$.command.run` of `exit`
+      ended its session, raising `session.end` with reason
+      `prompt_input_exit`, and the process exited 0. A tool a mod
+      registered while the model's turn waited on another tool's call was
+      offered within that turn, and the model called it; with the mod
+      calling `$.turn.abort` and then `exit` as the tool joined, the
+      session ended 32 ms later and the new tool was never called
 - [x] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
       `node_id` (GraphQL's `id`), that it is present for every kind of
       comment the answer service replies to (an issue comment, a pull
@@ -274,8 +295,8 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       Claude Code 2.1.332: `--tools Read,Grep,Glob` leaves exactly those
       built-in tools, so the model cannot run a command; MCP servers' tools
       stay unless `--strict-mcp-config` is added, and another mod's
-      registered tool stays even then, as a test mod's did and as one of
-      the person's own installed mods' did. A mod sees the whole list:
+      registered tool stays even then, as a test mod's did and as the
+      built-in easel plugin's did. A mod sees the whole list:
       `$.tool.list()` at `session.start` and a `tool.list` hook, which
       receives the list as `{ value }`, both listed the other mods' tools, each named
       `mcp__<mod or server>__<tool>`; without `--strict-mcp-config`,
@@ -839,10 +860,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
       model gets only its conversation, `propose_reply`, `record_verdict`
       and Read, Grep and Glob (answer-service spec: *The service's model
-      has no shell, no writing tool and no web fetch*), and the mod's
-      check of the session's tools (*The answer service opens only
-      beside its own tools*); the `answer`
-      launcher and the script's `install-mod` and `uninstall-mod` commands
+      has no shell, no writing tool and no web fetch*), the mod's
+      check of the session's tools and its ending the session when a
+      tool joins (*The answer service opens only beside its own tools*;
+      *A tool joining an open answer service ends the session*); the
+      `answer` launcher with other plugins off (*The answer launcher
+      starts a restricted session with other plugins off*); the script's
+      `install-mod` and `uninstall-mod` commands
       (*The script installs the answer mod*); and the mod opening the
       answer service only in a session `answer` started, by the marker
       task 0.30 confirmed (*Only a
