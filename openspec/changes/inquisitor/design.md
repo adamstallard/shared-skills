@@ -874,9 +874,10 @@ thread the file's `asked_in` links.
 A handled file adds no question text: the closed file's name, which it
 repeats, is already on the same branch. So it never carries a private item's
 question into igor's lore search, and shows nothing the closed file does not.
-For a question with a category, the hash it names the closed file by hides
-nothing on the branch, where the closed file sits beside it under its
-readable name.
+This holds for a question with a category too. Such a question gets no
+log file once it has its category, so a handled file can close only a file
+logged before then, whose name is already on the branch. A hash of that
+name would hide nothing, and would show that the question has a category.
 
 A close that cites a record, a filter 1 decline or a `Recorded answer: `
 post, takes the question out of the person's queue whether or not the

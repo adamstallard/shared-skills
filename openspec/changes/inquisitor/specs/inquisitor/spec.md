@@ -3405,11 +3405,15 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `yyyy-mm-dd`, on which the service closed the question, even when the push
   succeeds on a later poll, and `closes`, that file's name
   `<date>-<slug>-<6 hex digits>.md` without its directory, and has no body
-- **AND** for a question the service's model judges has a category,
-  `closes` is instead the SHA-256 of that name, as 64 lowercase hex digits,
-  so neither the handled file nor its owed push holds the question's words,
-  and a reader takes it to close the file whose name has that hash
 - **AND** no other file holds either key
+
+#### Scenario: A file logged before its question got a category is closed by its plain name
+
+- **WHEN** an answer service closes `2026-01-05-can-the-token-leak-3f9a1c.md`,
+  logged before the service's model judged its question has a category
+- **THEN** the handled file's `closes` is
+  `2026-01-05-can-the-token-leak-3f9a1c.md`, as for a question with no
+  category, and never a hash of that name
 
 #### Scenario: An answer file names the questions-branch file it answers
 
@@ -3629,8 +3633,8 @@ file.
 A reader SHALL count a log file as holding an answer of its own only
 when its frontmatter holds `authority`, and as handled, closed with no
 answer or authority, only when it holds `handled`. A
-handled file closes the one file its `closes` names, or whose name has
-the SHA-256 `closes` holds, and filter 1's search never matches it. A
+handled file closes the one file its `closes` names, and filter 1's
+search never matches the handled file. A
 reader SHALL read any other log file's body from its end, in the layout
 its scenarios give, and SHALL show one that does not fit as unreadable
 input.

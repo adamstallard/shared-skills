@@ -472,9 +472,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         writes, `asked_from` is what the answer service passes to the `log`
         command (answer-service spec: *A miss records who judged it and
         where it was asked from*).
-      - A handled file holds only `handled`, the day in UTC, and
-        `closes`, the closed file's name or, for a question with a
-        category, that name's SHA-256, with no body. It is
+      - A handled file holds only `handled`, the day in UTC on which the
+        question was closed, and `closes`, the closed file's name without
+        its directory, with no body. It is
         written only through the command's service option, which only the
         answer service passes; a `handled` or `closes` key, or a hash-only
         miss file, is refused without that option.

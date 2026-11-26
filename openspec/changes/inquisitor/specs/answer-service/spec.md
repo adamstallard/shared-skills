@@ -1873,9 +1873,11 @@ a category; then it SHALL show the next in the queue.
 
 For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer service SHALL write no
-discussion record or file holding its question's or answer's text, keep its question on screen and pending
-answer only in memory, and name it in the state folder only by its hash
-and the surface's ids for its thread and message.
+discussion record or other file of its own holding its question's or answer's text, keep its question on screen and pending
+answer only in memory, and name it in the state folder only by its hash,
+the surface's ids for its thread and message, and the name of any
+questions-branch file already holding it, since that name is already
+pushed.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
