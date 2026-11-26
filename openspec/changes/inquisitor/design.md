@@ -121,10 +121,9 @@ spec: *Relay posts start with a reserved prefix*); *The post
 hook blocks a reserved prefix on GitHub* gives why.
 
 **Rule:** answer-service spec, *A relay post is posted by a host command,
-unvetted* (task 0.18); *The Linear relay's token stays in memory*; *A GitHub
-or Linear relay post names its question in a Re line*. The command runs with
-no shell because the person's answer and drafts built from a thread's
-untrusted text reach it.
+unvetted*, which no hook checks; *A GitHub or Linear relay post names its
+question in a Re line*. The host command runs with no shell, because the
+person's answer, and drafts built from a thread's untrusted text, reach it.
 
 ### What the answer service does by itself
 
@@ -637,12 +636,6 @@ the rule that an agent asks only through the picker.
 
 **The answer mod's code puts each message the model must judge into the session's conversation as a prompt of its own, holding the message as quoted data, at times when the model is not replying to the person; the model gives its verdicts by calling `record_verdict`.**
 
-This rests on task 0.37, still open. The approved prototype, build
-v0.2-9, shows that a mod can fill the prompt box and register a tool for
-its model to call, as `record_verdict` is, but not that a mod can submit
-a prompt so that the model answers it. If it cannot, task 0.37's Open Question says to
-build the answer service as a standalone UI instead of a mod.
-
 ### Relaying answers
 
 #### The thread is the durable record of an answer
@@ -1020,12 +1013,6 @@ does if the fact does not hold.
 
 ### Facts measured before building
 
-- **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
-  hook does not fire on `AskUserQuestion`, or its exit 2 does not block
-  the picker, the skill's instructions alone cover the picker, and the
-  README says so. If the tool's input holds no `questions[].question` and
-  `questions[].options[].label`, the spec's definition of a picker question's text is rewritten to what
-  the input holds.
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
   answer in a post and every issue's decision block (an inquisitor spec
@@ -1061,13 +1048,6 @@ does if the fact does not hold.
   uses the answer only in the code of the fix that repairs the
   vulnerability, and tells the person only that a vulnerability question
   is blocking, without the question's text.
-
-- **Does GitHub give a review's author, and date a re-requested review?**
-  (task 0.11) If a review or review comment has no author, *The log
-  command takes answered_by from the linked comment* needs another source
-  for `answered_by` before it is built. If re-requesting a review adds no
-  new `review_requested` event, a re-request keeps the first request's
-  date, from before the answers, and is not shown as an item question.
 - **Can an advisory's private-fork pull request merge before the advisory
   is published?** (task 0.13) While unmeasured, or if it can, the agent
   commits the regression test to the advisory's private fork, and
@@ -1092,24 +1072,12 @@ does if the fact does not hold.
 
 - **What form does igor's handback marker take?** (task 0.6) Until it is
   recorded, no comment counts as a handback.
-- **Does a `304` answer count against GitHub's rate limit?** (task 0.15)
-  If it does, the `ETag`s save none of the limit, and a person with many
-  subscriptions meets the rate-limit wait more often, with their agents'
-  `gh` calls refused too until the reset; the repository's owner then
-  decides whether the poll changes.
 - **Can the answer service work on Linear?** (task 0.16) If any part of
   the task fails, Linear stays off and the README says so. An
   assignment is dated by when a poll first finds it; if the person's key
   can read when an issue was assigned, that time dates it instead.
 - **Can the answer service work on Discord?** (task 0.17) If any part of
   the task fails, Discord stays off and the README says so.
-- **Does a command the mod runs reach a `PreToolUse` hook?** (task 0.18)
-  If a post hook sees a relay post, building stops for the repository's
-  owner.
-- **Do a mod's timers run while its session is idle?** (task 0.19) If
-  not, building the answer service stops until the repository's owner
-  decides: a live session's lock would go stale and another session would
-  take it without asking.
 - **Can setup read a relay identity's posting rights in a channel?** (task
   0.20) Where no check can, setup runs the skill's own check only, and a
   post the channel refuses for permission turns that channel off.
@@ -1143,11 +1111,6 @@ does if the fact does not hold.
 - **Can the person's Linear key read Linear's GitHub-integration links?**
   (task 0.35) If not, setup's guess for a Linear team names nothing, and
   setup asks the person.
-- **Can a mod prompt its own model, unattended?** (task 0.37) If not,
-  building the mod stops, and the answer service is designed as a
-  standalone UI, prototyped for the owner's approval. Until the task lists
-  every first character on which the prompt box runs a submitted prompt
-  as a command, `propose_reply` refuses only `!` and `/`.
 - **Which Linear app user is an Igor's?** (task 0.38) If no form tells an
   Igor's app user from another, no Linear comment is a handback.
 - **Does Claude Code put an `agentId` on a subagent's call to a mod's

