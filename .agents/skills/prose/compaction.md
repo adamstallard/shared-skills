@@ -2,7 +2,7 @@
 
 Agents read some docs before every task, so each sentence there that no longer
 serves them is paid for on every read. Those docs stay compact, and a doc that
-describes the current state holds no history. `prose compact` applies rule 8
+describes the current state holds no history. `prose compact` applies rule 9
 of [rules.md](rules.md), *What is, not how it got here*, to a whole file, not
 only to the lines a change touched. `$S` is prose's scripts directory, as
 [SKILL.md](SKILL.md)'s *Two calls* defines it.

@@ -51,8 +51,9 @@ The first call prints, in order:
   the pattern that matched, or its kind's default;
 - a warning for any pattern that matches no listed file, usually a typo;
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 9 in full, the rest as a checklist, and
-  how agents cheat on the pass;
+- rules.md: its steps for doing the pass; rules 1 to 10 in full and the
+  rest, each a line or two there, by title only; and its list of ways agents
+  fake the pass, as a warning;
 - the pass token, with the command to run next.
 
 Each `check` call first runs the repository's pre-commit hook, if any, so a

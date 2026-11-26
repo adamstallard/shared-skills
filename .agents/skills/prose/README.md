@@ -33,8 +33,10 @@ followed them.
 written in sentences, or post, the agent has a fresh agent read each of these
 texts. The fresh agent never saw the conversation in which the text was
 written. It quotes the words at every place it stopped, reread, guessed what a
-word points at, or could not tell why a claim holds. For each text it also says
-in one line what it understood: who does each thing, whether it always happens,
+word points at, or could not tell why a claim holds, and every place where the
+words, read literally, say something other than what it took them to mean,
+since a reader who takes them literally leaves misinformed. For each text it
+also says in one line what it understood: who does each thing, whether it always happens,
 and whether the code does it or someone could make it happen. That line catches
 a confident misreading, which makes no reader stop. The agent then answers
 every finding and every understood line: fixed, or kept, which leaves the text
