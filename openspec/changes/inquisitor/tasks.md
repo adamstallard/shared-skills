@@ -454,8 +454,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         with `git show`, checking none out. Task 7.0 adds igor's scribe's
         decision records; until then the output names them as not
         searched.
-      - It matches as plain text and ranks by terms matched, with a cap
-        it reports.
+      - It matches as plain text, lists answers before input and ranks
+        each group by distinct terms matched, showing at most 20 hits in
+        all, lore from `igor lore-search` included, and saying when it
+        left some out.
       - During an Igor's run it searches lore only through `igor
         lore-search`, passing the question on standard input.
       - It applies the authority rules:

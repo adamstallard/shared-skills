@@ -690,17 +690,29 @@ its name after its `/`, and for a collective's question only `global`.
 
 ### Requirement: Filter 1 matches terms as plain text and caps its hits
 
-Filter 1 SHALL match the question's terms as plain text, rank its hits by
-the number of terms each matches, show at most 20, and say when it left
-some out. In an Igor's run, `igor lore-search` does this for lore (igor
-issue #247).
+Filter 1 SHALL match the question's terms as plain text, list the hits
+its authority rules make answers before those they leave as input, and
+rank each group by how many terms a hit matches, a term found several
+times counting once, in any order among ties. It SHALL show at
+most 20 hits in all and say when it left some out. In an Igor's run,
+the lore hits of `igor lore-search` join under this order and cap; igor issue #247 asks that command, which caps
+lore first, to rank it the same way.
 
 #### Scenario: Hits are ranked by terms matched and capped
 
-- **WHEN** more than 20 lore entries match a question's terms in their
-  `claim`, `conditions` or body
+- **WHEN** more than 20 lore entries that filter 1 shows only as input
+  match a question's terms in their `claim`, `conditions` or body, and
+  no hit is an answer
 - **THEN** the search, with no embedding or model call, shows the 20 that
   match the most of the question's terms, and says that it left hits out
+
+#### Scenario: An answer matching fewer terms is still shown
+
+- **WHEN** 20 hits that filter 1 labels as input each match three of a
+  question's terms, and a questions-branch `decision` file, which filter
+  1 treats as an answer, matches only one of the question's terms
+- **THEN** the search shows the `decision` file first and any 19 of the
+  input hits after it, and says that it left one out
 
 ### Requirement: Filter 1 names what it did not search and how fresh each clone is
 
