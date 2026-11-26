@@ -45,9 +45,9 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 **3. Cut** what no goal needs (rules 1, 6 and 8). **Then make what's left quick to read** (rules 3 and 9).
 
-**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5 and 6). **Fix each stop with the first of these that works:** cut the sentence or phrase, if no goal needs it; move it beside the point it continues, so no point is split around another (rule 3); or reword it, if the new wording reads more easily than the old. Only a rewording adds words (rule 9). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 7).
+**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5, 6 and 10). **Fix each stop with the first of these that works:** cut the sentence or phrase, if no goal needs it; move it beside the point it continues, so no point is split around another (rule 3); or reword it, if the new wording reads more easily than the old. Only a rewording adds words (rule 9). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase found elsewhere, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 7).
 
-**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post; a pull request body posted between two hand-backs, the calls that hand it to a reviewer (`gh pr create`, `gh pr ready` or `gh pr edit --add-reviewer`), is read cold at the next one instead. The commit message is not read cold. When you sign the same staged files again, as after changing only the message, the signing call reuses the cold read those files were signed with. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The cold reader reports every place it stopped, reread, guessed or could not tell why, and says for each such text, in one line, what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each finding and each understood line with `--dispositions <file>`. A finding is `fixed`, which the script checks by its item having changed, or `kept (asked)`, once a person chose to keep it. An understood line is `matches` when it says what you meant, or else `fixed` or `kept (asked)` in the same way. Where the cold reader stopped, reread, guessed or could not tell why, the real reader will too, so fix each place the report names as step 4 fixes a stop. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says how to run it.
+**5. Have it read cold.** You read your own text knowing what you meant, so you fill its gaps without seeing them. Before `prose check` or `prose sign` signs the text, an agent that has never seen the conversation behind the change reads the changed text and reports every place it stopped, reread, guessed or could not tell why. For each text it also says in one line what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. Fix each place the report names the way step 4 fixes a stop, since the real reader would stop there too. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says which texts get a cold read and how to run it.
 
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
@@ -226,8 +226,15 @@ After:  With `configFiles`, the checkout reads the same config files as every
         authenticates with the token.
 ```
 
-### 10. Say who acts
-Active voice wherever the actor matters.
+### 10. Say who acts, and on what, by the words alone
+For each verb, read who does it and what it acts on from the words alone, not from what you meant. A reader takes a pronoun to mean its clause's subject, or else the nearest noun that fits, and an edit can change which noun that is, so reread an edited sentence whole. Use the active voice when the actor matters.
+*Why:* a sentence whose words name the wrong actor or object reads smoothly, so neither its writer nor its reader stops at it.
+```
+Before: The code runs the search, gives the hits to the model, and on them it
+        sets `filter` and `hit`.
+After:  The code runs the search and gives the hits to the model. After
+        considering them, the model sets `filter` and `hit` in its answer.
+```
 
 ### 11. One topic per block
 A comment, paragraph or section answers one question.
