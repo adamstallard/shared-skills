@@ -171,7 +171,17 @@ as an Igor's worker. Unless it is a relayed question, the answer service
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
 message by a bot account (a GitHub App, Linear app user, or Discord bot or
-webhook). Every other question SHALL count as **a person's question**.
+webhook), except a Discord crosspost, flagged `IS_CROSSPOST`. Every other
+question SHALL count as **a person's question**.
+
+#### Scenario: A Discord crosspost is a person's question
+
+- **WHEN** a webhook's message flagged `IS_CROSSPOST`, copied from an
+  announcement channel the subscribed channel follows, asks a question
+  mentioning the person
+- **THEN** it counts as a person's question
+- **AND** a webhook's message without that flag counts as an agent's
+  question
 
 #### Scenario: A Linear app user's question is an agent's
 
@@ -1221,15 +1231,6 @@ follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
 service SHALL NOT pair a file with a message by text similarity.
 
-#### Scenario: A Discord item whose mention discord-bot rewrote is shown on its own
-
-- **WHEN** an agent's Discord message lists two questions, the second
-  naming `@bob`, which discord-bot sent as `<@id>`, and each is logged in
-  its own file whose `asked_in` is the message's URL
-- **THEN** the first item's file follows its item, and the second item's
-  file, whose hash matches no item and so is paired with no message, is
-  shown on its own
-
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
 - **WHEN** a log file's `asked_in` links a message in a channel this
@@ -1428,6 +1429,24 @@ and post, in the channels it has been added to.
 - **WHEN** a subscribed Discord channel is read
 - **THEN** it is read as the Discord relay identity, which also posts
   there
+
+### Requirement: A Discord thread is read with its first message
+
+When the answer service reads a Discord thread, it SHALL read the
+thread's first message by following the `message_reference` of the
+placeholder that stands for it inside the thread, since Discord keeps
+that message in the parent channel. Apart from that placeholder, it
+SHALL skip every message with no text and no attachments, such as one
+holding only an embed.
+
+#### Scenario: A thread's first message is read through its placeholder
+
+- **WHEN** the service reads a thread started on a message that asks the
+  person a question, and the thread also holds a message with only an
+  embed
+- **THEN** the thread's messages, as read, start with the question's
+  message, reached through the placeholder's `message_reference`
+- **AND** the embed-only message is skipped
 
 ### Requirement: An answer is relayed as the person's words
 
@@ -2023,6 +2042,12 @@ names another id.
   leaving its owed pushes, kept in the state folder, to the new session
 - **AND** it closes though both sessions are named `Answers`, as every
   session the `answer` command starts is
+
+#### Scenario: An idle answer service keeps its lock fresh
+
+- **WHEN** the answer service stays open and idle for 3 minutes
+- **THEN** it refreshes its lock at least every 30 seconds, so another
+  session opening the answer service finds the lock fresh
 
 #### Scenario: A crashed session's lock goes stale
 
@@ -2898,7 +2923,10 @@ The service SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A question that names no repository at all has no decision documents to search and no rules that go unread, so it SHALL be searched in `global` lore alone.
+`global` lore entry may contradict an unread repository's rules. A
+question with **no place** (*A channel's repositories place its
+questions*), which names no repository whose rules could go unread,
+SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 

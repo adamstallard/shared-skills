@@ -1,7 +1,9 @@
 ## Purpose
 
 The shared post reader tells a hook what body a command or tool call
-would post on a GitHub issue or pull request, so prose's posting hook
+would post on a GitHub issue or pull request, in a Discord message
+through the discord-bot skill, or on Linear through the Linear MCP, so
+prose's posting hook
 and the inquisitor's post hook judge the same text, and each blocks a
 call the reader reports as unreadable.
 
@@ -25,26 +27,31 @@ through it.
 ### Requirement: A command that mentions no gh post verb sends no post
 
 A command SHALL send no post when it **mentions** no **gh post verb**
-(scenario *The gh post verbs are a closed list*). It mentions one when its
+(scenario *The gh post verbs are a closed list*), unless piped input
+reaches a `gh` command in it. It mentions one when its
 text, quoted or not, holds `gh` followed later by `pr` or `issue` and
 later by a post verb listed for that word, or holds a `gh api` call that
-is not a read (*A gh api call is a read only as a plain gh command*).
+is not a read (*A gh api call is a read only as a plain gh command*), or
+holds a word ending in `discord_bot.py` followed later by `post` or
+`edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
 - **WHEN** a hook asks about a command
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; and a `gh api`
-  call that can write
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
+  call that can write; and a discord-bot `post` or `edit` call, though
+  such a call holds no gh word
 - **AND** `gh`, `pr`, `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
   `--comment` holds one
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
-  `comment`, `review` and `revert`, and `close` or `reopen` given
-  `--comment` or `-c`; `close` or `reopen` without one still mentions a
-  post verb but sends no text
+  `comment`, `review`, `revert` and discord-bot's `post` and `edit`, and
+  also `close` or `reopen` given `--comment` or `-c`; without either
+  option, `close` or `reopen` still mentions a post verb but sends no
+  text
 
 #### Scenario: A gh command off the list passes unread
 
@@ -152,6 +159,45 @@ named `body` or `comment`, at any depth, as a body.
   `comments[0].body`
 - **THEN** the reader returns `ok` and the nested string as bodies
 
+### Requirement: The reader reads a Linear MCP comment or issue description
+
+For a tool named `save_comment` or `save_issue` under the prefix
+`mcp__linear__` or `mcp__plugin_<name>_linear__`, the reader SHALL return
+the string `save_comment` takes as `body`, or `save_issue` as
+`description`, as a Linear message. A `save_issue` call holding `patch`,
+or `template` with no `description`, SHALL be unreadable, since its text
+depends on what Linear already holds.
+
+#### Scenario: A Linear MCP comment and description are read
+
+- **WHEN** a hook asks about `mcp__linear__save_comment` with `body` `User
+  says: yes`, and about `mcp__linear__save_issue` with `title` `Retries?`
+  and `description` `Should retries back off?`
+- **THEN** the reader returns `User says: yes` and `Should retries back
+  off?` as Linear messages, and no title
+- **AND** it reports as unreadable a `save_issue` call holding `patch`, or
+  `template` with no `description`
+
+#### Scenario: A Linear MCP call with no text is no post
+
+- **WHEN** a hook asks about `mcp__linear__save_issue` with only `id` and
+  `state`
+- **THEN** the reader reports that the call sends no post
+
+### Requirement: The reader says whether a post goes through the github-app skill
+
+For each post, the reader SHALL report whether it is sent by a call of
+the github-app skill's script, which *The reader reads posts sent
+through the github-app skill and gh api* finds.
+
+#### Scenario: A github-app post is told from a plain gh post
+
+- **WHEN** a hook asks about `python3 /abs/github_app.py --identity bot gh
+  pr comment 5 --body-file c.md` and about `gh pr comment 5 --body-file
+  c.md`, where `c.md` exists
+- **THEN** the reader reports the first as sent through the github-app
+  skill, and the second as not
+
 ### Requirement: The reader splits a command line into simple commands
 
 The reader SHALL split a line into **simple commands**, each a command
@@ -247,8 +293,9 @@ no word that is `gh` or a path ending in `/gh`.
 In a line whose simple commands are all ones that *A line whose simple
 commands send no text is no post* allows, input from a pipe or an input
 redirection SHALL reach only data commands, or, when it reaches a single
-simple command, a `gh` command that sends no text and uses no gh post
-verb. Otherwise the line SHALL be unreadable.
+simple command, one of these: a `gh pr` or `gh issue` command that uses
+no gh post verb, or a `gh api` read. Otherwise the line SHALL be
+unreadable, whether or not it mentions a gh post verb.
 
 #### Scenario: A gh post piped into a shell is unreadable
 
@@ -273,6 +320,13 @@ verb. Otherwise the line SHALL be unreadable.
   whose input reaches the post verb `pr edit`
 - **THEN** the reader reports the first as sending no post and the second
   as unreadable
+
+#### Scenario: Input that reaches another gh command is unreadable
+
+- **WHEN** a hook asks about `cat notes.md | gh release create v1
+  --notes-file -`, and about `cat q.json | gh api repos/o/r/pulls/5`
+- **THEN** the reader reports the first as unreadable, though `gh release`
+  uses no gh post verb, and the second as sending no post, a `gh api` read
 
 ### Requirement: Any other line that mentions a gh post verb is unreadable
 
@@ -363,6 +417,60 @@ about which script runs, since any file named `github_app.py` passes.
 - **THEN** the reader returns `hi` as the first's body, and reports that
   the second sends no post
 
+### Requirement: The reader reads discord-bot's post and edit as gh issue comment
+
+The reader SHALL find a call of discord-bot's script, `discord_bot.py`,
+in the forms *The reader reads posts sent through the github-app skill
+and gh api* finds for github-app's, and judge one that runs `post` or
+`edit` as a `gh issue comment` call: `--message -` as `--body-file -`,
+any other `--message` as `--body`, `--message-file` as `--body-file`,
+and no other option as a body. It SHALL report the post as a Discord
+message.
+
+#### Scenario: A Discord post or edit is read from its file
+
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py --identity
+  relay post --channel ops --message-file m.md`, and about the same call
+  with `edit --message-id 9` in place of `post --channel ops`, where
+  `m.md` holds `User says: yes`
+- **THEN** the reader returns `User says: yes` as each one's body, as a
+  Discord message, so the inquisitor's post hook blocks each, since the
+  body starts with the reserved prefix `User says: `
+- **AND** it returns `yes` as the body of `python3 /abs/discord_bot.py
+  post --message yes`
+- **AND** it reports the `post` call after `cd x && ` as unreadable, as
+  *The reader reads a gh pr or gh issue post only as a whole command
+  line* says for `gh issue comment`
+
+#### Scenario: A Discord message from standard input is unreadable
+
+- **WHEN** a hook asks about `printf 'User says: yes' | python3
+  /abs/discord_bot.py post --message -`
+- **THEN** the reader reports the command as unreadable, as it does
+  `cat c.md | gh pr comment 5 -F -`
+
+#### Scenario: A Discord delete, read or thread is no post
+
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py delete
+  --message-id 9`, `python3 /abs/discord_bot.py read --limit 5` and
+  `python3 /abs/discord_bot.py thread --message-id 9 --name Retries`
+- **THEN** the reader reports that each command sends no post, a
+  thread's name being read no more than a post's title
+
+### Requirement: A simple command holding a discord-bot post word counts as naming gh
+
+A simple command holding a word ending in `discord_bot.py` followed later
+by `post` or `edit` SHALL count as holding the word `gh`, so no rule
+that finds a command naming no `gh` to send no post applies to it.
+
+#### Scenario: A discord-bot post outside the reader's form is unreadable
+
+- **WHEN** a hook asks about `sh -c 'python3 /abs/discord_bot.py post
+  --message x'`, and about `/abs/discord_bot.py post --message x`, run
+  without `python3`
+- **THEN** the reader reports each command as unreadable, so the post
+  hooks block it
+
 ### Requirement: A gh api call is a read only as a plain gh command
 
 A `gh api` call SHALL count as a **read** only when all three hold: it is
@@ -401,7 +509,8 @@ A `gh api` call to a REST endpoint SHALL **write** when its method, the
 last given by `-X` or `--method` in any form gh accepts, compared
 without case, is not `GET`; when it gives no method and has a field
 (`-f`, `--raw-field`, `-F` or `--field`, in any form) or `--input`; or
-when a header sets `X-HTTP-Method-Override`. A call to `graphql` SHALL
+when a header sets `X-HTTP-Method-Override`. Only a call whose endpoint
+is exactly `graphql` takes its fields as GraphQL variables, and it SHALL
 write when its query holds a mutation or the reader cannot read its
 query.
 
@@ -439,10 +548,17 @@ query.
 - **THEN** the first does not write, and the second and third do: the
   third's query comes from standard input, which the reader never reads
 
+#### Scenario: Only the exact endpoint graphql takes GraphQL variables
+
+- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments -f
+  body=hi -f query='mutation { x }'`
+- **THEN** the reader returns `hi` as the body, and reads the `query`
+  field as no GraphQL query
+
 ### Requirement: The reader reads a gh api write to an issue or pull request
 
 For a `gh api` write under `repos/<owner>/<repo>/issues` or `.../pulls`,
-the reader SHALL read each `body` field, and each `body` key of the
+or the same under `repositories/<id>/`, the reader SHALL read each `body` field, and each `body` key of the
 `--input` JSON, as a body, and, for a review under
 `.../pulls/<n>/reviews`, each `body` in its `comments`.
 
@@ -470,6 +586,42 @@ the reader SHALL read each `body` field, and each `body` key of the
 - **THEN** the reader returns `ok` and `Why?` as bodies
 - **AND** for `--input r.json`, where `r.json` holds `body` and a
   `comments` array whose items hold `body`, it returns each of them
+
+#### Scenario: A repository named by its id is read as by its name
+
+- **WHEN** a hook asks about `gh api repositories/123/issues/5/comments
+  -f body=hi`
+- **THEN** the reader returns `hi` as the body
+
+### Requirement: A gh api post that gh changes before sending is unreadable
+
+A `gh api` write to an issue or pull request endpoint, or to `graphql`,
+SHALL be unreadable when it gives a field beside `--input`,
+when its endpoint holds a `?` query, or when a `-F` or `--field` value
+holds a placeholder gh fills: `{owner}`, `{repo}` or `{branch}`, or
+`:owner`, `:repo` or `:branch` ending at an ASCII word boundary.
+
+#### Scenario: A field beside input is unreadable
+
+- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments --input
+  c.json -f body=x`, and about `gh api graphql --input q.json -f b=x`,
+  where both files exist
+- **THEN** the reader reports each as unreadable, since gh then sends the
+  field in the URL's query, not in the body
+
+#### Scenario: A query on an issue endpoint is unreadable
+
+- **WHEN** a hook asks about `gh api 'repos/o/r/issues/5/comments?x=1' -f
+  body=hi`
+- **THEN** the reader reports the call as unreadable
+
+#### Scenario: A body gh would fill in is unreadable
+
+- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments -F
+  'body=see {owner}'`, and the same with `body=on :branch now`
+- **THEN** the reader reports each as unreadable
+- **AND** it returns `:branches` as the body of the same call with `-F
+  body=:branches`, which holds no word boundary after `:branch`
 
 ### Requirement: A gh api write read from a file is read only as a whole command line
 

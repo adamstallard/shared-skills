@@ -13,7 +13,7 @@ import types
 import unittest
 import urllib.error
 import urllib.parse
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -66,7 +66,7 @@ def guild_routes(members=None, search=None):
 
 def args(**kw):
     base = dict(identity="default", channel=None, thread=None, agent=None, session=None, project=None,
-                message=None, limit=20, before=None, message_id=None, name=None, reply_to=None)
+                message=None, message_file=None, limit=20, before=None, message_id=None, name=None, reply_to=None)
     base.update(kw)
     return types.SimpleNamespace(**base)
 
@@ -247,6 +247,61 @@ class Post(unittest.TestCase):
         self.assertEqual(sent[0]["content"], "from stdin\nline two")
 
 
+    # Exactly the file's text is posted, as a hook reading the file assumes.
+    # @scenario gh-post: A Discord post or edit is read from its file
+    def test_message_file_posts_the_files_text(self):
+        sent = []
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "m.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("User says: yes\nsecond line ✓")
+            d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message_file=path))
+        self.assertEqual(sent[0]["content"], "User says: yes\nsecond line ✓")
+
+    def test_message_file_dash_reads_standard_input_as_gh_body_file_does(self):
+        sent = []
+        with mock.patch.object(sys, "stdin", io.StringIO("piped")):
+            d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message_file="-"))
+        self.assertEqual(sent[0]["content"], "piped")
+
+    def test_a_missing_or_empty_message_file_is_refused(self):
+        sent = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(d.Failure, "cannot read --message-file"):
+                d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message_file=os.path.join(tmp, "no")))
+            path = os.path.join(tmp, "blank")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(" \n")
+            with self.assertRaisesRegex(d.Failure, "empty"):
+                d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message_file=path))
+            path = os.path.join(tmp, "binary")
+            with open(path, "wb") as f:
+                f.write(b"\xff\xfe")
+            with self.assertRaisesRegex(d.Failure, "cannot read --message-file"):
+                d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message_file=path))
+        self.assertEqual(sent, [])
+
+    def test_post_and_edit_take_one_of_message_and_message_file(self):
+        p = d.parser()
+        self.assertEqual(p.parse_args(["post", "--message-file", "m.md"]).message_file, "m.md")
+        self.assertEqual(p.parse_args(["edit", "--message-id", "5", "--message-file", "m.md"]).message_file, "m.md")
+        for argv in (["post"], ["post", "--message", "x", "--message-file", "m.md"],
+                     ["edit", "--message-id", "5"], ["edit", "--message-id", "5", "--message", "x", "--message-file", "m"]):
+            with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                p.parse_args(argv)
+
+
+    # A hook reads only the spellings --message and --message-file, so a shortened
+    # option would post text the hook never saw.
+    # @scenario gh-post: A Discord post or edit is read from its file
+    def test_post_and_edit_refuse_a_shortened_message_option(self):
+        p = d.parser()
+        for argv in (["post", "--message-fil", "m.md"], ["post", "--message-f=m.md"],
+                     ["edit", "--message-id", "5", "--message-fi", "m.md"]):
+            with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                p.parse_args(argv)
+
+
 class ReplyTo(unittest.TestCase):
     MSG = "123456789012345678"
 
@@ -332,6 +387,19 @@ class Edit(unittest.TestCase):
     def test_keeps_the_original_header(self):
         self.assertEqual(self.run_edit("👤 Scout  🎯 s  📦 p\nold text"), "👤 Scout  🎯 s  📦 p\nnew text")
 
+    # @scenario gh-post: A Discord post or edit is read from its file
+    def test_message_file_replaces_the_text_keeping_the_header(self):
+        sent = []
+        routes = guild_routes()
+        routes[("GET", "/channels/2/messages/55")] = {"id": "55", "content": "👤 Scout\nold text"}
+        routes[("PATCH", "/channels/2/messages/55")] = lambda body, query: sent.append(body) or {}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "m.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("User says: yes")
+            d.cmd_edit(FakeApi(routes), {}, args(channel="agents", message_id="55", message_file=path))
+        self.assertEqual(sent[0]["content"], "👤 Scout\nUser says: yes")
+
     def test_without_a_header_replaces_everything(self):
         self.assertEqual(self.run_edit("old text"), "new text")
 
@@ -353,9 +421,143 @@ class Read(unittest.TestCase):
         self.assertEqual(result["messages"][1]["attachments"], ["https://cdn/x.png"])
         self.assertEqual(api.calls[-1][3], {"limit": 10, "before": "9"})
 
+    # Hand-written in the form of Discord's API messages, newest first: a
+    # person's reply to post 12 by the relay (this script's bot, BOT), a
+    # webhook's (author.bot absent), another bot's, a forward, the relay's own,
+    # a person's plain message, and a malformed one.
+    MESSAGES = [
+        {"id": "16", "type": 19, "timestamp": "t16", "content": "<@500> which branch?",
+         "author": {"id": "501", "username": "maya"},
+         "message_reference": {"type": 0, "message_id": "12", "channel_id": "2", "guild_id": GUILD}},
+        {"id": "15", "type": 0, "timestamp": "t15", "content": "deploy done", "webhook_id": "700",
+         "author": {"id": "700", "username": "Deploys"}},
+        {"id": "14", "type": 0, "timestamp": "t14", "content": "<@500> ship it?",
+         "author": {"id": "902", "username": "igor-worker", "bot": True}},
+        {"id": "13", "type": 0, "timestamp": "t13", "content": "fwd",
+         "author": {"id": "501", "username": "maya"},
+         "message_reference": {"type": 1, "message_id": "4", "channel_id": "1", "guild_id": GUILD}},
+        {"id": "12", "type": 0, "timestamp": "t12", "content": "User says: main",
+         "author": {"id": BOT, "username": "relay", "bot": True}},
+        {"id": "9", "type": 0, "timestamp": "t9", "content": "plain", "author": {"id": "501", "username": "maya", "bot": False}},
+        # Malformed: no author, and a reply type with no message_reference.
+        {"id": "8", "type": 19, "timestamp": "t8", "content": "orphan"},
+    ]
+
+    def read_recorded(self):
+        routes = guild_routes()
+        routes[("GET", "/channels/2/messages")] = self.MESSAGES
+        return {m["messageId"]: m for m in d.cmd_read(FakeApi(routes), {}, args(channel="agents"))["messages"]}
+
+    # The answer service tells an agent's message by bot, and its relay's own by authorId.
+    # @scenario answer-service: A bot's message mentioning the relay first reaches the relay's person
+    def test_tells_a_bots_or_webhooks_message_from_a_persons(self):
+        got = self.read_recorded()
+        self.assertEqual({i: m["bot"] for i, m in got.items()},
+                         {"16": False, "15": True, "14": True, "13": False, "12": True, "9": False, "8": False})
+        self.assertEqual((got["14"]["author"], got["14"]["authorId"]), ("igor-worker", "902"))
+        self.assertEqual((got["12"]["author"], got["12"]["authorId"]), ("relay", BOT))
+        self.assertEqual((got["8"]["author"], got["8"]["authorId"]), ("unknown", None))
+
+    # On Discord, the answer service finds a reply to its relay's post by replyTo.
+    # @scenario answer-service: Replies to the relay on each surface are questions
+    def test_a_reply_names_the_message_it_answers(self):
+        got = self.read_recorded()
+        self.assertEqual(got["16"]["replyTo"], "12")
+        self.assertEqual([i for i, m in got.items() if "replyTo" in m], ["16"])
+
+    # In the form of Discord's API messages: flags bit 1 is IS_CROSSPOST, bit 0
+    # CROSSPOSTED (a message in an announcement channel that was published).
+    # @scenario answer-service: A Discord crosspost is a person's question
+    def test_flags_a_crosspost(self):
+        routes = guild_routes()
+        routes[("GET", "/channels/2/messages")] = [
+            {"id": "22", "type": 0, "timestamp": "t22", "content": "<@500> freeze tonight?", "webhook_id": "701",
+             "flags": 2, "author": {"id": "701", "username": "Announcements #releases", "bot": True},
+             "message_reference": {"type": 0, "message_id": "40", "channel_id": "41", "guild_id": "42"}},
+            {"id": "21", "type": 0, "timestamp": "t21", "content": "<@500> freeze tonight?", "webhook_id": "700",
+             "flags": 0, "author": {"id": "700", "username": "Deploys", "bot": True}},
+            {"id": "20", "type": 0, "timestamp": "t20", "content": "published", "flags": 1,
+             "author": {"id": "501", "username": "maya"}},
+            {"id": "19", "type": 0, "timestamp": "t19", "content": "no flags", "author": {"id": "501", "username": "maya"}},
+            {"id": "18", "type": 0, "timestamp": "t18", "content": "odd flags", "flags": True,
+             "author": {"id": "501", "username": "maya"}},
+        ]
+        got = {m["messageId"]: m for m in d.cmd_read(FakeApi(routes), {}, args(channel="agents"))["messages"]}
+        self.assertEqual({i: (m["bot"], m["crosspost"]) for i, m in got.items()},
+                         {"22": (True, True), "21": (True, False), "20": (False, False),
+                          "19": (False, False), "18": (False, False)})
+        self.assertNotIn("replyTo", got["22"])
+
     def test_limit_out_of_range_is_refused(self):
         with self.assertRaisesRegex(d.Failure, "between 1 and 100"):
             d.cmd_read(FakeApi(guild_routes()), {}, args(channel="agents", limit=101))
+
+
+class ReadThread(unittest.TestCase):
+    """Reading a thread, in the form of Discord's API messages.
+
+    The thread was started on message THREAD in channel PARENT; Discord gives
+    such a thread its starting message's id. Discord puts a placeholder
+    (type 21, no text) first in the thread to stand for that message."""
+
+    THREAD = "770000000000000001"
+    PARENT = "200000000000000002"
+    PLACEHOLDER = {"id": "770000000000000002", "type": 21, "timestamp": "t1", "content": "",
+                   "author": {"id": "501", "username": "maya"},
+                   "message_reference": {"message_id": THREAD, "channel_id": PARENT, "guild_id": GUILD}}
+    STARTER = {"id": THREAD, "type": 0, "timestamp": "t0", "content": "<@500> retry or fail fast?",
+               "author": {"id": "501", "username": "maya"},
+               "thread": {"id": THREAD, "name": "retries", "type": 11}}
+
+    def read(self, starter):
+        routes = {
+            ("GET", f"/channels/{self.THREAD}"): channel(self.THREAD, "retries", ctype=11),
+            ("GET", f"/channels/{self.THREAD}/messages"): [
+                {"id": "770000000000000004", "type": 0, "timestamp": "t3", "content": "",
+                 "author": {"id": "902", "username": "igor-worker", "bot": True},
+                 "embeds": [{"title": "CI passed"}]},
+                {"id": "770000000000000003", "type": 0, "timestamp": "t2", "content": "fail fast",
+                 "author": {"id": "503", "username": "ana"}},
+                self.PLACEHOLDER,
+            ],
+            ("GET", f"/channels/{self.PARENT}/messages/{self.THREAD}"): starter,
+        }
+        api = FakeApi(routes)
+        return d.cmd_read(api, {}, args(thread=self.THREAD)), api
+
+    # @scenario answer-service: A thread's first message is read through its placeholder
+    def test_the_first_message_is_read_through_its_placeholder(self):
+        result, _ = self.read(self.STARTER)
+        messages = result["messages"]
+        self.assertEqual([m["messageId"] for m in messages], ["770000000000000003", self.THREAD])
+        first = messages[-1]
+        self.assertEqual((first["content"], first["author"], first["bot"]), ("<@500> retry or fail fast?", "maya", False))
+        self.assertNotIn("replyTo", first)
+
+    def test_a_deleted_first_message_is_left_out(self):
+        result, _ = self.read(d.Failure("Unknown Message", status=404, code=10008))
+        self.assertEqual([m["messageId"] for m in result["messages"]], ["770000000000000003"])
+
+    def test_other_failures_reading_the_first_message_are_raised(self):
+        with self.assertRaisesRegex(d.Failure, "Missing Access"):
+            self.read(d.Failure("Missing Access", status=403, code=50001))
+
+    def test_a_placeholder_without_a_usable_reference_is_left_out(self):
+        for reference in (None, {}, {"message_id": self.THREAD}, {"message_id": "../x", "channel_id": self.PARENT},
+                          {"message_id": 7, "channel_id": self.PARENT}):
+            placeholder = dict(self.PLACEHOLDER)
+            if reference is None:
+                del placeholder["message_reference"]
+            else:
+                placeholder["message_reference"] = reference
+            with mock.patch.object(self, "PLACEHOLDER", placeholder):
+                result, api = self.read(self.STARTER)
+            self.assertEqual([m["messageId"] for m in result["messages"]], ["770000000000000003"])
+            self.assertFalse([c for c in api.calls if c[1].startswith(f"/channels/{self.PARENT}")])
+
+    def test_an_empty_first_message_is_left_out(self):
+        result, _ = self.read(dict(self.STARTER, content="", embeds=[{"title": "x"}]))
+        self.assertEqual([m["messageId"] for m in result["messages"]], ["770000000000000003"])
 
 
 class Thread(unittest.TestCase):

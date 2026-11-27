@@ -24,9 +24,6 @@ does if the fact does not hold.
   describes the weakness there, only on the word of the advisory's
   publisher. If the fork merges only at publication, the agent does so
   without that word.
-- **Can an Igor worker's `gh` post from a login in the home directory igor
-  gives it?** (task 0.14) If it can, a worker could post outside its
-  Igor: a breach to report to igor. The skill does the same either way.
 - **Can the Igor run `branch-search` and read a collaborator's
   permission?** (task 0.29) Without the first, the call fails and the
   worker's search names each questions branch as not searched; without
@@ -68,24 +65,6 @@ does if the fact does not hold.
 - **Which Linear app user is an Igor's?** (task 0.38) If no form tells an
   Igor's app user from another, no Linear comment is a handback, and the
   README says so.
-
-### Decisions for the repository's owner
-
-- **How is a session with a person in it told on a host other than Claude
-  Code?** `CLAUDE_CODE_SESSION_ATTENDED` is Claude Code's own, so on any
-  other host every session counts as having no person in it, and no rule
-  for a session with a person in it ever applies there.
-- **Should github-app's environment count as proof that a post goes out
-  as an App?** In a project github-app's `wire` set up, its `env` sets
-  `GITHUB_APP_ACT_AS` and `GIT_AUTHOR_NAME` but no token, so a plain `gh`
-  post there goes out as the person while the script counts it as the
-  App's, and the question tags the configured login on the person's own
-  post. The choice is between changing github-app, narrowing the script's
-  rule, and accepting the gap.
-- **Where does the sequencer's marker rule live?** *A sequencer block's
-  update keeps a numbered reply* relies on the sequencer change's
-  markers, and this change cannot name that change in a `Builds on:` line,
-  since the sequencer change already builds on this one.
 
 ### Outside this change
 

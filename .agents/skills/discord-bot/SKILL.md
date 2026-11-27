@@ -92,8 +92,11 @@ python3 $D post --channel agents --agent Scout --session pr-review --project "re
 ```
 
 - `--channel` takes a name or an id; leave it out for the default channel.
-- `--message -` reads the text from standard input. Use it for anything with
-  quotes or several lines.
+- Give the text with `--message "<text>"`, or write it to a file and pass
+  `--message-file <path>`, which spares quoting text with quotes or several
+  lines. Avoid `--message -` (standard input): a hook that vets posts before
+  they go out, such as prose's, reads `--message` and the file, never
+  standard input.
 - Discord's limit is 2,000 characters, header included. A longer message is
   refused, not cut: shorten it or post in parts.
 - `--reply-to <messageId>` posts it as a reply to that message, which must be
@@ -138,8 +141,11 @@ python3 $D read --channel agents --limit 20
 python3 $D read --channel agents --limit 100 --before <oldest messageId seen>
 ```
 
-Newest first, up to 100 per call; `--before` pages further back. A message that
-has a thread carries its `threadId`. If `check` showed `"messageContent": false`,
+Newest first, up to 100 per call; `--before` pages further back. Each message
+carries its `author` username and `authorId`; `bot`, true for a bot's or a
+webhook's message; and `crosspost`, true for a message copied in from an
+announcement channel this channel follows. A reply carries `replyTo`, the id of
+the message it answers, and a message that has a thread carries its `threadId`. If `check` showed `"messageContent": false`,
 Discord sends other people's messages without their text, and `read` leaves
 them out. Messages the bot posted, and those that mention it, still come back.
 
@@ -154,7 +160,8 @@ python3 $D post   --thread <threadId> --agent Scout --session pr-review --projec
 python3 $D read   --thread <threadId>
 ```
 
-Address a thread by its `threadId`, never by name. A message can carry only one
+`read --thread` lists, last, the message the thread was started from, though
+Discord keeps that message in the parent channel. Address a thread by its `threadId`, never by name. A message can carry only one
 thread; starting a second fails with status 409.
 
 ## Editing and deleting
@@ -164,7 +171,7 @@ python3 $D edit   --channel agents --message-id <id> --message "Corrected text"
 python3 $D delete --channel agents --message-id <id>
 ```
 
-Add `--thread <threadId>` for a message inside a thread. `edit` keeps the
+`edit` takes `--message-file` too. Add `--thread <threadId>` for a message inside a thread. `edit` keeps the
 message's header and replaces the rest; to fix a wrong header, delete and post
 again.
 
