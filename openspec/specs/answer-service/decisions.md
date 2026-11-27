@@ -2,10 +2,10 @@
 
 ## Constraints
 
-- **Constraint: The inquisitor's GitHub post hook and the refusals asked of github-app and linear-app, to hand a relay identity's token to no command that can print it, guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
-  Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
+- **Constraint: Two guards stop only accidents: the inquisitor's post hook, and linear-app's refusal to hand a relay identity's token to a command that can print it. The same refusal, asked of github-app, would too. An agent set on forging a relayed answer can read a relay's credentials from the keychain and post with `curl`.**
+  Because: each guard stops an agent that posts through the skills as the skills' instructions say, and an agent that works around them still has the person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
-  Holds while: a relay identity's key sits where the person's own agents can read it.
+  Holds while: a relay identity's credentials sit where the person's own agents can read them.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
 - **Constraint: While github-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**

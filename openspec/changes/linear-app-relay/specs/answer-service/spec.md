@@ -1,72 +1,5 @@
 ## MODIFIED Requirements
 
-### Requirement: Setup checks each relay identity before its channels are used
-
-Setup SHALL check, showing failures and fixes: each relay identity by
-its skill's check; on Discord, that `messageContent` is `true`; on
-Linear, that linear-app's `check` reports `relay` as `true`; and posting
-in each subscribed channel. The Linear check's fix SHALL be adding
-`"relay": true` to that identity's linear-app config, because linear-app's
-`token` and `headers` print an unmarked identity's token. A channel is **on** while its
-identity and posting checks last passed, else **off**. A channel whose
-posting permission no check can read SHALL count as on, shown
-not checked, until a post there is refused for permission. An off
-channel SHALL not be read or posted in; each opening of the answer service SHALL rerun
-failed and unrun checks.
-
-#### Scenario: Refused member search does not fail setup
-
-- **WHEN** discord-bot's `check` reports `messageContent` as `true` and
-  `memberSearch`, whether the bot may look up members to mention them, as
-  `false`, and every other check passes
-- **THEN** setup counts the Discord relay's check as passed
-
-#### Scenario: A channel the relay cannot post in is off alone
-
-- **WHEN** setup finds that the Discord relay cannot post in one of two
-  subscribed Discord channels, and can post in the other
-- **THEN** setup shows the failure and its fix, saves both channels, and
-  the answer service reads and posts in the other channel only
-
-#### Scenario: A failed identity check turns off its whole surface
-
-- **WHEN** the GitHub relay's own github-app check fails
-- **THEN** every subscribed GitHub channel stays off
-
-#### Scenario: A relay that cannot read message content keeps Discord off
-
-- **WHEN** discord-bot's `check` reports, for the Discord relay,
-  `messageContent` as `false`, or as `null` when it could not read the
-  bot's application flags
-- **THEN** setup says to turn on the bot's Message Content intent, or why
-  the check could not read it, and every Discord channel stays off
-- **AND** only `messageContent` as `true` passes, whatever `check`
-  reports as `memberSearch`
-
-#### Scenario: A posting check no check can read is shown as not checked
-
-- **WHEN** no check can read whether the Linear relay may post in a
-  subscribed team, and the relay's own check passes
-- **THEN** setup shows the team's posting check as not checked, never as
-  passed, and the team counts as on
-- **AND** once Linear refuses a relay post there for lack of permission,
-  the refusal counts as a failed posting check: the post is handled as *A failed relay post is
-  reported to the person* says, and the team stays off until the next
-  opening
-
-#### Scenario: An opening reruns a failed check
-
-- **WHEN** a Discord channel is off because its posting check failed, and
-  at the next opening that check passes
-- **THEN** the channel is on, and the answer service reads and posts in it
-
-#### Scenario: An unmarked Linear relay keeps Linear off
-
-- **WHEN** linear-app's `check` passes for the identity `inquisitor.json`
-  names as the Linear relay but reports `relay` as `false`
-- **THEN** setup shows the Linear relay's check as failed, with the fix,
-  and every Linear channel stays off
-
 ### Requirement: A relay post is posted by a host command, unvetted
 
 The answer service SHALL post by a host command, never the model's tool
@@ -105,21 +38,23 @@ shapes* and post none that matches.
 
 #### Scenario: A Linear relay post goes through linear-app
 
-- **WHEN** the person relays an answer to a Linear question, and later
-  edits it, and the service deletes an automatic Linear post
+- **WHEN** the person relays an answer to a Linear question and later
+  edits it; separately, the service deletes one of its own automatic
+  Linear posts (*An automatic post is deleted when another relay post
+  came first*)
 - **THEN** the answer service posts the answer with linear-app's `post`,
-  edits it with `edit` and deletes the automatic post with `delete`, the
-  text on standard input, and no command or
-  request of the service's own holds the relay's token
+  edits it with `edit` and deletes the automatic post with `delete`, each
+  post's or edit's text in a private file named by `--body-file`, and no
+  request the service makes itself holds the relay's token
 
 ### Requirement: The README warns that a relay's token can be printed
 
 While github-app hands a relay identity's token to a command that can
 print it, the inquisitor's README SHALL say that any agent on the person's
 machine can print that token and post `User says: ` unseen by the post
-hooks. It SHALL give no such warning for Linear: linear-app prints no
-marked relay's token, and setup keeps Linear off until the Linear relay
-is marked.
+hooks. No linear-app command prints a relay identity's token (linear-app
+spec: *No command prints a relay identity's token*), so this warning,
+which is about a printed token, does not cover Linear.
 
 #### Scenario: The README warns that a relay's token can be printed
 

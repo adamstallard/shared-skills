@@ -13,7 +13,11 @@ HTTP call (shared-skills issue #112).
 
 ## What Changes
 
-- linear-app marks relay identities, refuses to print their tokens, keeps
-  their tokens out of files, and gains `post`, `edit` and `delete`
-  commands, which the answer service uses on Linear in place of its own
-  HTTP request.
+- The identity the inquisitor's configuration names as its Linear relay
+  is a relay identity: linear-app refuses to print its token and keeps
+  that token in the keychain, out of linear-app's state folder.
+  linear-app also gains `post`, `edit` and `delete` commands, which the
+  answer service uses on Linear in place of its own HTTP request. The
+  inquisitor's post hook reads the text of a `post` or `edit` an agent
+  runs as a tool call, so it blocks one starting `User says: `; the
+  answer service's own runs are host commands, which no hook sees.
