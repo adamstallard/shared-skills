@@ -1921,6 +1921,44 @@ class ResultBlock(unittest.TestCase):
         self.assertEqual(run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host",
                               "claude"], cwd=root, stdin=quiet).returncode, 0)
 
+    def test_without_the_shared_reader_every_call_that_may_post_is_blocked(self):
+        # Nothing stands in for the reader, so a prose line whose goals name
+        # gh is blocked too.
+        root = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        scripts = root / "skills" / "prose" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("prose.py", "comment_scan.py"):
+            shutil.copy(HERE / name, scripts / name)
+        command = "python3 /x/prose.py start --goals 'reply on the gh pr comment thread'"
+        for host, payload in (
+                ("claude", {"tool_name": "Bash", "cwd": str(root),
+                            "tool_input": {"command": command}}),
+                ("claude", {"tool_name": "Bash", "cwd": str(root), "tool_input": {
+                    "command": "python3 /s/discord_bot.py post --channel 1 --message hi"}}),
+                ("claude", {"tool_name": "mcp__github__add_issue_comment", "cwd": str(root),
+                            "tool_input": {"body": "hi"}}),
+                ("cursor", {"command": command, "cwd": str(root)}),
+                # Its `command` is the server's launch line, which names no gh:
+                # the call must still count as a GitHub MCP call.
+                ("cursor", {"tool_name": "add_issue_comment", "mcp_server_name": "github",
+                            "command": "npx -y @modelcontextprotocol/server-github",
+                            "tool_input": json.dumps({"body": "x"})})):
+            with self.subTest(host=host, payload=payload):
+                result = run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host",
+                              host], cwd=root, stdin=json.dumps(payload))
+                said = result.stderr if host == "claude" else result.stdout
+                self.assertEqual(result.returncode, 2 if host == "claude" else 0, said)
+                self.assertIn("manage-skills/scripts/skills.py doctor", said)
+        # The gate, which blocks a session's first post, says to fix the
+        # install first.
+        gate = {"tool_name": "Bash", "cwd": str(root), "session_id": "s-missing-reader",
+                "tool_input": {"command": "gh pr comment 5 --body hi"}}
+        result = run([sys.executable, str(scripts / "prose.py"), "hook-gate"], cwd=root,
+                     stdin=json.dumps(gate), env=dict(os.environ, XDG_STATE_HOME=str(root)))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("Fix the install first", result.stdout)
+
     def test_a_failing_result_block_leaves_the_token_unspent(self):
         # Only a printed trailer spends the token: if the result block cannot
         # be printed, the same signing call can run again.
