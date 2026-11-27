@@ -1,0 +1,13 @@
+[
+  {
+    "version": 1,
+    "status": "pushed",
+    "path": "questions/2026-10-20-should-retries-back-off-3f9a1c.md"
+  },
+  {
+    "version": 1,
+    "status": "failed",
+    "path": null,
+    "why": "the push was refused: no write access"
+  }
+]

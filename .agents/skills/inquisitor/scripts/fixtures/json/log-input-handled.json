@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "kind": "handled",
+  "branch": {
+    "repository": "o/api"
+  },
+  "closes": "2026-10-20-should-retries-back-off-3f9a1c.md"
+}

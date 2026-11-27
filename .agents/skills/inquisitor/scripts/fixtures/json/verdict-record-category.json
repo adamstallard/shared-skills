@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "hash": "<sha256 of the question's text>",
+  "verdict": "ask",
+  "time": 1792483200.0,
+  "category": "secret"
+}

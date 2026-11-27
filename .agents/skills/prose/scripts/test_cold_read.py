@@ -579,6 +579,16 @@ class ColdReadFindings(unittest.TestCase):
             if problem != "holds only its first line":
                 self.assertIn("'Item <item>: read straight through.'", result.stderr)
 
+    def test_could_not_tell_why_is_a_kind_of_finding(self):
+        self.refused(self.signing("--cold-read", cold_report(
+            self.token, "Finding 1, item 1, could not tell: «It runs there.» Why?\n",
+            name="why-bad")), "a line prose cannot read")
+        report = cold_report(self.token, "Finding 1, item 1, could not tell why: «It runs "
+                                         "there.» Why there?\n", name="why")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): a test"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
     def test_a_finding_may_go_on_over_indented_lines(self):
         report = cold_report(self.token, "Finding 1, item 1, guessed: «It runs there.»\n"
                                          "   What runs, and where?\n", name="wrapped")
@@ -833,9 +843,10 @@ class FixedItemChanged(unittest.TestCase):
         self.repo.write("a.py", "x = 1\n")
         self.repo.commit("base\n")
 
-    def signed_after_fix(self, files, fixes, item=1, items=1, deleted=()):
-        """The signing call after a brief over files, {path: text}, a report
-        with one finding in item, marked fixed, and fixes staged."""
+    def signed_after_fix(self, files, fixes, item=1, items=1, deleted=(), quote="x"):
+        """The signing call after a brief over files, {path: text}; a
+        report with one finding, in the given item and quoting the given
+        words, marked fixed; and fixes, {path: text}, staged."""
         for path, text in files.items():
             self.repo.write(path, text)
         first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin="FEAT(x): a\n")
@@ -844,7 +855,7 @@ class FixedItemChanged(unittest.TestCase):
                                               stdin="FEAT(x): a\n")
         needed = sign()
         self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
-        lines = [f"Finding 1, item {item}, guessed: «x» Which call?"] + [
+        lines = [f"Finding 1, item {item}, guessed: «{quote}» Which call?"] + [
             f"Item {n}: read straight through." for n in range(1, items + 1) if n != item]
         report = cold_report(token, "\n".join(lines) + "\n", name="item-changed",
                              understood=items)
@@ -898,6 +909,43 @@ class FixedItemChanged(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_refused(self.signed_after_fix(
             {"guide.md": before}, {"guide.md": before.replace("Old text.", "Old.")}), 1)
+
+    def test_quoted_words_beside_the_passage_edited_away_count(self):
+        # The passage is only the changed line 3. The reader quotes lines 4
+        # and 5, which the brief shows beside it, with a doubled space, and
+        # the author rewords exactly those words.
+        doc = "# Guide\n\nThe passage.\nIts neighbour runs\nthere, unchanged.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        before = doc.replace("The passage.", "The passage, changed.")
+        after = before.replace("runs\nthere", "runs in the clone")
+        result = self.signed_after_fix({"guide.md": before}, {"guide.md": after},
+                                       quote="neighbour  runs there,")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_quoted_words_are_matched_as_whole_words(self):
+        # Each quote's words stay in the file only inside a longer word.
+        doc = "# Guide\n\nThe passage.\nIt reruns and runs the neighbours' neighbour.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        before = doc.replace("The passage.", "The passage, changed.")
+        for quote, after in (("runs the", before.replace("reruns and runs the", "reruns the")),
+                             ("neighbour", before.replace("' neighbour", "' friend"))):
+            result = self.signed_after_fix({"guide.md": before}, {"guide.md": after},
+                                           quote=quote)
+            self.assertEqual(result.returncode, 0, f"«{quote}»: {result.stderr}")
+
+    def test_quoted_words_still_in_the_file_or_never_in_it_do_not_count(self):
+        doc = "# Guide\n\nThe passage.\nIts neighbour runs there.\n\nIt runs there too.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        before = doc.replace("The passage.", "The passage, changed.")
+        after = before.replace("neighbour runs there", "neighbour runs in the clone")
+        self.assert_refused(self.signed_after_fix({"guide.md": before}, {"guide.md": after},
+                                                  quote="runs there"), 1)
+        # A quote the brief-time text never held is no evidence of an edit.
+        self.assert_refused(self.signed_after_fix({"guide.md": before}, {"guide.md": after},
+                                                  quote="walks there"), 1)
 
     def test_a_removed_passage_or_a_deleted_file_counts(self):
         doc = "# Guide\n\nOld text.\n"

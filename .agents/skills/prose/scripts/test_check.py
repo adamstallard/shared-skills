@@ -48,7 +48,7 @@ class RulesFile(unittest.TestCase):
 
     GOOD = ("# Title\n\nPrinciple.\n\n## Scope\n\nS.\n\n## The pass\n\nP.\n\n"
             "## The rules, most important first\n\n"
-            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 10))
+            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, prose.RULES_IN_FULL + 1))
             + "## How agents cheat on this pass\n\n- One.\n")
 
     def read(self, text):
@@ -73,7 +73,7 @@ class RulesFile(unittest.TestCase):
     def test_a_good_file_splits_into_its_parts(self):
         preamble, heading, rules, cheats = self.read(self.GOOD)
         self.assertEqual(heading, "## The rules, most important first")
-        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 10)])
+        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, prose.RULES_IN_FULL + 1)])
         self.assertEqual(rules[0][2], "### 1. Rule 1\nBody 1.")
 
     def test_a_missing_or_misordered_section_is_refused(self):
@@ -875,8 +875,9 @@ class Check(unittest.TestCase):
             self.assertIn(f"\n### {number}. ", out)
         self.assertIn("Before: The hook reports commits landed without trailers skipped.", out)
         self.assertIn("a sentence lengthened to read once beats a shorter one read twice", out)
-        self.assertIn("  [ ] 10. Say who acts", out)
-        self.assertIn("  [ ] 14. Commit subject says what changed; the body says why", out)
+        self.assertIn("\n### 6. Say who acts, and on what, by the words alone\n", out)
+        self.assertIn("  [ ] 11. One scope line instead of scattered hedges", out)
+        self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
     def listing(self, out):
@@ -1219,7 +1220,7 @@ class Check(unittest.TestCase):
 
     def test_the_rules_hold_a_doc_to_what_is(self):
         out = self.check().stdout
-        self.assertIn("### 8. What is, not how it got here", out)
+        self.assertIn("### 9. What is, not how it got here", out)
         self.assertIn("A narrow role's unused", out)
         self.assertIn("Labelling the past does not make it worth keeping", out)
         self.assertIn("Keeping context a reviewer needed in a document whose reader never will", out)
@@ -1234,7 +1235,7 @@ class Check(unittest.TestCase):
 
     def test_the_rules_ask_for_a_reason_instead_of_a_catchphrase(self):
         out = self.check().stdout
-        self.assertIn("### 7. Plain words, and reasons instead of catchphrases", out)
+        self.assertIn("### 8. Plain words, and reasons instead of catchphrases", out)
         self.assertIn("A claim is stated once, with its reason", out)
         self.assertIn("grep the repository for it", out)
         self.assertIn("Repeating a phrase that sounds like a reason in place of the reason.", out)

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "questions": [
+    {
+      "kind": "picker",
+      "question": "Should retries back off?",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "concerns": {
+        "repository": "o/api"
+      },
+      "files": [
+        "src/retry.py"
+      ]
+    },
+    {
+      "kind": "text",
+      "question": "Should every service cap retries at a minute?",
+      "concerns": {
+        "lore": "o/lore",
+        "asked_from": "o/api"
+      }
+    },
+    {
+      "kind": "picker",
+      "question": "Do you prefer short commit subjects?",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "concerns": {}
+    }
+  ]
+}

@@ -353,6 +353,53 @@ class Read(unittest.TestCase):
         self.assertEqual(result["messages"][1]["attachments"], ["https://cdn/x.png"])
         self.assertEqual(api.calls[-1][3], {"limit": 10, "before": "9"})
 
+    # Hand-written in the form of Discord's API messages, newest first: a
+    # person's reply to the relay bot's post 12, a webhook's (author.bot absent),
+    # another bot's, a forward, the relay bot's own, the system message that
+    # opens a thread, and a person's plain message.
+    MESSAGES = [
+        {"id": "16", "type": 19, "timestamp": "t16", "content": "<@500> which branch?",
+         "author": {"id": "501", "username": "maya"},
+         "message_reference": {"type": 0, "message_id": "12", "channel_id": "2", "guild_id": GUILD}},
+        {"id": "15", "type": 0, "timestamp": "t15", "content": "deploy done", "webhook_id": "700",
+         "author": {"id": "700", "username": "Deploys"}},
+        {"id": "14", "type": 0, "timestamp": "t14", "content": "<@500> ship it?",
+         "author": {"id": "902", "username": "igor-worker", "bot": True}},
+        {"id": "13", "type": 0, "timestamp": "t13", "content": "fwd",
+         "author": {"id": "501", "username": "maya"},
+         "message_reference": {"type": 1, "message_id": "4", "channel_id": "1", "guild_id": GUILD}},
+        {"id": "12", "type": 0, "timestamp": "t12", "content": "User says: main",
+         "author": {"id": BOT, "username": "relay", "bot": True}},
+        {"id": "11", "type": 21, "timestamp": "t11", "content": "started here",
+         "author": {"id": "501", "username": "maya"},
+         "message_reference": {"message_id": "10", "channel_id": "2", "guild_id": GUILD}},
+        {"id": "9", "type": 0, "timestamp": "t9", "content": "plain", "author": {"id": "501", "username": "maya", "bot": False}},
+        # Malformed: no author, and a reply type with no message_reference.
+        {"id": "8", "type": 19, "timestamp": "t8", "content": "orphan"},
+    ]
+
+    def read_recorded(self):
+        routes = guild_routes()
+        routes[("GET", "/channels/2/messages")] = self.MESSAGES
+        return {m["messageId"]: m for m in d.cmd_read(FakeApi(routes), {}, args(channel="agents"))["messages"]}
+
+    # The answer service tells an agent's message by bot, and its relay's own by authorId.
+    # @scenario answer-service: A bot's message mentioning the relay first reaches the relay's person
+    def test_tells_a_bots_or_webhooks_message_from_a_persons(self):
+        got = self.read_recorded()
+        self.assertEqual({i: m["bot"] for i, m in got.items()},
+                         {"16": False, "15": True, "14": True, "13": False, "12": True, "11": False, "9": False, "8": False})
+        self.assertEqual((got["14"]["author"], got["14"]["authorId"]), ("igor-worker", "902"))
+        self.assertEqual((got["12"]["author"], got["12"]["authorId"]), ("relay", BOT))
+        self.assertEqual((got["8"]["author"], got["8"]["authorId"]), ("unknown", None))
+
+    # On Discord, the answer service finds a reply to its relay's post by replyTo.
+    # @scenario answer-service: Replies to the relay on each surface are questions
+    def test_a_reply_names_the_message_it_answers(self):
+        got = self.read_recorded()
+        self.assertEqual(got["16"]["replyTo"], "12")
+        self.assertEqual([i for i, m in got.items() if "replyTo" in m], ["16"])
+
     def test_limit_out_of_range_is_refused(self):
         with self.assertRaisesRegex(d.Failure, "between 1 and 100"):
             d.cmd_read(FakeApi(guild_routes()), {}, args(channel="agents", limit=101))

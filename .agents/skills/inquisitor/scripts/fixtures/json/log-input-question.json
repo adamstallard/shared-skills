@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "kind": "question",
+  "branch": {
+    "repository": "o/api"
+  },
+  "question": "Should retries back off?\nRelated: https://github.com/o/api/pull/3\nConcerns: o/api\n@alice",
+  "repository": "o/api",
+  "asked": "2026-10-20",
+  "asked_in": "https://github.com/o/api/pull/12#issuecomment-1001"
+}
