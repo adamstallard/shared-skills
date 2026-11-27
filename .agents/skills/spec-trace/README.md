@@ -117,7 +117,12 @@ A GitHub Actions workflow, for example `.github/workflows/spec-trace.yml`:
 
 ```yaml
 name: spec-trace
-on: [push, pull_request]
+on:
+  push:
+    # No check on the inquisitor skill's `questions` branch, which has no
+    # openspec/. The text after this workflow says why.
+    branches-ignore: [questions]
+  pull_request:
 jobs:
   spec-trace:
     runs-on: ubuntu-latest
@@ -142,6 +147,12 @@ jobs:
 tags. The checker reads the specs through the OpenSpec CLI, which needs
 Node 20.19 or later. Without the OpenSpec CLI, `check` prints `not run:
 install OpenSpec 1.15.0 or later` and fails the step.
+
+Pushes to a branch named `questions` don't run the check. In a tree with no
+`openspec/`, `check` fails with `no openspec/`, and the inquisitor skill keeps
+its question records on an orphan `questions` branch that has none. Keep the
+`branches-ignore` line even without inquisitor: it skips nothing else. Pull requests
+run the check from any branch.
 
 The SHA pins the exact checker your CI runs. A branch name would let a
 change to shared-skills fail your CI, or pass it, without any change in your
