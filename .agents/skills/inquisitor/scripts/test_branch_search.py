@@ -405,6 +405,10 @@ class Landed(Base):
                 mock.patch.object(branch_search, "gh_json", return_value=None), \
                 mock.patch.object(branch_search, "_origin", return_value="o/api"):
             self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], False)
+        with mock.patch.object(branches, "landed", return_value=None), \
+                mock.patch.object(branch_search, "gh_json", side_effect=compared), \
+                mock.patch.object(branch_search, "_origin", return_value="o/api"):
+            self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], True)
         for hit in hits.values():
             self.assertIn(hit.get("reason", "input"),
                           ("unconfirmed", "unanswered", "miss", "superseded", "unreadable", "input"))
@@ -419,6 +423,7 @@ def run_command(fn: Any, args: Any, files: list[BF] | None, stdin: str = "") -> 
             mock.patch.object(branches, "fetch", return_value=fetched), \
             mock.patch.object(branches, "list_files", return_value=files), \
             mock.patch.object(branch_search, "is_lore_repository", return_value=False), \
+            mock.patch.object(branch_search, "checkout", return_value=Path(home)), \
             mock.patch("sys.stdin", io.StringIO(stdin)), redirect_stdout(out):
         code = fn(args)
     assert code == 0
@@ -455,6 +460,19 @@ class Commands(Base):
             with redirect_stdout(out), self.assertRaises(Refused):
                 run_command(fn, args, None)
             self.assertEqual(out.getvalue(), "")
+        f = bf(question_file(1))
+        self.assertIsNone(branch_search.read_branch("o/api", None, True))
+        self.assertIsNone(branch_search.read_branch("o/../x", Path("/x"), True))
+        args = branch_search.BranchSearchArgs("o/api")
+        with mock.patch.object(branch_search, "checkout", return_value=None), \
+                mock.patch.object(branches, "list_files", return_value=[f]), \
+                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
+            branch_search.run_branch_search(args)
+        with mock.patch.object(branch_search, "checkout", return_value=Path("/x")), \
+                mock.patch.object(branches, "fetch", return_value=False), \
+                mock.patch.object(branches, "list_files", return_value=[f]), \
+                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
+            branch_search.run_branch_search(args)
 
     def test_miss_check(self) -> None:
         # @scenario inquisitor: The miss check says only whether the reply is backed

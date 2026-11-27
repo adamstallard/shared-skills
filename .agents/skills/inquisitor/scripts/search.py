@@ -16,10 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import branches
 import config
 import github
-from branch_search import (Checks, Labelled, cache_clone, count_terms, gh_json, label_branch,
+from branch_search import (Checks, Labelled, checkout, count_terms, gh_json, label_branch, read_branch,
                            question_terms, rank)
 from common import VERSION, Refused, igor_run, print_json, service_state_dir
 from contracts import CloneFreshness, Concerns, QuestionIn, SearchHit, SearchInput, SearchResult
@@ -51,12 +50,6 @@ def _git(clone: Path, *args: str, stdin: str | None = None) -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None
     return done.stdout if done.returncode == 0 else None
-
-
-def toplevel(directory: Path) -> Path | None:
-    """The git working tree holding directory, or None."""
-    out = _git(directory, "rev-parse", "--show-toplevel")
-    return Path(out.strip()) if out and out.strip() else None
 
 
 def origin_repository(clone: Path) -> str | None:
@@ -453,7 +446,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
     if run is not None:
         sys.stderr.write(f"inquisitor: {IGOR_NOTE}\n")
 
-    work = toplevel(Path.cwd()) if not service else None
+    work = checkout() if not service else None
     work_repo = origin_repository(work) if work is not None else None
 
     # The repository's decision documents, issues and questions branch, each
@@ -504,8 +497,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             configured = {lore.repository for lore in cfg.lore}
             served = {lore.repository for lore in serving(cfg.lore, concerns)}
             if run is None and repo not in served:
-                hits += _branch(repo, repo in configured,
-                                clone if service else (work if work_repo == repo else None),
+                hits += _branch(repo, repo in configured, clone if service else work,
                                 service, fetch, checks, wanted, work, not_searched)
             elif run is not None:
                 not_searched.append(f"questions branch of {repo}: {IGOR_NOTE}; searched through "
@@ -588,16 +580,12 @@ def _worker_docs(work: Path | None, repo: str, wanted: set[str]) -> list[SearchH
 def _branch(repository: str, lore_branch: bool, clone: Path | None, service: bool, fetch: bool,
             checks: Checks, wanted: set[str], work: Path | None, not_searched: list[str]) -> list[SearchHit]:
     """One questions branch's hits, fetched first unless fetch is False."""
-    if clone is None:
-        if service:
-            return []
-        clone = cache_clone(repository)
-    if fetch and not branches.fetch(clone, repository):
-        not_searched.append(f"questions branch of {repository}: it cannot be fetched")
+    if clone is None and service:
         return []
-    files = branches.list_files(clone, repository)
+    files = read_branch(repository, clone, fetch)
     if files is None:
-        not_searched.append(f"questions branch of {repository}: it cannot be read")
+        not_searched.append(f"questions branch of {repository}: it cannot be fetched or read"
+                            + ("" if clone else " without a local git repository"))
         return []
     labelled = label_branch(files, repository, lore_branch, checks, clone=clone)
     return branch_hits(labelled, wanted, repository, work)
