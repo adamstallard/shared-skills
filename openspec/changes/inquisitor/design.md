@@ -465,12 +465,12 @@ again when something around it has changed, and the only way to remove it
 would be for a person to read a question and answer that no person should
 have to read.
 
-#### An answer without authority stays in its log file
+#### An answer that is not a decision stays on the questions branch
 
-**Rule:** inquisitor spec, *Any other answer is input, kept only in its log
-file*.
+**Rule:** inquisitor spec, *Any other answer is input, kept only on the
+questions branch*.
 
-**Why** never in a decision document: on the current work's branch a
+**Why** it is kept on the questions branch: filter 1 shows it there as input. **Why** it never goes in a decision document: on the current work's branch a
 decision document counts as an answer, so the agent's own write would turn
 input into a decision.
 

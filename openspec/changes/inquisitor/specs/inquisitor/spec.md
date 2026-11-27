@@ -2483,19 +2483,21 @@ decision only from a person with write access* still applies.
   `alice`
 - **THEN** the file records the answer with `authority: input`
 
-### Requirement: Any other answer is input, kept only in its log file
+### Requirement: Any other answer is input, kept only on the questions branch
 
-Any answer that *An answer is a decision only from a person with write access* does not make `decision`, such as one read in a file, an
-issue, or a chat or tracker message, SHALL be `input`, recorded only in the
-question's log file and never in a decision document. An answer in a post
-by a person without write access leaves its question unanswered.
+Any answer that is not a `decision` under *An answer is a decision only
+from a person with write access*, such as one read in a file, an issue,
+or a chat or tracker message, SHALL be `input`, recorded only in an
+answer file (a log file recording an answer) on the questions branch and
+never in a decision document. An `input` answer, such as one in a post
+by a person without write access, leaves its question unanswered.
 
 #### Scenario: An answer without authority leaves the question open
 
 - **WHEN** a person without write access answers, in a post, a question
   about the current change's spec
-- **THEN** the agent records the answer only in the question's log file, as
-  `input`, not in the spec, and filter 1 does not treat it as an answer
+- **THEN** the agent records the answer only in an answer file on the
+  questions branch, as `input`, not in that spec, and filter 1 does not treat it as an answer
 
 ### Requirement: A question is pushed to the questions branch of what it concerns
 
@@ -3522,8 +3524,9 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 #### Scenario: What a log file's body holds
 
 - **WHEN** a log file is written
-- **THEN** its body holds the question under `## Question` and, once the
-  answer comes, the answer under `## Answer`: for a github.com
+- **THEN** its body holds the question under `## Question` and, in a
+  file that records an answer, `input` or `decision`, the answer under
+  `## Answer`: for a github.com
   `answer_link`, the comment's text, as *An answer logged from a comment is
   the comment's whole text* says; for a Linear or Discord one, the text the
   answer service relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
