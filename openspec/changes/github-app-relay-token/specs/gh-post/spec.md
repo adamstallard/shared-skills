@@ -38,16 +38,19 @@ A command SHALL send no post when it **mentions** no **gh post verb**
 text, quoted or not, holds `gh` followed later by `pr` or `issue` and
 later by a post verb listed for that word, or holds a `gh api` call that
 is not a read (*A gh api call is a read only as a plain gh command*), or
-a github-app `api` call that is not a read (*The reader reads the
-github-app skill's api command as gh api*).
+holds an `api` that is not part of a read (*The reader reads the
+github-app skill's api command as gh api*) after `github_app.py`, or
+after `python3` and a word that is not literal (*A literal word is one
+the shell does not expand*).
 
 #### Scenario: The gh post verbs are a closed list
 
 - **WHEN** a hook asks about a command
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; and a `gh api`
-  call or a github-app `api` call that can write
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
+  call that can write; and an `api` that is not part of a read, after
+  `github_app.py` or after `python3` and a word that is not literal
 - **AND** `gh`, `pr`, `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
@@ -56,6 +59,17 @@ github-app skill's api command as gh api*).
   `comment`, `review` and `revert`, and `close` or `reopen` given
   `--comment` or `-c`; `close` or `reopen` without one still mentions a
   post verb but sends no text
+
+#### Scenario: An api call outside the github-app skill's form is unreadable
+
+- **WHEN** a hook asks about `sh -c 'python3 /abs/github_app.py api
+  repos/o/r/issues/5/comments -f body=x'`, and about `python3 "$G" api
+  repos/o/r/issues/5/comments -f body=x` where the command assigns `G`
+  nowhere
+- **THEN** the reader reports each command as unreadable, so the post
+  hooks block it: neither is the form *The reader reads posts sent
+  through the github-app skill and gh api* finds, the first being run by
+  `sh` and the second naming no script
 
 #### Scenario: A gh command off the list passes unread
 

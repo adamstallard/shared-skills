@@ -101,12 +101,12 @@ and on an HTTP error print GitHub's message and exit non-zero.
 ### Requirement: The api command accepts only gh api's method, field and input options
 
 `api` SHALL accept, of `gh api`'s options, only its method, field and
-input options, with gh's forms and meanings. It SHALL refuse an endpoint
-that is a full URL. It SHALL also refuse gh's `{owner}`, `{repo}` and
-`{branch}` placeholders in the endpoint or in a field value given in the
-command, which gh would fill from the local repository; a value read from
-a file or standard input is sent as it is. These limits let the post hook
-read exactly what `api` sends.
+input options, with gh's forms and meanings. It SHALL refuse a call
+whose endpoint names a host, or that holds a placeholder gh would fill
+(`{owner}`, `{repo}`, `{branch}`, `:owner`, `:repo`, `:branch`) in the
+endpoint or in a `-F` value typed in the command, not read with `@`.
+`api` fills no placeholder, so these refusals keep what it sends equal to
+what the post hook reads.
 
 #### Scenario: gh api's method, field and input options are accepted
 
@@ -114,12 +114,16 @@ read exactly what `api` sends.
   `-F`/`--field` or `--input`, in any form gh accepts
 - **THEN** `api` sends the request gh api would send, with `@-` and
   `--input -` reading standard input
+- **AND** for the raw field `-f body={owner}`, and for `-F body=@c.md` where `c.md`
+  holds `{owner}`, it sends `{owner}` unfilled, as gh does
 
 #### Scenario: An option or endpoint api does not accept is refused
 
 - **WHEN** an agent runs `api -H 'Accept: text/plain' repos/o/r/issues/5`,
   `api --paginate repos/o/r/issues`, `api http://localhost:8000/x`, `api
-  repos/{owner}/{repo}/issues/5/comments -f body=x`, or `api
+  //evil.example/x`, `api
+  repos/{owner}/{repo}/issues/5/comments -f body=x`, `api
+  repos/:owner/:repo/issues/5/comments -f body=x`, or `api
   repos/o/r/issues/5/comments -F body={owner}`
 - **THEN** each exits non-zero naming what it does not accept, and sends
   no request

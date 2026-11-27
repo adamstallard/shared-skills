@@ -25,3 +25,8 @@
 - [ ] 2.3 The inquisitor's README drops its GitHub warning
       (answer-service spec: *The README warns that a relay's token can be
       printed*)
+
+## 3. Tests
+
+- [ ] 3.1 Each test names the scenario it checks with an
+      `@scenario <capability>: <Scenario name>` tag (spec-trace skill)

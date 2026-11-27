@@ -2,11 +2,11 @@
 
 ## Constraints
 
-- **Constraint: The inquisitor's GitHub post hook guards only against accidents, as would linear-app refusing to hand a relay identity's token to a command that can print it; an agent set on forging a relayed answer can read a relay's credentials from the keychain and post with `curl`.**
-  Because: the hook and such a refusal stop an agent that posts through the skills as their instructions say, and an agent that works around them still has the person's own tools and keychain.
+- **Constraint: The inquisitor's GitHub post hook, like a skill's refusal to hand a relay identity's token to a command that can print it, guards only against accidents; an agent set on forging a relayed answer can read a relay's credentials from where the relay's skill keeps them and post with `curl`.**
+  Because: the hook and such refusals stop an agent that posts through the skills as their instructions say, and an agent that works around them still has the person's own tools and the relay's credentials.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks; linear-app keeps an identity's credentials in the system keychain, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py); github-app's record holds the same limit for its own refusals, [github-app's record](../github-app/decisions.md)
-  Holds while: a relay identity's key sits where the person's own agents can read it.
-  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/linear-app/
+  Holds while: a relay identity's credentials sit where the person's own agents can read them.
+  Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
 - **Constraint: While linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
   Because: the inquisitor asks linear-app (adamstallard/shared-skills#112) to hand the token to no such command, while linear-app's commands still hand it out; the change #112 asks for covers linear-app's own commands, not the reading of a relay's credentials that the constraint above accepts.
