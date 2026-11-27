@@ -618,12 +618,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       new entry, a promotion from the `questions` branch, or a lesson
       from misses, for which the agent gives it the miss files the lesson
       draws on. It refuses an id outside igor's id rule. It refuses a lore
-      repository more visible than the source (the question's repository,
-      the promoted file, or a lesson's miss files) unless given the
+      repository more visible than the entry's source unless given the
       confirmation option, which the agent passes only once the person
-      confirms (inquisitor spec: *A person can confirm a generalized lore
-      entry for a more visible lore repository*; *A team lesson goes to a
-      more visible lore repository only once confirmed*). During an
+      confirms (inquisitor spec: *A lore pull request goes to a more
+      visible lore repository only once confirmed*; *A person can confirm
+      a generalized lore entry for a more visible lore repository*). During an
       Igor's run it opens nothing and writes the entry into the run's
       report for the Igor to propose, as igor PR #216 is asked to
 - [ ] 2.8 A test pinned to an igor commit that checks the lore entry
