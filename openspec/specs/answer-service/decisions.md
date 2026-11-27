@@ -8,11 +8,11 @@
   Holds while: a relay identity's key sits where the person's own agents can read it.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
-- **Constraint: While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
-  Because: the inquisitor asks github-app (adamstallard/shared-skills#96) and linear-app (adamstallard/shared-skills#112) to hand the token to no such command, and ships without either; each change would close its skill's own commands, though not the keychain path the constraint above accepts.
-  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
-  Holds while: github-app or linear-app hands a relay identity's token to a command that can print it.
-  Paths: .agents/skills/github-app/, .agents/skills/linear-app/
+- **Constraint: While github-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
+  Because: the inquisitor asks github-app (adamstallard/shared-skills#96) to hand the token to no such command, and ships without that change; it would close github-app's own commands, though not the keychain path the constraint above accepts.
+  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token
+  Holds while: github-app hands a relay identity's token to a command that can print it.
+  Paths: .agents/skills/github-app/
 
 - **Constraint: GitHub's events API shows the pusher and push time of each hash-only miss file, one with no keys named by a hash, to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
   Because: the cost is accepted: anyone who matches a reply's id they already know against the file's name, a hash of the surface (GitHub, Linear or Discord) and that id, finds a reply only its thread's readers can see, so others learn only that the person judged some question then.
@@ -47,8 +47,10 @@
   Evidence: anyone can register a GitHub App, https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app, or a Discord bot, https://discord.com/developers/docs/quick-start/getting-started
 
 - **Rationale: The answer service reads with the person's credentials, except on Discord.**
-  Reading with the person's own logins keeps a relay's token to the right to post, and the service reads nothing as a bot that the person can read as themselves. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts.
+  Reading with the person's own logins keeps a relay's token to the right to post, and the service reads nothing as a bot that the person can read as themselves. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts. The person's own Linear key, which the service reads Linear with, stays out of command arguments because every user of the host can read each process's command line.
   Evidence: Discord's Community Guidelines, which its Terms of Service incorporate, say "Do not use self-bots or user-bots. Each account must be associated with a human, not a bot.", https://discord.com/terms/guidelines
+  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
+  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
 - **Rationale: The answer service polls only while it is open.**
   The skill runs nothing while the answer service is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the service is closed would be lost. Polling needs neither, and catches up on what came while the service was closed when it next opens.
@@ -120,11 +122,6 @@
 - **Rationale: A question with a person-required line gets no filter 2 to 4 reply.**
   The service finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text unchanged, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
-
-- **Rationale: The Linear relay's token stays in memory.**
-  A token passed in a command's arguments would be readable by every user of the host, since each process's command line is.
-  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
-  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
 - **Rationale: A relay post is posted by a host command, unvetted.**
   A relay post carries words the person already confirmed, or a fixed text of the answer service's own, so no hook may block or reword it; a command the answer mod runs on the host is not a tool call, so no `PreToolUse` hook, the post hooks included, sees it.
