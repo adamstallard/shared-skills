@@ -490,6 +490,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         *A line whose simple commands send no text is no post*), and on
         piped input as *Input to a no-post line reaches only data
         commands* says.
+- [ ] 1.4 discord-bot's `post` and `edit` take `--message-file <path>`,
+      reading the text from that file, beside `--message -`, which reads
+      standard input, which a hook never sees; its SKILL.md and README
+      say to post with `--message-file` or `--message`
+- [ ] 1.5 The library reads discord-bot's `post` and `edit` and reports
+      each as a Discord message (gh-post spec: *The reader reads
+      discord-bot's post and edit as gh issue comment*), so prose's
+      posting hook reads them too
 
 ## 2. The script
 
@@ -664,12 +672,15 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       logged in as. With a person in the session:
       - no login configured: ask through the picker instead;
       - the login has no write access: tag no one;
-      - it has write access: tag it when the post goes out as someone
-        else; when it goes out as that login, or the script can't tell,
-        ask through the picker instead.
+      - the login has write access: tag the login when the post goes
+        out as a GitHub App, which a post does only when the agent
+        passes the identity of the github-app command the post goes
+        through (inquisitor spec: *A post goes out as a GitHub App only
+        through github-app's commands*); otherwise ask through the
+        picker instead.
 
       A session with no person in it tags the login only when it has
-      write access and the post goes out as someone else, and otherwise
+      write access and the post goes out as a GitHub App, and otherwise
       tags no one. The tag, or when tagging no one the fixed line of *A
       question no candidate can decide turns to the session's login*, goes
       on the question's tag line, which the
@@ -701,7 +712,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP
-      tools, through `.agents/lib/gh-shell/`. It blocks a post in which a
+      tools, through `.agents/lib/gh-shell/`. Every check below except
+      the person-required line's applies to a Discord message the reader
+      returns too. It blocks a post in which a
       question whose `ask` names a requiring skill lacks its
       person-required line, or another question carries one. It blocks every post holding
       a question whose latest verdict record gives it a category (inquisitor spec: *The post hook blocks a post holding a
@@ -818,7 +831,16 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       rewriting on, because discord-bot always posts that way. discord-bot's `read` drops each message's
       `author.bot` and reply reference, which the answer service needs to
       tell a bot's message and a reply to a relay post, as task 0.17 found
-      on 2026-11-19; this task changes `read` to return both
+      on 2026-11-19; this task changes `read` to return both, and whether
+      a message is flagged `IS_CROSSPOST` (answer-service spec: *An
+      agent's question comes from a bot account or a log file*)
+- [ ] 6.0b discord-bot's `read` drops each message with no text and no
+      attachments, the placeholder for a thread's first message included.
+      Change it so that, meeting that placeholder inside a thread, it
+      follows the placeholder's `message_reference` and returns the
+      thread's first message in its place, still dropping any other such
+      message, such as an embed-only one (answer-service spec: *A Discord
+      thread is read with its first message*)
 - [ ] 6.0a The answer service's logic is a Python core in the skill's
       scripts: polling, state, records and pushes, reusing the script's
       one question-hash and file-format code. The TypeScript answer mod

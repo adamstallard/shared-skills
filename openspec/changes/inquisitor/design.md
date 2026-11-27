@@ -69,24 +69,6 @@ does if the fact does not hold.
   Igor's app user from another, no Linear comment is a handback, and the
   README says so.
 
-### Decisions for the repository's owner
-
-- **How is a session with a person in it told on a host other than Claude
-  Code?** `CLAUDE_CODE_SESSION_ATTENDED` is Claude Code's own, so on any
-  other host every session counts as having no person in it, and no rule
-  for a session with a person in it ever applies there.
-- **Should github-app's environment count as proof that a post goes out
-  as an App?** In a project github-app's `wire` set up, its `env` sets
-  `GITHUB_APP_ACT_AS` and `GIT_AUTHOR_NAME` but no token, so a plain `gh`
-  post there goes out as the person while the script counts it as the
-  App's, and the question tags the configured login on the person's own
-  post. The choice is between changing github-app, narrowing the script's
-  rule, and accepting the gap.
-- **Where does the sequencer's marker rule live?** *A sequencer block's
-  update keeps a numbered reply* relies on the sequencer change's
-  markers, and this change cannot name that change in a `Builds on:` line,
-  since the sequencer change already builds on this one.
-
 ### Outside this change
 
 - **Proving an answer by a link to a message on another surface,** such as
