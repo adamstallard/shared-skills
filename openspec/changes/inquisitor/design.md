@@ -121,10 +121,9 @@ spec: *Relay posts start with a reserved prefix*); *The post
 hook blocks a reserved prefix on GitHub* gives why.
 
 **Rule:** answer-service spec, *A relay post is posted by a host command,
-unvetted* (task 0.18); *The Linear relay's token stays in memory*; *A GitHub
-or Linear relay post names its question in a Re line*. The command runs with
-no shell because the person's answer and drafts built from a thread's
-untrusted text reach it.
+unvetted*, which no hook checks; *A GitHub or Linear relay post names its
+question in a Re line*. The host command runs with no shell, because the
+person's answer, and drafts built from a thread's untrusted text, reach it.
 
 ### What the answer service does by itself
 
@@ -466,12 +465,12 @@ again when something around it has changed, and the only way to remove it
 would be for a person to read a question and answer that no person should
 have to read.
 
-#### An answer without authority stays in its log file
+#### An answer that is not a decision stays on the questions branch
 
-**Rule:** inquisitor spec, *Any other answer is input, kept only in its log
-file*.
+**Rule:** inquisitor spec, *Any other answer is input, kept only on the
+questions branch*.
 
-**Why** never in a decision document: on the current work's branch a
+**Why** it is kept on the questions branch: filter 1 shows it there as input. **Why** it never goes in a decision document: on the current work's branch a
 decision document counts as an answer, so the agent's own write would turn
 input into a decision.
 
@@ -517,11 +516,17 @@ Igor injects lore into.
 cheap. **Why** the Igor opens a run's: there the script pushes nothing to a
 lore repository, and the Igor already pushes the run's other files.
 
-#### Lessons from misses are drafted on request and land by scope
+#### Lessons from misses land by scope
 
-**Rule:** inquisitor spec, *Lessons from misses land by their scope*. A
-lesson for shared-skills must be general because question and miss logs can
-hold private content, which stays with the repositories it concerns.
+**Rule:** inquisitor spec, *Lessons from misses land by their scope*, and,
+for a team lesson bound for a lore repository more visible than any miss
+file it draws on, *A lore pull request goes to a more visible lore
+repository only once confirmed*.
+**Why:** question and miss logs can hold private content, which stays with
+the repositories it concerns. So a lesson for shared-skills must be
+general, and a team lesson goes somewhere more visible only in generalized
+wording a person has confirmed, since only a person can judge that nothing
+private is left in it.
 
 ### Igor workers and Igor runs
 
@@ -635,11 +640,7 @@ the rule that an agent asks only through the picker.
 
 #### The model hands its judgements to the code through record_verdict
 
-**The code puts each message to judge into the session's conversation as a prompt of its own, holding the message as quoted data, at times when the model is not answering the person; the model then answers through `record_verdict`.** Whether a mod can prompt its own model is still open (task 0.37).
-
-The approved prototype, build v0.2-9, shows that a mod can fill the prompt
-box and register a tool for its model to call, as `record_verdict` is, but
-not that a mod can prompt its own model, so task 0.37 stays open.
+**The answer mod's code puts each message the model must judge into the session's conversation as a prompt of its own, holding the message as quoted data, at times when the model is not replying to the person; the model gives its verdicts by calling `record_verdict`.**
 
 ### Relaying answers
 
@@ -874,9 +875,10 @@ thread the file's `asked_in` links.
 A handled file adds no question text: the closed file's name, which it
 repeats, is already on the same branch. So it never carries a private item's
 question into igor's lore search, and shows nothing the closed file does not.
-For a question with a category, the hash it names the closed file by hides
-nothing on the branch, where the closed file sits beside it under its
-readable name.
+This holds for a question with a category too. Such a question gets no
+log file once it has its category, so a handled file can close only a file
+logged before then, whose name is already on the branch. A hash of that
+name would hide nothing, and would show that the question has a category.
 
 A close that cites a record, a filter 1 decline or a `Recorded answer: `
 post, takes the question out of the person's queue whether or not the
@@ -1011,18 +1013,12 @@ template lacks.
 
 ## Open Questions
 
+In both lists below, the task each bullet names measures its fact before
+anything resting on it is built, and the bullet says what the software
+does if the fact does not hold.
+
 ### Facts measured before building
 
-The task each bullet names measures its fact before anything is built.
-Each bullet says what the spec does if the fact is false, or, where the
-bullet only asks the question, its task in tasks.md says it.
-
-- **Does the picker hook work?** (tasks 0.1 to 0.3) If a `PreToolUse`
-  hook does not fire on `AskUserQuestion`, or its exit 2 does not block
-  the picker, the skill's instructions alone cover the picker, and the
-  README says so. If the tool's input holds no `questions[].question` and
-  `questions[].options[].label`, the spec's definition of a picker question's text is rewritten to what
-  the input holds.
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
   answer in a post and every issue's decision block (an inquisitor spec
@@ -1048,9 +1044,6 @@ bullet only asks the question, its task in tasks.md says it.
   decision?** (task 0.8) A spec or decision record file leads through blame and a
   commit to a pull request and its reviews. If not, the script skips the
   tagging order's first candidate.
-- **Can the script find the GitHub login of the last person to commit to a
-  file?** (task 0.5) Git records a name and an email, not a login. If not, the
-  script skips the tagging order's third candidate.
 - **Can the agent open, and write in, a repository's private security
   advisory?** (task 0.10) That needs private vulnerability reporting enabled,
   or an admin or security-manager role. If not, an agent asking a
@@ -1058,17 +1051,60 @@ bullet only asks the question, its task in tasks.md says it.
   uses the answer only in the code of the fix that repairs the
   vulnerability, and tells the person only that a vulnerability question
   is blocking, without the question's text.
-
-Tasks 0.11, 0.13, 0.14, 0.29 and 0.33 measure the rest: whether GitHub
-gives review authors and logs re-requests, whether an advisory's
-private-fork pull request can merge before publication, whether an Igor
-worker can post, whether the Igor can run `branch-search` and read a
-collaborator's permission, and whether the Discord token pattern matches
-a real token. Each task says what follows if its fact is false.
+- **Can an advisory's private-fork pull request merge before the advisory
+  is published?** (task 0.13) While unmeasured, or if it can, the agent
+  commits the regression test to the advisory's private fork, and
+  describes the weakness there, only on the word of the advisory's
+  publisher. If the fork merges only at publication, the agent does so
+  without that word.
+- **Can an Igor worker's `gh` post from a login in the home directory igor
+  gives it?** (task 0.14) If it can, a worker could post outside its
+  Igor: a breach to report to igor. The skill does the same either way.
+- **Can the Igor run `branch-search` and read a collaborator's
+  permission?** (task 0.29) Without the first, the call fails and the
+  worker's search names each questions branch as not searched; without
+  the second, every hit is `input`.
+- **Can an Igor worker feed `igor lore-search` its standard input?** (task
+  0.40) If not, the call fails, so filter 1 in an Igor's run searches no
+  lore and says so.
 
 ### Facts the answer service relies on
 
-**Tasks 0.6, 0.15 to 0.21, 0.23, 0.25, 0.28, 0.30, 0.31, 0.34, 0.35, 0.37, 0.38 and 0.39 in tasks.md measure facts the answer service relies on, such as how each surface returns a message's text, how GitHub tells a bot's comment (0.21), how Claude Code restricts a session's tools (0.34) and whether a mod can prompt its own model (0.37). Each task says what the spec does if its measurement shows the fact false.**
+- **What form does igor's handback marker take?** (task 0.6) Until it is
+  recorded, no comment counts as a handback.
+- **Can the answer service work on Linear?** (task 0.16) If any part of
+  the task fails, Linear stays off and the README says so. An
+  assignment is dated by when a poll first finds it; if the person's key
+  can read when an issue was assigned, that time dates it instead.
+- **Can the answer service work on Discord?** (task 0.17) If any part of
+  the task fails, Discord stays off and the README says so.
+- **Can setup read a relay identity's posting rights in a channel?** (task
+  0.20) Where no check can, setup runs the skill's own check only, and a
+  post the channel refuses for permission turns that channel off.
+- **Do the URL `gh pr comment` prints and an Igor's handback URL equal
+  the URL the answer service builds?** (task 0.23) If not, the side
+  that records the URL and the answer service both write and compare
+  one canonical form.
+- **What does a question posted on Discord match?** (task 0.23)
+  discord-bot rewrites `@name` to `<@id>` before it sends, and Discord
+  drops whitespace at the end of a message, so the posted question
+  matches no logged file by hash, and the answer service cannot tie it
+  to its log file.
+- **How does each surface report a refused post?** (task 0.25) A refusal
+  the answer service cannot place counts as refused for its text, so the
+  answer waits for the person.
+- **Do the person-required and concerns lines come back unchanged from
+  Linear and Discord?** (task 0.28) If not, the answer service matches the
+  form each surface returns.
+- **Can the person's Linear key read Linear's GitHub-integration links?**
+  (task 0.35) If not, setup's guess for a Linear team names nothing, and
+  setup asks the person.
+- **Which Linear app user is an Igor's?** (task 0.38) If no form tells an
+  Igor's app user from another, no Linear comment is a handback.
+- **Does Claude Code put an `agentId` on a subagent's call to a mod's
+  tool?** (task 0.39) If not, nothing refuses such a call: its
+  `propose_reply` draft still lands only in the prompt box, and its
+  `record_verdict` call can still only pick among the code's actions.
 
 ### Outside this change
 

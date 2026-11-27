@@ -76,8 +76,6 @@ report*, meant wherever this spec says the agent tells or reports to the
 person, is its reply in the session, or, with no person in it, its run's
 output.
 
-*Task 0.N* is that task in this change's tasks.md.
-
 *The first call* and *the second call* are the two runs of the skill's
 script that *Two calls prove the filters ran* defines. *A verdict* is what
 the second call records for a question, and *a vetted question* is one whose
@@ -362,16 +360,14 @@ branch as the clone's remote-tracking branch has it. Its `status` SHALL be
 
 When the agent works in no git repository and the question concerns no
 repository, collective or person's way of working, filter 1 SHALL search
-only the configured lore repositories and admit only `global` entries,
-and no citation file SHALL be pushed.
+only the configured lore repositories and admit only `global` entries.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
 - **WHEN** an agent working in no git repository has a question about no
   repository or collective, and two configured lore repositories hold
   matching `active` entries, one scoped `global` and one `project:api`
-- **THEN** filter 1 shows only the `global` entry, and when it stops the
-  question with that entry, the agent pushes no citation file
+- **THEN** filter 1 shows only the `global` entry
 
 ### Requirement: The team's lore repository is the most specific one that serves
 
@@ -480,6 +476,36 @@ post goes.
 - **THEN** `o/lore` counts as private, so no reply or post in `o/web`
   names or links the entry, save under the exceptions *Nothing about a
   repository goes somewhere more visible* lists
+
+### Requirement: An unreadable visibility that changes an outcome is reported
+
+When counting a visibility that cannot be read as *An unreadable
+visibility counts against sharing* says changes what is posted, pushed
+or warned about, the answer service SHALL say which repository's
+visibility it could not read and how it treated it: in the preview of
+an answer being confirmed, and otherwise where it shows the question.
+Outside an Igor's run, which has no person to tell, the agent SHALL tell
+the person in its session the same.
+
+#### Scenario: The answer service reports a visibility it could not read
+
+- **WHEN** a question in an issue of the public `o/web` has as its
+  recorded answer a log file on the questions branch of `o/web` whose
+  `asked_from` names `o/api`, and the visibility of `o/api` cannot be
+  read
+- **THEN** the answer service does not post the answer on its own, and
+  where it shows the question it says that it could not read the
+  visibility of `o/api` and treated it as private, so it did not post
+  the answer
+
+#### Scenario: The agent reports a visibility it could not read
+
+- **WHEN** outside an Igor's run, the agent leaves the private `o/api`
+  out of a post to `o/web` because it cannot read the visibility of
+  `o/web` and so counts it as public
+- **THEN** it tells the person in its session that it could not read the
+  visibility of `o/web` and treated it as public, so nothing about
+  `o/api` is posted there
 
 ### Requirement: A collective's question is bounded by the repository it was asked from
 
@@ -662,17 +688,29 @@ its name after its `/`, and for a collective's question only `global`.
 
 ### Requirement: Filter 1 matches terms as plain text and caps its hits
 
-Filter 1 SHALL match the question's terms as plain text, rank its hits by
-the number of terms each matches, show at most 20, and say when it left
-some out. In an Igor's run, `igor lore-search` does this for lore (igor
-issue #247).
+Filter 1 SHALL match the question's terms as plain text, list the hits
+its authority rules make answers before those they leave as input, and
+rank each group by how many terms a hit matches, a term found several
+times counting once, in any order among ties. It SHALL show at
+most 20 hits in all and say when it left some out. In an Igor's run,
+the lore hits of `igor lore-search` join under this order and cap; igor issue #247 asks that command, which caps
+lore first, to rank it the same way.
 
 #### Scenario: Hits are ranked by terms matched and capped
 
-- **WHEN** more than 20 lore entries match a question's terms in their
-  `claim`, `conditions` or body
+- **WHEN** more than 20 lore entries that filter 1 shows only as input
+  match a question's terms in their `claim`, `conditions` or body, and
+  no hit is an answer
 - **THEN** the search, with no embedding or model call, shows the 20 that
   match the most of the question's terms, and says that it left hits out
+
+#### Scenario: An answer matching fewer terms is still shown
+
+- **WHEN** 20 hits that filter 1 labels as input each match three of a
+  question's terms, and a questions-branch `decision` file, which filter
+  1 treats as an answer, matches only one of the question's terms
+- **THEN** the search shows the `decision` file first and any 19 of the
+  input hits after it, and says that it left one out
 
 ### Requirement: Filter 1 names what it did not search and how fresh each clone is
 
@@ -788,9 +826,6 @@ returns. If the command fails, the search SHALL search no lore and say so.
 - **WHEN** filter 1 runs in an Igor's run
 - **THEN** the script runs `igor lore-search` with no argument and the
   question on standard input
-- **AND** if igor PR #216's task 4.5 finds a worker cannot feed the
-  command its standard input, the script passes the question the other
-  way #216 gives the command to take the text
 
 #### Scenario: An Igor's own inquisitor run searches lore through igor's command
 
@@ -1679,7 +1714,7 @@ SHALL hand back surviving questions, prepared.
 A session with no person in it SHALL NOT use the picker. An Igor worker
 SHALL ask only through its Igor. Any other
 such session SHALL ask in a post if the script finds its `gh` can comment
-where the question goes (task 0.9), tagged as *A question in a post tags
+where the question goes, tagged as *A question in a post tags
 one person who can decide, if there is one* and *A question no candidate
 can decide turns to the session's login* say; if not, it SHALL ask nowhere,
 stop only work needing the answer, and report it.
@@ -1809,7 +1844,7 @@ from the first call's filter 1 hits for the question.
 ### Requirement: The second call records all its verdicts or none
 
 The second call SHALL refuse a field missing or matching the credential
-patterns, a question the first call did not take or left without a
+patterns, a question the first call did not take, a question left without a
 verdict, and a token spent or over 2 hours old, recording nothing and
 keeping the token. Else it SHALL record each verdict, its field, any
 related earlier decision and the time, kept by the hash of the question's
@@ -2209,9 +2244,9 @@ leading whitespace dropped.
 A question asked in a post SHALL tag the first of these with write access
 to what it concerns: the approver of the pull request adding the question's related
 earlier decision; the first login with write access in the
-`.inquisitor/reviewers` file, one login per line, of the repository it
-concerns, or of the lore repository for a collective's question; the last
-committer of the files it concerns.
+`.inquisitor/reviewers` file (one login per line) of the repository it
+concerns, or of the lore repository for a collective's question; and,
+for a question about files, the author of the last commit to them.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -2232,12 +2267,12 @@ committer of the files it concerns.
 - **THEN** the script reads `.inquisitor/reviewers` from the team's lore
   repository, not from the repository holding the current work
 
-#### Scenario: The last committer is tagged last
+#### Scenario: The last commit's author is tagged last
 
 - **WHEN** a question has no related earlier decision and the repository
   has no `.inquisitor/reviewers`
-- **THEN** the question tags the last person to commit to the files it
-  concerns, when that person has write access
+- **THEN** the question tags the author of the last commit to the files
+  it concerns, when that author has write access
 
 ### Requirement: A question no candidate can decide turns to the session's login
 
@@ -2448,19 +2483,21 @@ decision only from a person with write access* still applies.
   `alice`
 - **THEN** the file records the answer with `authority: input`
 
-### Requirement: Any other answer is input, kept only in its log file
+### Requirement: Any other answer is input, kept only on the questions branch
 
-Any answer that *An answer is a decision only from a person with write access* does not make `decision`, such as one read in a file, an
-issue, or a chat or tracker message, SHALL be `input`, recorded only in the
-question's log file and never in a decision document. An answer in a post
-by a person without write access leaves its question unanswered.
+Any answer that is not a `decision` under *An answer is a decision only
+from a person with write access*, such as one read in a file, an issue,
+or a chat or tracker message, SHALL be `input`, recorded only in an
+answer file (a log file recording an answer) on the questions branch and
+never in a decision document. An `input` answer, such as one in a post
+by a person without write access, leaves its question unanswered.
 
 #### Scenario: An answer without authority leaves the question open
 
 - **WHEN** a person without write access answers, in a post, a question
   about the current change's spec
-- **THEN** the agent records the answer only in the question's log file, as
-  `input`, not in the spec, and filter 1 does not treat it as an answer
+- **THEN** the agent records the answer only in an answer file on the
+  questions branch, as `input`, not in that spec, and filter 1 does not treat it as an answer
 
 ### Requirement: A question is pushed to the questions branch of what it concerns
 
@@ -2762,20 +2799,21 @@ person's agent memory or user-level `CLAUDE.md`, never a committed one.
 
 ### Requirement: A lore entry that stops a question gets a citation file
 
-When filter 1 stops a question with a lore entry, the agent SHALL push a
-citation file to the entry's lore repository's questions branch, unless:
-the question has a category; the lore repository is more visible than the
-repository the question concerns or, for a collective's question, the
-repository it was asked from; or *No worker or
-Igor-started run pushes to a questions branch* bars it.
+When filter 1 stops a question with a lore entry it treats as an answer,
+the agent SHALL push a
+citation file to the entry's lore repository's questions branch, unless
+the question has a category or *No worker or Igor-started run pushes to
+a questions branch* bars it. Whether it is pushed SHALL not depend on
+the visibility of the repository the question concerns, of any thread
+it has, or of the lore repository, *Nothing about a repository goes
+somewhere more visible* notwithstanding.
 
-#### Scenario: A collective's question from Discord cites no public lore entry
+#### Scenario: A question about a private repository cites a public lore entry
 
-- **WHEN** filter 1, in an answer service, stops a collective's question
-  asked in a Discord thread with an entry of a public lore repository
-- **THEN** no citation file is pushed, since a collective's question
-  asked in a Linear or Discord thread counts as asked from a private
-  repository
+- **WHEN** filter 1 stops a question about the private `o/api` with an
+  entry of the public lore repository `o/lore`
+- **THEN** the agent pushes a citation file to the questions branch of
+  `o/lore`
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -2786,12 +2824,6 @@ Igor-started run pushes to a questions branch* bars it.
   and no log file holds the entry's id
 - **AND** a citation file is not a log file and never an answer, and the
   search never shows one
-
-#### Scenario: No citation goes to a more visible lore repository
-
-- **WHEN** filter 1 stops a question about a private repository with an
-  entry in a public lore repository
-- **THEN** no citation file is pushed
 
 #### Scenario: A categorized question is not cited
 
@@ -3012,7 +3044,7 @@ command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
 record as `answered_by` the comment's author login, followed by `[bot]`
 when GitHub types the author as a `Bot`, ignoring any login the agent
-passed, which a crafted thread can steer. Once task 0.21 shows how to tell a bot, it SHALL also write `authority: input` for a bot author.
+passed, which a crafted thread can steer, and SHALL write `authority: input` for a bot author.
 
 #### Scenario: The answer's answered_by is the linked comment's author
 
@@ -3022,7 +3054,7 @@ passed, which a crafted thread can steer. Once task 0.21 shows how to tell a bot
 - **AND** given an `answer_link` to a comment the App `x` wrote, the file
   names `x[bot]`, which fails GitHub's login syntax, so filter 1 shows
   the answer as input
-- **AND** once task 0.21 is measured, given `authority: decision` and an
+- **AND** given `authority: decision` and an
   `answer_link` to a comment `igor-x[bot]` wrote, it writes
   `authority: input`
 
@@ -3238,14 +3270,27 @@ write no `answers`.
 ### Requirement: An Igor pushes a handback answer only for a question its record holds
 
 For the log file a worker reports for a person's comment answering a
-handback, the Igor SHALL push it only when its question's hash is in the
-Igor's handback record, never matching by the comment's text.
+handback, the Igor SHALL push it only when both hold: its question's
+hash is in the Igor's handback record, found without reading the
+comment's text; and the comment its `answer_link` names is on the same
+GitHub issue or pull request as, and newer than, a handback comment of
+the Igor's whose entry in that record holds the hash. The record SHALL
+keep each handback comment's id and time (igor PR #216's decision 59).
 
 #### Scenario: An answer to a question not in the handback record is not pushed
 
 - **WHEN** a worker reports a log file whose `answer_link` names a person's
   comment on the item, for a question whose hash the Igor's handback record
   does not hold
+- **THEN** the Igor pushes nothing for it
+
+#### Scenario: An answer linked to an earlier comment or another item is not pushed
+
+- **WHEN** a worker reports a log file for a question whose hash the
+  Igor's handback record holds, and its `answer_link` names a comment
+  posted before each handback comment that asked the question, or one
+  on another issue or pull request, even a comment by a person with
+  write access, which would otherwise be logged as their `decision`
 - **THEN** the Igor pushes nothing for it
 
 ### Requirement: A person's answer is recorded in their words or not at all
@@ -3405,11 +3450,15 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
   `yyyy-mm-dd`, on which the service closed the question, even when the push
   succeeds on a later poll, and `closes`, that file's name
   `<date>-<slug>-<6 hex digits>.md` without its directory, and has no body
-- **AND** for a question the service's model judges has a category,
-  `closes` is instead the SHA-256 of that name, as 64 lowercase hex digits,
-  so neither the handled file nor its owed push holds the question's words,
-  and a reader takes it to close the file whose name has that hash
 - **AND** no other file holds either key
+
+#### Scenario: A file logged before its question got a category is closed by its plain name
+
+- **WHEN** an answer service closes `2026-01-05-can-the-token-leak-3f9a1c.md`,
+  logged before the service's model judged its question has a category
+- **THEN** the handled file's `closes` is
+  `2026-01-05-can-the-token-leak-3f9a1c.md`, as for a question with no
+  category, and never a hash of that name
 
 #### Scenario: An answer file names the questions-branch file it answers
 
@@ -3475,8 +3524,9 @@ one, SHALL hold `asked_from`; in an Igor's run the Igor sets it.
 #### Scenario: What a log file's body holds
 
 - **WHEN** a log file is written
-- **THEN** its body holds the question under `## Question` and, once the
-  answer comes, the answer under `## Answer`: for a github.com
+- **THEN** its body holds the question under `## Question` and, in a
+  file that records an answer, `input` or `decision`, the answer under
+  `## Answer`: for a github.com
   `answer_link`, the comment's text, as *An answer logged from a comment is
   the comment's whole text* says; for a Linear or Discord one, the text the
   answer service relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
@@ -3551,8 +3601,7 @@ the name taken SHALL push nothing.
 - **THEN** the service then pushes `misses/<hash>.md`, where `<hash>` is
   the SHA-256 of `discord`, an LF and that `id`
 - **AND** on Linear the id is the comment's `id`, and on GitHub the reply
-  comment's `node_id`, used to name miss files only once task 0.31 has
-  measured it
+  comment's `node_id`
 - **AND** the asking agent hashes the id of the reply it reads and looks
   up that one path, whichever kind of miss file the service wrote
 
@@ -3602,9 +3651,9 @@ order if several; and SHALL write no miss file when no hit has it.
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
 A **hash-only miss file** SHALL be a miss file with empty frontmatter and
-no body, written only by an answer service and committed as *A citation file
-has one format* gives for a citation, dated midnight UTC on the day it is
-pushed. Being on the branch is its whole authority. The `log` command
+no body, committed like a citation (*A citation file has one
+format*): by `inquisitor <noreply>`, its commit's message naming the file's path,
+dated midnight UTC on the day it is pushed. It counts by being on the branch alone. The `log` command
 SHALL write one only when called with its service option, as for a handled
 file.
 
@@ -3629,8 +3678,8 @@ file.
 A reader SHALL count a log file as holding an answer of its own only
 when its frontmatter holds `authority`, and as handled, closed with no
 answer or authority, only when it holds `handled`. A
-handled file closes the one file its `closes` names, or whose name has
-the SHA-256 `closes` holds, and filter 1's search never matches it. A
+handled file closes the one file its `closes` names, and filter 1's
+search never matches the handled file. A
 reader SHALL read any other log file's body from its end, in the layout
 its scenarios give, and SHALL show one that does not fit as unreadable
 input.
@@ -3994,26 +4043,24 @@ request text and comments.
 
 Until the agent can read that a weakness's advisory is published, a
 regression test that fails before the weakness's fix SHALL land on no
-public branch. Only if **task 0.13 holds** (GitHub merges the advisory's
-private fork only at publication) or the publisher said the fork merges only
-at publication (**the publisher's word**, enough whatever task 0.13
-shows) SHALL the agent
+public branch. Only if the advisory's publisher said its private fork
+merges only at publication (**the publisher's word**) SHALL the agent
 commit that test in the fork or describe the weakness in a fork commit;
 else the advisory's text holds the description.
 
-#### Scenario: Task 0.13 or the publisher's word lets the fork hold the test and the description
+#### Scenario: The publisher's word lets the fork hold the test and the description
 
-- **WHEN** the advisory is unpublished, and task 0.13 holds or the agent
-  has the publisher's word
+- **WHEN** the advisory is unpublished, and the agent has the publisher's
+  word
 - **THEN** the agent commits the regression test in the private fork, and
   on no public branch
 - **AND** its fork commit messages say what the weakness was and why the
   fix closes it
 
-#### Scenario: Without either, the fork holds neither
+#### Scenario: Without the publisher's word, the fork holds neither
 
-- **WHEN** the advisory is unpublished, task 0.13 does not hold, and the
-  agent lacks the publisher's word
+- **WHEN** the advisory is unpublished, and the agent lacks the
+  publisher's word
 - **THEN** it commits the regression test nowhere until the advisory is
   published
 - **AND** its fork commit messages describe neither the weakness nor how
@@ -4061,9 +4108,10 @@ question's repository, it SHALL tell the person the lesson.
 During an Igor's run, the agent SHALL open no lore pull request but put
 each entry it would propose in the run's report, as it does each file it
 would push, and the Igor SHALL open the pull request adding it as a
-`provisional` entry, under *A lore pull request goes to no lore repository
-more visible than its source* and *A proposed lore entry's path, fields and
-id follow igor's rules*.
+`provisional` entry, under *A lore pull request goes to a more visible
+lore repository only once confirmed* and *A proposed lore entry's path,
+fields and id follow igor's rules*, and never with the script's
+confirmation option.
 
 #### Scenario: A run's lore entry goes in its report
 
@@ -4079,28 +4127,81 @@ id follow igor's rules*.
   public, and the repository the question concerns is private
 - **THEN** the Igor opens no pull request for it, and says why
 
-### Requirement: A lore pull request goes to no lore repository more visible than its source
+### Requirement: A lore pull request goes to a more visible lore repository only once confirmed
 
-The script SHALL refuse to open a pull request proposing or promoting a lore
-entry to a lore repository more visible than the repository the question
-concerns or, for an answer promoted from a questions-branch file, than that
-file, with visibility as *A log or miss file is as private as its more
-private repository* defines it; the agent SHALL tell the person why.
+Unless given its confirmation option, the script SHALL refuse a pull
+request adding an entry to a lore repository more visible than the
+entry's **source**: for a new entry, the repository the question
+concerns; for a promotion, its questions-branch file (*A log or miss file
+is as private as its more private repository*); for a lesson from misses,
+any miss file it draws on. The agent SHALL give the script that source,
+and tell the person in the session why it refused, if one is there.
 
-#### Scenario: A private answer never reaches a public lore repository
+#### Scenario: With no person in the session, a private answer never reaches a public lore repository
 
-- **WHEN** the lore repository is public and the repository the question
-  concerns is private
-- **THEN** no pull request is opened, and the agent tells the person why
-- **AND** none is opened to promote a questions-branch file whose
-  `repository` is public and whose `asked_from` is private, since the
-  file is as private as its more private repository
+- **WHEN** an agent in a session with no person in it judges lore-worthy
+  an answer to a question about a private repository, and the lore
+  repository is public
+- **THEN** no pull request is opened, since only a person can confirm one
+
+#### Scenario: An unconfirmed promotion of a more private file opens nothing
+
+- **WHEN** an agent is asked to promote a questions-branch file whose
+  `repository` is public and whose `asked_from` is private, to a public
+  lore repository, and nobody confirms the promotion
+- **THEN** no pull request is opened, since the file is as private as the
+  more private of its `repository` and its `asked_from`
 
 #### Scenario: A lore repository of unknown visibility counts as public
 
-- **WHEN** the script cannot read the lore repository's visibility, and the
-  repository the question concerns is private
+- **WHEN** the script cannot read the lore repository's visibility, the
+  repository the question concerns is private, and the script is not
+  given its confirmation option
 - **THEN** no pull request is opened
+
+### Requirement: A person can confirm a generalized lore entry for a more visible lore repository
+
+Outside an Igor's run, with a person in the session, for a lore
+repository more visible than an entry's source, the agent SHALL
+generalise away private context and ask them, in the picker (else in its
+reply), a question showing the entry and lore repository and warning
+that it is more visible, logged on the source's most private
+repository's questions branch. Only on their yes SHALL it pass the
+script's confirmation option. The entry SHALL hold no link, path or
+provenance into the source.
+
+#### Scenario: A confirmed entry is proposed with generalized text
+
+- **WHEN** a person's answer to a question about the private `o/api`
+  holds for every repository the team works on, the team's lore
+  repository `o/lore` is public, and the person confirms, in the picker,
+  the entry's text and the warning that `o/lore` is more visible than
+  `o/api`
+- **THEN** the agent opens the pull request to `o/lore`, and the entry
+  holds no name, code or other detail of `o/api`, and no link, path or
+  provenance into it
+- **AND** the confirmation question, being about `o/api`, is logged on the
+  questions branch of `o/api`, never on one more visible
+- **AND** filter 4, which lets the agent choose for itself between
+  options cheap to reverse, never stops the confirmation question, since
+  a pull request to a public repository publishes the entry for good
+
+#### Scenario: A declined entry is not proposed
+
+- **WHEN** the person declines that confirmation
+- **THEN** no pull request is opened, and the agent tells the person so
+
+#### Scenario: A team lesson from a private repository's misses reaches a public lore repository only once confirmed
+
+- **WHEN** a lesson for a collective, the team, draws on misses logged in the private
+  `o/api`, the team's lore repository `o/lore` is public, and the person
+  in the session confirms the generalized lesson and the warning that
+  `o/lore` is more visible than those misses
+- **THEN** the agent opens a pull request to `o/lore` adding the lesson,
+  which holds no name, code or other detail of `o/api` and no link, path
+  or provenance into it
+- **AND** when the person declines, or no person is in the session, the
+  agent opens no pull request, and tells the person why if one is there
 
 ### Requirement: A proposed lore entry's path, fields and id follow igor's rules
 
@@ -4396,11 +4497,11 @@ source* bars it. An answer service places its own misses by the
 
 Nothing SHALL draft or send a lesson until a person asks to review the
 misses. The agent SHALL then draft one per pattern it finds and send each
-by scope: one for anyone using the skill to shared-skills, in general
-terms, quoting no logged question or miss; one for a collective
-to its lore repository, unless that is more visible than a miss file it
-draws on; one for a person to their agent memory or `CLAUDE.md`. The first
-two go by pull request.
+by its scope. A lesson for anyone using the skill goes by pull request to
+shared-skills, in general terms, quoting no logged question or miss; one
+for a collective, by pull request to its lore repository, as *A lore
+pull request goes to a more visible lore repository only once
+confirmed* allows; one for a person, to their agent memory or `CLAUDE.md`.
 
 #### Scenario: A lesson for everyone changes the skill
 
@@ -4429,12 +4530,6 @@ two go by pull request.
   draws on
 - **THEN** the agent opens a pull request to that lore repository adding
   the lesson
-
-#### Scenario: A team lesson from a private repository's misses stays out of a public lore repository
-
-- **WHEN** a lesson for a team draws on misses logged in a private
-  repository, and the team's lore repository is public
-- **THEN** the agent opens no pull request, and tells the person why
 
 #### Scenario: A lesson for one person goes to their memory
 
