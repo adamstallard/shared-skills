@@ -3268,14 +3268,27 @@ write no `answers`.
 ### Requirement: An Igor pushes a handback answer only for a question its record holds
 
 For the log file a worker reports for a person's comment answering a
-handback, the Igor SHALL push it only when its question's hash is in the
-Igor's handback record, never matching by the comment's text.
+handback, the Igor SHALL push it only when both hold: its question's
+hash is in the Igor's handback record, found without reading the
+comment's text; and the comment its `answer_link` names is on the same
+GitHub issue or pull request as, and newer than, a handback comment of
+the Igor's whose entry in that record holds the hash. The record SHALL
+keep each handback comment's id and time (igor PR #216's decision 59).
 
 #### Scenario: An answer to a question not in the handback record is not pushed
 
 - **WHEN** a worker reports a log file whose `answer_link` names a person's
   comment on the item, for a question whose hash the Igor's handback record
   does not hold
+- **THEN** the Igor pushes nothing for it
+
+#### Scenario: An answer linked to an earlier comment or another item is not pushed
+
+- **WHEN** a worker reports a log file for a question whose hash the
+  Igor's handback record holds, and its `answer_link` names a comment
+  posted before each handback comment that asked the question, or one
+  on another issue or pull request, even a comment by a person with
+  write access, which would otherwise be logged as their `decision`
 - **THEN** the Igor pushes nothing for it
 
 ### Requirement: A person's answer is recorded in their words or not at all
