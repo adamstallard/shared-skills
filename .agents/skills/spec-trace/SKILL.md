@@ -239,6 +239,10 @@ says `undecided`. On `unknown` it says why, on stderr:
 2. Add the CI step from this skill's [README](README.md#ci). It fetches
    `spec_trace.py` pinned to a full commit SHA of shared-skills; choose the
    SHA as *The CI pin*, above, says.
+   Its workflow skips pushes to a branch named `questions`: the inquisitor
+   skill, which records the questions agents ask, keeps those records on an
+   orphan branch of that name, where `check` would fail with `no openspec/`.
+   Keep the skip, so that adopting inquisitor later needs no workflow change.
 3. Add one line to the repository's AGENTS.md or CLAUDE.md, in its own voice,
    saying that a test tags the OpenSpec scenario it checks with
    `@scenario <capability>: <Scenario name>`, and pointing at this skill.
