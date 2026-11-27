@@ -1,6 +1,6 @@
 Section 0's measurements need no approval and can run first. The rest is
-the implementation, built on this branch once the spec is approved. Every test tags the scenario it checks with `@scenario sequencer:
-<Scenario name>` (spec-trace).
+the implementation, built on this branch once the spec is approved. Every test tags the scenario it checks with `@scenario <capability>:
+<Scenario name>`, where `<capability>` is `sequencer` or `inquisitor` (spec-trace).
 
 ## 0. Measure before building
 
@@ -147,3 +147,15 @@ remove the question from design.md.
       of an issue's work
 - [ ] 6.2 The README's skills table
 
+## 7. The inquisitor's exception for sequencer blocks
+
+This change carries a delta on the inquisitor spec, since the sequencer
+makes the edits it covers; the code goes in the inquisitor's script.
+
+- [ ] 7.1 Keep a numbered `Inquisitor: ` reply in force across an edit
+      that only added sequencer blocks, changed them between their
+      markers, or changed blank lines, comparing the body now with the
+      body the reply saw: the `diff` of the newest `userContentEdits`
+      entry whose `editedAt` is before the reply was posted, as the
+      inquisitor spec's *A sequencer block's update keeps a numbered
+      reply* says
