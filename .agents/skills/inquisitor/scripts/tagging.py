@@ -29,15 +29,13 @@ _IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 
 @dataclass(frozen=True)
 class TagArgs:
-    """hash: the vetted question's hash, whose verdict record gives its
-    related earlier decision, what it concerns and its files. identity: the
-    `--identity` of the github-app command the post goes through, which
-    makes the post an App's; None for any other post. posting_as exists
-    only for run to refuse, since inquisitor.py still passes it: only an
-    identity makes a post an App's."""
+    """hash: the question's hash, as the two calls vetted it; its verdict
+    record gives its related earlier decision, what it concerns and its
+    files. identity: for a post carrying the tag line that goes out
+    through the github-app skill's command, that command's `--identity`;
+    going through it makes the post an App's. None for any other post."""
 
     hash: str
-    posting_as: str | None = None
     identity: str | None = None
 
 
@@ -120,9 +118,6 @@ def run(args: TagArgs) -> int:
         raise Refused("--hash must be a question's hash, 64 lowercase hex characters")
     if args.identity is not None and not _IDENTITY.fullmatch(args.identity):
         raise Refused("--identity must name a github-app identity")
-    if args.posting_as is not None:
-        raise Refused("tag takes --identity, the github-app identity a post goes through, "
-                      "not the login it goes out as")
     records = read_records({args.hash})
     if records is None:
         raise Refused("cannot read the verdict records")

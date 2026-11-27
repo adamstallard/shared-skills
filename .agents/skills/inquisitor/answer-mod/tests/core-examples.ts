@@ -64,7 +64,9 @@ export const EXAMPLES = {
           "related": "https://github.com/o/api/pull/3",
           "replies": [],
           "has_category": false,
-          "new": true
+          "new": true,
+          "state": "open",
+          "relay": "answers[bot]"
         }
       ],
       "judge": [
@@ -85,6 +87,59 @@ export const EXAMPLES = {
       ],
       "notices": [],
       "rate_limited_until": null
+    }
+  },
+  "poll.rate-limited": {
+    "request": {
+      "command": "poll",
+      "session_id": "sess-1"
+    },
+    "response": {
+      "version": 1,
+      "ok": true,
+      "questions": [
+        {
+          "id": "gh:o/web:IC_kwDO7",
+          "surface": "github",
+          "asker": "agent",
+          "asked_by": "web-bot[bot]",
+          "asked_at": "2026-10-20T09:00:00Z",
+          "url": "https://github.com/o/web/pull/4#issuecomment-2001",
+          "text": "Should I run the linter?\n\n1. Yes: CI runs it anyway\n2. No — skip it this once",
+          "concerns": "o/web",
+          "replies": [],
+          "has_category": false,
+          "new": false,
+          "state": "set-aside",
+          "relay": "answers[bot]",
+          "suggested": {
+            "filter": 3,
+            "why": "The repository's CONTRIBUTING.md already says to run the linter."
+          },
+          "revision": {
+            "text": "Should the linter run before each push?",
+            "summary": "The person and Claude agreed the question is about pushes, not commits.",
+            "options": [
+              {
+                "label": "Yes",
+                "effect": "CI runs it anyway"
+              },
+              {
+                "label": "No",
+                "effect": "skip it this once"
+              }
+            ]
+          }
+        }
+      ],
+      "judge": [],
+      "notices": [
+        {
+          "kind": "rate-limit",
+          "text": "GitHub refused a poll for its rate limit: GitHub is not polled until 10:20 UTC."
+        }
+      ],
+      "rate_limited_until": "2026-10-20T10:20:00Z"
     }
   },
   "pending.list": {
@@ -134,7 +189,22 @@ export const EXAMPLES = {
           "ok": null,
           "fix": "Install the answers App on o's repositories."
         }
-      ]
+      ],
+      "candidates": [
+        {
+          "surface": "github",
+          "id": "o",
+          "name": "o (organization)",
+          "subscribed": true
+        },
+        {
+          "surface": "linear",
+          "id": "ENG",
+          "name": "Engineering",
+          "subscribed": false
+        }
+      ],
+      "linear_key_command": "security add-generic-password -s inquisitor-linear -a alice -w"
     }
   },
   "setup.save": {
@@ -238,6 +308,28 @@ export const EXAMPLES = {
       "notices": []
     }
   },
+  "judge.turn-end.posted": {
+    "request": {
+      "command": "judge.turn-end",
+      "session_id": "sess-1",
+      "message": "gh:o/api:IC_kwDO1",
+      "turn": 2
+    },
+    "response": {
+      "version": 1,
+      "ok": true,
+      "next": null,
+      "posted": [
+        {
+          "question": "gh:o/api:IC_kwDO1",
+          "url": "https://github.com/o/api/pull/12#issuecomment-1004",
+          "text": "Recorded answer: Retries back off exponentially, capped at a minute.\n\nRecorded in: https://github.com/o/api/blob/main/docs/retries.md\n\nRe: https://github.com/o/api/pull/12#issuecomment-1001",
+          "kind": "recorded"
+        }
+      ],
+      "notices": []
+    }
+  },
   "discussion.append": {
     "request": {
       "command": "discussion.append",
@@ -245,6 +337,21 @@ export const EXAMPLES = {
       "question": "gh:o/api:IC_kwDO1",
       "role": "person",
       "text": "What breaks if we don't?"
+    },
+    "response": {
+      "version": 1,
+      "ok": true
+    }
+  },
+  "discussion.revise": {
+    "request": {
+      "command": "discussion.revise",
+      "session_id": "sess-1",
+      "question": "gh:o/api:IC_kwDO1",
+      "revision": {
+        "text": "Should retries back off exponentially, capped at a minute?",
+        "summary": "The discussion settled that the cap is what matters."
+      }
     },
     "response": {
       "version": 1,
@@ -290,6 +397,28 @@ export const EXAMPLES = {
       "record": {
         "place": "o/api",
         "visibility": "private"
+      },
+      "warnings": []
+    }
+  },
+  "preview.unasked": {
+    "request": {
+      "command": "preview",
+      "session_id": "sess-1",
+      "question": "gh:o/web:IC_kwDO7",
+      "action": "decline",
+      "reason": 2,
+      "filter": 3,
+      "unasked": true
+    },
+    "response": {
+      "version": 1,
+      "ok": true,
+      "id": "pv-2",
+      "post": null,
+      "record": {
+        "place": "o/web",
+        "visibility": "public"
       },
       "warnings": []
     }
