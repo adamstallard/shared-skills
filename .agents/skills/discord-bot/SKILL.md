@@ -138,8 +138,10 @@ python3 $D read --channel agents --limit 20
 python3 $D read --channel agents --limit 100 --before <oldest messageId seen>
 ```
 
-Newest first, up to 100 per call; `--before` pages further back. A message that
-has a thread carries its `threadId`. If `check` showed `"messageContent": false`,
+Newest first, up to 100 per call; `--before` pages further back. Each message
+carries its `author` username and `authorId`, and `bot`, true for a bot's or a
+webhook's message. A reply carries `replyTo`, the id of the message it answers,
+and a message that has a thread carries its `threadId`. If `check` showed `"messageContent": false`,
 Discord sends other people's messages without their text, and `read` leaves
 them out. Messages the bot posted, and those that mention it, still come back.
 

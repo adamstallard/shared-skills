@@ -36,6 +36,7 @@ IDENTITY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 TEXT_CHANNEL_TYPES = {0, 5}  # text, announcement
 THREAD_TYPES = {10, 11, 12}  # announcement thread, public thread, private thread
 READABLE_MESSAGE_TYPES = {0, 19, 21}  # default, reply, thread starter
+REPLY_MESSAGE_TYPE = 19
 # Application flags meaning the Message Content intent is on: GATEWAY_MESSAGE_CONTENT
 # (a bot in 100 or more servers) and GATEWAY_MESSAGE_CONTENT_LIMITED (under 100).
 # Either one counts.
@@ -655,12 +656,22 @@ def cmd_read(api, config, args):
         attachments = [a["url"] for a in m.get("attachments", [])]
         if not (m.get("content") or "").strip() and not attachments:
             continue
+        author = m.get("author") or {}
         item = {
             "messageId": m["id"],
             "timestamp": m["timestamp"],
-            "author": (m.get("author") or {}).get("username", "unknown"),
+            "author": author.get("username", "unknown"),
+            "authorId": author.get("id"),
+            # Discord marks a webhook's message by its webhook_id, not always by author.bot.
+            "bot": author.get("bot") is True or bool(m.get("webhook_id")),
             "content": m.get("content", ""),
         }
+        reference = m.get("message_reference") or {}
+        # A forward has a message_reference too, and so does the system message
+        # Discord puts first in a thread to stand for the message it was started
+        # from. Neither answers that message, so the type decides.
+        if m.get("type") == REPLY_MESSAGE_TYPE and reference.get("message_id"):
+            item["replyTo"] = reference["message_id"]
         if attachments:
             item["attachments"] = attachments
         if m.get("thread"):
