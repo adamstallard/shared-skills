@@ -1,0 +1,68 @@
+#!/usr/bin/env -S python3 -I
+"""answer: start or resume Claude Code as the inquisitor's answer service.
+
+Passes the person's arguments on to `claude`, and adds on every run the
+session name `Answers`, the fullscreen layout, the answer marker the answer
+mod opens the service on, and the tool restriction: the model keeps only
+Read, Grep and Glob of the built-in tools and no MCP server's. Refuses the
+arguments it sets itself, and `--mcp-config`, which would bring MCP servers
+back, before starting anything.
+
+`install-mod` links ~/.local/bin/answer here. Standard library only.
+"""
+
+import os
+import re
+import shutil
+import sys
+from collections.abc import Sequence
+
+# The arguments this launcher sets, or that would undo what it sets.
+REFUSED = ("--name", "--tools", "--strict-mcp-config", "--mcp-config")
+# claude's `-n` (`--name`), alone, with its value attached, or after claude's
+# short flags that take no value, which claude unbundles: `-cn x` is `-c -n x`.
+SHORT_NAME = re.compile(r"-[chpv]*n")
+ADDED = ["--name", "Answers", "--tools", "Read,Grep,Glob", "--strict-mcp-config"]
+MARKER = "INQUISITOR_ANSWER"
+
+
+def refused(args: Sequence[str]) -> str | None:
+    """The first argument the launcher refuses, as the person wrote it.
+
+    Every argument is checked, those after `--` too: claude reads the `--` in
+    `--model -- --tools Bash` as the model's value and parses on, so stopping
+    there would let `--tools Bash` through. A refused value, such as a system
+    prompt starting with `-n`, is the cost."""
+    for arg in args:
+        if SHORT_NAME.match(arg):
+            return arg
+        for flag in REFUSED:
+            if arg == flag or arg.startswith(flag + "="):
+                return arg
+    return None
+
+
+def command(args: Sequence[str]) -> list[str]:
+    """The `claude` command line: the launcher's own arguments, then the person's."""
+    return ["claude", *ADDED, *args]
+
+
+def environment(base: dict[str, str]) -> dict[str, str]:
+    """The environment `claude` runs in: the marker, and the fullscreen layout."""
+    return {**base, MARKER: "1", "CLAUDE_CODE_NO_FLICKER": "1"}
+
+
+def main(argv: Sequence[str]) -> int:
+    bad = refused(argv)
+    if bad is not None:
+        name = bad.split("=", 1)[0]
+        print(f"answer: {name} is not allowed: answer sets the session's name, tools and MCP servers itself.", file=sys.stderr)
+        return 2
+    if shutil.which("claude") is None:
+        print("answer: claude is not on PATH.", file=sys.stderr)
+        return 127
+    os.execvpe("claude", command(argv), environment(dict(os.environ)))
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
