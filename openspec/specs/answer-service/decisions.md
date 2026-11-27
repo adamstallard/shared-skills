@@ -2,7 +2,7 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, prose's and the inquisitor's, and github-app's and linear-app's refusals to hand a relay identity's token to any command that can print it guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials where its skill keeps them and post with `curl`.**
+- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials where its skill keeps them and post with `curl`; so do the refusals this change asks of github-app and linear-app, which keep a relay identity's token from any command that can print it.**
   Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
@@ -34,10 +34,10 @@
 
 ## Rejected
 
-- **Rejected: A TLA+ model of the answer service's owed pushes and automatic posts.**
-  Facing: [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md) says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer service has such requirements: a push it owes after a post survives a crash and is retried.
-  Lost because: every outcome a model would find follows from the spec's own rules and is accepted. Each push is recorded as owed before its post, but the answer push needs the post's URL and the miss push the reply's id, so a crash before the service saves them drops that push: at worst the answer's relay post, which keeps the answer in its thread, gets no answer file, or the asker, finding no miss file behind the reply, takes it as input, as *A miss or citation file's push is owed and retried as a handled file's is* describes. A crash after a post but before the handled file, which closes the question, or the citation file owed for it is pushed leaves that push owed, to be made after the restart, so at worst the person meets the question again until then, or, when the push had landed before the crash, a second citation file counts one lore use too many. When two machines both post an automatic reply to one question, the later machine deletes its own post while its miss or citation pushes still go out, counting one miss, or one `Recorded answer: ` reply's lore citation, too many, and when its fetch or delete fails, or a crash comes before them, both posts stay. Two machines' pushes to one questions branch cannot overwrite each other, since git refuses a push that would drop the other's commit, https://git-scm.com/docs/git-push
-  Instead: these gaps are accepted, and scenarios state the crash and two-machine cases the answer service handles.
+- **Rejected: A TLA+ model of two machines' answer services sharing questions branches and threads.**
+  Facing: [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md) says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and two machines' answer services can act on one question at once.
+  Lost because: two machines acting on one question end at worst in something done twice, a duplicate file, relay post or question, all accepted, since neither can undo what the other did: a thread keeps both machines' posts, and GitHub refuses to move a branch, unforced, to a commit that drops another's, https://docs.github.com/en/rest/git/refs#update-a-reference
+  Instead: a duplicate file and a re-asked question are accepted, and scenarios state the two-machine cases the answer service handles.
   Paths: .agents/skills/inquisitor/
 
 ## Rationale
@@ -97,7 +97,7 @@
   Evidence: on 2026-11-26, five conditional requests that GitHub answered `304` left the `gh` login's `x-ratelimit-used` unchanged, and the next unconditional request raised it by 1, recorded in task 0.15, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: The answer service's filter 1 reads only subscribed and lore repositories.**
-  Decision documents and questions-branch files are files, so searching them needs a copy on the machine, and the service keeps a copy only of each subscribed repository and each configured lore repository. Filter 1 also reads issues, which need no copy since they are read live, but with the person's credentials. Any other repository a question names is chosen by the question's own text, so fetching its files or reading its issues would let a crafted question choose which repository, a private one included, the service reads with the person's credentials and puts before the model. So one closed set covers everything filter 1 reads for the service. A question about a repository outside the set still comes to the person, so the set costs a recorded answer from that repository, never the question.
+  Decision documents are files, so searching them needs a copy on the machine, and the service keeps a copy only of each subscribed repository and each configured lore repository, and reads the questions branches of those repositories alone. Filter 1 also reads issues, which need no copy since they are read live, but with the person's credentials. Any other repository a question names is chosen by the question's own text, so fetching its files or reading its issues would let a crafted question choose which repository, a private one included, the service reads with the person's credentials and puts before the model. So one closed set covers everything filter 1 reads for the service. A question about a repository outside the set still comes to the person, so the set costs a recorded answer from that repository, never the question.
   Evidence: `git fetch` downloads a repository's objects before any of its files can be read on the machine, https://git-scm.com/docs/git-fetch
   Evidence: GitHub returns a private repository's issues to any request authenticated as a person who can read that repository, https://docs.github.com/en/rest/issues/issues#get-an-issue
   Evidence: OWASP lists, among prompt injection's mitigations, restricting the model's privileges to the minimum it needs, https://genai.owasp.org/llmrisk/llm01-prompt-injection/

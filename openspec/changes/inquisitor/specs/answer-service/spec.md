@@ -1096,9 +1096,8 @@ links; a team mention counts as none.
 ### Requirement: A handback is an Igor's comment holding igor's marker
 
 The answer service SHALL count as a **handback** only a comment that an
-Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
-an Igor's app user) and that holds igor's handback marker, which quoted
-text cannot produce.
+Igor wrote, as an Igor's GitHub App or Linear app user, and that holds
+igor's handback marker.
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -1117,8 +1116,8 @@ text cannot produce.
 
 #### Scenario: Another App's marked comment is not a handback
 
-- **WHEN** a GitHub App whose slug does not start with `igor-`, or a
-  Linear app user that is not an Igor's, comments on an issue assigned to
+- **WHEN** a GitHub App or a Linear app user that is not an Igor's,
+  even a GitHub App whose slug starts with `igor-`, comments on an issue assigned to
   the person, holding igor's handback marker, mentioning no one and
   replying to no relay post, either of which would reach the person by
   another rule
@@ -1329,8 +1328,6 @@ opening and about 60 seconds after each poll ends, for everything since
 its **poll position**, the time of the newest message its last poll
 read, or, with none saved, the last 14 days, saving each poll position
 in the state folder.
-Each poll SHALL fetch every subscribed repository's questions branch and
-every lore repository's questions and default branches.
 
 #### Scenario: Opening catches up
 
@@ -1350,17 +1347,24 @@ every lore repository's questions and default branches.
   first time
 - **THEN** it reads that repository's messages from the last 14 days
 
-#### Scenario: Each poll fetches the questions branches
-
-- **WHEN** the answer service polls its channels
-- **THEN** it fetches the questions branch of every subscribed repository
-  and every lore repository's questions and default branches
-
 #### Scenario: Nothing polls without an open answer service
 
 - **WHEN** Claude Code sessions with the skill are running, and none has
   its answer service open
 - **THEN** no channel or questions branch is polled
+
+### Requirement: The answer service reads the questions branches about every minute
+
+While open, at opening and about every 60 seconds, the answer service
+SHALL read every subscribed and lore repository's questions branch, and
+fetch every lore repository's default branch.
+
+#### Scenario: The questions branches are read about every minute
+
+- **WHEN** the answer service has been open for two minutes
+- **THEN** it has read the questions branch of every subscribed and lore
+  repository through GitHub's API about three times, and fetched every
+  lore repository's default branch into its configured clone as often
 
 ### Requirement: The poll reads every GitHub question source
 
@@ -1953,8 +1957,8 @@ its miss file. If the fetch or the delete fails, both posts stay.
 
 The answer service SHALL keep its working state per machine in the state
 folder, as *The state folder holds all working state* lists, except a
-lore repository's branches, which it fetches into that repository's
-configured clone. A discussion
+lore repository's default branch, which it fetches into that
+repository's configured clone. A discussion
 record SHALL be deleted once its question is
 answered by the person, answered or handled for them, or closed; a pending answer
 outlives it.
@@ -1969,14 +1973,14 @@ outlives it.
 #### Scenario: The state folder holds all working state
 
 - **WHEN** the answer service saves its working state
-- **THEN** apart from a lore repository's branches, which it fetches into
-  that repository's configured clone, it writes only to the state
+- **THEN** apart from a lore repository's default branch, which it
+  fetches into that repository's configured clone, it writes only to the state
   folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
   record, each channel's poll position, each GitHub list's `ETag`, each setup check's last result, relay post ids, the question on screen unless it has a category, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
-  subscribed repository's questions and default branches, the input
+  subscribed repository's default branch, fetched only for filter 1, the input
   files it passes to a relay identity's skill or to the `log` or `search`
   command, and the lock
 

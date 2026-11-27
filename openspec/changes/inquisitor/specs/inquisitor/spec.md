@@ -4,8 +4,8 @@ The inquisitor keeps agents from asking people questions they need not ask.
 Before an agent puts a question to a person, in any task, the question
 passes four filters: already answered, deferrable, not a real question, and
 cheap to reverse. Two runs of the skill's script prove the filters ran, and
-two hooks check that proof before a question reaches the picker or a GitHub
-post. The skill records each answer where a later agent finds it, logs each question it asks and
+two hooks check that proof before a question reaches the picker or a post:
+a GitHub post, or a Discord or Linear message. The skill records each answer where a later agent finds it, logs each question it asks and
 each miss, and proposes lore from answers that generalize. It works in any
 session, and also serves the igor project's AI teammates, the Igors, and the
 workers they start.
@@ -626,8 +626,8 @@ serving what the question concerns.
 - **WHEN** a file under `questions/` or `misses/` on the questions branch
   of the repository the question concerns holds a question whose text
   matches the question's terms
-- **THEN** the search reads that branch with `git show`,
-  without checking it out, and shows that file
+- **THEN** the search reads that branch through GitHub's API and shows
+  that file
 
 #### Scenario: Two lore repositories serving one owner are both searched
 
@@ -744,9 +744,10 @@ The script's `search` command SHALL print filter 1's results for one
 question as one JSON object, issuing no pass token and recording nothing,
 since the answer service records verdicts through `record_verdict`. It
 SHALL fetch nothing, read files only from the answer service's clones
-as last fetched (the lore clones its configuration names and the clones
-of subscribed repositories in its state folder), and read issues as
-filter 1 does, but only of a repository those clones hold.
+as last fetched (its configured lore clones and its subscribed
+repositories' clones), and read questions
+branches and issues as filter 1 does, but only of a repository those
+clones copy.
 
 #### Scenario: The search command prints filter 1's results and nothing more
 
@@ -917,9 +918,11 @@ the item's visibility hides.
 
 #### Scenario: A branch the command cannot read is reported, not empty
 
-- **WHEN** `branch-search` cannot fetch the repository's questions branch
+- **WHEN** `branch-search` cannot read the repository's questions branch
 - **THEN** it exits with an error and prints no `hits`, so a caller reports
   the branch as not searched
+- **AND** for a repository it can read that has no questions branch, it
+  prints empty `hits`
 
 ### Requirement: The Igor reads questions branches with the script
 
@@ -1899,6 +1902,21 @@ only what *Some questions are recorded by hash only* allows.
   did not take
 - **THEN** the second call refuses, records nothing, and keeps the token
 
+### Requirement: One question text keeps one record
+
+The second call SHALL refuse, recording nothing and keeping the token,
+two questions whose texts have the same hash but whose verdict, concerns,
+files or category differ, since one text keeps one record.
+
+#### Scenario: Two questions with one text and different verdicts are refused
+
+- **WHEN** the first call took a post listing the same question twice,
+  once under an open-questions label and once under a deferral label,
+  and the second call gives one `ask` and the other `deferred`
+- **THEN** it refuses, records nothing, and keeps the token
+- **AND** it records both when their verdict, concerns, files and
+  category agree
+
 ### Requirement: The two calls' files and records stay private
 
 The two calls' files and verdict records SHALL have mode 0600, in a private
@@ -2194,6 +2212,13 @@ code, `>` lines or prose's footer.
 - **WHEN** a body is vetted and then signed by prose, which appends its
   footer, such as `prose ✓ 3f2a91`, as its last line
 - **THEN** the hook finds the same questions and lets the post through
+
+#### Scenario: A question's text posted as a listed item is found with that text
+
+- **WHEN** any question's text holding no `*`, `_`, `` ` ``, `~`, `[`,
+  `<` or `\` is posted as the only item of an open-questions section
+- **THEN** the post's one question is that item, with the same text and
+  hash
 
 ### Requirement: An item listed as deferred needs a deferred verdict
 
@@ -2593,9 +2618,10 @@ A question about one repository SHALL be pushed straight to that
 repository's questions branch, and one about a collective to the team's
 lore repository's, with no pull request, the branch created as an orphan
 if missing. No other branch SHALL hold a question or miss file. The
-script SHALL push each commit to a questions branch without checking the
-branch out, with the message only `inquisitor: log ` and the paths from
-the branch's root of the files it adds.
+script SHALL add each commit through GitHub's API on the branch's head,
+adding no file whose path the branch holds, with the message only
+`inquisitor: log ` followed by the paths of its files, from the branch's
+root.
 
 #### Scenario: A question about a repository goes to its questions branch
 
@@ -2634,19 +2660,39 @@ the branch's root of the files it adds.
 - **THEN** the checkout's HEAD, its HEAD reflog and its working tree are
   as they were, and no commit-watching hook reports the commit
 
+#### Scenario: A file whose name the branch holds is not added
+
+- **WHEN** the script would add a file to a questions branch that already
+  holds a file of that path
+- **THEN** it adds nothing, and the file on the branch is unchanged
+
+### Requirement: A questions branch is read through GitHub's API
+
+The script and the answer service SHALL read a questions branch only
+through GitHub's API, with `gh`'s authentication: its tree, its files'
+contents, and each file's commits on the branch, which give the commit
+that added the file and whether a later one changed it. Neither SHALL
+keep a clone or copy of a questions branch.
+
+#### Scenario: A branch search reads the branch through the API
+
+- **WHEN** `branch-search` runs for `o/api`
+- **THEN** it reads `o/api`'s questions branch through GitHub's API, and
+  afterwards no clone or copy of that branch is on the machine
+
 ### Requirement: A file the script cannot push stays pending
 
-When a push to a questions branch is rejected because the branch moved, the
-script SHALL fetch and push again. When it cannot push for any other
+When GitHub refuses a commit to a questions branch because the branch
+moved, the script SHALL make the commit again on the new head. When it cannot push for any other
 reason, it SHALL keep the file pending, with mode 0600, in
 `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/pending/`, and push it
 before the next file it pushes to that branch, keeping it pending until then. The agent's report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
-- **WHEN** the push of a log file to the questions branch is rejected
-  because the branch moved
-- **THEN** the script fetches the branch and pushes again
+- **WHEN** GitHub refuses the commit of a log file to the questions
+  branch because the branch moved
+- **THEN** the script makes the commit again on the branch's new head
 
 #### Scenario: A file an agent cannot push is kept pending and reported
 
@@ -2661,7 +2707,7 @@ before the next file it pushes to that branch, keeping it pending until then. Th
 ### Requirement: The answer service's files are never kept pending
 
 The answer service SHALL pass the `log` and `cite` commands' **service
-option**, which nothing else passes, on every push. With it, the command SHALL fetch and push again when the branch moved, keep
+option**, which the skill's instructions let nothing else pass, on every push. With it, the command SHALL commit again when the branch moved, keep
 no pending copy of a file it cannot push, and tell the service why the
 push failed, leaving the file's retry to the service's owed push, which
 the answer-service spec sets for each kind of file.
@@ -3028,7 +3074,7 @@ SHALL exit with an error and print no `answer`.
 - **THEN** it prints `{"version": 1, "answer": "<alice's answer>"}`, since
   only the tagged person's file can be its answer, and no other field: no
   answer file's name, path or author
-- **AND** when it cannot fetch the branch, or no single file has that date
+- **AND** when it cannot read the branch, or no single file has that date
   and suffix, it exits with an error and prints no `answer`
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
@@ -3127,7 +3173,7 @@ the comment.
 
 ### Requirement: The log command takes answered_by from the linked comment
 
-With its service option, which only an answer service passes, the `log`
+With its service option, which the skill's instructions let only an answer service pass, the `log`
 command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
 record as `answered_by` the comment's author login, followed by `[bot]`
@@ -3170,7 +3216,7 @@ pushes names where it was asked from*); its Igor writes those it needs.
 
 ### Requirement: The log command fetches no Linear or Discord answer link
 
-For a Linear or Discord `answer_link`, which only an answer service passes,
+For a Linear or Discord `answer_link`, which the skill's instructions let only an answer service pass,
 the `log` command SHALL refuse a call without its service option, since a
 link only the answer service makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
@@ -3228,6 +3274,19 @@ holding a line that is exactly `## Rephrased question`, `## Discussion` or
   `## Discussion`
 - **THEN** it writes nothing, and says that the line would be read as a
   closing section
+
+### Requirement: The log command refuses an empty answer
+
+The `log` command SHALL refuse, writing nothing and saying why, an answer
+that is empty or only whitespace, whether given in its input or read from
+a linked comment.
+
+#### Scenario: An answer with no text is refused
+
+- **WHEN** the `log` command is given an answer whose `answer_link` names
+  a comment holding no text, and separately an answer given as `" "`
+- **THEN** it writes nothing for either, and says the answer holds no
+  text
 
 ### Requirement: The log command withholds a link where it would leak
 
