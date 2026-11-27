@@ -4485,11 +4485,11 @@ source* bars it. An answer service places its own misses by the
 
 Nothing SHALL draft or send a lesson until a person asks to review the
 misses. The agent SHALL then draft one per pattern it finds and send each
-by scope: one for anyone using the skill to shared-skills, in general
-terms, quoting no logged question or miss; one for a collective
-to its lore repository, unless that is more visible than a miss file it
-draws on; one for a person to their agent memory or `CLAUDE.md`. The first
-two go by pull request.
+by its scope. A lesson for anyone using the skill goes by pull request to
+shared-skills, in general terms, quoting no logged question or miss; one
+for a collective, by pull request to its lore repository, as *A team
+lesson goes to a more visible lore repository only once confirmed*
+allows; one for a person, to their agent memory or `CLAUDE.md`.
 
 #### Scenario: A lesson for everyone changes the skill
 
@@ -4519,15 +4519,32 @@ two go by pull request.
 - **THEN** the agent opens a pull request to that lore repository adding
   the lesson
 
-#### Scenario: A team lesson from a private repository's misses stays out of a public lore repository
-
-- **WHEN** a lesson for a team draws on misses logged in a private
-  repository, and the team's lore repository is public
-- **THEN** the agent opens no pull request, and tells the person why
-
 #### Scenario: A lesson for one person goes to their memory
 
 - **WHEN** a review of the misses finds that one person keeps being asked
   whether to run the full test suite, which they always want run
 - **THEN** the agent writes that lesson to the person's agent memory or
   user-level `CLAUDE.md`, and opens no pull request
+
+### Requirement: A team lesson goes to a more visible lore repository only once confirmed
+
+A lesson for a collective SHALL go to no lore repository more visible
+than a miss file it draws on unless, outside an Igor's run, the agent
+generalises it and the person in the session confirms it, warned, under
+*A person can confirm a generalized lore entry for a more visible lore
+repository*, the miss files being the source and the question logged
+with the most private. Given those files by the agent, the script SHALL
+refuse a pull request to such a repository without its confirmation
+option.
+
+#### Scenario: A team lesson from a private repository's misses reaches a public lore repository only once confirmed
+
+- **WHEN** a lesson for a team draws on misses logged in the private
+  `o/api`, the team's lore repository `o/lore` is public, and the person
+  in the session confirms the generalized lesson and the warning that
+  `o/lore` is more visible than those misses
+- **THEN** the agent opens a pull request to `o/lore` adding the lesson,
+  which holds no name, code or other detail of `o/api` and no link, path
+  or provenance into it
+- **AND** when the person declines, or no person is in the session, the
+  agent opens no pull request, and tells the person why if one is there

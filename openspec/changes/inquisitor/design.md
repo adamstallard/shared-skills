@@ -516,11 +516,15 @@ Igor injects lore into.
 cheap. **Why** the Igor opens a run's: there the script pushes nothing to a
 lore repository, and the Igor already pushes the run's other files.
 
-#### Lessons from misses are drafted on request and land by scope
+#### Lessons from misses land by scope
 
-**Rule:** inquisitor spec, *Lessons from misses land by their scope*. A
-lesson for shared-skills must be general because question and miss logs can
-hold private content, which stays with the repositories it concerns.
+**Rule:** inquisitor spec, *Lessons from misses land by their scope*, and,
+for a team lesson bound for a lore repository more visible than its misses,
+*A team lesson goes to a more visible lore repository only once confirmed*.
+**Why:** question and miss logs can hold private content, which stays with
+the repositories it concerns, so a lesson for shared-skills must be general,
+and a team lesson goes somewhere more visible only once a person confirms
+its generalized wording.
 
 ### Igor workers and Igor runs
 
