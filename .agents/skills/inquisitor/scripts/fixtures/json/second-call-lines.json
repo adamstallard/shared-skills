@@ -1,0 +1,13 @@
+[
+  {
+    "question": 1,
+    "hash": "<sha256>",
+    "record_line": "Recorded: o/api questions branch (private)"
+  },
+  {
+    "question": 3,
+    "hash": "<sha256>",
+    "record_line": "Not recorded: about your way of working",
+    "person_required_line": "Inquisitor: a person must decide this (required by spec-trace)."
+  }
+]

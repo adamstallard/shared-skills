@@ -1,0 +1,11 @@
+---
+repository: "o/api"
+asked_from: "o/api"
+asked: "2026-10-20"
+asked_by: "web-bot[bot]"
+filter: "1"
+said: "Already decided in docs/retries.md."
+said_by: "alice"
+---
+## Question
+Should retries back off?

@@ -1,0 +1,56 @@
+name: checks
+on:
+  push:
+    # The `questions` branch holds the inquisitor's question records and none
+    # of this repository's files.
+    branches-ignore: [questions]
+  pull_request:
+jobs:
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # pyright skips directories whose names start with a dot when it
+      # searches from the repository root, so its configuration sits in
+      # .agents/, the project root it is pointed at.
+      - name: pyright --strict on the new Python
+        run: npx -y pyright@1.1.414 -p .agents
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Every skill's and library's tests
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          status=0
+          for d in $(find .agents -name 'test_*.py' -exec dirname {} \; | sort -u); do
+            echo "::group::$d"
+            python3 -I -m unittest discover -s "$d" -t "$d" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+  spec-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install OpenSpec
+        run: npm install -g @fission-ai/openspec@2.0.0
+      # spec-check's mechanical checks over every open change and spec, run
+      # from this repository's own copy of the checker.
+      - name: spec-check's checks
+        run: python3 .agents/skills/spec-check/scripts/spec_check.py check --base origin/main

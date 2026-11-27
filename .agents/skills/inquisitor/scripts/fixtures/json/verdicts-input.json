@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "verdicts": [
+    {
+      "question": 1,
+      "verdict": "ask",
+      "field": {
+        "recommended": "Yes",
+        "changes": "No: a failing upstream gets hammered."
+      },
+      "related": "https://github.com/o/api/pull/3"
+    },
+    {
+      "question": 2,
+      "verdict": "deferred",
+      "field": {
+        "where": "this PR's description"
+      }
+    },
+    {
+      "question": 3,
+      "verdict": "ask",
+      "field": {
+        "recommended": "Yes",
+        "changes": "No: subjects may run long."
+      },
+      "requires": "spec-trace"
+    }
+  ]
+}

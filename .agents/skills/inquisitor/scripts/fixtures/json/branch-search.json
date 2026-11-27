@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "repository": "o/api",
+  "hits": [
+    {
+      "path": "questions/2026-10-21-should-retries-back-off-a1b2c3.md",
+      "question": "Should retries back off?",
+      "answer": "Yes.\n\n## Answer: quoted from the question",
+      "label": "decision",
+      "landed": null
+    },
+    {
+      "path": "questions/2026-10-24-should-retries-back-off-cc11dd.md",
+      "question": "Should retries back off?",
+      "answer": "No.",
+      "label": "input",
+      "reason": "unconfirmed",
+      "landed": null
+    },
+    {
+      "path": "misses/def2e704bb5350dd1b2c258cbc70d8b9857ecac5481f35c03c4a5bd8497fb1d6.md",
+      "question": "Should retries back off?",
+      "answer": null,
+      "label": "input",
+      "reason": "miss",
+      "landed": null,
+      "filter": "1",
+      "said": "Already decided in docs/retries.md."
+    }
+  ]
+}
