@@ -360,16 +360,14 @@ branch as the clone's remote-tracking branch has it. Its `status` SHALL be
 
 When the agent works in no git repository and the question concerns no
 repository, collective or person's way of working, filter 1 SHALL search
-only the configured lore repositories and admit only `global` entries,
-and no citation file SHALL be pushed.
+only the configured lore repositories and admit only `global` entries.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
 - **WHEN** an agent working in no git repository has a question about no
   repository or collective, and two configured lore repositories hold
   matching `active` entries, one scoped `global` and one `project:api`
-- **THEN** filter 1 shows only the `global` entry, and when it stops the
-  question with that entry, the agent pushes no citation file
+- **THEN** filter 1 shows only the `global` entry
 
 ### Requirement: The team's lore repository is the most specific one that serves
 
@@ -2799,20 +2797,21 @@ person's agent memory or user-level `CLAUDE.md`, never a committed one.
 
 ### Requirement: A lore entry that stops a question gets a citation file
 
-When filter 1 stops a question with a lore entry, the agent SHALL push a
-citation file to the entry's lore repository's questions branch, unless:
-the question has a category; the lore repository is more visible than the
-repository the question concerns or, for a collective's question, the
-repository it was asked from; or *No worker or
-Igor-started run pushes to a questions branch* bars it.
+When filter 1 stops a question with a lore entry it treats as an answer,
+the agent SHALL push a
+citation file to the entry's lore repository's questions branch, unless
+the question has a category or *No worker or Igor-started run pushes to
+a questions branch* bars it. Whether it is pushed SHALL not depend on
+the visibility of the repository the question concerns, of any thread
+it has, or of the lore repository, *Nothing about a repository goes
+somewhere more visible* notwithstanding.
 
-#### Scenario: A collective's question from Discord cites no public lore entry
+#### Scenario: A question about a private repository cites a public lore entry
 
-- **WHEN** filter 1, in an answer service, stops a collective's question
-  asked in a Discord thread with an entry of a public lore repository
-- **THEN** no citation file is pushed, since a collective's question
-  asked in a Linear or Discord thread counts as asked from a private
-  repository
+- **WHEN** filter 1 stops a question about the private `o/api` with an
+  entry of the public lore repository `o/lore`
+- **THEN** the agent pushes a citation file to the questions branch of
+  `o/lore`
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -2823,12 +2822,6 @@ Igor-started run pushes to a questions branch* bars it.
   and no log file holds the entry's id
 - **AND** a citation file is not a log file and never an answer, and the
   search never shows one
-
-#### Scenario: No citation goes to a more visible lore repository
-
-- **WHEN** filter 1 stops a question about a private repository with an
-  entry in a public lore repository
-- **THEN** no citation file is pushed
 
 #### Scenario: A categorized question is not cited
 

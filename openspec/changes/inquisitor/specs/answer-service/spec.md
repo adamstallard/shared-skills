@@ -3066,9 +3066,10 @@ question gets a citation file* applies.
 - **THEN** the service posts the recorded answer through the relay, and
   pushes, through the inquisitor's script, a citation file to `o/lore`'s
   questions branch
-- **AND** where the same entry answers a question about the private
-  `o/api` in an `o/api` thread, the service posts the recorded answer but
-  pushes no citation file, since `o/lore` is more visible than `o/api`
+- **AND** where the same entry, whose `global` scope also covers
+  `o/api`, answers a question about the private `o/api` in an `o/api`
+  thread, the service again posts it by itself and pushes a citation file
+  to `o/lore`'s questions branch, though `o/lore` is more visible
 
 ### Requirement: A person's cite of an active entry in scope pushes a citation file
 
@@ -3090,12 +3091,11 @@ cite SHALL push nothing.
 - **THEN** nothing is posted, the recorded answer is shown, and a citation
   file for that entry is pushed
 
-#### Scenario: Citing an inactive, out-of-scope or more visible entry sends none
+#### Scenario: Citing an inactive or out-of-scope entry sends none
 
-- **WHEN** the person cites, by declining or agreeing, a lore entry whose
-  status is not `active`, an `active` entry whose scope does not cover
-  the question, or an entry in a public lore repository for a question
-  about a private repository
+- **WHEN** the person cites a lore entry whose status is not `active`,
+  or names in a decline an `active` entry whose scope does not cover the
+  question (filter 1 never shows such an entry beside a question)
 - **THEN** no citation file is pushed
 
 #### Scenario: A filter 1 decline pushes its citation even with no miss file

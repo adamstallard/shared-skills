@@ -579,15 +579,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         `## Rephrased question`, `## Discussion` or `## Answer`.
       - `misses`, listing the misses by filter for a review.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
-      file has one format* (`entry` and `date`, no `run`) once to the
+      file has one format* (`entry` and `date`, no `run`), one for each stop or cite, to the
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
       the answer service cites an `active` entry in scope by naming it in
       a reason 2 decline with filter 1 or by agreeing to it as a shown
-      recorded answer. Its commit names no person. It sends none for a question with a category,
-      none where *A lore entry that stops a question gets a citation
-      file* bars it by visibility, and none for a cited entry not `active` or out
-      of scope. A push it cannot make stays pending as `log`'s does,
+      recorded answer. Its commit names no person. Its callers do not call it for a question
+      with a category, nor for a cited entry that is out of scope or not
+      `active`; it does not check these itself. A push it cannot make stays pending as `log`'s does,
       except when called with the service option `log` also takes,
       which the answer service passes (inquisitor spec: *The answer
       service's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
