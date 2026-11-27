@@ -1766,9 +1766,10 @@ stop only work needing the answer, and report it.
 #### Scenario: The script tells a person's session by CLAUDE_CODE_SESSION_ATTENDED
 
 - **WHEN** the script runs where `CLAUDE_CODE_SESSION_ATTENDED` is `0`, or
-  unset
-- **THEN** it counts the session as having no person in it, and where the
-  variable is `1`, as having one
+  unset, and it is unset on every host other than Claude Code
+- **THEN** it counts the session as having no person in it, even an
+  interactive session on another host
+- **AND** where the variable is `1`, it counts the session as having one
 
 ### Requirement: A flagged run's handback comment asks no question
 
@@ -2269,6 +2270,20 @@ leading whitespace dropped.
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
 
+### Requirement: The post hook vets a Discord message as a post
+
+The post hook SHALL vet a Discord message the shared post reader returns
+as it vets a post, under every rule this spec gives the post hook except
+the person-required line's check, which *The second call checks a
+requiring skill, and the post hook its line* limits to a GitHub post.
+
+#### Scenario: A Discord message through discord-bot is vetted
+
+- **WHEN** an agent runs `python3 /abs/discord_bot.py post --message-file
+  m.md`, where `m.md` asks a question no second call recorded as `ask`,
+  and again where `m.md` starts `User says: `
+- **THEN** the post hook blocks each, naming the question in the first
+
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
 A question asked in a post SHALL tag the first of these with write access
@@ -2308,8 +2323,8 @@ for a question about files, the author of the last commit to them.
 
 When no tagging candidate has write access, the
 script SHALL check the configured login, and tag it if it has write
-access and the post is known to go out as a GitHub App (*A post is
-known to go out as a GitHub App only from the environment*). If it tags no
+access and the post goes out as a GitHub App, not as that login (*A post
+goes out as a GitHub App only through github-app's commands*). If it tags no
 one, the agent SHALL ask through the picker when a person is in the
 session, unless gh confirms a configured login that lacks write access;
 in any other case it SHALL tag no one, with the last scenario's fixed
@@ -2351,28 +2366,34 @@ tag line.
   one with authority to decide this could be tagged; name deciders in
   .inquisitor/reviewers.`
 
-### Requirement: A post is known to go out as a GitHub App only from the environment
+### Requirement: A post goes out as a GitHub App only through github-app's commands
 
-The script SHALL know a post goes out as a GitHub App only when
-`GITHUB_APP_ACT_AS`, or else `GITHUB_APP_IDENTITY`, names a github-app
-identity whose stored bot login it reads, or when `GIT_AUTHOR_NAME` ends
-`[bot]`; otherwise the post SHALL count as going out as the configured
-login.
+The script SHALL count a post as going out as a GitHub App only when the
+agent, asking whom to tag, passes the `--identity` of the github-app
+command the post goes through, a command that sends the post with the
+App's installation token, such as `gh` or `run`; the script takes the
+agent's word. The post then goes out as that identity's bot login, which
+github-app stores. Any other post SHALL count as going out as the login
+`gh api user` reads.
 
-#### Scenario: A post as the environment's github-app identity tags the configured login
+#### Scenario: A post through github-app's gh tags the configured login
 
 - **WHEN** no candidate has write access, the configured login has it,
-  and `GITHUB_APP_ACT_AS` names the identity `bot`, whose stored bot login
-  is `x[bot]`
-- **THEN** the post is known to go out as `x[bot]`, and the question tags
-  the configured login
+  and the agent passes the script the identity `bot`, as it will post
+  with `python3
+  /abs/github_app.py --identity bot gh pr comment 5 --body-file c.md`,
+  where the identity `bot`'s stored bot login is `x[bot]`
+- **THEN** the post goes out as `x[bot]`, and the question tags the
+  configured login
 
-#### Scenario: An identity named only on the command line is not known
+#### Scenario: github-app's environment alone does not make a post an App's
 
-- **WHEN** the environment names no github-app identity and
-  `GIT_AUTHOR_NAME` does not end `[bot]`, and the agent will post through
-  the github-app skill's script with `--identity bot`
-- **THEN** the post counts as going out as the configured login
+- **WHEN** `GITHUB_APP_ACT_AS` names the identity `bot` and
+  `GIT_AUTHOR_NAME` is `x[bot]`, as in a project that github-app's `wire`
+  set up, and the agent will post with a plain `gh pr comment`, while `gh api
+  user` reads `alice`, the configured login
+- **THEN** the post counts as going out as `alice`, and the question
+  does not tag `alice`
 
 ### Requirement: A candidate or login that cannot be checked is skipped
 
@@ -4428,9 +4449,8 @@ about item `<n>`, counted from 1, among the open-questions items of the post,
 or Linear or Discord message, it replies to or names in its `Re: ` line
 (the line linking what it answers),
 or, one past the last item, about that message's sentences ending in `?`
-outside that section. A reply SHALL be input when its message was
-edited after the reply, save as *A sequencer block's update keeps a numbered
-reply* allows.
+outside its open-questions section. A numbered reply SHALL be input when the message
+it is about was edited after the reply.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -4453,33 +4473,6 @@ reply* allows.
   reply starting `Inquisitor: question 3: filter 4` has its miss file
 - **THEN** the agent acts on it for that sentence only, and both items
   stand
-
-### Requirement: A sequencer block's update keeps a numbered reply
-
-An edit after a numbered `Inquisitor: ` reply SHALL leave the reply in
-force when it only added, changed or removed whole sequencer blocks (the
-lines `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` and the
-text between them) and blank lines beside them, which the sequencer skill writes in each ordered item's
-description.
-
-#### Scenario: A sequencer block's update keeps a numbered reply
-
-- **WHEN** an agent's issue description lists three questions, a reply
-  starting `Inquisitor: question 2: filter 4` has its miss file, and the
-  sequencer then rewrote only the text between the description's
-  `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` lines
-- **THEN** the agent acts on the reply for the second item
-- **AND** an edit that also changed a line outside those markers, other
-  than a blank line beside a block, makes the reply input
-
-#### Scenario: A sequencer block added or removed keeps a numbered reply
-
-- **WHEN** a reply starting `Inquisitor: question 2: filter 4` has its
-  miss file, and the sequencer then added a whole block, from its
-  `<!-- sequencer:begin -->` line to its `<!-- sequencer:end -->` line, to
-  the issue's description as the issue joined the order, or removed one as
-  it left
-- **THEN** the agent acts on the reply for the second item
 
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 

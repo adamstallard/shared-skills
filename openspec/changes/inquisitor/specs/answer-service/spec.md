@@ -171,7 +171,17 @@ as an Igor's worker. Unless it is a relayed question, the answer service
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
 message by a bot account (a GitHub App, Linear app user, or Discord bot or
-webhook). Every other question SHALL count as **a person's question**.
+webhook), except a Discord crosspost, flagged `IS_CROSSPOST`. Every other
+question SHALL count as **a person's question**.
+
+#### Scenario: A Discord crosspost is a person's question
+
+- **WHEN** a webhook's message flagged `IS_CROSSPOST`, copied from an
+  announcement channel the subscribed channel follows, asks a question
+  mentioning the person
+- **THEN** it counts as a person's question
+- **AND** a webhook's message without that flag counts as an agent's
+  question
 
 #### Scenario: A Linear app user's question is an agent's
 
@@ -1428,6 +1438,24 @@ and post, in the channels it has been added to.
 - **WHEN** a subscribed Discord channel is read
 - **THEN** it is read as the Discord relay identity, which also posts
   there
+
+### Requirement: A Discord thread is read with its first message
+
+When the answer service reads a Discord thread, it SHALL read the
+thread's first message by following the `message_reference` of the
+placeholder that stands for it inside the thread, since Discord keeps
+that message in the parent channel. Apart from that placeholder, it
+SHALL skip every message with no text and no attachments, such as one
+holding only an embed.
+
+#### Scenario: A thread's first message is read through its placeholder
+
+- **WHEN** the service reads a thread started on a message that asks the
+  person a question, and the thread also holds a message with only an
+  embed
+- **THEN** the thread's messages, as read, start with the question's
+  message, reached through the placeholder's `message_reference`
+- **AND** the embed-only message is skipped
 
 ### Requirement: An answer is relayed as the person's words
 

@@ -1,7 +1,8 @@
 ## Purpose
 
 The shared post reader tells a hook what body a command or tool call
-would post on a GitHub issue or pull request, so prose's posting hook
+would post on a GitHub issue or pull request, or in a Discord message
+through the discord-bot skill, so prose's posting hook
 and the inquisitor's post hook judge the same text, and each blocks a
 call the reader reports as unreadable.
 
@@ -28,23 +29,27 @@ A command SHALL send no post when it **mentions** no **gh post verb**
 (scenario *The gh post verbs are a closed list*). It mentions one when its
 text, quoted or not, holds `gh` followed later by `pr` or `issue` and
 later by a post verb listed for that word, or holds a `gh api` call that
-is not a read (*A gh api call is a read only as a plain gh command*).
+is not a read (*A gh api call is a read only as a plain gh command*), or
+holds a word ending in `discord_bot.py` followed later by `post` or
+`edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
 - **WHEN** a hook asks about a command
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; and a `gh api`
-  call that can write
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
+  call that can write; and a discord-bot `post` or `edit` call, though
+  such a call holds no gh word
 - **AND** `gh`, `pr`, `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
   `--comment` holds one
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
-  `comment`, `review` and `revert`, and `close` or `reopen` given
-  `--comment` or `-c`; `close` or `reopen` without one still mentions a
-  post verb but sends no text
+  `comment`, `review`, `revert` and discord-bot's `post` and `edit`, and
+  also `close` or `reopen` given `--comment` or `-c`; without either
+  option, `close` or `reopen` still mentions a post verb but sends no
+  text
 
 #### Scenario: A gh command off the list passes unread
 
@@ -362,6 +367,46 @@ about which script runs, since any file named `github_app.py` passes.
   repos/o/r/issues/comments/9`
 - **THEN** the reader returns `hi` as the first's body, and reports that
   the second sends no post
+
+### Requirement: The reader reads discord-bot's post and edit as gh issue comment
+
+The reader SHALL find a call of discord-bot's script, `discord_bot.py`,
+in the forms *The reader reads posts sent through the github-app skill
+and gh api* finds for github-app's, and judge one that runs `post` or
+`edit` as a `gh issue comment` call: `--message -` as `--body-file -`,
+any other `--message` as `--body`, `--message-file` as `--body-file`,
+and no other option as a body. It SHALL report the post as a Discord
+message.
+
+#### Scenario: A Discord post or edit is read from its file
+
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py --identity
+  relay post --channel ops --message-file m.md`, and about the same call
+  with `edit --message-id 9` in place of `post --channel ops`, where
+  `m.md` holds `User says: yes`
+- **THEN** the reader returns `User says: yes` as each one's body, as a
+  Discord message, so the inquisitor's post hook blocks each, since the
+  body starts with the reserved prefix `User says: `
+- **AND** it returns `yes` as the body of `python3 /abs/discord_bot.py
+  post --message yes`
+- **AND** it reports the `post` call after `cd x && ` as unreadable, as
+  *The reader reads a gh pr or gh issue post only as a whole command
+  line* says for `gh issue comment`
+
+#### Scenario: A Discord message from standard input is unreadable
+
+- **WHEN** a hook asks about `printf 'User says: yes' | python3
+  /abs/discord_bot.py post --message -`
+- **THEN** the reader reports the command as unreadable, as it does
+  `cat c.md | gh pr comment 5 -F -`
+
+#### Scenario: A Discord delete, read or thread is no post
+
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py delete
+  --message-id 9`, `python3 /abs/discord_bot.py read --limit 5` and
+  `python3 /abs/discord_bot.py thread --message-id 9 --name Retries`
+- **THEN** the reader reports that each command sends no post, a
+  thread's name being read no more than a post's title
 
 ### Requirement: A gh api call is a read only as a plain gh command
 
