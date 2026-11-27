@@ -4108,9 +4108,10 @@ question's repository, it SHALL tell the person the lesson.
 During an Igor's run, the agent SHALL open no lore pull request but put
 each entry it would propose in the run's report, as it does each file it
 would push, and the Igor SHALL open the pull request adding it as a
-`provisional` entry, under *A lore pull request goes to no lore repository
-more visible than its source* and *A proposed lore entry's path, fields and
-id follow igor's rules*.
+`provisional` entry, under *A lore pull request goes to a more visible
+lore repository only once confirmed* and *A proposed lore entry's path,
+fields and id follow igor's rules*, and never with the script's
+confirmation option.
 
 #### Scenario: A run's lore entry goes in its report
 
@@ -4126,28 +4127,69 @@ id follow igor's rules*.
   public, and the repository the question concerns is private
 - **THEN** the Igor opens no pull request for it, and says why
 
-### Requirement: A lore pull request goes to no lore repository more visible than its source
+### Requirement: A lore pull request goes to a more visible lore repository only once confirmed
 
-The script SHALL refuse to open a pull request proposing or promoting a lore
-entry to a lore repository more visible than the repository the question
-concerns or, for an answer promoted from a questions-branch file, than that
-file, with visibility as *A log or miss file is as private as its more
-private repository* defines it; the agent SHALL tell the person why.
+The script SHALL refuse to open a pull request proposing or promoting a
+lore entry to a lore repository more visible, as *Nothing about a
+repository goes somewhere more visible* ranks it, than the repository
+the question concerns or, for a promotion, than the questions-branch file
+(*A log or miss file is as private as its more private repository*),
+unless given its confirmation option. Refused, the agent SHALL tell the
+person in the session why, if one is there.
 
-#### Scenario: A private answer never reaches a public lore repository
+#### Scenario: With no person in the session, a private answer never reaches a public lore repository
 
-- **WHEN** the lore repository is public and the repository the question
-  concerns is private
-- **THEN** no pull request is opened, and the agent tells the person why
-- **AND** none is opened to promote a questions-branch file whose
-  `repository` is public and whose `asked_from` is private, since the
-  file is as private as its more private repository
+- **WHEN** an agent in a session with no person in it judges lore-worthy
+  an answer to a question about a private repository, and the lore
+  repository is public
+- **THEN** no pull request is opened, since only a person can confirm one
+
+#### Scenario: An unconfirmed promotion of a more private file opens nothing
+
+- **WHEN** an agent is asked to promote a questions-branch file whose
+  `repository` is public and whose `asked_from` is private, to a public
+  lore repository, and nobody confirms the promotion
+- **THEN** no pull request is opened, since the file is as private as the
+  more private of its `repository` and its `asked_from`
 
 #### Scenario: A lore repository of unknown visibility counts as public
 
-- **WHEN** the script cannot read the lore repository's visibility, and the
-  repository the question concerns is private
+- **WHEN** the script cannot read the lore repository's visibility, the
+  repository the question concerns is private, and the script is not
+  given its confirmation option
 - **THEN** no pull request is opened
+
+### Requirement: A person can confirm a generalized lore entry for a more visible lore repository
+
+Outside an Igor's run, with a person in the session, when an entry's
+lore repository is more visible than its source (the question's
+repository or promoted file), the agent SHALL generalise away private
+context and ask that person, in the picker or else its reply, a question
+about the source showing the entry and lore repository, warning of its
+wider audience.
+Only if they confirm SHALL it pass the script's confirmation option. The
+entry SHALL hold no link, path or provenance into the source.
+
+#### Scenario: A confirmed entry is proposed with generalized text
+
+- **WHEN** a person's answer to a question about the private `o/api`
+  holds for every repository the team works on, the team's lore
+  repository `o/lore` is public, and the person confirms, in the picker,
+  the entry's text and the warning that `o/lore` is more visible than
+  `o/api`
+- **THEN** the agent opens the pull request to `o/lore`, and the entry
+  holds no name, code or other detail of `o/api`, and no link, path or
+  provenance into it
+- **AND** the confirmation question, being about `o/api`, is logged on the
+  questions branch of `o/api`, never on one more visible
+- **AND** filter 4, which lets the agent choose for itself between
+  options cheap to reverse, never stops the confirmation question, since
+  a pull request to a public repository publishes the entry for good
+
+#### Scenario: A declined entry is not proposed
+
+- **WHEN** the person declines that confirmation
+- **THEN** no pull request is opened, and the agent tells the person so
 
 ### Requirement: A proposed lore entry's path, fields and id follow igor's rules
 

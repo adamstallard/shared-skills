@@ -615,8 +615,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       person a posted question tags*; *A question's text and hash are
       built one way*)
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
-      `questions` branch, or refusing it by visibility or by an id outside
-      igor's id rule. During an Igor's run it opens nothing and writes the
+      `questions` branch, or refusing a pull request whose id is outside
+      igor's id rule, or whose lore repository is more visible, unless
+      given the confirmation option, which the agent passes only once the
+      person confirms (inquisitor spec: *A person can confirm a
+      generalized lore entry for a more visible lore repository*). During an Igor's run it opens nothing and writes the
       entry into the run's report for the Igor to propose, as igor PR
       #216 is asked to
 - [ ] 2.8 A test pinned to an igor commit that checks the lore entry
