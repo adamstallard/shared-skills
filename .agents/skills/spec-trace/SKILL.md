@@ -163,11 +163,18 @@ yet.
   says names no scenario, change the tag to the scenario's current name, or
   delete it if the scenario is gone. Most such tags name a scenario the
   change removes or renames.
-- Before opening the implementation pull request, paste your change's part
-  of the output into its body, so the reviewer sees which test covers each
-  scenario. For each capability the change touches, that is the `###`
-  heading, the `| Scenario | Tests |` and `| --- | --- |` lines, and the
-  change's rows. It is already markdown.
+- A pull request body is written only once the pull request goes to
+  anyone for review, since nobody reads it before then; until then it
+  holds only link lines such as `Closes #N`. When a reviewer joins a pull
+  request that carries the implementation (a spec's pull request counts
+  once code is on it), the agent that writes the body pastes into it the
+  change's part of the `report --include-changes` output: for each
+  capability the change touches, the `###` heading, the
+  `| Scenario | Tests |` and `| --- | --- |` lines, and the rows of the
+  change that pull request implements. The table shows the reviewer which
+  test covers each scenario. For each later reviewer, the agent replaces
+  the body with one written afresh, with the table as it is then. It is
+  already markdown.
 
 Don't add `report --include-changes` to CI: it always exits 0, so it can't
 fail a build. CI runs `check`.

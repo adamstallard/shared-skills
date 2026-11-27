@@ -5,17 +5,18 @@
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
-    spec_check.py verify-staged "Spec-check: <value>"   (ignores the commit message .agents/lib/commit-trailer pipes to stdin)
+    spec_check.py verify-staged "Spec-check: <value>"   (ignores the commit message that .agents/lib/commit-trailer pipes to its stdin)
     spec_check.py verify-commit <sha> <value>
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
     spec_check.py records <change> [--repo DIR] [--ref REF] [--base REF]
 
 A committed `.spec-check-kept` file, in a change's folder or beside a
-decision record, clears the `evolution` errors a person chose to keep in
-that change's files or that record, for check and sign alike: one entry per line,
-`<file>: «<line text>» kept (asked): <reason>` (SKILL.md, "Keeping a line
-the evolution check flags").
+decision record, clears the `evolution` errors (lines that record history,
+not what holds now) a person chose to keep in that change's files or that
+record, for check and sign alike: one entry per line,
+`<file>: «<line text>» kept (asked): <reason>`, with `kept (asked):` written
+as shown (SKILL.md, "Keeping a line the evolution check flags").
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -57,19 +58,22 @@ sign runs check on the staged tree and, when no error remains, prints the
 records of the consistency read: `subagent` or `self` for a read done this
 round, `deferred` for a commit before the round's end. sign searches the
 branch's git history for each change's last read to name the changes that
-are due, and ends the value with `no read due` when none is.
+are due, and ends the value with `no read due` when none is. `--amended N`
+records how many amendments the read led to, and `--open N` how many open
+questions are left in design.md.
 
 ci is the GitHub workflow's check of a pull request event ($GITHUB_EVENT_PATH):
-it fails when a change is unread at the pull request's head and, when the
+it fails when a change has changed since its last consistency read, as
+the `Spec-check:` trailers up to the pull request's head record it, and, when the
 event is a hand-back, makes it a draft again and withdraws the review
 request. setup-ci writes that workflow into a repository, from the
 workflow template (ci/spec-check.yml) as it stands at the commit it pins,
 so the workflow's steps match the spec_check.py each run downloads. The
-pin is the later of the newest commits on shared-skills' main that changed
-this file and the template, when one is in the other's history. When the
-two came from branches merged separately, neither holds the other's
-change, and the pin is the first commit on main's first-parent line whose
-history holds both. setup-ci reads the pin and the template from GitHub,
+pin comes from two commits on shared-skills' main: the newest that changed
+this file, and the newest that changed the template. When one of them is
+an ancestor of the other, the pin is the later one. When they came from
+branches merged separately, neither is, and the pin is the first commit on
+main's first-parent line whose history holds both. setup-ci reads the pin and the template from GitHub,
 so gh must be installed and signed in.
 
 verify-staged and verify-commit check a `Spec-check:` value against the
@@ -90,7 +94,7 @@ title names no requirement in force or in an open change, and runs the
 requirement of a change a `rationale` finding when its text holds more
 than its SHALL statement and one *because* sentence: reasoning with
 evidence belongs in a Rationale entry of the decision record, and the
-rest in design.md. The records command prints the records a change's
+author cuts the rest. The records command prints the records a change's
 consistency read is given: the main record of each capability the change
 touches, and each main record with a Constraint or Rejected entry whose
 Paths line, the files that entry governs, names a file the branch
@@ -2276,7 +2280,7 @@ def check_rationale(reqs, corpus, out):
                                f'requirement "{r.name}" holds {len(extra)} sentences beside its '
                                f'SHALL statement; keep the rule and at most one *because* '
                                f'sentence; move reasoning with evidence to a Rationale entry in {where}, '
-                               f'and the rest to design.md'))
+                               f'and cut the rest'))
 
 
 def changed_files(repo, base_ref, ref=None):
@@ -4394,7 +4398,7 @@ SHOWN_SRC = 3
 # The pass a hand-back starts: the final pass of prose's single-pass rule.
 # The workflow prints this; prose's hook prints its own wording of the same
 # pass after an agent's hand-back.
-HANDBACK_PASS = (f"{PASS_DUE} each doc the pull request changes, and its body and title. "
+HANDBACK_PASS = (f"{PASS_DUE} each doc the pull request changes, and its title. "
                  "It was handed back for review: flag and fix any that still describes "
                  "work as unfinished or to come.")
 
@@ -4513,11 +4517,7 @@ def commit_passes(repo, sha, base_ref):
         now = blob_ids(repo, tree, prefix)
         if start is not None and blob_ids(repo, start, prefix) == now:
             continue  # not this branch's change
-        docs = [f"{prefix}{f}" for f in ("proposal.md", "design.md") if f"{prefix}{f}" in now]
-        targets = docs + ["the pull request's body and title"]
-        listed = targets[0] if len(targets) == 1 else \
-            ", ".join(targets[:-1]) + ", and " + targets[-1]
-        passes.append((("change", c), set(src), f"{PASS_DUE} {listed}. The implementation is on the branch of the open change {c} "
+        passes.append((("change", c), set(src), f"{PASS_DUE} the pull request's title. The implementation is on the branch of the open change {c} "
                      f"({shown} added): rewrite wording such as \"specification only\", or "
                      "\"will\" for what is now built."))
     return passes

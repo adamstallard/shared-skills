@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Tells the agent which git worktrees to remove because their work has landed.
 
-A worktree holding a branch stops anyone checking that branch out elsewhere,
-so it should go as soon as its work is pushed. This hook never removes
-anything itself.
+A worktree should go as soon as its work has landed: pushed, so that its HEAD
+is on origin. This hook never removes anything itself.
 
 When it looks, and at what:
   - After a command that pushed (PostToolUse, or Cursor's postToolUse): only
@@ -19,23 +18,25 @@ When it looks, and at what:
     its lock reason and an unlock command.
   - At Stop: every worktree of every repo it finds, except two kinds. Locked
     ones are skipped. A worktree that isn't the session's own is also skipped
-    when git did something in it during the last RECENT_SECONDS, by
-    last_used. The hook's own git commands must not make a worktree look
-    recently used: last_used reads those times before git runs in the
-    worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
+    when git did something in it during the last RECENT_SECONDS, as
+    last_used measures it. The hook's own git commands must not make a worktree look
+    recently used: last_used reads the times of its HEAD, index and reflog
+    before git runs in the worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
     rewrite the index.
 
 A worktree is listed only when all of these hold:
-  - it is a linked worktree with a `.git` file of its own and a branch
-    checked out
+  - it is a linked worktree with a `.git` file of its own
   - it is safe to remove (judge and safe): `git status` is clean, untracked
     files included; no skip-worktree or assume-unchanged file differs on
     disk; removing it loses no commit (lost_commits); it has no submodule,
     which `git worktree remove` refuses; and no other worktree sits inside
     it, since removing it would delete that one
+  - no rebase, merge, cherry-pick, revert, bisect or notes merge is paused
+    in it
   - its own HEAD reflog shows a commit, merge, rebase, cherry-pick or revert
-    since its branch was checked out there, fast-forwards aside, so a
-    checkout made for review or for an agent about to start is never listed
+    since its current HEAD was checked out there, fast-forwards and rebase
+    entries that make no commit aside, so a checkout made for review or for
+    an agent about to start is never listed
   - HEAD is reachable from a refs/remotes/origin/* ref
   - no process has its working directory inside it, apart from this hook and
     the processes that started it; when processes can't be read, nothing is
@@ -48,9 +49,9 @@ A worktree is listed only when all of these hold:
 
 At Stop, every idle linked worktree not in the agent's list is shown to the
 user, locked or not, whatever its state. Idle means git has done nothing
-there for IDLE_SECONDS, by last_used, and no file that `git status` lists as
-changed was modified in that time. That counts every file inside an
-untracked nested repository or a changed submodule, a moved or deleted file
+there for IDLE_SECONDS, as last_used measures it, and no file that `git status` lists as
+changed was modified in that time. The files checked include every file
+inside an untracked nested repository or a changed submodule, a moved or deleted file
 by its directory's time, and the skip-worktree and assume-unchanged files
 that differ on disk. The session's own worktree, a busy one (a process has
 its working directory inside it), and one whose names can't be printed
@@ -124,6 +125,13 @@ PUSH_SLACK_SECONDS = 5
 PUSH_FALLBACK_SECONDS = 60
 
 LOCAL_WORK = re.compile(r"^(commit|merge|rebase|cherry-pick|revert)\b")
+# Rebase entries that move HEAD without making a commit. A review checkout
+# brought up to date with `git rebase origin/<branch>` logs only `start` and,
+# on a branch, `finish`. Stepped through with `rebase -i` and left unchanged,
+# it adds fast-forwards, which local_work skips anyway, and with
+# `--rebase-merges` also `reset`. An aborted rebase logs `abort`. A commit the
+# rebase makes logs another action, such as `pick`, and still counts.
+REBASE_MOVE = re.compile(r"^rebase \((start|finish|abort|reset)\):")
 WORKTREE_TAIL = re.compile(r"/\.claude/worktrees/[^\s\"'`/:\\]+")
 # Characters that end a path in a transcript. A backslash is one: in JSON it
 # starts an escape such as \n.
@@ -592,11 +600,45 @@ def safe_to_show(wt, main, others, busy):
                    if o != path and os.path.exists(o))
 
 
+# Files a paused rebase, merge, cherry-pick, revert, bisect or notes merge
+# leaves in the worktree's own git directory. Removing the worktree deletes
+# them, and the paused operation with them. Don't drop `rebase-merge` and
+# `rebase-apply`: a tree stopped mid-rebase, such as at an `edit` before any change, has a
+# detached HEAD on a commit already on origin. When the tree has commits of its
+# own, the other checks then see it as landed, and only these files show it is
+# mid-rebase. `sequencer` holds cherry-picks or reverts still queued after a
+# conflict was resolved with a plain `git commit`, which removes
+# CHERRY_PICK_HEAD. A `git notes merge` stopped at a conflict leaves
+# NOTES_MERGE_PARTIAL and NOTES_MERGE_REF; NOTES_MERGE_WORKTREE, below, holds
+# its conflicting notes, which the clean check can't see.
+IN_PROGRESS = ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD",
+               "REVERT_HEAD", "sequencer", "BISECT_LOG", "NOTES_MERGE_PARTIAL",
+               "NOTES_MERGE_REF")
+# Counts only when it holds a file, as git's own check does: `git notes merge
+# --commit` and `--abort` leave it empty. With the reftable ref store it is
+# the only sign of a paused notes merge, since the two refs above aren't files.
+NOTES_MERGE_WORKTREE = "NOTES_MERGE_WORKTREE"
+
+
+def in_progress(path):
+    """Is a rebase, merge, cherry-pick, revert, bisect or notes merge paused
+    in this worktree? True when its git directory can't be found."""
+    own = git_dir_of(path)
+    if own is None or any(os.path.exists(os.path.join(own, f)) for f in IN_PROGRESS):
+        return True
+    try:
+        return bool(os.listdir(os.path.join(own, NOTES_MERGE_WORKTREE)))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+
+
 def describe_if_landed(wt, main, others, busy):
     """The listing line for a worktree whose work has landed and that is safe
     to remove, or None. Locks are the caller's to judge."""
     path, branch = wt.get("path"), wt.get("branch")
-    if not branch or not safe_to_show(wt, main, others, busy):
+    if not safe_to_show(wt, main, others, busy) or in_progress(path):
         return None
     code, log = git("reflog", "show", "--format=%gs", "HEAD", cwd=path)
     if code != 0 or not local_work(log.split("\n")):
@@ -607,7 +649,8 @@ def describe_if_landed(wt, main, others, busy):
     if code != 0 or not refs or not safe(judge(path, peers_of(path, main, others))):
         return None
     on = f"origin/{branch}" if f"origin/{branch}" in refs else clean(refs[0])
-    return f"  {path}  (branch {branch}, on {on})\n    {remove_command(wt, main)}"
+    held = f"branch {branch}" if branch else "detached HEAD"
+    return f"  {path}  ({held}, on {on})\n    {remove_command(wt, main)}"
 
 
 def describe_if_idle(wt, main, others, busy, since):
@@ -857,15 +900,18 @@ def peer_commits(peer):
 
 
 def local_work(reflog):
-    """Does this HEAD reflog, newest first, show work done on the branch now
-    checked out? Entries before the checkout that brought that branch here
-    belong to another branch, and fast-forwards are not work. `git rebase
-    <upstream> <branch>` switches branches too, logging `rebase: checkout`."""
+    """Does this HEAD reflog, newest first, show work done on the branch or
+    commit now checked out? The scan stops at the checkout that brought it
+    here, the newest one that moved to a different branch or commit: entries
+    older than that belong to another. Fast-forwards are not work, and neither
+    is a rebase entry that makes no commit. `git rebase <upstream> <branch>`
+    switches branches too, logging `rebase: checkout`."""
     for entry in reflog:
         switch = SWITCH.match(entry)
         if (switch and switch.group(1) != switch.group(2)) or entry.startswith("rebase: checkout "):
             return False
-        if LOCAL_WORK.match(entry) and not entry.lower().endswith("fast-forward"):
+        if (LOCAL_WORK.match(entry) and not entry.lower().endswith("fast-forward")
+                and not REBASE_MOVE.match(entry)):
             return True
     return False
 
@@ -1053,7 +1099,7 @@ def find_landed(payload):
 
 def agent_message(listing, mode_, host):
     leave = "ExitWorktree, or cd out" if host == "claude" else "cd out"
-    head = ("These worktrees hold work that has already landed: clean tree, branch pushed "
+    head = ("These worktrees hold work that has already landed: clean tree, HEAD pushed "
             "to origin, nothing running in them.")
     tail = f"If this session is inside one, leave it first ({leave}). "
     if "\n    locked: " in listing:
@@ -1062,8 +1108,7 @@ def agent_message(listing, mode_, host):
     if mode_ == "block":
         return (f"{head} Remove them now, before reporting done:\n{listing}\n"
                 f"{tail}If one must stay, ask the user instead of skipping it.\n")
-    return (f"{head} A worktree holding a branch stops anyone else checking that branch "
-            f"out, so remove each one once you are done with it:\n{listing}\n"
+    return (f"{head} Remove each one once you are done with it:\n{listing}\n"
             f"{tail}If one should stay, ask the user.\n")
 
 

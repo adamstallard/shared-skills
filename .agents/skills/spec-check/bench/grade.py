@@ -36,10 +36,9 @@ The agent follows the spec-check skill, whose rules include: every SHALL/MUST re
 scenario; a decision record (openspec/specs/<capability>/decisions.md) holds only Constraint, Rejected and
 Rationale entries with linked Evidence; a Rationale entry's title must equal its requirement's exact title;
 a record entry whose rule a requirement or scenario already states is cut; a rejection that a requirement
-guards against belongs in that requirement's Rationale; record material (a constraint, a rejected
-alternative, or a reason with evidence) belongs only in the record, never repeated in design.md; an
-unmeasured fact a change relies on becomes a task and an open question; conflicts with other specs are
-reported with both sides quoted. Judge extra findings against these rules and the files.
+guards against belongs in that requirement's Rationale; an unmeasured fact a change relies on is measured
+while the spec is written when that is quick, and otherwise becomes a task and an open question; conflicts
+with other specs are reported with both sides quoted. Judge extra findings against these rules and the files.
 
 Grade the run against each expectation below, using only the agent's final report and the
 diff of what it changed. An expectation passes only on clear evidence in the report or diff.

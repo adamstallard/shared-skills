@@ -77,15 +77,13 @@ When an agent works on anything under `openspec/`, it:
 3. **Fixes the spec itself.** A question only you can answer goes into
    design.md's *Open Questions*, not into a pull request comment.
 
-Decisions go in design.md, stated once each, as they stand now, in its
-*Decisions*, and proposal.md stays OpenSpec's short why and what. The one
-exception is material for a capability's decision record, described in
-the next section: a constraint no test can check, an alternative turned down, or a reason
-for a requirement, when it has evidence. That goes only in the record of each
-capability it concerns, never also in design.md. `check` does not test
-where a decision sits; the fresh subagent's read flags record material
-left in design.md. A line recording how a decision was amended is an
-error.
+A decision goes in a requirement and its scenario. One no test can check
+goes in a capability's decision record, described in the next section,
+when it has evidence, and is not written down when it has none. design.md
+holds only open questions, each deleted once answered: questions for you,
+and facts waiting on a measurement task in tasks.md. proposal.md is a stub
+written once and never kept current, so no agent builds from it. `check`
+reports a line recording how a decision was amended as an error.
 
 ### Decision records
 

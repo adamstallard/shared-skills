@@ -85,9 +85,9 @@ reorder or merge sentences to save words, never split a point around another
 document does not already say.
 
 A cold reader, an agent that reads your file with no other context, may
-report the words where it stopped, reread or guessed, and those findings may
-come back to you. Fix each with the first that works: cut it, move it beside
-the point it continues, or reword it. A fix works when a reader would no
+report the words where it stopped, reread, guessed or could not tell why,
+and those findings may come back to you. Fix each with the first that works:
+cut it, move it beside the point it continues, or reword it. A fix works when a reader would no
 longer stop there and no conclusion is lost. Edit only those places, then
 reply as below.
 
