@@ -1231,15 +1231,6 @@ follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
 service SHALL NOT pair a file with a message by text similarity.
 
-#### Scenario: A Discord item whose mention discord-bot rewrote is shown on its own
-
-- **WHEN** an agent's Discord message lists two questions, the second
-  naming `@bob`, which discord-bot sent as `<@id>`, and each is logged in
-  its own file whose `asked_in` is the message's URL
-- **THEN** the first item's file follows its item, and the second item's
-  file, whose hash matches no item and so is paired with no message, is
-  shown on its own
-
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
 - **WHEN** a log file's `asked_in` links a message in a channel this
@@ -2051,6 +2042,12 @@ names another id.
   leaving its owed pushes, kept in the state folder, to the new session
 - **AND** it closes though both sessions are named `Answers`, as every
   session the `answer` command starts is
+
+#### Scenario: An idle answer service keeps its lock fresh
+
+- **WHEN** the answer service stays open and idle for 3 minutes
+- **THEN** it refreshes its lock at least every 30 seconds, so another
+  session opening the answer service finds the lock fresh
 
 #### Scenario: A crashed session's lock goes stale
 
@@ -2926,7 +2923,10 @@ The service SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A question that names no repository at all has no decision documents to search and no rules that go unread, so it SHALL be searched in `global` lore alone.
+`global` lore entry may contradict an unread repository's rules. A
+question with **no place** (*A channel's repositories place its
+questions*), which names no repository whose rules could go unread,
+SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 

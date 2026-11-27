@@ -16,8 +16,8 @@ Evidence in the decision record of each capability it bears on; task
 0.29's result goes in igor issue #247's body instead, since it is a fact
 about igor's host. In the same commit, write the requirements the result
 supports, and drop the task's Open Question unless the result leaves a
-choice to the repository's owner. Numbers 0.22, 0.24, 0.26, 0.27, 0.32
-and 0.36 have no task, so that the other tasks keep their numbers.
+choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
+0.32 and 0.36 have no task, so that the other tasks keep their numbers.
 
 - [x] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens. Done 2026-11-26, Claude Code 2.1.332, in a throwaway
@@ -131,8 +131,6 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       #247 lists
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published
-- [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
-      the home directory igor gives it rather than in its environment
 - [x] 0.15 That a conditional request answered `304`, sent with the
       person's `gh` login, does not count against the rate limit, as
       GitHub documents (answer-service spec: *The poll reads every GitHub
@@ -498,7 +496,22 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       each as a Discord message (gh-post spec: *The reader reads
       discord-bot's post and edit as gh issue comment*), so prose's
       posting hook reads them too
+- [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
+      `description` from the Linear MCP, and blocks a `save_issue` with
+      `patch`, or `template` and no `description` (gh-post spec: *The reader reads a Linear MCP
+      comment or issue description*)
+- [ ] 1.7 The library reports whether each post goes through the
+      github-app skill's script (gh-post spec: *The reader says whether a
+      post goes through the github-app skill*)
 
+- [ ] 1.8 The library blocks a gh api post that gh changes before sending,
+      takes only exactly `graphql` as GraphQL, reads `repositories/<id>/`
+      endpoints, and lets piped input reach only a `gh pr` or `gh issue`
+      command sending no text or a `gh api` read (gh-post spec: *A gh api
+      post that gh changes before sending is unreadable*; *A gh api call
+      writes by its method, fields, input or a mutation*; *The reader
+      reads a gh api write to an issue or pull request*; *Input to a
+      no-post line reaches only data commands*)
 ## 2. The script
 
 - [ ] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first
@@ -676,8 +689,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         out as a GitHub App, which a post does only when the agent
         passes the identity of the github-app command the post goes
         through (inquisitor spec: *A post goes out as a GitHub App only
-        through github-app's commands*); otherwise ask through the
-        picker instead.
+        through github-app's commands*), recording that identity with
+        the question's verdict (*A tag made for an App's post goes out
+        only through github-app*); otherwise ask through the picker
+        instead.
 
       A session with no person in it tags the login only when it has
       write access and the post goes out as a GitHub App, and otherwise
@@ -711,10 +726,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 - [ ] 3.1 `scripts/check-ask.sh`: `PreToolUse` on `AskUserQuestion` (Claude Code
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
-- [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP
-      tools, through `.agents/lib/gh-shell/`. Every check below except
-      the person-required line's applies to a Discord message the reader
-      returns too. It blocks a post in which a
+- [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash, the GitHub MCP
+      tools and the Linear MCP's `save_comment` and `save_issue`, through
+      `.agents/lib/gh-shell/`. Every check below applies to a Discord or
+      Linear message the reader returns too. It blocks a post holding a
+      question tagged for a github-app identity unless the post goes
+      through github-app's script (inquisitor spec: *A tag made for an
+      App's post goes out only through github-app*). It blocks a post in which a
       question whose `ask` names a requiring skill lacks its
       person-required line, or another question carries one. It blocks every post holding
       a question whose latest verdict record gives it a category (inquisitor spec: *The post hook blocks a post holding a
@@ -780,7 +798,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       blocked picker or post, and, while github-app or linear-app hands
       a relay's token to a command that can print it, the warning that any
       agent can print it and post `User says: ` (answer-service spec:
-      *The README warns that a relay's token can be printed*).
+      *The README warns that a relay's token can be printed*). While
+      task 0.6 is open, it says no comment counts as a handback; while
+      task 0.38 is open, that no Linear comment does; while task 0.16 is
+      not done, that Linear stays off; and while task 0.17 is not done,
+      that Discord stays off.
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with

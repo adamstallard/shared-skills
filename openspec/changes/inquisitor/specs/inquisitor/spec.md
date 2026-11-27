@@ -1516,9 +1516,9 @@ the second call prints it, `<skill>` being the requiring skill's name.
 
 The second call SHALL refuse an `ask` naming a requiring skill unless
 the name is lowercase letters, digits and `-`, and SHALL record the name
-with the verdict, except for a question with a category, which no GitHub post
-may hold (*The post hook blocks a post holding a question with a
-category*). The post hook SHALL block a GitHub post in which a
+with the verdict. It records no name for a question with a category,
+which no post may hold (*The post hook blocks a post holding a question
+with a category*). The post hook SHALL block a post in which a
 question whose record names a requiring skill lacks that skill's
 person-required line, or any other question carries one.
 
@@ -1656,8 +1656,8 @@ A **question round** SHALL end at a hand-back to a person, as spec-check's
 skill defines one (`.agents/skills/spec-check/SKILL.md`), such as a pull
 request opened or marked ready. With a person in the session, it SHALL also
 end at every end of the agent's turn, on work with a pull request too; with
-no person in the session, it SHALL end when the agent's run ends, a
-subagent's run excepted.
+no person in the session, it SHALL end when the agent's run ends. A
+subagent's turn or run ends no round.
 
 #### Scenario: Opening a pull request for review ends the round
 
@@ -1693,15 +1693,14 @@ subagent's run excepted.
   started it
 - **THEN** that ends no round, since no person receives the result
 
-### Requirement: Where the host has a picker, an agent asks through it, never in its reply
+### Requirement: With a person in session, an agent asks through the picker, never in its reply
 
 With a person in session, an agent SHALL ask only through the picker, a
 post, a message on another service, or, for a `vulnerability` question, a
 private security advisory, never in its reply, bar an answer service's
 discussion (`answer-service` spec: *A discussion runs in the session's own
-conversation*). On a host with no picker it SHALL ask in its reply instead
-of the picker, once the two calls vet it, unchecked by hooks. Its subagents
-SHALL hand back surviving questions, prepared.
+conversation*). Its subagents SHALL hand back, unasked, each question
+that survives the filters.
 
 #### Scenario: A question goes through the picker
 
@@ -1710,14 +1709,6 @@ SHALL hand back surviving questions, prepared.
 - **THEN** it asks with `AskUserQuestion`, not in its reply text, unless it
   asks in a post, a Linear or Discord message, or, for a `vulnerability`
   question, the private security advisory
-
-#### Scenario: A host with no picker asks in the reply
-
-- **WHEN** an agent, in a session with a person in it on a host with no
-  picker, has a question that survives the filters
-- **THEN** it runs the two calls on the question, then asks it in the text
-  of its reply, its record line (*A question asked in the session shows
-  where its answer will be recorded*) last, and no hook checks it
 
 #### Scenario: A subagent hands its question back
 
@@ -2270,12 +2261,11 @@ leading whitespace dropped.
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
 
-### Requirement: The post hook vets a Discord message as a post
+### Requirement: The post hook vets a Discord or Linear message as a post
 
-The post hook SHALL vet a Discord message the shared post reader returns
-as it vets a post, under every rule this spec gives the post hook except
-the person-required line's check, which *The second call checks a
-requiring skill, and the post hook its line* limits to a GitHub post.
+The post hook SHALL vet a Discord or Linear message the shared post
+reader returns as it vets a post, under every rule this spec gives the
+post hook.
 
 #### Scenario: A Discord message through discord-bot is vetted
 
@@ -2283,6 +2273,16 @@ requiring skill, and the post hook its line* limits to a GitHub post.
   m.md`, where `m.md` asks a question no second call recorded as `ask`,
   and again where `m.md` starts `User says: `
 - **THEN** the post hook blocks each, naming the question in the first
+
+#### Scenario: A Linear comment or description through the Linear MCP is vetted
+
+- **WHEN** an agent calls `mcp__linear__save_comment` with a `body`
+  starting `User says: `, and `mcp__linear__save_issue` with a
+  `description` asking the question whether to adopt spec-trace, whose
+  `ask` names spec-trace, without spec-trace's person-required line
+- **THEN** the post hook blocks each call
+- **AND** it blocks the same question without its line in a Discord
+  message too
 
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
@@ -2395,6 +2395,25 @@ github-app stores. Any other post SHALL count as going out as the login
 - **THEN** the post counts as going out as `alice`, and the question
   does not tag `alice`
 
+### Requirement: A tag made for an App's post goes out only through github-app
+
+When the script tags a question's configured login because the post goes
+out as a GitHub App, it SHALL record the identity the agent passed with
+the question's verdict. The post hook SHALL block a post holding that
+question unless the shared post reader reports the post as sent through
+the github-app skill, naming that identity in its message, so the person
+is never tagged on their own post.
+
+#### Scenario: A tag made for an App's post blocks a plain gh post
+
+- **WHEN** the script tagged the configured login `alice` on a question
+  because the agent passed the identity `bot`, and the agent posts it
+  with `gh pr comment 5 --body-file c.md`
+- **THEN** the post hook blocks the post, and says to post it through
+  github-app's script as `bot`
+- **AND** it lets through the same post sent as `python3
+  /abs/github_app.py --identity bot gh pr comment 5 --body-file c.md`
+
 ### Requirement: A candidate or login that cannot be checked is skipped
 
 The script SHALL skip a candidate whose pull request, approver or GitHub
@@ -2452,7 +2471,7 @@ without it SHALL NOT be asked.
 A question SHALL go only where its audience is no wider than what it
 concerns, by *Nothing about a repository goes somewhere more visible* for a
 post or issue. If it is wider or unknown, with a person in session, the
-agent SHALL ask through the picker, or in its reply on a host with none.
+agent SHALL ask through the picker.
 With no person in the session: if wider, it SHALL post in the
 repository the question concerns, or, for a collective's, the one it
 was asked from, when it can; if unknown, it SHALL post
@@ -2753,8 +2772,8 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 
 ### Requirement: A question asked in the session shows where its answer will be recorded
 
-For each question given the verdict `ask` and asked in the picker or the
-agent's reply, the second call SHALL print its **record line**:
+For each picker question given the verdict `ask`, the second call SHALL
+print its **record line**:
 `Recorded: `, the repository whose questions branch will hold the record
 and its visibility, naming the repository it was asked from where that
 branch is more visible; or `Not recorded: ` and a reason that *Not
@@ -3973,7 +3992,7 @@ category.
 ### Requirement: A question with a category is asked only of the person or in its advisory
 
 The filters SHALL run on a question with a category. The agent SHALL ask it
-only through the picker, in its reply on a host with no picker, or, if
+only through the picker or, if
 `vulnerability`, in the repository's private security advisory, recording a `vulnerability` question's answer in the
 advisory and using it in the fix. It SHALL list one in no post or issue, and
 defer one under filter 2 only by listing it as not done in its report or,
@@ -3996,7 +4015,7 @@ if `vulnerability`, in the advisory.
 
 An agent that cannot open, or write in, the repository's private security
 advisory SHALL ask a `vulnerability` question only of the person, through
-the picker or, on a host with none, in its reply, record neither the
+the picker, record neither the
 question nor its answer, use the answer only in the fix's code, and report
 only that the question blocks.
 
@@ -4232,10 +4251,9 @@ and tell the person in the session why it refused, if one is there.
 
 Outside an Igor's run, with a person in the session, for a lore
 repository more visible than an entry's source, the agent SHALL
-generalise away private context and ask them, in the picker (else in its
-reply), a question showing the entry and lore repository and warning
-that it is more visible, logged on the source's most private
-repository's questions branch. Only on their yes SHALL it pass the
+generalise away private context and ask them, in the picker, a question showing the entry and lore repository and warning
+that it is more visible, logged on the questions branch of the
+entry's most private source. Only on their yes SHALL it pass the
 script's confirmation option. The entry SHALL hold no link, path or
 provenance into the source.
 
