@@ -506,6 +506,25 @@ keychain, and a save SHALL keep keys it does not write.
   API key, which the answer service reads Linear with, is only in the
   system keychain
 
+### Requirement: The person's Linear key reaches the service only from the keychain
+
+The answer service, setup included, SHALL take the person's Linear API
+key only from the system keychain, where a command the person runs in
+their own terminal stores it, never from the prompt box or the picker.
+
+#### Scenario: The person's Linear key never passes through the prompt
+
+- **WHEN** setup needs the person's Linear API key
+- **THEN** it shows a command the person runs in their own terminal,
+  which stores the key in the system keychain, such as `security
+  add-generic-password -s inquisitor-linear -a <github-login> -w` on macOS
+  or `secret-tool store --label inquisitor-linear service
+  inquisitor-linear account <github-login>` on Linux, `<github-login>`
+  being the configured `login`, and
+  reads the key from the keychain once the person says it is done
+- **AND** the key is never asked for in the prompt box or picker, and
+  appears in no prompt, model context or transcript
+
 ### Requirement: The person runs the service, and a relay identity posts for them
 
 **The person** SHALL be the one whose questions the answer service shows:
@@ -797,13 +816,11 @@ Code session starts or resumes whose environment holds the marker the
 
 ### Requirement: The answer launcher starts a restricted session
 
-The `answer` launcher SHALL pass the person's arguments on to Claude
-Code, exiting with an error, before starting it, when they hold
-`--name`, `--tools`, `--strict-mcp-config` or `--mcp-config`, the last of
-which would bring MCP servers back. It SHALL add on every run
-the session name `Answers`, the fullscreen layout, the answer marker
-(*Only a session with the answer marker opens the answer service*) and
-the tool restriction.
+The `answer` launcher SHALL pass on to Claude Code only the arguments
+*The answer launcher passes only its listed arguments* lists, and exit with an error, before starting it, on any
+other. It SHALL add on every run the session name `Answers`, the
+fullscreen layout, the answer marker (*Only a session with the answer
+marker opens the answer service*) and the tool restriction.
 
 #### Scenario: The answer launcher starts a restricted session
 
@@ -814,12 +831,30 @@ the tool restriction.
   service's model has no shell, no writing tool and no web fetch* says,
   and every enabled plugin still on
 
-#### Scenario: The answer launcher refuses an argument it sets itself
+#### Scenario: The answer launcher passes only its listed arguments
+
+- **WHEN** the person runs `answer` with any of `--resume <id>` or `-r
+  <id>`, `--resume` or `-r` alone, `--continue` or `-c`, `--model <name>`,
+  and `--debug` or `--debug=<filter>`
+- **THEN** it passes each on to Claude Code
+- **AND** a long option's value may also follow `=`, as in
+  `--resume=<id>` and `--model=<name>`
+- **AND** a group of short options, such as `-cr <id>`, is read as each
+  letter in turn, only the last taking a value, and a value written onto
+  its letter, such as `-r<id>`, is refused
+- **AND** `-c` and a bare `-r` may pick a session `answer` did not start,
+  and that session then opens with the tool restriction and the answer
+  marker like any other, since the launcher cannot tell which session
+  Claude Code will pick
+
+#### Scenario: The answer launcher refuses any other argument
 
 - **WHEN** the person runs `answer --name x`, `answer --tools Bash`,
-  `answer --strict-mcp-config` or `answer --mcp-config x.json`
-- **THEN** it exits with an error naming the argument, and starts no
-  Claude Code session
+  `answer --mcp-config x.json`, `answer --agents '{}'`, `answer
+  --settings s.json`, `answer --plugin-dir d`, `answer -cn x`, or `answer
+  'a prompt'`
+- **THEN** it exits with an error naming the first argument off its list,
+  `-n` for `-cn x`, and starts no Claude Code session
 
 ### Requirement: The answer mod strips other tools from the answer session
 
@@ -2106,6 +2141,29 @@ vetting. The discussion record SHALL keep both sides' messages.
 - **WHEN** the person and the model have each sent a message in a
   discussion of a question
 - **THEN** that question's discussion record holds both messages
+
+### Requirement: An agent's question offers the options its numbered list gives
+
+The answer service SHALL take an agent's question's **options**, the
+answers it offers with what each would change, only from its text: a
+list of two or more items numbered `1.` or `1)` upward with no gap, each
+`label: effect`, `label — effect` or a bare label. A question with no
+such list, or a person's question, SHALL show no options to pick from.
+
+#### Scenario: A numbered list gives the options
+
+- **WHEN** an agent's question holds the lines `1. Back off: retries wait
+  longer each time` and `2. Fixed delay — retries wait one second`
+- **THEN** its options are `Back off`, which would make retries wait
+  longer each time, and `Fixed delay`, which would make them wait one
+  second
+- **AND** the lines `1) Back off` and `2) Fixed delay` give the options
+  `Back off` and `Fixed delay`, each with no effect
+- **AND** a question whose list is numbered `1.` and then `3.`, and a
+  person's question holding the list in the WHEN line, show no options
+- **AND** every numbered line in a question's text counts toward one
+  list, `.` and `)` mixing freely, so a second list starting again at
+  `1.` leaves the question with no options
 
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 

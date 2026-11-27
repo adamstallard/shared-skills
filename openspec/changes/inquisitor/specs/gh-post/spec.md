@@ -27,14 +27,12 @@ through it.
 ### Requirement: A command that mentions no gh post verb sends no post
 
 A command SHALL send no post when it **mentions** no **gh post verb**
-(scenario *The gh post verbs are a closed list*), unless piped input
-reaches its `gh` command. It mentions one when its
-text, quoted or not, holds `gh` followed later by `pr` or `issue` and
-later by a post verb listed for that word, or holds `gh` followed later
-by `api` in a line that is not a read (*A gh api call is a read only in a
-plain form*), or
-holds a word ending in `discord_bot.py` followed later by `post` or
-`edit`.
+(its first scenario lists them), unless input within
+the line reaches a `gh` command (*Input to a no-post line reaches only
+data commands*). It mentions one when its text holds `gh`, then `pr` or
+`issue`, then a post verb listed for that word; `gh`, then `api`, unless
+the line is a read (*A gh api call is a read only in a plain form*); or
+a word ending in `discord_bot.py`, then `post` or `edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -44,10 +42,12 @@ holds a word ending in `discord_bot.py` followed later by `post` or
   `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
   call that is not a read; and a discord-bot `post` or `edit` call, though
   such a call holds no gh word
-- **AND** `gh`, `pr`, `issue`, `api` and each verb count only as whole
+- **AND** a command's words count whether quoted or not, and `gh`, `pr`,
+  `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
-  `--comment` holds one
+  `--comment` holds one; and `api` counts only with no `/` or `.` just
+  before or after it, so `gh repo view o/api` mentions no post verb
 
 #### Scenario: A gh command off the list passes unread
 
@@ -298,12 +298,13 @@ that is `gh` or a path ending in `/gh`.
 
 ### Requirement: Input to a no-post line reaches only data commands
 
-In a line whose simple commands are all ones that *A line whose simple
-commands send no text is no post* allows, input from a pipe or an input
-redirection SHALL reach only data commands, or, when it reaches a single
-simple command, one of these: a `gh pr` or `gh issue` command that uses
-no gh post verb, or a `gh api` read. Otherwise the line SHALL be
-unreadable, whether or not it mentions a gh post verb.
+This rule covers a line whose simple commands are all ones *A line
+whose simple commands send no text is no post* allows, and a line that
+mentions no gh post verb but whose input reaches a `gh` command. Such a
+line SHALL send no post when input from a pipe or redirection reaches
+only data commands, or only one simple command that is a `gh pr` or `gh
+issue` command using no post verb, or a `gh api` read; otherwise it
+SHALL be unreadable.
 
 #### Scenario: A gh post piped into a shell is unreadable
 

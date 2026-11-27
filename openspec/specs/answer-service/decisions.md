@@ -2,7 +2,7 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials where its skill keeps them and post with `curl`; so do the refusals this change asks of github-app and linear-app, which keep a relay identity's token from any command that can print it.**
+- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer: such an agent can read a relay's credentials where its skill keeps them and post with `curl`.**
   Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.

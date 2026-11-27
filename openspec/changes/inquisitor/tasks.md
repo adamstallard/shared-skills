@@ -623,6 +623,13 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       - The secret scan, over raw markdown with link targets included,
         the visibility refusal, and the refusal of an empty answer
         (inquisitor spec: *The log command refuses an empty answer*).
+      - Without its service option, in a folder no git repository
+        holds, it refuses a file whose `asked_from` would be the current
+        work's repository (inquisitor spec: *The log command refuses
+        outside a git repository*). Its confirmation option sends only an
+        answered log file or a miss file somewhere more visible (inquisitor
+        spec: *The answerer's confirmation can send a record somewhere more
+        visible*).
       - It refuses, saying why, a question holding a line that is exactly
         `## Rephrased question`, `## Discussion` or `## Answer`.
       - `misses`, listing the misses by filter for a review.
@@ -676,7 +683,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 - [ ] 2.7 `lore`, opening a lore pull request of one of three kinds: a
       new entry, a promotion from the `questions` branch, or a lesson
       from misses, for which the agent gives it the miss files the lesson
-      draws on. It refuses an id outside igor's id rule. It refuses a lore
+      draws on. It makes the branch, the commit and the pull request
+      through GitHub's API, with no clone (inquisitor spec: *The lore
+      command opens its pull request through GitHub's API*). It refuses an id outside igor's id rule. It refuses a lore
       repository more visible than the entry's source unless given the
       confirmation option, which the agent passes only once the person
       confirms (inquisitor spec: *A lore pull request goes to a more
@@ -745,7 +754,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 ## 5. Docs and registration
 
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
-      privacy of what it concerns, posting no more publicly than that,
+      privacy of what it concerns, writing its answers as a numbered
+      `label: effect` list (answer-service spec: *An agent's question
+      offers the options its numbered list gives*), posting no more publicly than that,
       that the person is accountable for what is posted as their relay
       and where, since no hook checks where a relay post goes
       (answer-service spec: *The person answers for what their relay posts*), the
@@ -928,8 +939,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       the person's GitHub login, without which it does not complete; the
       candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
-      off and checked again at each opening; the Linear key in the
-      keychain; each Linear or Discord channel's `repos`, guessed from its
+      off and checked again at each opening; the Linear key stored in
+      the keychain by a command the person runs, never through the prompt
+      (*The person's Linear key never passes through the prompt*); each Linear or Discord channel's `repos`, guessed from its
       history (answer-service spec: *Setup guesses the repositories a
       Linear or Discord channel concerns*); the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push,
@@ -1058,16 +1070,12 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
         concerns line names, named by a hash of the reply's surface and id
         and either naming a `said_by` or hash-only (inquisitor spec: *A
         hash-only miss file shows nothing but that it exists*).
-- [ ] 6.11 Decide at implementation, and when each choice is made, add
-      it to the spec as a requirement with a scenario or, if no test can
-      check it, to the answer-service decision record as an entry with
-      evidence: how a question's options, the choices it offers
-      with what each would change, are parsed from its thread; and how the
-      service handles an asker's reply that revises those options. Agreeing
-      to a shown recorded answer is already decided, as are agreeing to a
-      suggested verdict and citing a lore entry (answer-service spec:
-      *Filters 2 to 4 only suggest a verdict on other questions*; *A
-      person's cite of an active entry in scope pushes a citation file*)
+- [ ] 6.11 Decide at implementation, and add to the spec as a
+      requirement with a scenario or, if no test can check it, to the
+      answer-service decision record as an entry with evidence: how the
+      service handles an asker's reply that revises a question's options
+      (answer-service spec: *An agent's question offers the options its
+      numbered list gives*)
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's

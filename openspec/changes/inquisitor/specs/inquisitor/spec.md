@@ -2785,12 +2785,13 @@ question is unlogged.
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 
-When the person answering or declining confirms a warning naming the more
-private source, the script SHALL push the question's answered log file or
-its miss file to a questions branch more visible than that source. The
-file SHALL then hold no `asked_in`, `answer_link` or `recorded_in` URL into the source, no
-miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
-`asked_from` the branch's own repository. Only that person confirms it.
+When the person answering or declining confirms a warning that the
+record is more visible than its source, the script SHALL push the
+answered log file or miss file to that questions branch, with no
+`asked_in`, `answer_link` or `recorded_in` URL into the source, no miss's
+`asked_by`, no `Re: ` line in its answer, and as `asked_from` the
+branch's repository. Whatever runs `log`, agent or answer service, SHALL
+pass its confirmation option only then.
 
 #### Scenario: A confirmed answer from a Discord thread is recorded on a public branch
 
@@ -2809,6 +2810,23 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 - **THEN** the answer in the log file pushed to the questions branch of
   `o/lore` is the relay comment's text without its last line,
   `Re: https://github.com/o/api/issues/7`
+
+#### Scenario: A confirmed miss drops who asked
+
+- **WHEN** a person declines, in their answer service, an agent's
+  organization question asked by `x[bot]` in an issue of the private
+  `o/api`, and confirms sending the miss to the questions branch of the
+  public lore repository `o/lore`
+- **THEN** the miss file pushed there holds no `asked_by` and no
+  `asked_in`, and its `asked_from` is `o/lore`
+
+#### Scenario: The confirmation sends no unanswered question
+
+- **WHEN** the `log` command is given the confirmation for a question
+  file with no answer, bound for a questions branch more visible than its
+  source
+- **THEN** it refuses, writing nothing, as it would without the
+  confirmation
 
 #### Scenario: Without the confirmation the record stays as private as its source
 
@@ -2852,14 +2870,16 @@ confirms it.
   about the person's way of working, one with the category
   `vulnerability`, one with another category, one whose
   questions branch the session cannot push to, a collective's question
-  no configured lore repository serves, or any picker question in a session
-  with no login configured
-- **THEN** it prints `Not recorded: about your way of working`, `Not
+  no configured lore repository serves, any picker question in a session
+  with no login configured, or one asked from a folder no git repository
+  holds
+- **THEN** it prints, for each in the same order, `Not recorded: about
+  your way of working`, `Not
   recorded: only a security advisory may hold it`, `Not recorded: it has a
   category`, `Not recorded: no push access to its
-  questions branch`, `Not recorded: no team's lore repository serves it`
-  or `Not recorded: no GitHub login configured`, the first of these that
-  applies
+  questions branch`, `Not recorded: no team's lore repository serves it`,
+  `Not recorded: no GitHub login configured` or `Not recorded: asked
+  outside any repository`, the first of these that applies
 
 ### Requirement: A question shown as not recorded is never logged
 
@@ -3287,6 +3307,19 @@ a linked comment.
   a comment holding no text, and separately an answer given as `" "`
 - **THEN** it writes nothing for either, and says the answer holds no
   text
+
+### Requirement: The log command refuses outside a git repository
+
+Without its service option, the `log` command SHALL refuse, writing
+nothing and saying why, a file whose `asked_from` would be the current
+work's repository, when it runs in no git repository.
+
+#### Scenario: A log run in no repository is refused
+
+- **WHEN** the `log` command, without its service option, is given a
+  question file in a folder that no git repository holds
+- **THEN** it writes nothing, and says it found no repository to name as
+  `asked_from`
 
 ### Requirement: The log command withholds a link where it would leak
 
@@ -4249,6 +4282,24 @@ question's repository, it SHALL tell the person the lesson.
 - **WHEN** an answer generalizes and no configured lore repository serves
   the question's repository
 - **THEN** the agent tells the person the lesson, and opens no pull request
+
+### Requirement: The lore command opens its pull request through GitHub's API
+
+The script's `lore` command SHALL create the pull request's branch, its
+commit adding the entry, and the pull request through GitHub's API, with
+`gh`'s authentication, adding no file whose path the lore repository's
+default branch holds, and SHALL neither use nor change a clone. When the
+account `gh` is logged in as cannot push a branch to the lore repository,
+it SHALL open nothing and say so.
+
+#### Scenario: A lore pull request is opened with no clone
+
+- **WHEN** the `lore` command proposes an entry to `o/lore`, whose
+  configured clone is on the machine
+- **THEN** it opens the pull request through GitHub's API, and the
+  clone's HEAD, branches and working tree are as they were
+- **AND** when `o/lore`'s default branch already holds `entries/<id>.md`,
+  it opens nothing and says the id is taken
 
 ### Requirement: During an Igor's run, the Igor proposes the run's lore entries
 
