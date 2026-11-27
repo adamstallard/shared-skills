@@ -24,9 +24,6 @@ does if the fact does not hold.
   describes the weakness there, only on the word of the advisory's
   publisher. If the fork merges only at publication, the agent does so
   without that word.
-- **Can an Igor worker's `gh` post from a login in the home directory igor
-  gives it?** (task 0.14) If it can, a worker could post outside its
-  Igor: a breach to report to igor. The skill does the same either way.
 - **Can the Igor run `branch-search` and read a collaborator's
   permission?** (task 0.29) Without the first, the call fails and the
   worker's search names each questions branch as not searched; without
