@@ -6,7 +6,9 @@ The answer service SHALL post by a host command, never the model's tool
 call: the relay's skill, run as an argument vector with no shell, the
 text on standard input or in a private file. On Linear that skill is
 linear-app, whose `post`, `edit` and `delete` commands the service uses,
-so the service never holds the relay's token. Neither prose's pass nor the inquisitor's filters SHALL apply to a relay
+so the service never holds the relay's token. It takes the relay's user
+id, which it needs to find mentions of the relay and the relay's own
+posts, from linear-app's `check`. Neither prose's pass nor the inquisitor's filters SHALL apply to a relay
 post. The answer service SHALL scan each relay post for the patterns of
 the inquisitor's *The credential patterns are a closed list of token
 shapes* and post none that matches.
@@ -46,6 +48,34 @@ shapes* and post none that matches.
   edits it with `edit` and deletes the automatic post with `delete`, each
   post's or edit's text in a private file named by `--body-file`, and no
   request the service makes itself holds the relay's token
+
+### Requirement: A posting check reads what each surface grants
+
+Setup's **posting check** SHALL pass on GitHub when the repository is
+among the relay App installation's repositories and the installation may
+write issues and pull requests, both read with the App's own token; on
+Linear when linear-app's `check` for the relay reports the `write` scope
+and lists the subscribed team among those its app user can see, shown
+not checked when that `check` says it could not read the teams; and on Discord when discord-bot's `check --channel` reports
+`viewChannel`, `readMessageHistory`, `sendMessages` and
+`sendMessagesInThreads` all `true` for the channel.
+
+#### Scenario: A repository outside the App's installation is off
+
+- **WHEN** a subscribed GitHub repository is not among the GitHub relay
+  App installation's repositories
+- **THEN** setup shows that the App must be installed on it, and that
+  repository stays off while the others are on
+
+#### Scenario: A team or channel the relay cannot post in is off
+
+- **WHEN** linear-app's `check` for the Linear relay reports no `write`
+  scope, or does not list a subscribed team among those its app user can
+  see, or
+  discord-bot's `check --channel` reports `sendMessages` `false` for a
+  subscribed channel
+- **THEN** setup shows the failure and its fix, and that team or channel
+  stays off; a missing `write` scope keeps every Linear team off
 
 ### Requirement: The README warns that a relay's token can be printed
 

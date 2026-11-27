@@ -14,7 +14,9 @@ HTTP call (shared-skills issue #112).
 ## What Changes
 
 - The identity the inquisitor's configuration names as its Linear relay
-  is a relay identity: linear-app refuses to print its token and keeps
+  is a relay identity, and so is every identity configured with that
+  relay's client ID, since a token minted with that client ID posts as the same app
+  user. linear-app refuses to print a relay identity's token and keeps
   that token in the keychain, out of linear-app's state folder.
   linear-app also gains `post`, `edit` and `delete` commands, which the
   answer service uses on Linear in place of its own HTTP request. The

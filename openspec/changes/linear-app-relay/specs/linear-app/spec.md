@@ -11,10 +11,10 @@ show as the app user's, never a person's.
 linear-app SHALL treat the identity that `answer_service.linear.relay`
 names in `~/.config/shared-skills/inquisitor.json` as a relay identity
 (answer-service spec: *The person runs the service, and a relay identity
-posts for them*). While that file exists but
-holds no JSON object linear-app can read, linear-app SHALL treat every
-identity as a relay identity under every rule of this spec, naming the file whenever it refuses a
-command for that reason.
+posts for them*). While that file exists but holds no JSON object
+linear-app can read, linear-app SHALL treat every identity as a relay
+identity under every rule of this spec, naming the file whenever it
+refuses a command for that reason.
 
 #### Scenario: The identity the configuration names is a relay identity
 
@@ -38,14 +38,35 @@ command for that reason.
   it ignores credentials in the environment, and any token linear-app's
   state folder holds for it is deleted
 
+### Requirement: Every identity holding the relay's client ID is a relay identity
+
+linear-app SHALL also treat as a relay identity every identity whose
+client ID is the relay identity's. It SHALL read each identity's client
+ID from the keychain entries its config names, except that for the
+identity the environment supplies credentials for (`LINEAR_APP_IDENTITY`,
+else `default`) it SHALL read `LINEAR_CLIENT_ID` first. While it cannot read the relay
+identity's own client ID, it SHALL treat every identity as a relay
+identity, saying why.
+
+#### Scenario: Another identity with the relay's client ID is a relay identity
+
+- **WHEN** `inquisitor.json` names `answers-bot` as the Linear relay, the
+  config of identity `worker` points its `keychain` entries at
+  `answers-bot`'s, and an agent runs `token` for `worker`
+- **THEN** linear-app refuses, as for `answers-bot`, and prints no token
+- **AND** it refuses `token` for `default`, the identity used when none
+  is named, while `LINEAR_CLIENT_ID` holds `answers-bot`'s client ID
+- **AND** it refuses `token` for every identity, saying why, while the
+  keychain cannot give `answers-bot`'s client ID
+
 ### Requirement: No command prints a relay identity's token
 
 For a relay identity, `token` and `headers` SHALL refuse, print nothing
 on standard output, and say on standard error that a relay identity
 posts only through `post`, `edit` and `delete`. They refuse because any
 agent on the machine can run them and post `User says: ` with the token,
-unseen by the post hook. For any other
-identity they SHALL print the token as before.
+unseen by the post hook. For any other identity they SHALL print the
+token as before.
 
 #### Scenario: token and headers refuse a relay identity
 
@@ -63,9 +84,9 @@ identity they SHALL print the token as before.
 ### Requirement: A relay identity cannot be wired to the Linear MCP server
 
 `wire` SHALL refuse a relay identity, since the MCP server's headers
-helper runs `headers`, which refuses a relay identity. For a relay identity, `check` SHALL warn of each
-Claude Code MCP server whose `headersHelper` runs `headers` for that
-identity, naming the server.
+helper runs `headers`, which refuses a relay identity. For a relay
+identity, `check` SHALL warn of each Claude Code MCP server whose
+`headersHelper` runs `headers` for that identity, naming the server.
 
 #### Scenario: wire refuses a relay identity
 
@@ -81,30 +102,50 @@ identity, naming the server.
 - **THEN** its warnings name the `linear` server as wired to a relay
   identity, whose `headers` refuses
 
-### Requirement: A relay identity's credentials and token stay in the keychain
+### Requirement: A relay identity's credentials come only from the keychain
 
 For a relay identity, linear-app SHALL read the client ID and secret only
 from the system keychain, never from `LINEAR_CLIENT_ID` or
-`LINEAR_CLIENT_SECRET`, which every agent's environment can hold. It
-SHALL cache the token in the keychain beside the credentials, never in
-linear-app's state folder, reusing the token until it is halfway through
-its life, and SHALL delete any token that folder holds for the identity.
-`forget` SHALL delete the cached token from the keychain too.
+`LINEAR_CLIENT_SECRET`, which every agent's environment can hold. On a
+host with no keychain tool, neither macOS `security` nor Linux
+`secret-tool`, it SHALL refuse every command but `forget` for a relay
+identity, naming both tools.
 
 #### Scenario: A relay identity ignores credentials in the environment
 
 - **WHEN** the variable that picks the identity, `LINEAR_APP_IDENTITY`,
-  names a relay identity; `LINEAR_CLIENT_ID`
-  and `LINEAR_CLIENT_SECRET` are set; and the keychain holds no
+  names a relay identity; `LINEAR_CLIENT_ID` and `LINEAR_CLIENT_SECRET`
+  are set; and the keychain holds no
   credentials for it
 - **THEN** its commands fail with "no client credentials", and mint no
   token from the environment's credentials
+
+#### Scenario: A host with no keychain tool refuses a relay identity
+
+- **WHEN** neither `security` nor `secret-tool` is on the host, and
+  `post` runs for a relay identity
+- **THEN** it exits non-zero naming both tools, mints no token, and
+  writes none to a file
+- **AND** `forget` still runs for it
+- **AND** while a Linear relay is configured, every identity is refused
+  the same way, since the relay's own client ID cannot be read either
+
+### Requirement: A relay identity's token is cached only in the keychain
+
+linear-app SHALL cache a relay identity's token in the keychain under
+the service `linear-app` and the account `<identity>:token`, whatever
+service the identity's config names for its credentials, reusing the
+token until it is halfway through its life. It SHALL never cache that
+token in linear-app's state folder, and SHALL delete any token that
+folder holds for the identity. `forget` SHALL also delete that cached
+token from the keychain.
 
 #### Scenario: A relay identity's token is cached in the keychain
 
 - **WHEN** `post` runs for a relay identity, and then `edit` runs before
   the token is halfway through its life
-- **THEN** the keychain holds the token the first command minted, the
+- **THEN** the keychain holds the token the first command minted, under
+  the service `linear-app` and the account `<identity>:token`, the
   second command reuses it without minting, and no file in linear-app's
   state folder holds it
 
@@ -157,19 +198,50 @@ for `post` and `edit` its `url`, and never the token. When Linear answers
 - **THEN** the command mints a new token, posts once with it, and reports
   a second 401 as an error
 
+### Requirement: post, edit and delete pass on Linear's refusal
+
+When Linear refuses a `post`, `edit` or `delete`, the command SHALL exit
+non-zero and print JSON holding `"ok": false`, Linear's HTTP status and
+the errors Linear returned, unchanged, so its caller reads the cause as
+Linear reports it.
+
+#### Scenario: A refusal for lack of permission is passed on
+
+- **WHEN** Linear refuses a `post` because the identity may not comment
+  in that team
+- **THEN** the command exits non-zero and prints `"ok": false`, the HTTP
+  status and Linear's errors as Linear returned them, and no token
+
+### Requirement: check reports the identity's user id, scopes and teams
+
+`check` SHALL report, beside the identity's name, its Linear user `id`,
+its token's scopes and the keys of the teams its app user can see. When
+it cannot read the teams, it SHALL say so and still pass, so setup shows
+its posting check (answer-service spec: *A posting check reads what each
+surface grants*) as not checked. The answer service, which never holds
+the relay's token, reads all three from `check`'s output.
+
+#### Scenario: check prints the user id, scopes and teams
+
+- **WHEN** `check` runs for an identity whose token holds the `read` and
+  `write` scopes and whose app user can see the team `ENG`
+- **THEN** its result holds the app user's `id` and name, the scopes
+  `read` and `write`, and the team key `ENG`, and no token
+
 ### Requirement: A comment's text comes from a named file and reaches Linear only as a GraphQL variable
 
-`post` and `edit` SHALL read the text only from the file `--body-file`
-names, never from standard input, which the inquisitor's post hook
-cannot see. They SHALL refuse an abbreviated option such as `--body`,
-which the hook would read as another option, not as `--body-file`. They SHALL send
-the text to Linear only as a GraphQL variable, so no text can change the
-request.
+`post` and `edit` SHALL read the text only from the regular file
+`--body-file` names, never from standard input, such as through `-` or
+`/dev/stdin`, which the inquisitor's post hook cannot see. They SHALL refuse an abbreviated option such as `--body`,
+which Python's option parser would accept as `--body-file` while the
+hook reads it as another option. They
+SHALL send the text to Linear only as a GraphQL variable, so no text can
+change the request.
 
 #### Scenario: Text on standard input or an abbreviated option is refused
 
 - **WHEN** `post --issue <id>` runs with no `--body-file` and text on
-  standard input, or with `--body c.md`
+  standard input, with `--body-file /dev/stdin`, or with `--body c.md`
 - **THEN** it exits non-zero, saying to name the text's file with
   `--body-file`, and posts nothing
 
