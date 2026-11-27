@@ -93,8 +93,9 @@ class CurrentStateDocs(unittest.TestCase):
                                ("AGENTS.md", True), ("sub/CLAUDE.md", True),
                                ("docs/architecture.md", False), ("ARCHITECTURE.md", False),
                                ("openspec/specs/seat/spec.md", False),
-                               ("openspec/changes/fix-x/proposal.md", True),
+                               ("openspec/changes/fix-x/proposal.md", False),
                                ("openspec/changes/fix-x/design.md", True),
+                               ("openspec/changes/fix-x/Design.md", True),
                                ("openspec/changes/fix-x/specs/seat/spec.md", False),
                                ("sub/openspec/changes/fix-x/design.md", False),
                                ("openspec/specs/seat/design.md", False),
@@ -213,18 +214,19 @@ class CompactionDue(unittest.TestCase):
         # A DECISIONS.md is for people, so no link makes it read often.
         self.assertNotIn("compaction due for skills/a/DECISIONS.md", out)
 
-    def test_an_open_changes_proposal_is_read_often(self):
+    def test_an_open_changes_proposal_is_not_read_often(self):
+        # A proposal is a stub written once; only spec-check's script reads
+        # it, and only for the `Builds on:` lines in it.
         self.repo.write("openspec/changes/x/proposal.md", repeated())
-        self.repo.write("openspec/changes/archive/2026-01-01-y/proposal.md", repeated())
-        out = self.check().stdout
-        self.assertIn("compaction due for openspec/changes/x/proposal.md: read often (an open "
-                      "OpenSpec change's proposal)", out)
-        self.assertNotIn("compaction due for openspec/changes/archive", out)
+        self.assertNotIn("compaction due for openspec/changes/x/proposal.md", self.check().stdout)
 
     def test_an_open_changes_design_is_read_often(self):
         self.repo.write("openspec/changes/x/design.md", repeated())
+        self.repo.write("openspec/changes/archive/2026-01-01-y/design.md", repeated())
+        out = self.check().stdout
         self.assertIn("compaction due for openspec/changes/x/design.md: read often (an open "
-                      "OpenSpec change's design)", self.check().stdout)
+                      "OpenSpec change's design)", out)
+        self.assertNotIn("compaction due for openspec/changes/archive", out)
 
     def test_no_spec_is_due_however_often_spec_check_reads_it(self):
         # Delta and main specs, and architecture docs, are never due by

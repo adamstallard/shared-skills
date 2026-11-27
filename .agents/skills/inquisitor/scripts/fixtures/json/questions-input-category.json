@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "questions": [
+    {
+      "kind": "picker",
+      "question": "Can this path traversal be exploited?",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "concerns": {
+        "repository": "o/api"
+      },
+      "category": "vulnerability"
+    }
+  ]
+}

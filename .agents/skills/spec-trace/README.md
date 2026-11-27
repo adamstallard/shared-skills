@@ -117,7 +117,11 @@ A GitHub Actions workflow, for example `.github/workflows/spec-trace.yml`:
 
 ```yaml
 name: spec-trace
-on: [push, pull_request]
+on:
+  push:
+    # The `questions` branch holds no openspec/, so `check` would fail there.
+    branches-ignore: [questions]
+  pull_request:
 jobs:
   spec-trace:
     runs-on: ubuntu-latest
@@ -142,6 +146,13 @@ jobs:
 tags. The checker reads the specs through the OpenSpec CLI, which needs
 Node 20.19 or later. Without the OpenSpec CLI, `check` prints `not run:
 install OpenSpec 1.15.0 or later` and fails the step.
+
+Pushes to a branch named `questions` don't run the check. shared-skills'
+inquisitor skill, which records the questions agents ask, pushes those records
+to an orphan `questions` branch with no `openspec/`, so `check` would fail
+there with `no openspec/`. The line skips only branches of that name; keep it,
+so that adopting inquisitor later needs no change to the workflow.
+Pull-request runs are unchanged.
 
 The SHA pins the exact checker your CI runs. A branch name would let a
 change to shared-skills fail your CI, or pass it, without any change in your
@@ -217,10 +228,17 @@ test. A tag that names a scenario the change removes or renames is listed
 below the tables, under `### Problems`: change it to the scenario's new
 name, or delete it.
 
-When you open the implementation pull request, paste the change's part of
-the output into the body, so the reviewer sees which test covers each
-scenario. For each capability the change touches, that is the `###` heading,
-the `| Scenario | Tests |` and `| --- | --- |` lines, and the change's rows.
+A pull request body is written only once the pull request goes to
+anyone for review, since nobody reads it before then; until then it
+holds only link lines such as `Closes #N`. When a reviewer joins a pull
+request that carries the implementation (a spec's pull request counts
+once code is on it), the agent that writes the body pastes into it the
+change's part of the `report --include-changes` output: for each
+capability the change touches, the `###` heading, the
+`| Scenario | Tests |` and `| --- | --- |` lines, and the rows of the
+change that pull request implements. The table shows the reviewer which
+test covers each scenario. For each later reviewer, the agent replaces
+the body with one written afresh, with the table as it is then.
 
 `report --include-changes` always exits 0, so it can't fail a build; CI runs
 `check`.

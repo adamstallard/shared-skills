@@ -1238,6 +1238,22 @@ class DeferredColdRead(unittest.TestCase):
                 self.assertIn("deferred to the hand-back", r.stderr)
         self.assertIn("pr view 7 --json body --jq .body -R o/r", self.log.read_text())
 
+    def test_a_hand_back_through_github_app_s_script_is_checked_as_gh_s(self):
+        self.pr_body.write_text(self.deferred)
+        for command in ("python3 /s/github_app.py gh pr ready 7",
+                        "G=/s/github_app.py; python3 $G gh pr ready",
+                        "G=/s/github_app.py; python3 $G --identity bot gh pr ready 7 -R o/r"):
+            with self.subTest(command=command):
+                r = self.hook(self.bash(command))
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("prose: blocked this hand-back for review "
+                              "(github_app.py gh pr ready)", r.stderr)
+        self.assertIn("pr view 7 --json body --jq .body\n", self.log.read_text())
+        r = self.hook(self.bash("G=/s/github_app.py; python3 $G gh pr ready 7", "PostToolUse"),
+                      script=HANDBACK_NOTICE)
+        self.assertIn("(github_app.py gh pr ready)",
+                      json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"])
+
     def test_a_hand_back_of_a_cold_read_body_goes_through(self):
         self.pr_body.write_text(self.full)
         self.assertEqual(self.hook(self.bash("gh pr ready 7")).returncode, 0)
@@ -1269,18 +1285,400 @@ class DeferredColdRead(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         note = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertTrue(note.startswith("prose: current-state pass due for: each doc the pull "
-                                        "request changes, and its body and title."), note)
+                                        "request changes, and its title."), note)
         self.assertIn("(gh pr ready)", note)
         r = self.hook(self.bash("gh pr ready 7", "postToolUse"), host="cursor",
                       script=HANDBACK_NOTICE)
         self.assertIn("current-state pass due for:", json.loads(r.stdout)["additional_context"])
         for payload in (self.bash("gh pr ready 7", "PostToolUseFailure"),
-                        self.bash("gh pr create --draft -t x -b y", "PostToolUse"),
+                        self.bash("gh pr create --draft -t x -b 'Part of #1'",
+                                  "PostToolUse"),
                         self.bash("gh pr view 7", "PostToolUse")):
             with self.subTest(payload=payload):
                 r = self.hook(payload, script=HANDBACK_NOTICE)
                 self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
 
+
+class ReviewerJoins(unittest.TestCase):
+    """After a hand-back of a pull request whose body holds only link lines
+    and blocks a tool writes between its own markers, the hand-back hook
+    says a body is due, whoever reviews it. Of a body already written, it
+    says a body is due after a call that requests a review from a person
+    other than the pull request's author; when it can't tell the author,
+    it says a body is due if a reviewer is someone else. After any other
+    hand-back, including one that requests reviews only from bots, it says
+    to leave the body as it is, or, when it could not read the body, what
+    to do if the body was never written."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        # A fake gh that logs its arguments, writes its working directory to
+        # $FAKE_PWD, prints $FAKE_ME for `gh api ...` and, for anything else,
+        # `gh pr view`'s JSON with $FAKE_AUTHOR as the author's login and
+        # $FAKE_BODY (JSON text) as the body, and exits $FAKE_EXIT.
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_LOG"\npwd -P > "$FAKE_PWD"\n'
+                      'case "$1" in api) echo "$FAKE_ME" ;; *) printf '
+                      '\'{"author":{"login":"%s"},"body":%s}\\n\' "$FAKE_AUTHOR" "$FAKE_BODY" ;; esac\n'
+                      'exit "${FAKE_EXIT:-0}"\n')
+        gh.chmod(0o755)
+        self.log = self.dir / "gh.log"
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        FAKE_LOG=str(self.log), FAKE_ME="adam", FAKE_AUTHOR="adam",
+                        FAKE_BODY=json.dumps("Adds the thing.\n\nprose \u2713 123456"),
+                        FAKE_PWD=str(self.dir / "gh.pwd"))
+
+    def note(self, payload, host="claude", **env):
+        r = run(["sh", str(HANDBACK_NOTICE), "--host", host], stdin=json.dumps(payload),
+                env=dict(self.env, **env))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        return out["additional_context"] if host == "cursor" \
+            else out["hookSpecificOutput"]["additionalContext"]
+
+    def bash(self, command):
+        return {"hook_event_name": "PostToolUse", "cwd": str(self.dir), "tool_name": "Bash",
+                "tool_input": {"command": command}}
+
+    def mcp(self, tool, tool_input):
+        return {"hook_event_name": "PostToolUse", "cwd": str(self.dir),
+                "tool_name": f"mcp__github__{tool}", "tool_input": tool_input}
+
+    def gh_calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_a_reviewer_other_than_the_author_makes_a_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"))
+        self.assertIn("Pull request body due", note)
+        self.assertIn("bob", note)
+        self.assertIn("(adam)", note)
+        self.assertIn("fresh agent", note)
+        self.assertIn("tasks.md", note)
+        self.assertNotIn("Leave the body as it is", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body -R o/r"])
+
+    def test_a_review_requested_from_the_author_makes_no_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer Adam"))
+        self.assertNotIn("body due", note)
+        self.assertIn("Leave the body as it is", note)
+
+    def test_a_create_with_a_reviewer_compares_with_gh_s_own_user(self):
+        note = self.note(self.bash("gh pr create -t x -b y --reviewer bob,org/team"))
+        self.assertIn("Pull request body due", note)
+        self.assertIn("bob, org/team", note)
+        self.assertEqual(self.gh_calls(), ["api user --jq .login"])
+        self.log.unlink()
+        note = self.note(self.bash("gh pr create -t x -b y --reviewer adam"), FAKE_ME="ADAM")
+        self.assertNotIn("body due", note)
+
+    def test_a_hand_back_with_no_reviewer_looks_up_only_the_body(self):
+        for command in ("gh pr ready 7", "gh pr create -t x -b y"):
+            with self.subTest(command=command):
+                note = self.note(self.bash(command))
+                self.assertTrue(note.startswith(
+                    "prose: current-state pass due for: each doc the pull request changes, "
+                    "and its title."), note)
+                self.assertIn("Leave the body as it is", note)
+                self.assertNotIn("body due", note)
+        # A create's body is the one the call gave, so of the two commands
+        # only `gh pr ready 7` runs gh.
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body"])
+
+    def test_an_author_it_cannot_look_up_is_said_not_guessed(self):
+        unknown = "could not tell the pull request's author"
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_EXIT="1")
+        self.assertIn(unknown, note)
+        self.assertIn("bob", note)
+        self.assertIn("fresh agent", note)
+        self.assertNotIn("Leave the body as it is", note)
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_AUTHOR="")
+        self.assertIn(unknown, note)
+        self.log.unlink()
+        # The author is not looked up when the command could run gh in another
+        # directory, or as another account, than the hook's own gh.
+        for command in ("cd sub && gh pr edit --add-reviewer bob",
+                        "GH_TOKEN=t gh pr create -t x -b y --reviewer bob"):
+            with self.subTest(command=command):
+                note = self.note(self.bash(command))
+                self.assertIn(unknown, note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_the_github_mcp_equivalents(self):
+        note = self.note(self.mcp("update_pull_request", {
+            "owner": "o", "repo": "r", "pullNumber": 7, "reviewers": ["bob"]}))
+        self.assertIn("Pull request body due", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body -R o/r"])
+        self.log.unlink()
+        # The MCP server's own identity is not gh's, so a create's author is unknown.
+        note = self.note(self.mcp("create_pull_request", {
+            "owner": "o", "repo": "r", "title": "x", "head": "h", "base": "main",
+            "body": "Adds it.", "reviewers": ["bob"]}))
+        self.assertIn("could not tell the pull request's author", note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_a_review_requested_only_from_bots_makes_no_body_due(self):
+        for payload in (self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot"),
+                        self.bash("gh pr create -t x -b y --reviewer 'Some-App[bot]'"),
+                        self.mcp("update_pull_request", {
+                            "owner": "o", "repo": "r", "pullNumber": 7,
+                            "reviewers": ["copilot-pull-request-reviewer[bot]"]})):
+            with self.subTest(payload=payload):
+                note = self.note(payload)
+                self.assertNotIn("body due", note)
+                self.assertIn("Leave the body as it is", note)
+        # Each existing pull request's body is read with one gh call; the
+        # create's body comes from its command. No author is looked up for
+        # bots alone.
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body -R o/r"] * 2)
+        # Where the pull request cannot be looked up, the body is unread.
+        note = self.note(self.bash("cd sub && gh pr edit --add-reviewer @Copilot"))
+        self.assertNotIn("body due", note)
+        self.assertIn(prose.BODY_UNREAD, note)
+
+    def test_a_body_never_written_is_due_whoever_reviews(self):
+        unwritten = json.dumps("Closes #4\n<!-- sequencer:begin -->\nRank 2\n"
+                               "<!-- sequencer:end -->\n\nprose \u2713 123456")
+        for command in ("gh pr ready 7", "gh pr edit 7 -R o/r --add-reviewer adam",
+                        "gh pr edit 7 -R o/r --add-reviewer bob,@copilot"):
+            with self.subTest(command=command):
+                note = self.note(self.bash(command), FAKE_BODY=unwritten)
+                self.assertIn(prose.BODY_DUE_FIRST, note)
+                self.assertIn("fresh agent", note)
+        # One gh call each reads the body and author; for a body never
+        # written, no other lookup follows.
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body",
+                                           "pr view 7 --json author,body -R o/r",
+                                           "pr view 7 --json author,body -R o/r"])
+        note = self.note(self.mcp("update_pull_request", {
+            "owner": "o", "repo": "r", "pullNumber": 7, "draft": False}), FAKE_BODY='""')
+        self.assertIn(prose.BODY_DUE_FIRST, note)
+
+    def test_a_create_whose_body_was_never_written_is_due_without_gh(self):
+        for command in ("gh pr create -t x -b 'Closes #4'",
+                        "gh pr create -d -t x -b 'Part of #4' --reviewer adam",
+                        "gh pr create -t x -b 'Closes #4' --reviewer bob"):
+            with self.subTest(command=command):
+                self.assertIn(prose.BODY_DUE_FIRST, self.note(self.bash(command)))
+        for tool_input in ({"title": "x", "body": "Fixes #4"}, {"title": "x"}):
+            with self.subTest(tool_input=tool_input):
+                note = self.note(self.mcp("create_pull_request", tool_input))
+                self.assertIn(prose.BODY_DUE_FIRST, note)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_a_body_it_cannot_read_is_said_not_guessed(self):
+        for payload, env in ((self.bash("gh pr ready 7"), {"FAKE_EXIT": "1"}),
+                             (self.bash("gh pr ready 7"), {"FAKE_BODY": "null"}),
+                             (self.bash("cd sub && gh pr ready"), {}),
+                             (self.bash("gh pr create -t x --fill"), {})):
+            with self.subTest(payload=payload["tool_input"], env=env):
+                note = self.note(payload, **env)
+                self.assertIn(prose.BODY_UNREAD, note)
+                self.assertNotIn("body due", note)
+
+    def test_gh_output_that_names_no_author_or_body_is_not_trusted(self):
+        unknown = "could not tell the pull request's author"
+        # A create's author is unknown when `gh api user` fails or prints nothing.
+        for env in ({"FAKE_EXIT": "1"}, {"FAKE_ME": ""}):
+            with self.subTest(env=env):
+                note = self.note(self.bash("gh pr create -t x -b y --reviewer bob"), **env)
+                self.assertIn(unknown, note)
+        # A blank login names no author.
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"), FAKE_AUTHOR="  ")
+        self.assertIn(unknown, note)
+        # A body that is not a string is unread.
+        for body in ("5", "[]", '{"a":1}'):
+            with self.subTest(body=body):
+                self.assertIn(prose.BODY_UNREAD, self.note(self.bash("gh pr ready 7"),
+                                                           FAKE_BODY=body))
+
+    def test_unwritten_body(self):
+        for body in ("", "Closes #4", "Closes #4\n\nprose \u2713 123456",
+                     "Part of #4\r\nFixes o/r#5\n",
+                     "<!-- tool:begin -->\nAnything.\n<!-- tool:end -->",
+                     "Closes #4\n  <!--  my.tool-2:begin -->  \nx\n<!-- my.tool-2:end -->\n",
+                     "<!-- a:begin -->\n<!-- b:end -->\n<!-- a:end -->"):
+            with self.subTest(body=body):
+                self.assertTrue(prose.unwritten_body(body))
+        for body in ("Adds it.", "Closes #4\nAdds it.", "  Closes #4",
+                     "<!-- tool:begin -->\nx", "<!-- a:begin -->\nx\n<!-- b:end -->",
+                     "<!-- tool:begin -->\nx\n<!-- tool:end -->\nAdds it.",
+                     "<!-- a note -->", "<!-- tool:end -->"):
+            with self.subTest(body=body):
+                self.assertFalse(prose.unwritten_body(body))
+
+    def test_a_person_beside_a_bot_still_makes_a_body_due(self):
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer @copilot,bob"))
+        self.assertIn("a review was requested from bob, not the author", note)
+        self.assertNotIn("@copilot", note)
+
+    def test_cursor_gets_the_same_note(self):
+        note = self.note({"hook_event_name": "postToolUse", "cwd": str(self.dir),
+                          "command": "gh pr edit 7 -R o/r --add-reviewer bob"}, host="cursor")
+        self.assertIn("Pull request body due", note)
+        # For a command that is the gh call alone, the author is looked up with no -R.
+        self.log.unlink()
+        note = self.note({"hook_event_name": "postToolUse", "cwd": str(self.dir),
+                          "command": "gh pr edit 7 --add-reviewer bob"}, host="cursor")
+        self.assertIn("Pull request body due", note)
+        self.assertEqual(self.gh_calls(), ["pr view 7 --json author,body"])
+
+    def test_gh_runs_in_the_payload_s_directory(self):
+        self.note(self.bash("gh pr edit --add-reviewer bob\n"))
+        self.assertEqual(self.gh_calls(), ["pr view --json author,body"])
+        self.assertEqual((self.dir / "gh.pwd").read_text().strip(), str(self.dir))
+
+    def test_a_missing_gh_or_pull_request_number_leaves_the_author_unknown(self):
+        unknown = "could not tell the pull request's author"
+        gh = self.dir / "bin" / "gh"
+        script = gh.read_text()
+        gh.write_text("#!/nonexistent/sh\n")  # gh cannot start: OSError
+        note = self.note(self.bash("gh pr edit 7 -R o/r --add-reviewer bob"))
+        self.assertIn(unknown, note)
+        gh.write_text(script)
+        note = self.note(self.mcp("update_pull_request", {"pullNumber": 7, "reviewers": ["bob"]}))
+        self.assertIn(unknown, note)
+        self.assertEqual(self.gh_calls(), [])
+
+
+class LinkLines(unittest.TestCase):
+    """After a call that creates a pull request, draft or not, the hand-back
+    hook asks for link lines (`Closes #N`, `Part of #N`) when the body has
+    none. A link line starts with a closing keyword or `Part of`, as
+    prose.LINK_LINE says. The hook checks only that one link line is present,
+    not that the issue exists or that the body holds nothing else. When a
+    reviewer joins, the note that a body is due says to keep the link lines
+    (test_a_body_due_keeps_its_link_lines)."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        # A fake gh that prints $FAKE_ME for every call: a ready create's
+        # hand-back note looks up its author with `gh api user`.
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text('#!/bin/sh\necho "$FAKE_ME"\n')
+        gh.chmod(0o755)
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        FAKE_ME="adam")
+
+    def hook(self, payload, host="claude"):
+        r = run(["sh", str(HANDBACK_NOTICE), "--host", host], stdin=json.dumps(payload),
+                env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        if not r.stdout:
+            return ""
+        out = json.loads(r.stdout)
+        return out["additional_context"] if host == "cursor" \
+            else out["hookSpecificOutput"]["additionalContext"]
+
+    def bash(self, command, event="PostToolUse"):
+        return {"hook_event_name": event, "cwd": str(self.dir), "tool_name": "Bash",
+                "tool_input": {"command": command}}
+
+    def mcp(self, tool_input):
+        return {"hook_event_name": "PostToolUse", "cwd": str(self.dir),
+                "tool_name": "mcp__github__create_pull_request", "tool_input": tool_input}
+
+    def test_a_create_without_link_lines_is_told_to_add_them(self):
+        body = self.dir / "body.md"
+        body.write_text("Adds the thing.\n\nprose ✓ 123456\n")
+        for command in ("gh pr create --draft -t x -b 'Adds the thing.'",
+                        "gh pr new -t x -b 'See #12 for why.'",
+                        f"gh pr create -t x --body-file {body}",
+                        "gh -R o/r pr create -d -t x --body='Part of the plan.'"):
+            with self.subTest(command=command):
+                note = self.hook(self.bash(command))
+                self.assertIn(prose.LINK_NOTE, note)
+        self.assertIn(prose.LINK_NOTE, self.hook({
+            "hook_event_name": "postToolUse", "cwd": str(self.dir),
+            "command": "gh pr create -d -t x -b y"}, host="cursor"))
+
+    def test_any_link_line_is_enough(self):
+        for text in ("Closes #12", "Part of #43", "Fixes o/r#7", "Fixes my-org/my_repo.js#7", "Resolved #3", "CLOSES #3",
+                     "Part of #107 and #112", "Closes #12\r\nA body written on Windows.",
+                     "Closed #4", "Fixed #4", "Intro.\rCloses #4",
+                     "Closes #12\nPart of #43\n\nA full body written early.",
+                     "Intro.\n\nfixes #5 along the way.",
+                     # Accepted: a fenced link line counts, though the sequencer skips it.
+                     "```\nCloses #4\n```"):
+            with self.subTest(text=text):
+                self.assertTrue(prose.has_link_line(text))
+                body = self.dir / "body.md"
+                body.write_text(text)
+                note = self.hook(self.bash(f"gh pr create -d -t x --body-file {body}"))
+                self.assertEqual(note, "")
+        # None of these is a link line.
+        for text in ("y", "Closes the gap", "See #12", "prefixes #4", "Part of 12",
+                     "Fixes issue #3", "Closes#12", "Closes #12abc", "part of #8", "Closes #",
+                     "This fixes #5 along the way.", "  Closes #4", "- Closes #4",
+                     "Closes: #4", "Closes  #4", "Closes https://github.com/o/r/issues/9",
+                     "<!-- Closes #4 -->", "x\u2028Closes #4"):
+            with self.subTest(text=text):
+                self.assertFalse(prose.has_link_line(text))
+
+    def test_an_issue_named_mid_sentence_gets_the_reminder(self):
+        body = self.dir / "body.md"
+        body.write_text("Implements the docs part of #107.\n\nprose ✓ 123456\n")
+        note = self.hook(self.bash(f"gh pr create -d -t x --body-file {body}"))
+        self.assertIn(prose.LINK_NOTE, note)
+
+    def test_the_github_mcp_create(self):
+        self.assertIn(prose.LINK_NOTE, self.hook(self.mcp({
+            "owner": "o", "repo": "r", "title": "x", "head": "h", "base": "main",
+            "draft": True, "body": "Adds it."})))
+        self.assertIn(prose.LINK_NOTE, self.hook(self.mcp({
+            "owner": "o", "repo": "r", "title": "x", "head": "h", "base": "main",
+            "draft": True})))
+        self.assertEqual(self.hook(self.mcp({
+            "owner": "o", "repo": "r", "title": "x", "head": "h", "base": "main",
+            "draft": True, "body": "Closes #4"})), "")
+
+    def test_it_follows_the_hand_back_note_on_a_ready_create(self):
+        note = self.hook(self.bash("gh pr create -t x -b y"))
+        self.assertTrue(note.startswith("prose: current-state pass due for:"), note)
+        self.assertTrue(note.endswith(" " + prose.LINK_NOTE), note)
+
+    def test_only_a_create_that_made_a_pull_request_is_checked(self):
+        for payload in (self.bash("gh pr create -d -t x -b y", "PostToolUseFailure"),
+                        self.bash("gh pr create --dry-run -t x -b y"),
+                        self.bash("gh pr edit 7 -b y"),
+                        self.bash("gh issue create -t x -b y"),
+                        self.bash("gh pr create -d -t x --fill"),
+                        {"hook_event_name": "PostToolUse", "cwd": str(self.dir),
+                         "tool_name": "mcp__github__update_pull_request",
+                         "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7,
+                                        "body": "y"}}):
+            with self.subTest(payload=payload):
+                self.assertEqual(self.hook(payload), "")
+
+    def test_without_the_shared_reader_nothing_is_read(self):
+        payload = self.bash("gh pr create -d -t x -b y")
+        saved = prose.handbacks
+        prose.handbacks = None
+        try:
+            self.assertEqual(prose.created_bodies(payload, "claude"), [])
+        finally:
+            prose.handbacks = saved
+
+    def test_a_payload_that_is_no_object_is_ignored(self):
+        for raw in ("[]", '"x"', "3"):
+            with self.subTest(raw=raw):
+                self.assertEqual(prose.hook_handback(raw, "claude"), (0, "", ""))
+
+    def test_a_command_that_is_no_string_is_ignored(self):
+        bash = json.dumps({"hook_event_name": "PostToolUse", "tool_name": "Bash",
+                           "tool_input": {"command": 5}})
+        self.assertEqual(prose.hook_handback(bash, "claude"), (0, "", ""))
+
+    def test_a_body_due_keeps_its_link_lines(self):
+        note = self.hook(self.bash("gh pr create -t x -b 'Closes #4' --reviewer bob"))
+        self.assertIn("Pull request body due", note)
+        self.assertIn("Keep its link lines", note)
+        self.assertNotIn(prose.LINK_NOTE, note)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,10 +1,10 @@
 # The prose pass
 
 **The reader came here for something. Find out what, give them that first, and make it quick to read and hard to misread. Count the reader's time, not your words.** That means:
-- **Read once:** nothing misleads them into going back (rules 3 and 6).
-- **Understood without help:** nobody has to ask an agent what it means (rules 3 and 7).
-- **Read as meant:** nothing they take as true now is only a possibility, a plan or the past (rules 4 and 5).
-- **Not verbose:** nothing they didn't come for (rules 1, 6, 8 and 9).
+- **Read once:** nothing misleads them into going back (rules 3 and 7).
+- **Understood without help:** nobody has to ask the author, or an agent, what it means (rules 3 and 8).
+- **Read as meant:** what they take from the words is what you meant. Nothing they take as true now is only a possibility, a plan or the past, and no words name an actor, object, condition or result other than the one you meant (rules 4, 5 and 6).
+- **Not verbose:** nothing they didn't come for (rules 1, 7, 9 and 10).
 
 ## Scope
 
@@ -19,7 +19,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Text | Who reads it | Why, most likely first |
 |---|---|---|
 | Commit message | a reviewer; later, someone running `git blame` | what changed and whether to approve it; why a line is the way it is |
-| PR description | the reviewer | what to look at, what's risky, whether it's done |
+| PR description | a reviewer reading it for the first time | what it changes and builds on; what to look at, what's risky |
 | Code comment | someone about to change this code | what it does that the code doesn't show; what breaks if they change it |
 | YAML prose string | whoever a tool shows the string to, often an agent | what to do; when it applies |
 | README | someone new to the thing | what it's for; how to start; what to do when it fails |
@@ -27,15 +27,27 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Other doc (architecture, guide) | someone learning what it describes | how it works now; why it is that way |
 | Issue or ticket comment | a teammate | what's decided, what's needed from them |
 
+**When to write each kind, and whether an agent may build on it.** Write a text at the time its row gives. Never cite one nobody keeps current as a source for a spec, for code or for an agent's brief: whatever an agent takes from it may be stale.
+
+| Text | Written | Agents rely on it | Kept current |
+|---|---|---|---|
+| Docs and code comments | with what they describe | yes | yes, with what they describe |
+| Specs | before the code | yes, as the source | yes |
+| Decision records | with the evidence they hold | yes, as the source | yes |
+| PR description | its link lines (`Closes #N`, `Part of #N`) at opening, beside any block a tool writes between its own markers each time the tool runs; the rest when it first goes to anyone for review, and afresh for each new reader | no | no: an agent regenerates the rest rather than updating it, keeping the link lines and tools' marked blocks |
+| OpenSpec `proposal.md` | once, as a stub | no | no |
+| OpenSpec `design.md` | when an open question arises: a question for a person, or a fact waiting on a measurement | only to learn what is still open, never to build from | yes: each question is deleted once answered, and the file with the last |
+| Comments (GitHub, Linear, Discord) | once | as input, such as a review finding to amend into a spec; never as the current state | no: a correction is a new post |
+
 **Each text has its own reader.** A commit holds several: `--goals` names the message's reader, the reviewer, but each doc, spec and comment is read by someone else, who never sees the conversation behind the change. Name that reader for each document: an architecture doc, an API reference and a runbook are read for different reasons. What a reviewer needs to approve the change goes in the message or the PR description, not the doc.
 
 **2. Order the text by those goals.** The most probable goal comes first. The rarer a goal, the less space it gets: a line, or a pointer elsewhere.
 
-**3. Cut** what no goal needs (rules 1, 6 and 8). **Then make what's left quick to read** (rules 3 and 9).
+**3. Cut** what no goal needs (rules 1, 7 and 9). **Then make what's left quick to read** (rules 3 and 10).
 
-**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5 and 6). **Fix each stop with the first of these that works:** cut the sentence or phrase, if no goal needs it; move it beside the point it continues, so no point is split around another (rule 3); or reword it, if the new wording reads more easily than the old. Only a rewording adds words (rule 9). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 7).
+**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5, 6 and 7). **Fix each stop with the first of these that works:** cut the sentence or phrase, if no goal needs it; move it beside the point it continues, so no point is split around another (rule 3); or reword it, if the new wording reads more easily than the old. A cut or a move adds no words; only a rewording may (rule 10). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase found elsewhere, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 8).
 
-**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post; a pull request body posted between two hand-backs to a reviewer (`gh pr create`, `gh pr ready` or `gh pr edit --add-reviewer`) is read cold at the next hand-back instead. The commit message is not read cold. When you sign the same staged files again, as after changing only the message, the signing call reuses the cold read those files were signed with. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The cold reader reports every place it stopped, reread or guessed, and says for every item, in one line, what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each finding and each understood line with `--dispositions <file>`. A finding is `fixed`, which the script checks by its item having changed, or `kept (asked)`, once a person chose to keep it. An understood line is `matches` when it says what you meant, or else `fixed` or `kept (asked)` in the same way. Where the cold reader stopped, reread or guessed, the real reader will too, so fix each place the report names as step 4 fixes a stop. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says how to run it.
+**5. Have it read cold.** You read your own text knowing what you meant, so you fill its gaps without seeing them. Before `prose check` or `prose sign` signs the text, an agent that has never seen the conversation behind the change reads the changed text and reports every place it stopped, reread, guessed or could not tell why. For each text it also says in one line what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. Fix each place the report names the way step 4 fixes a stop, since the real reader would stop there too. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says which texts get a cold read and how to run it.
 
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
@@ -118,9 +130,10 @@ After:  # The choice lines leave out `@scenario` so that no line of this message
 ```
 
 ### 5. Say when, and whether
-Label past, present and future, and actual versus conditional, bluntly and separately. More than one time frame gets one section each ("Current behaviour", "Lessons learned", "Planned, not built"); inside a sentence, say it outright ("Before this change…", "Not built yet:", "If X happens…"). Label every counterfactual: what would happen without this code, or how an alternative behaves ("Without this check…", "The alternative, X, would…"). A case that happens only by accident or by someone else's choice needs more than a label: rule 4, above.
+Label past, present and future, and actual versus conditional, bluntly and separately. More than one time frame gets one section each ("Current behaviour", "Lessons learned"); inside a sentence, say it outright ("Before this change…", "If X happens…"). Label every counterfactual: what would happen without this code, or how an alternative behaves ("Without this check…", "The alternative, X, would…"). A case that happens only by accident or by someone else's choice needs more than a label: rule 4, above.
+**A future label is only for a decided change that ships after the doc, in a separate change that also removes the label.** A doc describes the state it will be read in, so a doc that ships or merges with a change describes that change as present, never as planned or not yet built.
 *Why:* a reader usually wants one of these at a time, such as what is true now or what is planned; mixed in one tense, they read all of them to find theirs.
-**Labelling the past does not make it worth keeping.** This rule says how to mark a past or a counterfactual that the reader needs; whether they need it is rules 1 and 8. In a doc or comment, the past is cut unless rule 8 keeps it.
+**Labelling the past does not make it worth keeping.** This rule says how to mark a past or a counterfactual that the reader needs; whether they need it is rules 1 and 9. In a doc or comment, the past is cut unless rule 9 keeps it.
 ```
 Before: # git compares trailer tokens by prefix, so `Bug-hunter-Tree` "already exists"
         # whenever `Bug-hunter` does. A user's ifexists=replace overwrote a family's
@@ -136,8 +149,18 @@ After:  # Pins git's trailer settings for this one command, so every trailer pas
         # - trailer.where=end: with start, the trailers land in reverse order.
 ```
 
-### 6. Each sentence follows from the last
-Stay on the reader's topic. A sentence that jumps to a subject they weren't expecting, or may not know or care about, makes them stop, reread, or ask what it has to do with anything. Leave it out. If they do need the new subject, give it its own paragraph that says what it is and why it matters here, as briefly as rules 1 and 9 ask.
+### 6. Say who acts, and on what, by the words alone
+For each verb, read who does it and what it acts on from the words alone, not from what you meant. A reader takes a pronoun to mean its clause's subject, or else the nearest noun that fits. An edit can change which noun the pronoun takes, so reread an edited sentence whole. Use the active voice when the actor matters.
+*Why:* a sentence whose words name the wrong actor or object reads smoothly, so neither its writer nor its reader stops at it.
+```
+Before: The code runs the search, gives the hits to the model, and on them it
+        sets `filter` and `hit`.
+After:  The code runs the search and gives the hits to the model. After
+        considering them, the model sets `filter` and `hit` in its answer.
+```
+
+### 7. Each sentence follows from the last
+Stay on the reader's topic. A sentence that jumps to a subject they weren't expecting, or may not know or care about, makes them stop, reread, or ask what it has to do with anything. Leave it out. If they do need the new subject, give it its own paragraph that says what it is and why it matters here, as briefly as rules 1 and 10 ask.
 **A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it; when the cause is an earlier point that another point interrupted, move the sentence back beside that point (rule 3, *A point split around another*).
 *Why:* every abrupt switch costs the reader a pause to work out the connection, and often there is none for them to find. A connective pointing at the wrong sentence costs the same pause, and the reader blames their own reading first.
 ```
@@ -160,7 +183,7 @@ After:  For the clone and the fetches, no global or system config file is read.
         reach the clone or the fetches.
 ```
 
-### 7. Plain words, and reasons instead of catchphrases
+### 8. Plain words, and reasons instead of catchphrases
 Define it or drop it: acronyms, project jargon, shorthand you coined, agent idiom. A name you gave something during the work is still shorthand, however often you've used it: say what it is. An analogy or idiom only if it's already common in the project's own writing.
 **A claim is stated once, with its reason, and elsewhere linked or restated in plain terms.** A catchphrase used as a reason, an aphorism standing in for an argument, is a sign the reasoning isn't written down. Before keeping one, ask what it means literally and what the reason is; if the text can't say, the claim is unsupported.
 ```
@@ -180,10 +203,10 @@ After:  In the one place the rule is decided:
           An Igor holds exactly one role.
 ```
 
-### 8. What is, not how it got here
+### 9. What is, not how it got here
 A doc or comment describes what *is*. No "previously", "we changed", "the old version", "the argument once made". The past comes in two kinds:
-- **Why a decision holds:** what was decided, its reason or measurement, and each rejected alternative with why it was rejected. This stays true while the decision stands. It goes in a decision record (a capability's `openspec/specs/<capability>/decisions.md`, or the *Decisions* section of an open OpenSpec change's design.md), stated as the decision stands now, never as a chain of amendments. A free-form DECISIONS.md or an ADR is a document for people: agents don't read or write one. A doc or comment that is not a decision record names a rejected design only where a reader would otherwise reinvent it: what it is, and why it was rejected.
-- **How the text evolved:** amendments, reversals, earlier wordings, who decided what on which date, what a push or a review round changed. This goes only in commit messages and pull request descriptions or comments, never in a doc, spec or decision record.
+- **Why a decision holds:** what was decided, its reason or measurement, and each rejected alternative with why it was rejected. This stays true while the decision stands. It goes in a decision record (a capability's `openspec/specs/<capability>/decisions.md`), or, in a repository without OpenSpec, a comment beside the code it governs, stated as the decision stands now, never as a chain of amendments. A free-form DECISIONS.md or an ADR is a document for people: agents don't read or write one. A doc or comment that is not a decision record names a rejected design only where a reader would otherwise reinvent it: what it is, and why it was rejected.
+- **How the text evolved:** amendments, reversals, earlier wordings, who decided what on which date, what a push or a review round changed. This goes only in commit messages, including the one a squash merge makes from a pull request description, and in posted comments (GitHub, Linear, Discord). It never goes in a description before then, or in a doc, spec or decision record.
 
 To tell them apart, ask of each piece of the past whether it would still help someone changing the design it is about, a year from now. A warning about a tempting change isn't history: keep it beside the code or text that change would touch, and make it easy to find.
 *Why:* the reader came to learn how the thing works now. A past design they were never shown makes them reconstruct it before they can see why it no longer applies, and a decision recorded as its amendments makes them replay the chain to find the one in force.
@@ -197,8 +220,8 @@ After:  **Several Igors may draw on one seat (§6.5).** A narrow role's unused
         a seat can be given its own, and one that doesn't shares one.
 ```
 
-### 9. Spend words where they save reading time
-Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. To fix a stop, add them only when a cut or a move can't fix it (step 4). Never shorthand (rule 7).
+### 10. Spend words where they save reading time
+Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. To fix a stop, add them only when a cut or a move can't fix it (step 4). Never shorthand (rule 8).
 **One claim per sentence.** A sentence holding a rule, how it works and what follows from it is three sentences. Add words that make one claim read once, but give a second claim a sentence of its own: a sentence lengthened to read once beats a shorter one read twice, and two sentences beat one that carries two claims.
 *Why:* the reader holds the first claim in mind while parsing the next, and goes back for whichever one slipped.
 ```
@@ -214,20 +237,14 @@ After:  With `configFiles`, the checkout reads the same config files as every
         authenticates with the token.
 ```
 
-### 10. Say who acts
-Active voice wherever the actor matters.
-
-### 11. One topic per block
-A comment, paragraph or section answers one question.
-
-### 12. One scope line instead of scattered hedges
+### 11. One scope line instead of scattered hedges
 "Checked: X. Not checked: Y."
 
-### 13. Don't restate what the code or diff shows
+### 12. Don't restate what the code or diff shows
 
-### 14. Commit subject says what changed; the body says why
+### 13. Commit subject says what changed; the body says why
 
-### 15. Make references followable
+### 14. Make references followable
 Point to a source with a link or a clickable path (`file:line`), not a name the reader has to search for.
 
 ## How agents cheat on this pass
@@ -250,4 +267,4 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Keeping a finding with a reason that restates the wording, or says only that it is clear.
 - Writing `kept (asked)` when no person was asked, or asking in a way that leans on the answer.
 - Answering `matches` to an understood line that doesn't say what you meant, or that says it less exactly than you meant it.
-- Editing the cold reader's report before passing it: dropping a finding, or fixing a quote yourself instead of asking the reader.
+- Editing the cold reader's report before passing it, such as dropping a finding or fixing a quote, or asking the reader to rewrite it. A report that doesn't parse goes to a fresh reader: a reader revising its own report is no longer reading cold.

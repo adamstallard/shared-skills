@@ -18,7 +18,7 @@ its viewer can show them.
 
 ## The cases
 
-`build_cases.py` builds seven small git repositories. Each has the same three
+`build_cases.py` builds six small git repositories. Each has the same three
 base specs (session-store, notifications, audit-log) with their decision
 records, and its own OpenSpec change staged on top. `rubrics.json` lists what
 each run must report and what it must not.
@@ -28,7 +28,6 @@ each run must report and what it must not.
 | `contradiction` | A new requirement deletes audit entries at once, against audit-log's 90-day retention | the consistency read |
 | `no-scenario` | The change adds a digest opt-out; its SHALL requirement that the opt-out takes effect within an hour has no scenario | the script |
 | `record-no-evidence` | A Rationale entry added to a record with no Evidence line | the script: `spec_check.py sign` or `check specs` |
-| `design-duplicates-record` | design.md repeats the Rejected entry on hosted newsletter services from notifications' decision record | the consistency read: item 15 of consistency-read.md's checklist |
 | `rationale-title-mismatch` | A Rationale title that is not its requirement's exact title | the script: `spec_check.py sign` or `check specs` |
 | `record-restates-requirement` | A Constraint entry in audit-log's decision record that restates the 90-day retention requirement | the consistency read: item 16 of the checklist |
 | `clean` | none: nothing should be flagged | |
@@ -41,8 +40,8 @@ defect reported that the files do not have.
 You need `claude` (Claude Code), `git`, Python 3.9 or later, and OpenSpec
 1.16.1 or later on PATH. Everything uses the standard library; run it with
 `python3 -I`. Pick a scratch directory outside `~/.claude/`, because Claude
-Code refuses edits there. One version runs 14 times (seven cases, twice
-each). At `baseline`'s 430k tokens a run, that is about 6M tokens and $8 at
+Code refuses edits there. One version runs 12 times (six cases, twice
+each). At `baseline`'s 430k tokens a run, that is about 5M tokens and $7 at
 list price. With the default of seven runs at a time, that is two rounds of
 about 100 seconds each.
 
@@ -119,11 +118,15 @@ python3 -I $B/summarize.py $S/results/iteration-1
 
 These were measured on 2026-11-09 with Claude Code 2.1.321, Opus 5.5
 (`claude-opus-5-5`) and OpenSpec 1.16.0, by an earlier draft of these scripts
-with the same cases, rubrics, task and grader prompt. The draft differed only
-in how it recorded failed and ungraded runs, and none of its runs failed.
+with the same task. Its cases each also had a design.md holding Context and
+Decisions, and a seventh case copied a decision-record entry into its
+design.md for the consistency read to flag, which its rubrics and grader
+prompt checked for. The runs, tokens and costs in the table include that
+case and those files. Otherwise the draft differed only in
+how it recorded failed and ungraded runs, and none of its runs failed.
 OpenSpec 1.16.1, which spec-check now requires, changes only how `openspec
 archive` treats an unrecognized requirements section, which no case has. Each
-version ran each case at least twice, except that `slim` has no runs of the
+version ran each of the seven cases at least twice, except that `slim` has no runs of the
 revised `clean` case (see below). Model and API behaviour drift, so for a
 decision, rerun `baseline` beside the version you are testing rather than
 comparing with this table alone.

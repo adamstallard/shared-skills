@@ -1,0 +1,17 @@
+[
+  {
+    "version": 1,
+    "action": "tag",
+    "line": "@alice"
+  },
+  {
+    "version": 1,
+    "action": "untagged",
+    "line": "Inquisitor: no one with authority to decide this could be tagged; name deciders in .inquisitor/reviewers."
+  },
+  {
+    "version": 1,
+    "action": "picker",
+    "line": null
+  }
+]

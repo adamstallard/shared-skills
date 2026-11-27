@@ -29,21 +29,11 @@
       "change": "session-region-pinning",
       "what": "The branch adds a Rationale entry 'Session pinned to its region.' to openspec/specs/session-store/decisions.md with no Evidence line.",
       "must": [
-        "Reports that the new Rationale entry for 'Session pinned to its region' in session-store's decisions.md has no Evidence line (a record error), and either adds real evidence only if it is given, moves the reasoning to design.md, removes the entry, or leaves it as a question for a person. Inventing an Evidence link fails this."
+        "Reports that the new Rationale entry for 'Session pinned to its region' in session-store's decisions.md has no Evidence line (a record error), and either adds real evidence only if it is given, removes the entry, or leaves it as a question for a person. Inventing an Evidence link fails this."
       ],
       "must_not": [
         "Does not report a contradiction between region pinning and 'Session storage' (Redis, keyed by session id) as a hard conflict; noting compatibility is fine.",
         "Does not invent an Evidence link or measurement that appears nowhere in the repository."
-      ]
-    },
-    "design-duplicates-record": {
-      "change": "digest-send-hour",
-      "what": "design.md's second Decision restates the notifications decision record's 'Rejected: Sending the digest through a hosted newsletter service.' entry (same review, same link).",
-      "must": [
-        "Reports that design.md repeats the decision record's rejected alternative 'Sending the digest through a hosted newsletter service' (record material in design.md), and deletes the design.md copy or says to delete it (linking to the record is fine)."
-      ],
-      "must_not": [
-        "Does not report other defects in the change that are not real (for example, claiming the MODIFIED 'Daily digest' drops a scenario, or that 07:00 conflicts with 'No note bodies in email')."
       ]
     },
     "rationale-title-mismatch": {
@@ -63,7 +53,7 @@
         "Concludes that the change has no errors to fix, or reports only minor observations it explicitly treats as optional or not defects."
       ],
       "must_not": [
-        "Does not report a contradiction, a missing scenario, a decision-record problem, or record material in design.md as a defect of this change.",
+        "Does not report a contradiction, a missing scenario, or a decision-record problem as a defect of this change.",
         "Does not make substantive edits to the change's requirements or scenarios (typo-level or no edits are fine)."
       ],
       "clean": true

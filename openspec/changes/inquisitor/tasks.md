@@ -35,9 +35,20 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `options[]` of `label` and `description`; a call takes 1 to 4
       questions, and a call with 5 failed input validation (`too_big`,
       maximum 4) before the hook ran
-- [ ] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
+- [x] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
       for a caller without push access and when `<login>` is an App's
-      `<slug>[bot]`, or fails in a way the script can tell from "no access"
+      `<slug>[bot]`, or fails in a way the script can tell from "no access".
+      Done 2026-11-27 with gh 2.103.2, read-only calls: neither case gives a usable answer.
+      On cli/cli, where the caller could only read, every login gave
+      `403` "Must have push access to view collaborator permission.",
+      and GraphQL's `repository.collaborators` `FORBIDDEN`, while a login
+      that does not exist gave `404`. As an admin, an App's
+      `<slug>[bot]`, raw or percent-encoded, gave `200` `none` with
+      `user.type` `Bot`, even for `igor-generalist[bot]`, which authored
+      a pull request on a private repository and pushed its commit; users
+      read as `admin`, `read` or `none`. Not measured: a caller with
+      write but not admin access, and an App's installation token as the
+      caller (task 0.29)
 - [x] 0.5 The GitHub login of the last person to commit to a file can be
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
@@ -52,17 +63,46 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       tells a handback from the Igor's other comments. On GitHub and on
       Linear, *A handback is an Igor's comment holding igor's marker*
       waits on it
-- [ ] 0.7 How the script can learn which login a post goes out as, when the
-      agent posts through the github-app skill's script
-- [ ] 0.8 Whether the script can find the approver of the pull request that
+- [x] 0.7 How the script can learn which login a post goes out as, when the
+      agent posts through the github-app skill's script. Done 2026-11-27,
+      reading github-app's script at 48370e0 with read-only calls: the
+      script acts as `--identity`, else `GITHUB_APP_ACT_AS`, else
+      `GITHUB_APP_IDENTITY`, else `default`, as that identity's
+      `<slug>[bot]`; `~/.local/state/github-app/<identity>.bot.json`,
+      which `check`, `run`, `env` and `wire` write, holds that login as
+      `name`, matching the slug `GET /app` returned for both identities
+      tried; a wired project, or `run`, also sets `GIT_AUTHOR_NAME` to it.
+      A plain `gh` post goes out as `gh api user`'s login. Not measured:
+      `gh api user` under an installation token, which GitHub documents
+      as unavailable. An identity passed only as `--identity` shows only
+      on the posting command line
+- [x] 0.8 Whether the script can find the approver of the pull request that
       added a decision, from a spec or decision record file through blame, the
-      commit and its pull request's reviews
+      commit and its pull request's reviews. Done 2026-11-27, one GraphQL
+      query per file (blame, each range's commit, its associated pull
+      requests and their `APPROVED` reviews' authors): on
+      kubernetes/enhancements' `keps/sig-cli/1441-kubectl-debug/README.md`,
+      all 22 blamed commits led to merged pull requests, 18 with an
+      approver and 4 approved only through Prow `/approve` comments; on
+      shared-skills' `.agents/skills/spec-check/SKILL.md`, squash-merged,
+      all 43 commits led to 21 pull requests, none with an approving
+      review, since the owner authors them all. REST
+      `commits/<sha>/pulls` gave the same pull request as GraphQL. The
+      script skips the candidate where no approving review exists
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, and whether a
       headless session that is not an Igor worker can post. The script
       reads from `IGOR_RUN` whether it runs in an Igor's run and whether
       that run is a worker's or the Igor's own; once igor builds it, check
-      that igor sets `IGOR_RUN` as igor PR #216 specifies
+      that igor sets `IGOR_RUN` as igor PR #216 specifies. Local part done
+      2026-11-27, Claude Code 2.1.332: `CLAUDE_CODE_SESSION_ATTENDED` was
+      `1` in an interactive session detached in tmux, in its subagent's
+      and its fork's Bash too, and `0` under `claude -p`, where a mod's
+      `session.start` gave `isInteractive` `false` under `claude -p` and `true` in the interactive session;
+      `CLAUDECODE` and `CLAUDE_CODE_CHILD_SESSION` were `1` in both. The
+      variable shows that an interactive session is open, not that anyone
+      watches it. Not measured: whether a headless session that is not an
+      Igor worker can post, and `IGOR_RUN`
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [x] 0.11 GitHub's API gives a comment's or review's text and author
@@ -164,13 +204,26 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       v0.2-9 (commit a16c60d, `scheduleArrival` in `answer-mod/hooks/register.tsx`): its
       new-question alerts, raised only by `$.clock.after` timers, chimed
       and showed while its session sat idle and the person was away
-- [ ] 0.20 How setup checks, on each surface, that a relay identity can
-      post in a given channel. On GitHub, setup reads the App
-      installation's access to each subscribed repository itself, since
-      github-app's `check` reads only the identity's configured
-      repositories. On Linear and Discord, record whether the skill's
-      check reads a team's or channel's permission, or setup must read it
-      itself
+- [x] 0.20 How setup checks, on each surface, that a relay identity can
+      post in a given channel: on GitHub, the App installation's access to
+      each subscribed repository; on Linear and Discord, whether the
+      skill's check reads a team's or channel's permission, or setup must
+      read it itself. Done 2026-11-27, reading each skill's `check` at
+      48370e0 and running discord-bot's and linear-app's, read-only:
+      github-app's `check` reports the installation's `permissions`,
+      which cover the whole installation, and its `repositoryNames`,
+      every repository on it when there are 100 or fewer, else only their
+      count, and its `repo_visible` step reads one repository with the App's token;
+      the person's `gh` login cannot list installations (`403`). github-app's
+      `check` was not run, since it mints a token and these measurements wrote nothing. linear-app's `check`
+      reads no team; its app user, which had commented on a test issue,
+      had no team membership and saw two public teams, so posting rests on
+      the `write` scope and seeing the team; a private team is not
+      measured. discord-bot's `check --channel` computes the bot's
+      permissions in the channel and reported `viewChannel`,
+      `sendMessages`, `readMessageHistory`, `createPublicThreads` and
+      `sendMessagesInThreads` `true` on two channels; it takes no thread,
+      which its parent channel's `sendMessagesInThreads` covers
 - [x] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
@@ -337,9 +390,14 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       with, or by a name igor requires of its Linear app. Task 0.16
       measured that Linear marks an app user's comment, with `user.app`
       `true`; which app user is an Igor's is not measured
-- [ ] 0.39 Whether Claude Code puts an `agentId` on a subagent's or a
+- [x] 0.39 Whether Claude Code puts an `agentId` on a subagent's or a
       forked conversation's call to a mod's tool (answer-service spec:
-      *Claude's draft goes to the prompt box, never to a post*)
+      *Claude's draft goes to the prompt box, never to a post*). Done
+      2026-11-27, Claude Code 2.1.332, with a throwaway mod logging each
+      `tool.call` and `tool.run`, in two `claude -p` runs and one
+      interactive run: a `general-purpose` subagent's and a fork's calls
+      carried `agentId` at both hooks, and the main conversation's had no
+      such key
 - [ ] 0.40 Once igor PR #216's task 4.5 reports, whether an Igor worker
       can feed `igor lore-search` the question on standard input, or which
       other way #216 gives the command to take it (inquisitor spec: *In an
@@ -372,6 +430,10 @@ and 0.36 have no task, so that the other tasks keep their numbers.
         the re-added tool, so a check reading that list sees it, and
         refuses in the second order too, though the model could not call
         the tool there
+- [ ] 0.42 Whether a caller with write access to a repository, but not
+      admin, can read a collaborator's permission there through
+      `gh api repos/<owner>/<repo>/collaborators/<login>/permission`, as an
+      admin can (task 0.4)
 
 ## 1. Shared post reader
 
@@ -656,8 +718,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
 
 ## 4. Tests
 
-- [ ] 4.1 `scripts/test_inquisitor.py`, standard library only, each test tagged
-      `@scenario inquisitor: <Scenario name>` for the scenario it checks
+- [ ] 4.1 One test file per module, `scripts/test_<module>.py`, standard
+      library only, each test tagged `@scenario <capability>: <Scenario
+      name>` for the scenario it checks
 - [ ] 4.2 Every scenario but the expected gaps has a tagged test:
       `spec_trace.py report --include-changes` marks only the expected
       gaps `none`. A scenario about what the agent does is tagged on a
@@ -673,6 +736,9 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       The archive waits for this, because archiving moves the scenarios
       under `openspec/specs/`, where spec-trace's CI fails on an untagged
       scenario (task 7.0)
+- [ ] 4.4 New Python passes `pyright --strict`, and the answer mod
+      TypeScript's strictest settings; `.github/workflows/checks.yml` runs
+      pyright, every test and spec-check's checks on pushes and pull requests
 
 ## 5. Docs and registration
 
@@ -737,11 +803,13 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       public branch never describe the weakness before publication (*A
       weakness is not described in public text before its advisory is
       published*)
-- [ ] 5.9 Bring shared-skills PR #101's commit 7b6ffa3 (branch
+- [x] 5.9 Bring shared-skills PR #101's commit 7b6ffa3 (branch
       `spec-trace-skip-questions`) onto this branch, by cherry-pick or, if
       spec-trace's README or SKILL.md has changed since, by reapplying it:
       the workflow template in spec-trace's README skips pushes to
-      `questions`, and the README and SKILL.md say why. Once this change merges, close #101 as included
+      `questions`, and the README and SKILL.md say why. Once this change merges, close #101 as included.
+      Done by reapplying 7b6ffa3 to main's current README and SKILL.md
+      (41d7c3e)
 
 ## 6. The answer service
 
@@ -751,6 +819,11 @@ and 0.36 have no task, so that the other tasks keep their numbers.
       `author.bot` and reply reference, which the answer service needs to
       tell a bot's message and a reply to a relay post, as task 0.17 found
       on 2026-11-19; this task changes `read` to return both
+- [ ] 6.0a The answer service's logic is a Python core in the skill's
+      scripts: polling, state, records and pushes, reusing the script's
+      one question-hash and file-format code. The TypeScript answer mod
+      does the UI, timers, tools, the answer marker and the tool
+      stripping, calling the core through JSON commands
 - [ ] 6.1 The answer mod, built in the skill's `answer-mod/` folder from the tag
       `answer-mod-approved-v0.2-9` on shared-skills (build v0.2-9,
       commit a16c60d), the only build the mod starts from. It descends

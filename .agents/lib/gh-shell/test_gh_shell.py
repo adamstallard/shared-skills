@@ -79,6 +79,70 @@ class HandbacksTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(self.found(command), [])
 
+    def test_gh_through_github_app_s_script_is_read_as_that_gh(self):
+        app = "/s/github-app/scripts/github_app.py"
+        for command, kind, selector in (
+                (f"python3 {app} gh pr ready 7", "ready", "7"),
+                (f"G={app}; python3 $G gh pr ready 7", "ready", "7"),
+                (f"G='{app}' && python3 \"$G\" --identity bot gh -- pr edit 7 --add-reviewer a",
+                 "review", "7"),
+                (f"G={app}\npython3 ${{G}} --identity=bot run -- gh pr create -t x -b y",
+                 "create", None)):
+            with self.subTest(command=command):
+                payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+                found, sole, reason = handbacks.handbacks_in(gh_shell, payload, "claude")
+                self.assertEqual([(h.kind, h.selector) for h in found], [(kind, selector)])
+                self.assertIs(sole, found[0], reason)
+                self.assertTrue(found[0].what.startswith("github_app.py gh pr "))
+
+    def test_only_a_variable_holding_the_script_s_path_names_it(self):
+        for command in ("python3 $G gh pr ready 7",
+                        "G=/s/other.py; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; G=/s/other.py; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py$X; python3 $G gh pr ready 7",
+                        "python3 /s/github_app.py gh pr ready 7 --undo",
+                        "python3 /s/github_app.py check",
+                        "python3 /s/foo_github_app.py gh pr ready 7",
+                        "G=/s/github_app.py true; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; unset G; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; export G=/s/other.py; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; G+=x; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; G[0]=x; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; source f; python3 $G gh pr ready 7",
+                        "G=/s/github_app.py; for G in /s/o.py; do python3 $G gh pr ready 7; done",
+                        # run executes its first word, GH_REPO=o/r, as the
+                        # program, so gh never runs.
+                        "python3 /s/github_app.py run -- GH_REPO=o/r gh pr ready 5"):
+            with self.subTest(command=command):
+                self.assertEqual(self.found(command), [])
+
+    def test_the_script_named_by_its_file_name_alone_is_read(self):
+        self.assertEqual([h.kind for h in self.found("python3 github_app.py gh pr ready 7")],
+                         ["ready"])
+
+    def test_a_command_beside_gh_that_is_not_the_script_s_assignment_breaks_the_list(self):
+        for command in ("X=1; gh pr ready 7", "time; gh pr ready 7"):
+            with self.subTest(command=command):
+                payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+                found, sole, _ = handbacks.handbacks_in(gh_shell, payload, "claude")
+                self.assertEqual(len(found), 1)
+                self.assertIsNone(sole)
+
+    def test_gh_alone_takes_the_script_s_form_too(self):
+        for command, alone in (("gh pr ready", True), ("cd x && gh pr ready", False),
+                               ("python3 /s/github_app.py gh pr ready", True),
+                               ("G=/s/github_app.py; python3 $G gh pr ready", True),
+                               ("G=/s/github_app.py; cd x; python3 $G gh pr ready", False),
+                               ("python3 /s/github_app.py run -- git push", False),
+                               ("G=/s/github_app.py; python3 $G gh pr ready $B", False),
+                               ("G=/s/github_app.py; python3 $G gh pr ready; cd x", False),
+                               ("X=1; python3 /s/github_app.py gh pr ready", False),
+                               ("python3 /s/github_app.py --identity bot", False),
+                               (None, False)):
+            with self.subTest(command=command):
+                self.assertEqual(handbacks.gh_alone(gh_shell, command), alone)
+        self.assertFalse(handbacks.gh_alone(None, "gh pr ready"))
+
     def test_with_no_reader_a_command_holds_none(self):
         payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr ready 7"}}
         self.assertEqual(handbacks.handbacks_in(None, payload, "claude")[0], [])

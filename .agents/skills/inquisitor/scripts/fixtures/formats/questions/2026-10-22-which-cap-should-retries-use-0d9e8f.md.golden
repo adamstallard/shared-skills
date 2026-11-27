@@ -1,0 +1,15 @@
+---
+asked_from: "o/web"
+asked: "2026-10-22"
+answered_by: "alice"
+authority: "input"
+recorded_in: "questions/2026-10-22-which-cap-should-retries-use-0d9e8f.md"
+---
+## Question
+Which cap should retries use?
+## Rephrased question
+Should every service cap retries at one minute?
+## Discussion
+A minute keeps queues short without hiding outages.
+## Answer
+> User says: cap at a minute.

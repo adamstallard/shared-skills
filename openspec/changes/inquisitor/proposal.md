@@ -46,8 +46,8 @@ the AI teammates of igor, a separate project; igor #211 tracks the role.
 
 The specs hold each rule a test can check; each capability's decision
 record, `openspec/specs/<capability>/decisions.md`, holds the reasoning
-with evidence. design.md's *Decisions* holds the remaining design choices,
-and its *Open Questions* what is undecided or unmeasured. What this change
+with evidence. design.md holds only Open Questions, what is undecided or
+unmeasured. What this change
 needs from other changes is in their issue bodies: igor's in
 adamstallard/igor#247, github-app's in shared-skills #96, and linear-app's
 in shared-skills #112.

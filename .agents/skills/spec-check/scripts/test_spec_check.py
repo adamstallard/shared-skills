@@ -5677,6 +5677,41 @@ class HandbackAfterTests(HandbackBase):
         self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
 
 
+class HandbackAppTests(HandbackBase):
+    """The hook blocks a hand-back through github-app's script before the
+    call, and takes it back after the call, as it does the gh call the
+    script runs."""
+
+    def test_a_named_hand_back_through_the_script_is_blocked(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("G=/s/github_app.py; python3 $G gh pr ready 7 -R o/r",
+                        f"python3 /s/github_app.py gh pr ready {pr['url']}",
+                        "G=/s/github_app.py && GH_REPO=o/r python3 \"$G\" gh pr ready 7"):
+            with self.subTest(command=command):
+                self.blocked(self.hook(command, pr=pr), "github_app.py gh pr ready", pr["url"])
+
+    def test_a_hand_back_through_the_script_is_taken_back_as_gh_s(self):
+        app = "/s/github-app/scripts/github_app.py"
+        self.deferred()
+        pr = self.pr()
+        prs = {"FAKE_PRS": json.dumps({"7": pr, pr["url"]: pr})}
+        for command, undone in (
+                (f"G={app}; python3 $G gh pr create -t x -r adam", [
+                    ["pr", "ready", pr["url"], "--undo"],
+                    ["pr", "edit", pr["url"], "--remove-reviewer", "adam"]]),
+                (f"G={app}; python3 $G run -- git push && python3 $G gh pr create -t x",
+                 [["pr", "ready", pr["url"], "--undo"]]),
+                (f"python3 {app} --identity bot gh pr edit 7 --add-reviewer adam",
+                 [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])):
+            with self.subTest(command=command):
+                if self.log.exists():
+                    self.log.unlink()
+                r = self.hook(command, pr=pr, output=pr["url"] + "\n", extra_env=prs)
+                self.taken_back(r, pr["url"], "good")
+                self.assertEqual(self.undos(), undone)
+
+
 class CiTests(unittest.TestCase):
     """The GitHub workflow's check (spec_check.py ci) and setup-ci."""
 
@@ -6673,8 +6708,9 @@ class FoundByBugHunterHandbackRun7Tests(FoundByBugHunterHandbackRun6Tests):
 
 class PassDueTests(unittest.TestCase):
     """The commit hook prints `current-state pass due for: ...` for a commit
-    that adds a src/ file on a branch with an open change (gate two), and for
-    one that archives a change (SKILL.md, *Current-state passes*)."""
+    that adds a src/ file on a branch that adds or edits an open change
+    (that change's phase two), and for one that archives a change
+    (SKILL.md, *Current-state passes*)."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -6706,8 +6742,7 @@ class PassDueTests(unittest.TestCase):
         self.commit("Build it", "src/store.py", "packages/web/src/view.ts")
         r = self.hook()
         self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("current-state pass due for: openspec/changes/good/proposal.md, "
-                      "openspec/changes/good/design.md, and the pull request's body and title. "
+        self.assertIn("current-state pass due for: the pull request's title. "
                       "The implementation is on the branch of the open change good "
                       "(packages/web/src/view.ts, src/store.py added)", r.stderr)
         self.assertNotIn("without a Spec-check: trailer", r.stderr)
@@ -7019,7 +7054,7 @@ class PassDueTests(unittest.TestCase):
         r = ci("ready_for_review")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("::notice::current-state pass due for: each doc the pull request "
-                      "changes, and its body and title.", r.stdout)
+                      "changes, and its title.", r.stdout)
         self.assertNotIn("current-state pass due for:", ci("synchronize").stdout)
 
 

@@ -157,9 +157,10 @@ Prose: ✓ 4d593e935186:9138830a72a2
 
 You read your own text knowing what you meant, so you fill its gaps without
 seeing them. Before a text is signed, an agent that has never seen the
-conversation reads it and reports every place it stopped, reread or guessed.
-For every item it also says in one line what it understood the item to state,
-because a reader who misreads with confidence never stops. The line says:
+conversation reads it and reports every place it stopped, reread, guessed or
+could not tell why. For each text it also says in one line what it
+understood that text to state, because a reader who misreads with confidence
+never stops. The line says:
 - who or what does each thing;
 - whether it always happens, or only in some case;
 - whether the code does it, or someone else could make it happen.
@@ -209,7 +210,7 @@ so the reader needs nothing else.
    change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
    `cold-read.txt` beside `msg.txt`. The brief asks for one line per
-   finding, quoting the words that stopped the reader, one line for each
+   finding, quoting the words the finding is about, one line for each
    item read straight through, and one understood line for every item:
 
    ```text
@@ -219,6 +220,11 @@ so the reader needs nothing else.
    Item 2: read straight through.
    Item 2, understood: A person may rerun a failed upload; nothing retries it.
    ```
+
+   If the signing call refuses the report itself, because a line is not in
+   the brief's form or an item has no line, give the same brief file to
+   another new subagent. Never edit a report or ask its reader to rewrite
+   it: a reader revising its own report is no longer reading cold.
 
 3. Fix each place the report names with the first fix that works of
    those [rules.md](rules.md)'s step 4 lists: a cut, a move, or a
@@ -236,8 +242,10 @@ so the reader needs nothing else.
    ```
 
    `fixed` means you changed the item: the one the finding is in, or the one
-   the understood line describes. `matches` means the understood line says
-   what you meant on all three points above.
+   the understood line describes. A finding also counts as fixed when the
+   words it quotes are nowhere in the item's file any more, even if you
+   edited them on a line beside its item. `matches`
+   means the understood line says what you meant on all three points above.
 5. **A person decides every kept finding and understood line.** To keep one
    is to leave its item as it is: for an understood line, although it shows
    a meaning other than yours. For each one you would keep, ask a person one
@@ -330,6 +338,35 @@ gh pr create --title "..." --body-file signed.md
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
 
+**A pull request body is written when it gets a first-time reader:** when a pull
+request whose body was never written goes to anyone for review, the
+person you work for included, and again for each new reader who joins
+after someone has read it. Never update a body for someone who has read
+it: they won't reread it. Until its first reviewer, the body holds two
+things only. First, link lines: a line
+starting with `Closes #N`, or another of GitHub's closing keywords, for
+each issue the pull request closes, and one starting with `Part of #N`
+for each it partly implements. GitHub and the sequencer, which orders
+open pull requests, tie a pull request to its issue through these lines;
+a `Part of` mid-sentence ties it to nothing. Second, any block a tool writes between its own markers, such as
+`<!-- sequencer:begin -->` … `<!-- sequencer:end -->`, since the tool keeps
+it current. Anything more would go stale before anyone read it. For each
+first-time reader, start a subagent that has
+not seen the work to write the body from whichever of the specs, decision
+records, code and `tasks.md` the repository has. It is an introduction for
+a first-time reader, naming the pull requests or OpenSpec changes this one
+builds on, and keeps the link lines and marked blocks. Each new reader gets a body written
+afresh, never an update of the last one, since an update carries stale
+text forward. Nobody rewrites it for the merge, except in a repository
+that squash-merges: there the body becomes the squashed commit's message,
+so whoever merges rewrites it as that commit message. Never point an
+agent's brief at a body as a record of what is settled: nobody keeps a
+body current.
+
+**The title is kept current.** The agent that pushes an implementation
+onto a pull request that held only a spec updates its title in the same
+turn, dropping wording such as "specification only".
+
 **A pull request body is cold-read at a hand-back,** not at each edit. A
 hand-back is `gh pr create` (not a draft, unless it requests a review),
 `gh pr ready`, `gh pr edit --add-reviewer`, or the GitHub MCP's equivalents;
@@ -345,9 +382,29 @@ it with `gh pr edit`, and hand back again.
 
 **After a hand-back,** a hook prints `current-state pass due for: ...`. Do
 that final pass at once, without asking first: fix any doc the pull request
-changes, and its body and title, that still describes work as unfinished or
-to come. Ask a person only before dropping a conclusion. A person now reads
-the body, so sign a body you change then with its cold read.
+changes, and its title, that still describes work as unfinished or to
+come. Ask a person only before such a fix would delete a result or decision
+the text states. The hook's note then says one of four things about the body:
+
+- *Leave the body as it is*: the body has been written, and the call
+  requested no reviewer, or none but the author and bots. A bot,
+  `@copilot` or a login ending in `[bot]`, reviews the diff whatever the
+  body says.
+- *Pull request body due*: the body holds only link lines and marked
+  blocks, whoever reviews; or a review was requested from a person other
+  than the author, bots aside.
+  Have the body written afresh, as above, and sign it without
+  `--defer-cold-read`.
+- *Pull request body due if* a review was requested from anyone but the
+  author: the hook could not work out who the author is. Compare the
+  reviewers it names with the pull request's author
+  (`gh pr view --json author`); if any differs, treat it as a body due.
+- *This hook could not read the body*: if it holds only link lines and
+  marked blocks, treat it as a body due; otherwise leave it as it is.
+
+**After a pull request is created,** draft or not, the same hook reminds
+you to add link lines when its body has none. A pull request with no
+issue needs none.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked
