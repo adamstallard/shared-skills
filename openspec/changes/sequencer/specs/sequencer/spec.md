@@ -223,11 +223,8 @@ request from saying `tied to no issue`.
 Where a line starting with a closing keyword, in the body of a pull
 request into the default branch, names an issue that GitHub's closing
 references for the pull request do not hold, the pull request's block
-SHALL name that issue, putting no issue number after a closing keyword, so
-GitHub does not read the note as closing it; pull requests into other
-branches get no such note,
-since GitHub records closing references only for pull requests into the
-default branch.
+SHALL name that issue without putting its number right after a closing
+keyword, so GitHub does not read the note as closing it.
 
 #### Scenario: A second issue after one keyword is named
 
@@ -466,10 +463,11 @@ full the line's own repository, in either letter case, SHALL read as
 
 An explicit link or a tie naming an outside item SHALL move nothing and
 bring no issue into the order. The order's issue SHALL list such an explicit
-link as not counted, on the line of the item that has it or, where the order does
-not hold that item, in its list of edges not counted, writing the outside
-item as plain `<owner>/<repo>#<number>` text, which GitHub turns into a
-link. The script SHALL make no request to an outside item's repository.
+link as not counted, on its item's line or, where the order does not
+hold that item, in its list of edges not counted, writing the outside
+item as `<owner>/<repo>#<number>` text, which GitHub links, when a writer
+opened the item holding the link, otherwise as inline code. The
+script SHALL make no request to an outside item's repository.
 
 #### Scenario: A Depends on line naming another repository is listed and orders nothing
 
@@ -487,6 +485,14 @@ link. The script SHALL make no request to an outside item's repository.
   `octo/lib#7`
 - **THEN** #14's line says
   `not counted: blocked by octo/lib#7, in another repository`
+
+#### Scenario: An outside link from an outside author is inert
+
+- **WHEN** `zed`, who is not a writer, opened issue #15 with the line
+  `Depends on octo/lib#7`
+- **THEN** the order's issue lists #15's link in its list of edges not
+  counted, writing `octo/lib#7` as inline code, which GitHub shows as no
+  link
 
 #### Scenario: A Builds on line naming another repository is listed
 
@@ -911,6 +917,13 @@ code`, which asks for a model step.
   is published until some merge or close.` and the cycle's members and
   mark; no item's block changes; the label `sequencer: check code`
   is removed; and the script makes no model call
+
+#### Scenario: A record dropped by a full order's issue starts over
+
+- **WHEN** the order's issue held the note that it is full, and a merge
+  lets the order fit again
+- **THEN** the next run gives every change a new key and a row
+  `<key> *`, and the order counts every pair as unchecked
 
 ### Requirement: The order says plainly what it did not check
 
@@ -1449,7 +1462,8 @@ model step, only while some pair of changes is unchecked, as one
 Messages API call that offers no tools, sending those changes' files and
 taking from the reply only what it validates as an edges file. When that
 fails, the pairs SHALL stay unchecked, as *The order says plainly what it
-did not check* says.
+did not check* says, and the order's issue SHALL say why, quoting the
+API's error when the call itself failed.
 
 #### Scenario: The model step's call offers no tools
 
@@ -1470,6 +1484,13 @@ did not check* says.
   than an edges file
 - **THEN** the script takes no edge from it, and the order says build
   dependencies between changes' code were not checked
+
+#### Scenario: A request too large for the API says so
+
+- **WHEN** the unchecked changes' files make a request the API refuses as
+  too large
+- **THEN** the pairs that were unchecked stay unchecked, and the order's
+  issue quotes the API's error
 
 ### Requirement: With an Igor, the workflow labels the order's issue for the model step
 
