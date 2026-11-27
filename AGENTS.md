@@ -21,8 +21,11 @@
   and so does a constraint, with a scenario that breaking it would fail.
   The capability's decision record,
   `openspec/specs/<capability>/decisions.md`, holds only what no test can
-  check, each entry with its evidence, in the form spec-check's `SKILL.md`
-  sets. A pull request edits that record directly, beside the spec files
+  express: rules no test can check, and the evidence for why a rule exists
+  or why an alternative lost. Every entry has evidence, in the form
+  spec-check's `SKILL.md` sets; reasoning without evidence goes in no
+  record, and in no file of the pull request's change beyond a
+  requirement's one plain reason. A pull request edits that record directly, beside the spec files
   its change adds or edits under `openspec/changes/<change>/specs/`; a
   change holds no record of its own. A skill with no spec keeps in
   its `SKILL.md` everything an agent needs to act on it, the reasons

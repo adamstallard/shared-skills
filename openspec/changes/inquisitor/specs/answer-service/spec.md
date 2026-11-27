@@ -525,10 +525,9 @@ the person there, with a token that skill holds.
 
 Setup SHALL check, showing failures and fixes: each relay identity by
 its skill's check; on Discord, that `messageContent` is `true`; and
-posting in each subscribed channel. A channel is **on** while its
-identity and posting checks last passed, else **off**. A channel whose
-posting permission no check can read SHALL stay on, shown
-not checked, until a post there is refused for permission. An off
+posting in each subscribed channel. A channel is **on** while its identity and
+posting checks last passed, else **off**. As an exception, a channel whose posting check could not run SHALL
+stay on, shown not checked, until a post there is refused for permission. An off
 channel SHALL not be read or posted in; each opening SHALL rerun failed
 and unrun checks.
 
@@ -561,10 +560,10 @@ and unrun checks.
 - **AND** only `messageContent` as `true` passes, whatever `check`
   reports as `memberSearch`
 
-#### Scenario: A posting check no check can read is shown as not checked
+#### Scenario: A posting check that cannot be read is shown as not checked
 
-- **WHEN** no check can read whether the Linear relay may post in a
-  subscribed team, and the relay's own check passes
+- **WHEN** setup's read of the teams the Linear relay can see fails, and
+  the relay's own check passes
 - **THEN** setup shows the team's posting check as not checked, never as
   passed, and the team counts as on
 - **AND** once Linear refuses a relay post there for lack of permission,
@@ -577,6 +576,31 @@ and unrun checks.
 - **WHEN** a Discord channel is off because its posting check failed, and
   at the next opening that check passes
 - **THEN** the channel is on, and the answer service reads and posts in it
+
+### Requirement: A posting check reads what each surface grants
+
+Setup's **posting check** SHALL pass on GitHub when the repository is
+among the relay App installation's repositories and the installation may
+write issues and pull requests, both read with the App's own token; on
+Linear when the relay's token has the `write` scope and its app user can
+see the team; and on Discord when discord-bot's `check --channel` reports
+`viewChannel`, `readMessageHistory`, `sendMessages` and
+`sendMessagesInThreads` all `true` for the channel.
+
+#### Scenario: A repository outside the App's installation is off
+
+- **WHEN** a subscribed GitHub repository is not among the GitHub relay
+  App installation's repositories
+- **THEN** setup shows that the App must be installed on it, and that
+  repository stays off while the others are on
+
+#### Scenario: A team or channel the relay cannot post in is off
+
+- **WHEN** the Linear relay's app user cannot see a subscribed team, or
+  discord-bot's `check --channel` reports `sendMessages` `false` for a
+  subscribed channel
+- **THEN** setup shows the failure and its fix, and that team or channel
+  stays off
 
 ### Requirement: Setup opens on an incomplete configuration
 
@@ -765,7 +789,8 @@ Code session starts or resumes whose environment holds the marker the
 
 The `answer` launcher SHALL pass the person's arguments on to Claude
 Code, exiting with an error, before starting it, when they hold
-`--name`, `--tools` or `--strict-mcp-config`. It SHALL add on every run
+`--name`, `--tools`, `--strict-mcp-config` or `--mcp-config`, the last of
+which would bring MCP servers back. It SHALL add on every run
 the session name `Answers`, the fullscreen layout, the answer marker
 (*Only a session with the answer marker opens the answer service*) and
 the tool restriction.
@@ -778,6 +803,13 @@ the tool restriction.
   by `--tools Read,Grep,Glob` and `--strict-mcp-config`, as *The
   service's model has no shell, no writing tool and no web fetch* says,
   and every enabled plugin still on
+
+#### Scenario: The answer launcher refuses an argument it sets itself
+
+- **WHEN** the person runs `answer --name x`, `answer --tools Bash`,
+  `answer --strict-mcp-config` or `answer --mcp-config x.json`
+- **THEN** it exits with an error naming the argument, and starts no
+  Claude Code session
 
 ### Requirement: The answer mod strips other tools from the answer session
 
@@ -1182,12 +1214,21 @@ its own handback comment* says.
 
 ### Requirement: A log file with no followed link is judged on its own
 
-A log file that holds no thread copy of a message this machine's polls
+A log file that holds no thread copy (a term of this spec's Purpose) of a message this machine's polls
 have read SHALL be judged on its own, as a question of the fourth
 source, a questions-branch log file, save that an Igor's log file
 follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
-service SHALL NOT pair a file with a message by matching text.
+service SHALL NOT pair a file with a message by text similarity.
+
+#### Scenario: A Discord item whose mention discord-bot rewrote is shown on its own
+
+- **WHEN** an agent's Discord message lists two questions, the second
+  naming `@bob`, which discord-bot sent as `<@id>`, and each is logged in
+  its own file whose `asked_in` is the message's URL
+- **THEN** the first item's file follows its item, and the second item's
+  file, whose hash matches no item and so is paired with no message, is
+  shown on its own
 
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
@@ -1566,11 +1607,11 @@ relay by hand.
 
 A pending answer SHALL return to the queue with its text kept, to be
 posted only once the person confirms it again: when setup's posting check
-passes, if its channel was off, as after a post refused for permission;
-when a later poll of its channel succeeds, if the fetch before its post
-failed. Where no check reads posting rights, the next opening
-SHALL return an answer whose channel was off, and turn the channel on, if
-the relay identity's own check passed when last run.
+passes, if a permission refusal turned its channel off; when a later poll
+of its channel succeeds, if the fetch before its post failed. Where the
+channel's posting check could not run, the next opening SHALL return it,
+and turn the channel on, if the relay identity's own check passed when
+last run.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
@@ -2067,9 +2108,7 @@ line.
 - **WHEN** a subagent of the service's model calls `propose_reply`, and
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
-- **AND** a call with no `agentId` is taken as the main conversation's. If
-  a subagent's call arrives without one, its draft still lands only in
-  the prompt box, where the person sees it before anything is sent
+- **AND** a call with no `agentId` is taken as the main conversation's
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
@@ -3181,10 +3220,14 @@ with a miss file* bars it.
 
 ### Requirement: A question with a person-required line gets no filter 2 to 4 reply
 
-A question, whoever posted it, is **person-required** when a related-decision or person-required line directly after it starts, reduced as the inquisitor reduces a question's text, with the inquisitor's person-required line up to `(required by `. Such a question SHALL get no filter 2, 3 or
-4 reply, by itself, by a suggested verdict or by the person's decline,
-and no miss for those filters. Unless filter 1 answers it, it SHALL be
-shown to the person. The answer service SHALL trust any such line.
+A question is **person-required** when, among the related-decision,
+concerns, tag and person-required lines right after it, a line starts,
+markup reduced, with `Inquisitor: a person must decide this (required
+by `. The line SHALL count whoever posted it: a forged one only sends a
+question to the person. The
+question SHALL get no filter 2, 3 or 4 reply, by itself, by a suggested
+verdict or by a decline, and no miss for those filters, and
+unless filter 1 answers it SHALL be shown to the person.
 
 #### Scenario: A question spec-trace requires reaches the person
 
@@ -3210,6 +3253,13 @@ shown to the person. The answer service SHALL trust any such line.
 - **THEN** the first counts as a person-required line, its markup
   reduced away, and the second does not, so filters 2 to 4 judge that
   question as usual
+
+#### Scenario: A person-required line after a related-decision line counts
+
+- **WHEN** an agent's question is followed by
+  `Related: https://github.com/o/r/pull/3` and then by
+  `Inquisitor: a person must decide this (required by spec-trace).`
+- **THEN** the question is person-required
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 

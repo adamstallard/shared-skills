@@ -67,11 +67,10 @@ spec's *A channel's repositories place its questions* and *A Linear or
 Discord question is placed by what it concerns* pick the team's lore
 repository.
 
-*A session with a person in it* is one a person started and is reading, such
-as an interactive Claude Code session. Any other, such as an Igor worker or
-a `claude -p` job, is *a session with no person in it*, and so is one
-where the agent or the script cannot tell, from how it was started,
-whether a person started it and is reading it. *The agent's
+*A session with a person in it* is an interactive Claude Code session,
+its subagents included, which the script tells by
+`CLAUDE_CODE_SESSION_ATTENDED` being `1`. Any other, such as an Igor
+worker or a `claude -p` job, is *a session with no person in it*. *The agent's
 report*, meant wherever this spec says the agent tells or reports to the
 person, is its reply in the session, or, with no person in it, its run's
 output.
@@ -410,13 +409,21 @@ the session SHALL have no login configured.
 
 ### Requirement: Nothing about a repository goes somewhere more visible
 
-Visibility SHALL be ranked private, then internal, then public, and
-nothing about one repository SHALL go to a **more visible** place, except
-words the person confirms, and except
-as three requirements allow: *The answerer's confirmation can send a
-record somewhere more visible*; *A later run gets only the answer to its
-Igor's question on a more private repository*; and answer-service's *A
-miss more visible than its thread is pushed as a hash-only file*.
+Visibility SHALL rank private, then internal, then public. Nothing about
+a repository SHALL go anywhere **more visible**, except words the
+person confirms, a handled file, and as these allow: *The answerer's confirmation can send a record somewhere more
+visible*; *A later run gets only the answer to its Igor's question on a
+more private repository*; *A lore entry that stops a question gets a
+citation file*; and answer-service's *A miss more visible than its thread
+is pushed as a hash-only file*.
+
+#### Scenario: A handled file may go to a more visible questions branch
+
+- **WHEN** an answer service closes a question logged on the public
+  `o/web`'s questions branch and asked from the private `o/api`
+- **THEN** its handled file, holding only the day and the closed file's
+  name, is pushed to `o/web`'s questions branch, though that branch is
+  more visible than `o/api`
 
 #### Scenario: A private repository's question goes to no internal or public place
 
@@ -1202,7 +1209,8 @@ since what it concerns cannot be told.
 
 ### Requirement: A permission that cannot be read is no write access
 
-Wherever the inquisitor checks write access, a permission it cannot read
+Wherever the inquisitor checks write access, a permission it cannot read,
+and an App's `<slug>[bot]` login, which GitHub always reads as `none`,
 SHALL count as no write access.
 
 #### Scenario: A permission that cannot be read is no write access
@@ -1210,6 +1218,21 @@ SHALL count as no write access.
 - **WHEN** a `decision` file's `repository` key names `o/api`, and
   `answered_by`'s permission on `o/api` cannot be read
 - **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: Without push access, no answer counts by write access
+
+- **WHEN** the agent's `gh` login has no push access to `o/api`, so
+  GitHub refuses to read anyone's permission there
+- **THEN** every answer in an `o/api` post and every `o/api` issue's
+  decision block is input, and a question in an `o/api` post tags none of
+  its candidates
+
+#### Scenario: An App's pull request holds no decision
+
+- **WHEN** the current work's pull request, or an issue, was opened by a
+  GitHub App, as `x[bot]`
+- **THEN** the decisions committed on that pull request's branch, and
+  that issue's decision block, are input
 
 ### Requirement: An answer logged from a comment is the comment's whole text
 
@@ -1739,6 +1762,13 @@ stop only work needing the answer, and report it.
   comment where the question would go
 - **THEN** it opens no post and calls no picker, stops, and reports the
   question in its output
+
+#### Scenario: The script tells a person's session by CLAUDE_CODE_SESSION_ATTENDED
+
+- **WHEN** the script runs where `CLAUDE_CODE_SESSION_ATTENDED` is `0`, or
+  unset
+- **THEN** it counts the session as having no person in it, and where the
+  variable is `1`, as having one
 
 ### Requirement: A flagged run's handback comment asks no question
 
@@ -2276,13 +2306,14 @@ for a question about files, the author of the last commit to them.
 
 ### Requirement: A question no candidate can decide turns to the session's login
 
-When no tagging candidate of the requirement above has write access, the
+When no tagging candidate has write access, the
 script SHALL check the configured login, and tag it if it has write
-access and the post is known to go out as someone else. If it tags no
-one and a person is in the session, the agent SHALL ask through the
-picker, unless that login lacks write access. Otherwise the question
-SHALL tag no one, with the fixed tag line this requirement's last
-scenario gives.
+access and the post is known to go out as a GitHub App (*A post is
+known to go out as a GitHub App only from the environment*). If it tags no
+one, the agent SHALL ask through the picker when a person is in the
+session, unless gh confirms a configured login that lacks write access;
+in any other case it SHALL tag no one, with the last scenario's fixed
+tag line.
 
 #### Scenario: The configured login is tagged when no candidate can decide
 
@@ -2297,14 +2328,6 @@ scenario gives.
   configured login has it, and the post would go out as that login
 - **THEN** the agent asks the question through the picker, and the post does
   not tag that login
-
-#### Scenario: An unknown posting login counts as the configured login
-
-- **WHEN**, with a person in the session, no candidate has write access, the
-  configured login has it, and the script cannot learn which login the post
-  goes out as
-- **THEN** the script treats the post as going out as the configured login,
-  so the agent asks through the picker
 
 #### Scenario: No configured login means asking through the picker
 
@@ -2328,6 +2351,29 @@ scenario gives.
   one with authority to decide this could be tagged; name deciders in
   .inquisitor/reviewers.`
 
+### Requirement: A post is known to go out as a GitHub App only from the environment
+
+The script SHALL know a post goes out as a GitHub App only when
+`GITHUB_APP_ACT_AS`, or else `GITHUB_APP_IDENTITY`, names a github-app
+identity whose stored bot login it reads, or when `GIT_AUTHOR_NAME` ends
+`[bot]`; otherwise the post SHALL count as going out as the configured
+login.
+
+#### Scenario: A post as the environment's github-app identity tags the configured login
+
+- **WHEN** no candidate has write access, the configured login has it,
+  and `GITHUB_APP_ACT_AS` names the identity `bot`, whose stored bot login
+  is `x[bot]`
+- **THEN** the post is known to go out as `x[bot]`, and the question tags
+  the configured login
+
+#### Scenario: An identity named only on the command line is not known
+
+- **WHEN** the environment names no github-app identity and
+  `GIT_AUTHOR_NAME` does not end `[bot]`, and the agent will post through
+  the github-app skill's script with `--identity bot`
+- **THEN** the post counts as going out as the configured login
+
 ### Requirement: A candidate or login that cannot be checked is skipped
 
 The script SHALL skip a candidate whose pull request, approver or GitHub
@@ -2342,6 +2388,8 @@ form as the scenarios below say.
 - **WHEN** the related earlier decision is the decision block of an issue,
   which no pull request added
 - **THEN** the script skips the first candidate and tries the next
+- **AND** so it does when the pull request that added the decision has no
+  approving review
 
 #### Scenario: A malformed login is skipped
 
@@ -4380,8 +4428,9 @@ about item `<n>`, counted from 1, among the open-questions items of the post,
 or Linear or Discord message, it replies to or names in its `Re: ` line
 (the line linking what it answers),
 or, one past the last item, about that message's sentences ending in `?`
-outside that section. The agent SHALL treat such a reply as input when
-that message was edited after the reply was posted.
+outside that section. A reply SHALL be input when its message was
+edited after the reply, save as *A sequencer block's update keeps a numbered
+reply* allows.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -4404,6 +4453,33 @@ that message was edited after the reply was posted.
   reply starting `Inquisitor: question 3: filter 4` has its miss file
 - **THEN** the agent acts on it for that sentence only, and both items
   stand
+
+### Requirement: A sequencer block's update keeps a numbered reply
+
+An edit after a numbered `Inquisitor: ` reply SHALL leave the reply in
+force when it only added, changed or removed whole sequencer blocks (the
+lines `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` and the
+text between them) and blank lines beside them, which the sequencer skill writes in each ordered item's
+description.
+
+#### Scenario: A sequencer block's update keeps a numbered reply
+
+- **WHEN** an agent's issue description lists three questions, a reply
+  starting `Inquisitor: question 2: filter 4` has its miss file, and the
+  sequencer then rewrote only the text between the description's
+  `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` lines
+- **THEN** the agent acts on the reply for the second item
+- **AND** an edit that also changed a line outside those markers, other
+  than a blank line beside a block, makes the reply input
+
+#### Scenario: A sequencer block added or removed keeps a numbered reply
+
+- **WHEN** a reply starting `Inquisitor: question 2: filter 4` has its
+  miss file, and the sequencer then added a whole block, from its
+  `<!-- sequencer:begin -->` line to its `<!-- sequencer:end -->` line, to
+  the issue's description as the issue joined the order, or removed one as
+  it left
+- **THEN** the agent acts on the reply for the second item
 
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 
