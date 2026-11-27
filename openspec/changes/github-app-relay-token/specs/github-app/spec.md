@@ -79,8 +79,10 @@ other commands SHALL keep working.
 `github_app.py api <endpoint>` SHALL make a request to
 `https://api.github.com`, for any identity, with the identity's
 installation token and never the App's own key, in its own process, so
-the token reaches no other program. It SHALL print the response body,
-and on an HTTP error print GitHub's message and exit non-zero.
+the token reaches no other program. It SHALL follow no redirect, exiting
+non-zero and naming the redirect's location instead. It SHALL print the
+response body, and on an HTTP error print the `message` of GitHub's error
+response and exit non-zero.
 
 #### Scenario: A relay posts, edits and deletes a comment through api
 
@@ -90,6 +92,13 @@ and on an HTTP error print GitHub's message and exit non-zero.
   `api -X DELETE repos/o/r/issues/comments/9`
 - **THEN** the comment is posted, edited and deleted as the App's bot,
   each response body is printed, and no other process is started
+
+#### Scenario: api follows no redirect
+
+- **WHEN** an agent runs `api repos/o/r/tarball/main`, and GitHub answers
+  with a redirect to another host
+- **THEN** `api` exits non-zero naming the redirect's location, and sends
+  no request there, so the token reaches no other host
 
 #### Scenario: api cannot mint a token
 

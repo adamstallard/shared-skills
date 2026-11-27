@@ -2,9 +2,9 @@
 
 ## Constraints
 
-- **Constraint: The inquisitor's GitHub post hook, like a skill's refusal to hand a relay identity's token to a command that can print it, guards only against accidents; an agent set on forging a relayed answer can read a relay's credentials from where the relay's skill keeps them and post with `curl`.**
-  Because: the hook and such refusals stop an agent that posts through the skills as their instructions say, and an agent that works around them still has the person's own tools and the relay's credentials.
-  Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks; linear-app keeps an identity's credentials in the system keychain, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py); github-app's record holds the same limit for its own refusals, [github-app's record](../github-app/decisions.md)
+- **Constraint: The inquisitor's GitHub post hook guards only against accidents; an agent set on forging a relayed answer can read a relay's credentials from where the relay's skill keeps them and post with `curl`.**
+  Because: the hook stops an agent that posts through the skills as the skills' instructions say, and an agent that works around them still has the tools of the person it works for and the relay's credentials.
+  Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks; github-app keeps a relay's private key in a file or in the environment, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); linear-app keeps an identity's credentials in the system keychain, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
   Holds while: a relay identity's credentials sit where the person's own agents can read them.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
