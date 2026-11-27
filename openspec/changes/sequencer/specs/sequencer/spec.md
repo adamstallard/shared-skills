@@ -76,7 +76,8 @@ These terms hold throughout this spec:
 - **An edges file** is the model step's output: the pairs of changes it
   checked, each with the two changes' hashes from the `order` run it read,
   and the code edges it found. Its pairs and edges name each change by
-  repository and name, as a line of the record's legend does.
+  repository and name, as a line of the order's issue's `legend:` list
+  does (*The order's issue records which pairs were checked*).
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it. **A pair
   of changes** is two changes, each belonging to a different open pull
@@ -1181,15 +1182,22 @@ change, and that text SHALL hold no date or time but each cycle's
 
 When an item leaves the order, by closing, merging or ceasing to be linked,
 the script SHALL remove its block, markers included, and leave the rest of
-its body as it was. An item that left the order while the order's issue held the note that the
-issue is full keeps its block for good, since the next publish finds
-blocks to remove through the order it replaces, and the note names no item.
+its body as it was. An item that left the order while the order's issue held the note that it
+is full (*A full order's issue holds a note in place of the order*) keeps
+its block for good, a cost this spec accepts: a publish removes the blocks
+of the items the order it replaces names, and the note names no item.
 
 #### Scenario: A merged pull request's block is removed
 
 - **WHEN** #82 merges
 - **THEN** the next publish removes #82's block, and the order does not
   hold #82
+
+#### Scenario: An item that left while the order's issue was full keeps its block
+
+- **WHEN** #82 merges while the order's issue holds the note that it is
+  full, and a later merge lets the order fit again
+- **THEN** no publish removes #82's block
 
 ### Requirement: A run that cannot edit the order's issue edits nothing
 
@@ -1375,8 +1383,8 @@ it with the newer template when given `--force`.
 
 ### Requirement: The workflow recomputes the order on GitHub events and once a day
 
-The workflow SHALL run the script when an issue is opened, edited, closed,
-reopened or commented on, a comment on a pull request included; when a
+The workflow SHALL run the script when an issue is opened, edited, labelled,
+closed, reopened or commented on, a comment on a pull request included; when a
 pull request is opened, edited, marked
 ready for review, converted to draft, reviewed, given or relieved of a
 review request, reopened, closed without merging, or merged; when a push reaches the default branch or an open
@@ -1444,9 +1452,7 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 Where the repository chose its API key, the model step SHALL run only in
 a run triggered by the daily schedule, or by a pull request a writer
 opened being opened, reopened or pushed to, since each call is paid for with the
-repository's key. A pair whose checking run GitHub cancels while it waits
-in the concurrency group waits for the next such run, at the latest the
-daily one.
+repository's key.
 
 #### Scenario: A comment makes no API call
 
@@ -1463,7 +1469,7 @@ Messages API call that offers no tools, sending those changes' files and
 taking from the reply only what it validates as an edges file. When that
 fails, the pairs SHALL stay unchecked, as *The order says plainly what it
 did not check* says, and the order's issue SHALL say why, quoting the
-API's error when the call itself failed.
+type and message of the API's error when the call itself failed.
 
 #### Scenario: The model step's call offers no tools
 
@@ -1482,23 +1488,22 @@ API's error when the call itself failed.
 
 - **WHEN** no pair was ever checked, and the model's reply is prose rather
   than an edges file
-- **THEN** the script takes no edge from it, and the order says build
-  dependencies between changes' code were not checked
+- **THEN** the script takes no edge from it, and the order's issue says
+  build dependencies between changes' code were not checked and that the
+  reply held no edges file
 
 #### Scenario: A request too large for the API says so
 
 - **WHEN** the unchecked changes' files make a request the API refuses as
   too large
 - **THEN** the pairs that were unchecked stay unchecked, and the order's
-  issue quotes the API's error
+  issue quotes the API error's type and message
 
 ### Requirement: With an Igor, the workflow labels the order's issue for the model step
 
 Where the repository chose an Igor, `publish`, as the workflow runs it,
 SHALL keep the order's issue labelled `sequencer: check code` exactly while
-the order it publishes leaves unchecked a pair of changes, and not while the
-order's issue holds the note that it is full (*A full order's issue holds
-a note in place of the order*), since no model step runs then.
+the order it publishes leaves unchecked a pair of changes.
 
 #### Scenario: An unchecked order is labelled for an Igor
 

@@ -14,16 +14,16 @@ remove the question from design.md.
       size of an edges file for a large repository
 - [ ] 0.3 How the workflow's token can tell that an issue's or pull
       request's author is the bot account of a GitHub App installed on the
-      repository:
-      through the permission API, `author_association`, or the
-      repository's list of installations
+      repository, by a method other than the permission API,
+      `author_association` or reading the repository's installations,
+      none of which tells it whether an App is installed (design.md)
 - [ ] 0.4 Whether a pull request's timeline tells apart the two ways a
       review request ends: GitHub clearing it when the reviewer reviews,
       and a person removing it
-- [ ] 0.5 How a refused read of another account's permission, of
-      installations or of "blocked by" relations shows that GitHub refused it:
+- [ ] 0.5 How a refused read of "blocked by" relations shows that GitHub refused it:
       an error status, an empty answer, or a 404 like the one for a
-      missing item
+      missing item; and whether a relation to an issue in another
+      repository the token cannot see is refused or left out silently
 
 ## 1. Reading the repository
 
