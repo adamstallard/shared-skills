@@ -6,6 +6,10 @@ same commit. branch-search, miss-check and file-answer outputs are also a
 contract with igor (tasks 2.3b to 2.3d), checked field for field against
 their stored copies.
 
+Terms such as filter, miss, category, place, relay, the two calls and
+an Igor's run are the inquisitor and answer-service specs' terms
+(openspec/changes/inquisitor/specs/, or openspec/specs/ once archived).
+
 Owned by P0. Standard library only.
 """
 
@@ -117,11 +121,16 @@ class SecondCallLine(TypedDict):
 
 class VerdictRecord(TypedDict):
     """One verdict record, a file of mode 0600 under common.verdicts_dir(),
-    read by both hooks and by `tag`. time is seconds since the epoch, UTC.
-    A question with a category keeps only hash, verdict, time and category.
-    A picker ask's field drops `recommended`, since a record holds no
-    option's label (inquisitor spec: *The two calls' files and records stay
-    private*)."""
+    read by the inquisitor's picker and post hooks and by `tag`. time is
+    seconds since the epoch, UTC. kind, field, related, requires, concerns
+    and files come from the second call's input for the question. A
+    question with a category keeps only version, hash, verdict, time and
+    category. For an `ask` verdict of kind "picker", the field (an
+    AskField) drops `recommended`, which is then an option's label, and a
+    record holds no option's label (inquisitor spec: *The two calls' files
+    and records stay private*). identity: the
+    github-app identity for which `tag` made the tag line (inquisitor spec:
+    *A tag made for an App's post goes out only through github-app*)."""
 
     version: int
     hash: str
@@ -134,6 +143,7 @@ class VerdictRecord(TypedDict):
     requires: NotRequired[str]
     concerns: NotRequired[Concerns]
     files: NotRequired[list[str]]
+    identity: NotRequired[str]
 
 
 # -- tag ----------------------------------------------------------------------
@@ -277,9 +287,13 @@ class MissIn(TypedDict):
 
 class LogInput(TypedDict):
     """`log --input <file>`: one file to write and push. kind "handled"
-    and a hash-only miss (`log --hash-only`) need `--service`. question is
-    the question's lines as asked, its extra lines included; absent only on
-    a handled or hash-only file."""
+    and a hash-only miss (`log --hash-only`) need `--service`, the option
+    the skill reserves for the answer service. question is every line of the question
+    as asked; absent only on a handled or hash-only file. handled: for kind
+    "handled", the date written into the file, YYYY-MM-DD in UTC; when
+    absent, the date of writing. repository, asked, asked_in and closes are the log file's keys
+    of those names (inquisitor spec: *A log file and a miss file have one
+    format*)."""
 
     version: int
     kind: Literal["question", "answer", "miss", "handled"]
@@ -290,6 +304,7 @@ class LogInput(TypedDict):
     asked_in: NotRequired[str]
     answer: NotRequired[AnswerIn]
     miss: NotRequired[MissIn]
+    handled: NotRequired[str]
     closes: NotRequired[str]
 
 
@@ -300,6 +315,47 @@ class LogResult(TypedDict):
 
     version: int
     status: Literal["pushed", "pending", "taken", "failed"]
+    path: str | None
+    why: NotRequired[str]
+
+
+class MissOut(TypedDict):
+    """One miss file `misses` could parse: its branch and path, and every
+    other field the miss file's key of the same name (inquisitor spec: *A
+    log file and a miss file have one format*)."""
+
+    branch: str
+    path: str
+    filter: str
+    said: str
+    asked: str
+    question: str
+    said_by: NotRequired[str]
+    asked_by: NotRequired[str]
+    repository: NotRequired[str]
+    asked_from: NotRequired[str]
+    asked_in: NotRequired[str]
+
+
+class MissesResult(TypedDict):
+    """What `misses` prints: each readable miss file, oldest first by the
+    commit that added it; how
+    many hash-only miss files each branch holds; the paths of unreadable
+    ones; and the branches it could not read."""
+
+    version: int
+    misses: list[MissOut]
+    hash_only: dict[str, int]
+    unreadable: list[str]
+    not_read: list[str]
+
+
+class CiteResult(TypedDict):
+    """What `cite` prints: a LogResult's fields. During an Igor's run,
+    which common.igor_run() detects, `cite` pushes nothing and reports status "skipped"."""
+
+    version: int
+    status: Literal["pushed", "pending", "taken", "failed", "skipped"]
     path: str | None
     why: NotRequired[str]
 
