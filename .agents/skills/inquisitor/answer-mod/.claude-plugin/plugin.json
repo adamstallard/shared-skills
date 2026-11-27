@@ -1,0 +1,7 @@
+{
+  "name": "inquisitor-answer-mod",
+  "version": "1.0.0",
+  "description": "The inquisitor's answer service: the questions asked of you, answered in one band above the prompt, in a session the answer command starts",
+  "author": { "name": "Adam Stallard" },
+  "types": "./types/index.d.ts"
+}
