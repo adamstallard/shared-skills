@@ -37,6 +37,12 @@ TEXT_CHANNEL_TYPES = {0, 5}  # text, announcement
 THREAD_TYPES = {10, 11, 12}  # announcement thread, public thread, private thread
 READABLE_MESSAGE_TYPES = {0, 19, 21}  # default, reply, thread starter
 REPLY_MESSAGE_TYPE = 19
+# The type of the empty placeholder Discord puts first in a thread. It stands
+# for the message the thread was started from; that message stays in the
+# parent channel.
+THREAD_STARTER_MESSAGE_TYPE = 21
+# Message flag: copied into this channel from an announcement channel it follows.
+IS_CROSSPOST = 1 << 1
 # Application flags meaning the Message Content intent is on: GATEWAY_MESSAGE_CONTENT
 # (a bot in 100 or more servers) and GATEWAY_MESSAGE_CONTENT_LIMITED (under 100).
 # Either one counts.
@@ -544,9 +550,19 @@ def reply_reference(api, where, message_id):
     return {"message_id": message_id, "channel_id": where["id"], "fail_if_not_exists": True}
 
 
-def message_text(value):
-    """The --message value, or standard input when it is '-'."""
-    text = sys.stdin.read() if value == "-" else value
+def message_text(args):
+    """The text from --message, or from the file --message-file names; '-' in either reads standard input."""
+    path = getattr(args, "message_file", None)
+    if path is not None and path != "-":
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except (OSError, UnicodeDecodeError) as e:
+            raise Failure(f"cannot read --message-file {path!r}: {e}")
+    elif path == "-" or args.message == "-":
+        text = sys.stdin.read()
+    else:
+        text = args.message
     if not text or not text.strip():
         raise Failure("the message is empty")
     return text
@@ -614,7 +630,7 @@ def message_content_enabled(application):
 
 def cmd_post(api, config, args):
     where, guild_id = target(api, config, args)
-    text = message_text(args.message)
+    text = message_text(args)
     body, user_ids, warnings = convert_mentions(api, guild_id, text, channel_ids(api, guild_id, text))
     top = header(args.agent, args.session, args.project)
     content = fit(f"{top}\n{body}" if top else body)
@@ -641,6 +657,54 @@ def cmd_post(api, config, args):
     return result
 
 
+def thread_starter(api, placeholder):
+    """The message a thread was started from, which its placeholder references.
+
+    None when that message was deleted, or the placeholder names no message.
+    """
+    reference = placeholder.get("message_reference") or {}
+    channel_id, message_id = reference.get("channel_id"), reference.get("message_id")
+    if not all(isinstance(v, str) and is_id(v) for v in (channel_id, message_id)):
+        return None
+    try:
+        return api.request("GET", f"/channels/{channel_id}/messages/{message_id}")
+    except Failure as e:
+        if e.status == 404:  # the starting message was deleted
+            return None
+        raise
+
+
+def read_item(m):
+    """One message as read returns it; None for a type read skips, or a message with no text and no attachments."""
+    if m.get("type") not in READABLE_MESSAGE_TYPES:
+        return None
+    attachments = [a["url"] for a in m.get("attachments", [])]
+    if not (m.get("content") or "").strip() and not attachments:
+        return None
+    author = m.get("author") or {}
+    flags = m.get("flags")
+    item = {
+        "messageId": m["id"],
+        "timestamp": m["timestamp"],
+        "author": author.get("username", "unknown"),
+        "authorId": author.get("id"),
+        # Discord marks a webhook's message by its webhook_id, not always by author.bot.
+        "bot": author.get("bot") is True or bool(m.get("webhook_id")),
+        "crosspost": isinstance(flags, int) and not isinstance(flags, bool) and bool(flags & IS_CROSSPOST),
+        "content": m.get("content", ""),
+    }
+    reference = m.get("message_reference") or {}
+    # A forward also has a message_reference but answers nothing, so the type,
+    # not the reference, marks a reply.
+    if m.get("type") == REPLY_MESSAGE_TYPE and reference.get("message_id"):
+        item["replyTo"] = reference["message_id"]
+    if attachments:
+        item["attachments"] = attachments
+    if m.get("thread"):
+        item["threadId"] = m["thread"]["id"]
+    return item
+
+
 def cmd_read(api, config, args):
     where, _ = target(api, config, args)
     if not 1 <= args.limit <= MAX_READ:
@@ -651,32 +715,13 @@ def cmd_read(api, config, args):
     messages = []
     raw = api.request("GET", f"/channels/{where['id']}/messages", query=query)
     for m in raw:
-        if m.get("type") not in READABLE_MESSAGE_TYPES:
-            continue
-        attachments = [a["url"] for a in m.get("attachments", [])]
-        if not (m.get("content") or "").strip() and not attachments:
-            continue
-        author = m.get("author") or {}
-        item = {
-            "messageId": m["id"],
-            "timestamp": m["timestamp"],
-            "author": author.get("username", "unknown"),
-            "authorId": author.get("id"),
-            # Discord marks a webhook's message by its webhook_id, not always by author.bot.
-            "bot": author.get("bot") is True or bool(m.get("webhook_id")),
-            "content": m.get("content", ""),
-        }
-        reference = m.get("message_reference") or {}
-        # A forward has a message_reference too, and so does the system message
-        # Discord puts first in a thread to stand for the message it was started
-        # from. Neither answers that message, so the type decides.
-        if m.get("type") == REPLY_MESSAGE_TYPE and reference.get("message_id"):
-            item["replyTo"] = reference["message_id"]
-        if attachments:
-            item["attachments"] = attachments
-        if m.get("thread"):
-            item["threadId"] = m["thread"]["id"]
-        messages.append(item)
+        if m.get("type") == THREAD_STARTER_MESSAGE_TYPE:
+            m = thread_starter(api, m)
+            if m is None:
+                continue
+        item = read_item(m)
+        if item is not None:
+            messages.append(item)
     result = {"channel": "#" + where.get("name", ""), "messages": messages}
     if args.thread:
         result["threadId"] = where["id"]
@@ -686,7 +731,7 @@ def cmd_read(api, config, args):
 def cmd_edit(api, config, args):
     where, guild_id = target(api, config, args)
     old = api.request("GET", f"/channels/{where['id']}/messages/{args.message_id}")
-    text = message_text(args.message)
+    text = message_text(args)
     body, user_ids, warnings = convert_mentions(api, guild_id, text, channel_ids(api, guild_id, text))
     first = (old.get("content") or "").split("\n", 1)[0]
     content = fit(f"{first}\n{body}" if first.startswith(HEADER_PREFIXES) else body)
@@ -1001,6 +1046,12 @@ def message_url(guild_id, channel_id, message_id):
 # --- command line -----------------------------------------------------------------
 
 
+def message_options(cmd, what):
+    text = cmd.add_mutually_exclusive_group(required=True)
+    text.add_argument("--message", help=f"{what}, or '-' to read it from standard input")
+    text.add_argument("--message-file", help=f"a file holding {what}")
+
+
 def parser():
     p = argparse.ArgumentParser(prog="discord_bot.py", description="Use Discord as a bot, one call at a time.")
     p.add_argument("--identity", help="which bot to act as (default: $DISCORD_BOT_IDENTITY, else 'default')")
@@ -1011,9 +1062,12 @@ def parser():
         if threads:
             cmd.add_argument("--thread", help="thread id; takes precedence over --channel")
 
-    c = sub.add_parser("post", help="post a message")
+    # post and edit take no shortened options. A hook that vets a post before it
+    # goes out reads only --message and --message-file spelled out, so
+    # "--message-f m.md" would post text the hook never saw.
+    c = sub.add_parser("post", help="post a message", allow_abbrev=False)
     where(c)
-    c.add_argument("--message", required=True, help="the text, or '-' to read it from standard input")
+    message_options(c, "the text")
     c.add_argument("--agent", help="header: who is posting")
     c.add_argument("--session", help="header: which session the post comes from")
     c.add_argument("--project", help="header: what the work is about")
@@ -1024,10 +1078,10 @@ def parser():
     c.add_argument("--limit", type=int, default=20, help=f"how many, 1 to {MAX_READ} (default 20)")
     c.add_argument("--before", help="only messages older than this message id, to page back")
 
-    c = sub.add_parser("edit", help="replace a message's text, keeping its header")
+    c = sub.add_parser("edit", help="replace a message's text, keeping its header", allow_abbrev=False)
     where(c)
     c.add_argument("--message-id", required=True)
-    c.add_argument("--message", required=True, help="the new text, or '-' to read it from standard input")
+    message_options(c, "the new text")
 
     c = sub.add_parser("delete", help="delete a message")
     where(c)
