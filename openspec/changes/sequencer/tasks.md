@@ -12,11 +12,6 @@ remove the question from design.md.
       relation
 - [ ] 0.2 The largest input a `workflow_dispatch` run accepts, against the
       size of an edges file for a large repository
-- [ ] 0.3 How the workflow's token can tell that an issue's or pull
-      request's author is the bot account of a GitHub App installed on the
-      repository, by a method other than the permission API,
-      `author_association` or reading the repository's installations,
-      none of which tells it whether an App is installed (design.md)
 - [ ] 0.4 Whether a pull request's timeline tells apart the two ways a
       review request ends: GitHub clearing it when the reviewer reviews,
       and a person removing it
@@ -72,9 +67,9 @@ remove the question from design.md.
       says plainly what it did not check* says
 - [ ] 2.8 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.9 Count an edge only when a writer opened every item whose text
-      sets it, counting each issue or pull request that an installed
-      App's bot opened as opened by a writer, the App's installation
-      read as task 0.3 finds, and list the rest as not counted
+      sets it, counting each issue or pull request that a trusted App's
+      bot opened as opened by a writer, as *Only the Apps the workflow
+      trusts count as writers* says, and list the rest as not counted
 - [ ] 2.10 List links to outside items, as *A link to an outside item is
       listed as not counted* says
 - [ ] 2.11 Tie issues to pull requests: place each issue with its pull
@@ -106,8 +101,7 @@ remove the question from design.md.
       pull request's author
 - [ ] 3.8 Write outside text inert, as *Text from a pull request or the
       model is written inert* says
-- [ ] 3.9 Fall back where the token cannot read permissions, installations
-      or "blocked by" relations, and say so; where the repository has the
+- [ ] 3.9 Fall back where the token cannot read permissions or "blocked by" relations, and say so; where the repository has the
       workflow, also apply in a session, or in an Igor's run of `order`,
       each fallback the order's issue names, as *Other callers follow the
       fallbacks the workflow wrote* says
@@ -135,7 +129,8 @@ remove the question from design.md.
       *An API key's model step runs only on events that can change a pair* names; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
-      existing file without `--force`
+      existing file without `--force`, and filling the template's
+      `trusted-apps` setting from the github-app skill's identities
 - [ ] 5.4 Run the workflow in this repository
 
 ## 6. Docs
@@ -143,8 +138,9 @@ remove the question from design.md.
 - [ ] 6.1 `.agents/skills/sequencer/SKILL.md`: when to run it, the session's
       model step, the commands, the identity a session's `publish` runs as
       (the App's, through the github-app skill, in a project wired to
-      one), and the `Part of` line for a pull request that does only part
-      of an issue's work
+      one), the `Part of` line for a pull request that does only part
+      of an issue's work, and that the agent proposes the workflow
+      `setup-ci` wrote, with its `trusted-apps` setting, in a pull request
 - [ ] 6.2 The README's skills table
 
 ## 7. The inquisitor's exception for sequencer blocks

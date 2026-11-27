@@ -37,13 +37,13 @@ keeps a numbered reply* allows.
 
 ### Requirement: A sequencer block's update keeps a numbered reply
 
-A numbered reply SHALL stay in force after edits to an issue's or pull
-request's body that change only blank lines and sequencer blocks, each
-from an exact `<!-- sequencer:begin -->` line to the next exact
-`<!-- sequencer:end -->` line, added whole or changed between unchanged
-markers, with no open-questions item or sentence ending in `?` in a block
-before or after the edits. A removed block, or an edit history lacking the
-body the reply saw, SHALL make the reply input, not an answer.
+A numbered reply SHALL stand after edits to an issue or pull request body
+that only change blank lines, add a sequencer block at the body's end or
+above prose's footer, or change a block's text inside its markers,
+while no block in either body has an open-questions item or sentence
+ending in `?`. A block runs from an exact `<!-- sequencer:begin -->` line
+to the next exact `<!-- sequencer:end -->` line. Any other edit, or a lost
+revision of the body the reply saw, SHALL make the reply input.
 
 #### Scenario: A sequencer block's update keeps a numbered reply
 

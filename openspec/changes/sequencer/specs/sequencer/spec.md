@@ -64,12 +64,11 @@ These terms hold throughout this spec:
 - **A writer** is an account with write access to the repository that
   holds the item or comment in question. A GitHub App's bot account counts
   as a writer only for the issues and pull requests it opens and the
-  reviews it submits, never for its comments, when that App is installed on
-  the repository.
+  reviews it submits, never for its comments, when the workflow trusts
+  that App (*Only the Apps the workflow trusts count as writers*).
 - **A statement of a read not made** is one of the sentences that *A token
-  that cannot read permissions counts writers by association*, *A token
-  that cannot see installations counts no App* and *Relations the token
-  cannot read are named* write in the order's issue.
+  that cannot read permissions counts writers by association* and
+  *Relations the token cannot read are named* write in the order's issue.
 - **A change's hash** is a hash of every file under the change's
   directory, read from the default branch or pull request head the change
   is read from.
@@ -189,10 +188,10 @@ them, but edges between the issue and them SHALL be dropped.
   alone, and #48's line lists its tie to #43 as not counted, opened by
   `zed`, and #48's line does not say `tied to no issue`
 
-#### Scenario: An installed App's pull request counts as a writer's
+#### Scenario: A trusted App's pull request counts as a writer's
 
-- **WHEN** a GitHub App that the script's token can tell is installed on
-  the repository opens #90 as its bot account, #90's body holds the line `Part of #43`, and no other pull
+- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` opens #90, #90's body holds the line `Part of #43`, and no other pull
   request is tied to #43
 - **THEN** #43 shares #90's place
 
@@ -524,18 +523,46 @@ association.`
 - **THEN** #82 counts as opened by a writer, and the order's issue says
   `Permissions were not read: writers are counted by author association.`
 
-### Requirement: A token that cannot see installations counts no App
+### Requirement: Only the Apps the workflow trusts count as writers
 
-Where the script's token cannot tell whether an App is installed, no
-App's bot account SHALL count as a writer, and the order's issue SHALL say
-`Installed Apps were not read: no App counts as a writer.`
+The script SHALL count as a writer the bot account `<slug>[bot]` of each App whose slug the workflow's
+`trusted-apps` setting lists, and no other App's bot account. That setting
+is a space-separated list of App slugs in the top-level `env:` entry
+`SEQUENCER_TRUSTED_APPS` of `.github/workflows/sequencer.yml`. Whoever runs
+the script, it SHALL read the setting from the default branch's file,
+never from a pull request's head, and with no such file SHALL trust no
+App.
 
-#### Scenario: A token that cannot see installations counts no App
+#### Scenario: An App the workflow does not list is no writer
 
-- **WHEN** the script's token cannot tell whether an App is installed, and
-  an App's bot account opened #130
-- **THEN** #130 counts as opened by no writer, and the order's issue says
-  `Installed Apps were not read: no App counts as a writer.`
+- **WHEN** the workflow's `trusted-apps` setting lists only `octo-agent`,
+  and `zed-app[bot]` opened #131
+- **THEN** #131 counts as opened by no writer
+
+#### Scenario: A pull request cannot trust its own App
+
+- **WHEN** `zed-app[bot]` opens #132, whose branch adds `zed-app` to the
+  workflow's `trusted-apps` setting, which the default branch's workflow
+  does not list
+- **THEN** #132 counts as opened by no writer
+
+### Requirement: setup-ci trusts the Apps of the github-app skill's identities
+
+`setup-ci` SHALL fill the workflow's `trusted-apps` setting with the slug
+of each App, among those the github-app skill holds an identity for on the
+machine, whose installation reaches the repository, as that skill's
+`check` lists each installation's repositories. It SHALL take the slug
+from the `<slug>[bot]` name in the identity's `<identity>.bot.json`, and
+leave the setting empty when no App qualifies.
+
+#### Scenario: setup-ci lists the App of a github-app identity
+
+- **WHEN** github-app's state directory holds `agent.bot.json`, whose name
+  is `octo-agent[bot]`, and `relay.bot.json`, whose name is
+  `relay-app[bot]`; `check` lists the repository among `agent`'s
+  installation's repositories and not among `relay`'s; and `setup-ci` runs
+- **THEN** the workflow it writes lists `octo-agent`, and not `relay-app`,
+  in `trusted-apps`
 
 ### Requirement: Other callers follow the fallbacks the workflow wrote
 
@@ -629,10 +656,10 @@ opened the item setting it.
   neither body gets a block, and the order's issue lists `#120 after #9`
   as not counted, opened by `zed`
 
-#### Scenario: An installed App's issue sets an edge
+#### Scenario: A trusted App's issue sets an edge
 
-- **WHEN** a GitHub App that the script's token can tell is installed on
-  the repository opens issue #130 as its bot account, and #130's body holds the line `Depends on #9`
+- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` opens issue #130, and #130's body holds the line `Depends on #9`
 - **THEN** #130 comes after #9, and the order holds both
 
 #### Scenario: A citation set by an outside author's title is not counted
@@ -1023,15 +1050,15 @@ SHALL go in a comment.
 
 ### Requirement: Only a writer's account or the workflow creates the order's issue
 
-The script SHALL create the order's issue only as a writer that is no App's
-bot account, or as `github-actions[bot]`, since a workflow token that cannot
-tell an App is installed would refuse an issue opened by any App other
-than `github-actions[bot]`.
+The script SHALL create the order's issue only as a writer or as
+`github-actions[bot]`, since a run uses the order's issue only when a
+writer or `github-actions[bot]` opened it.
 
 #### Scenario: No order issue is created that would be refused
 
-- **WHEN** no issue labelled `sequencer` is open, and the script runs as an
-  installed App's bot account other than `github-actions[bot]`
+- **WHEN** no issue labelled `sequencer` is open, and the script runs as
+  the bot account of an App the workflow's `trusted-apps` setting does not
+  list, other than `github-actions[bot]`
 - **THEN** it opens no issue, publishes nothing, and says that a person or
   the workflow must open it
 
@@ -1184,8 +1211,8 @@ When an item leaves the order, by closing, merging or ceasing to be linked,
 the script SHALL remove its block, markers included, and leave the rest of
 its body as it was. An item that left the order while the order's issue held the note that it
 is full (*A full order's issue holds a note in place of the order*) keeps
-its block for good, a cost this spec accepts: a publish removes the blocks
-of the items the order it replaces names, and the note names no item.
+its block for good, since a publish removes only the blocks of the items
+the order it replaces names, and the note names none.
 
 #### Scenario: A merged pull request's block is removed
 
@@ -1298,11 +1325,11 @@ its head, it SHALL await that reviewer or team again.
   writer who is not #96's author, submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`, and is not its next review
 
-#### Scenario: An installed App's review ends a team's wait
+#### Scenario: A trusted App's review ends a team's wait
 
-- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and the bot
-  account of an App that the script's token can tell is installed submits
-  a review of #96's head commit
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, the
+  workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
@@ -1535,7 +1562,8 @@ edges file from any caller as it does from a dispatched run.
 The workflow SHALL run only the script, from the shared-skills commit that
 `setup-ci` writes into the workflow file, and the OpenSpec CLI at the
 version that file pins, reading pull requests' files as
-data, and SHALL NOT check out or run code from a pull request's head. It
+data. A run that holds a write token or a secret SHALL NOT check out or
+run code from a pull request's head. It
 SHALL hand event fields and dispatch inputs to the script only through
 environment variables or files, never inside a command line.
 
@@ -1543,8 +1571,8 @@ environment variables or files, never inside a command line.
 
 - **WHEN** a pull request from a fork changes `.github/workflows/` and adds
   a script
-- **THEN** the run reads the pull request's change files as data and runs
-  none of its code
+- **THEN** each run that holds a write token or a secret reads the pull
+  request's change files as data and runs none of its code
 
 #### Scenario: A pull request's title is never run
 
