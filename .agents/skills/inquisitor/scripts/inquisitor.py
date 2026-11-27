@@ -46,7 +46,8 @@ def parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("tag", help="whom a posted question tags")
     t.add_argument("--hash", required=True, help="the vetted question's hash")
-    t.add_argument("--posting-as", metavar="LOGIN", help="the login the post goes out as")
+    t.add_argument("--identity", metavar="NAME",
+                   help="the github-app identity the post goes through, for an App's post")
 
     lg = sub.add_parser("log", help="write and push one log or miss file")
     lg.add_argument("--input", required=True, metavar="FILE", help="a private LogInput file")
@@ -106,7 +107,7 @@ def dispatch(a: argparse.Namespace) -> int:
                                        repository=a.repository, lore=a.lore,
                                        pass_token=a.pass_token, verdicts=a.verdicts))
     if command == "tag":
-        return tagging.run(tagging.TagArgs(hash=a.hash, posting_as=a.posting_as))
+        return tagging.run(tagging.TagArgs(hash=a.hash, identity=a.identity))
     if command == "log":
         return log_command.run(log_command.LogArgs(
             input=a.input, service=a.service, asked_from=a.asked_from,
