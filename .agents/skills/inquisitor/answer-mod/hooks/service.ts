@@ -489,19 +489,24 @@ export function verdictFields(input: Record<string, unknown>): VerdictFields {
   return fields
 }
 
-/** A record_verdict call, forwarded to the core with its agentId, which refuses any that carries one. */
+/**
+ * A record_verdict call. It goes to the core only from the judging turn this
+ * answer service started, naming the message that turn judges; any other
+ * call is refused, saying why. The core may still refuse what it gets.
+ */
 export async function recordVerdict($: EngineInterface, input: Record<string, unknown>, agentId: string | undefined): Promise<string> {
   const message = input['message']
   if (typeof message !== 'string') return 'Refused: the call names no message.'
-  const judging = await read($, judgingAtom)
-  const turn = judging?.req.message === message ? judging.req.turn : 1
+  if (agentId !== undefined) return 'Refused: a subagent made this call; only the judging turn the answer service started records a verdict.'
+  const judging = await update($, judgingAtom, v => v)
+  if (!judging?.turnId || (await update($, turnAtom, v => v)) !== judging.turnId) return 'Refused: this turn is not the judging turn the answer service started; only that turn records a verdict.'
+  if (judging.req.message !== message) return `Refused: this judging turn judges ${judging.req.message}, not ${message}.`
   const res = await ask($, {
     command: 'judge.verdict',
     session_id: await $.session.id(),
     message,
-    turn,
+    turn: judging.req.turn,
     fields: verdictFields(input),
-    ...(agentId !== undefined ? { agent_id: agentId } : {}),
   })
   if (!res.ok) return `Refused: ${res.error}`
   return res.accepted ? 'Recorded.' : `Refused: ${res.why ?? 'a value is outside its set.'}`
