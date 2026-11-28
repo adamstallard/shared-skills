@@ -1,7 +1,10 @@
-"""Tests for protocol: each worked example in fixtures/service/ fits its
-request type, each request type has an example, and no request type but
-the preview carries a rephrasing. The core's handling of a rephrasing is
-tested with relay.py."""
+"""Tests for service/protocol.py against fixtures/service/examples.json.
+Each example's request may hold only the fields its command's request
+type declares, and must hold every field that type requires. Each
+command a request type carries needs an example. Only PreviewRequest has
+a `revision` field, the person's rephrasing of a question. These tests
+cover the protocol's shapes only; how the answer service's core keeps a
+rephrasing belongs in the tests of service/relay.py."""
 
 import json
 import typing
@@ -9,9 +12,9 @@ import unittest
 from pathlib import Path
 from typing import Any, cast, get_args
 
-import protocol
+from service import protocol
 
-EXAMPLES = Path(__file__).resolve().parent.parent / "fixtures" / "service" / "examples.json"
+EXAMPLES = Path(__file__).resolve().parent / "fixtures" / "service" / "examples.json"
 
 
 def request_types() -> dict[str, type]:
