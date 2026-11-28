@@ -2,17 +2,17 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer: such an agent can read a relay's credentials where its skill keeps them and post with `curl`.**
-  Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
+- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer: such an agent can read a relay's credentials where the relay's skill keeps them and post with `curl`.**
+  Because: the hooks stop an agent that uses the skills as the skills' instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
-- **Constraint: While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
-  Because: the inquisitor asks github-app (adamstallard/shared-skills#96) and linear-app (adamstallard/shared-skills#112) to hand the token to no such command, and ships without either; each change would close its skill's own commands, though not the keychain path the constraint above accepts.
-  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
-  Holds while: github-app or linear-app hands a relay identity's token to a command that can print it.
-  Paths: .agents/skills/github-app/, .agents/skills/linear-app/
+- **Constraint: While linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
+  Because: #112 asks linear-app to hand the token to no such command, and linear-app still does; github-app hands it to none (github-app spec: *No github-app command hands a relay identity's token to a program*), and neither change stops an agent reading a relay's credentials, which the constraint above accepts.
+  Evidence: linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
+  Holds while: linear-app hands a relay identity's token to a command that can print it.
+  Paths: .agents/skills/linear-app/
 
 - **Constraint: GitHub's events API shows the pusher and push time of each hash-only miss file, one with no keys named by a hash, to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
   Because: the cost is accepted: anyone who matches a reply's id they already know against the file's name, a hash of the surface (GitHub, Linear or Discord) and that id, finds a reply only its thread's readers can see, so others learn only that the person judged some question then.
