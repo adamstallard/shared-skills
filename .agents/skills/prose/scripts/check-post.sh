@@ -1,8 +1,9 @@
 #!/bin/sh
-# prose's posting hook, run before a tool call: blocks a GitHub or Discord
-# post whose body does not end with a valid prose footer. The work is in
-# prose.py (hook-post); this script allows a payload that cannot be a post
-# without starting Python.
+# prose's posting hook, run before a tool call: blocks a GitHub, Discord or
+# Linear post whose body does not end with a valid prose footer. The work is in
+# prose.py (hook-post). Every payload goes to Python: a shell pattern on the
+# JSON text misses a gh the shell joins, such as g''h or one split by a
+# backslash-newline.
 #
 # Usage: check-post.sh [--host <platform>]   payload on stdin
 # Cursor blocks the action when a permission hook prints no valid JSON, so
@@ -15,9 +16,4 @@ allow() {
   exit 0
 }
 here=$(CDPATH= cd -P -- "$(dirname -- "$0")" 2>/dev/null && pwd -P) || allow "$@"
-payload=$(cat)
-case "$payload" in
-  *gh*|*discord_bot.py*|*mcp__*|*mcp_server_name*) ;;
-  *) allow "$@" ;;
-esac
-printf '%s' "$payload" | exec python3 "$here/prose.py" hook-post "$@"
+exec python3 "$here/prose.py" hook-post "$@"

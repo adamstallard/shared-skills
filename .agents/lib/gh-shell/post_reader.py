@@ -1,57 +1,37 @@
 """The shared post reader tells a hook what a tool call posts on a GitHub
-issue or pull request or in a Discord message. It gives one of three
-answers: the posts, no post, or that a post's body cannot be read. Hooks
-call read_posts; the gh-post spec's requirement *The shared post reader
-reads a post's body from an allow-list* sets the rules.
+issue or pull request, in a Discord message, or on Linear. It gives one of
+three answers: the posts, no post, or that the call is unreadable. Hooks call
+read_posts; the gh-post spec sets the rules.
 
-It reads, by an allow-list:
+The reader is default-deny. It reads a body only from the command lines
+CANONICAL_FORMS lists, each a single simple command whose words are all
+literal, run directly or through github-app's script, and from a GitHub
+or Linear MCP tool's text fields. Any other call that could post is unreadable, unless every
+command in its line provably sends no text.
 
-- a GitHub MCP tool's `body` and `comment` strings;
-- a `gh pr` or `gh issue` post that is the whole command line, its body from
-  `--body`, `-b`, `--comment` or `-c` given as a word the shell does not
-  expand, or from a `--body-file` or `-F` that exists;
-- a `gh api` write to an issue or pull request endpoint, or a GraphQL
-  mutation that posts text, its body given in the command or, when the call
-  is the whole command line, read from a file;
-- each of these run through github-app's script;
-- a `post` or `edit` of discord-bot's script, read as a `gh issue comment`.
-
-A line that mentions a post verb but is none of these is unreadable, unless
-every command in it provably sends no post. It splits commands with
-gh_shell.py beside it. It tracks the variables that name github-app's script
-with gh_shell's app_assignments and app_command and handbacks.py's
-forget_scripts, and tracks discord-bot's itself. Standard library only.
+It splits commands with gh_shell.py beside it. It tracks the variables that
+name github-app's script with gh_shell's app_assignments and app_command and
+handbacks.py's forget_scripts; it tracks those that name discord-bot's
+script in this module. Standard library only.
 """
 
 import json
 import pathlib
-import posixpath
 import re
-import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from gh_shell import (
     APP_SCRIPT,
-    BODY_SOURCES,
     CLOSERS,
-    COMMON_LONG,
     DATA_COMMANDS,
-    GH_TEXT,
-    GH_VERBS,
     GITHUB_MCP,
-    LONG_FLAGS,
-    NO_SOURCES,
     NO_TEXT_VERBS,
     PYTHONS,
     RESERVED,
-    SHORT_VALUES,
-    SOURCE,
     VARIABLE,
     _commands,  # pyright: ignore[reportPrivateUsage]
-    _gh_args,  # pyright: ignore[reportPrivateUsage]
     _word,  # pyright: ignore[reportPrivateUsage]
-    _words,  # pyright: ignore[reportPrivateUsage]
     app_assignments,
     app_command,
 )
@@ -60,19 +40,21 @@ from handbacks import forget_scripts
 # A shell word as gh_shell gives it: (text after quote removal, the word as
 # written, quotes included).
 Word = tuple[str, str]
+Surface = Literal["github", "discord", "linear"]
 
 
 @dataclass(frozen=True)
 class Post:
-    """One body the call sends. The field `where` labels that body in the
+    """One body the call sends. The field `where` is the body's label in the
     hooks' block messages, such as `gh pr comment --body-file c.md` or
-    `comments[0].body` of a review. The field `surface` says where it is
-    posted: "discord" for a message sent through discord-bot's script, else
-    "github"."""
+    `comments[0].body` of a review. The field `surface` names the service it
+    is posted to. The field `via_github_app` says whether github-app's script
+    sends it."""
 
     where: str
     body: str
-    surface: Literal["github", "discord"] = "github"
+    surface: Surface = "github"
+    via_github_app: bool = False
 
 
 @dataclass(frozen=True)
@@ -82,90 +64,225 @@ class NoPost:
 
 @dataclass(frozen=True)
 class Unreadable:
-    """The call may send a post whose body the reader cannot read, and why.
-    The inquisitor's post hook and prose's posting hook both block such a
-    call."""
+    """The call may send a post the reader cannot read; why says what stops
+    it. The reader builds every one through _blocked, so why ends with
+    CANONICAL_FORMS; prose's posting hook and the inquisitor skill's post
+    hook print it when they block."""
 
     why: str
 
 
 Result = list[Post] | NoPost | Unreadable
 
-ACCEPTED = (
-    "The hook reads a gh post only when gh is the whole command, run directly or "
-    "through github-app's script, with the body as --body '<text>' (single quotes, "
-    "or double quotes with no $, backtick or backslash) or --body-file <a file that "
-    "exists>; or a gh api write with its body in -f body='<text>', or in "
-    "-F body=@<file> when gh api is the whole command; or discord-bot's post or edit, "
-    "as the whole command, with --message '<text>' or --message-file <a file that "
-    "exists>.")
+CANONICAL_FORMS = """\
+The hook reads a post only in one of these forms, as the whole command line, every word \
+plain text the shell does not expand (or run through github-app's script, \
+`python3 <path>/github_app.py [--identity <name>] gh …`):
+  gh pr comment <number> --body-file <file>      (or gh issue comment; or --body '<text>')
+  gh pr create --title <title> --body-file <file>   (or gh issue create)
+  gh pr edit <number> --body-file <file>          (or gh issue edit)
+  gh pr review <number> --approve|--request-changes|--comment --body-file <file>
+  gh pr close <number> --comment '<text>'         (or reopen; or gh issue close/reopen)
+  gh api <endpoint> -X <POST|PATCH> --input <file.json>   (an issue, pull request, comment or \
+review endpoint, written repos/<owner>/<repo>/…; the JSON's body, and a review's comments[].body)
+  python3 <path>/discord_bot.py [--identity <name>] post|edit … --message-file <file>
+Options beside the body: --title, --repo, --base, --head, --draft, --label, --assignee, \
+--reviewer, --milestone, each written long with its value as the next word. A file must \
+exist. Write the text to a file first, then post it with one of these commands on its own."""
 
 
-def _not_allowed(where: str) -> Unreadable:
-    return Unreadable(f"{where}: this command is not one of the forms the hook reads, so "
-                      "what it posts cannot be checked. " + ACCEPTED)
+def _blocked(why: str) -> Unreadable:
+    return Unreadable(f"{why}\n\n{CANONICAL_FORMS}")
 
 
-FROM_STDIN = "the text comes from stdin, so it cannot be checked. " + ACCEPTED
+def _not_canonical(where: str) -> Unreadable:
+    return _blocked(f"{where}: this call may post, and it is not one of the forms the hook "
+                    "reads, so what it posts cannot be checked.")
 
 
 def _fed_blocker(name: str) -> Unreadable:
-    return Unreadable(
-        f"`{name}` reads a pipe or an input redirection (<, <<, <<<), so what it "
-        "runs or posts cannot be checked. Only a data command (echo, cat, grep, "
-        "head, python3 …) or a gh subcommand that takes no body, such as gh pr "
-        "view, may read one. " + ACCEPTED)
+    return _blocked(
+        f"`{name}` reads a pipe or an input redirection (<, <<, <<<), so what it runs or posts "
+        "cannot be checked. Only a data command (echo, cat, grep, head, python3 …), a gh pr or "
+        "gh issue subcommand that takes no body, such as gh pr view, or a gh api read may read "
+        "one.")
 
 
-GROUPED = Unreadable(
-    "a pipe or an input redirection feeds a group, loop or subshell, so what it "
-    "runs or posts cannot be checked unless every command in it is a data "
-    "command (echo, cat, grep, head, python3 …). " + ACCEPTED)
+GROUPED = (
+    "a pipe or an input redirection feeds a group, loop or subshell, so what it runs or posts "
+    "cannot be checked unless every command in it is a data command (echo, cat, grep, head, "
+    "python3 …).")
 
 
 def _unassigned(name: str) -> Unreadable:
-    return Unreadable(
-        f"`${name}` is not assigned github-app's or discord-bot's script path in this "
-        "command, so the hook cannot tell which script runs. Assign the variable in the "
-        f"same command ({name}=<path>/github_app.py; python3 \"${name}\" gh …) or write "
-        "the script's path. " + ACCEPTED)
+    return _blocked(
+        f"`${name}` is not assigned github-app's or discord-bot's script path in this command, "
+        "so the hook cannot tell which script runs. Assign the variable in the same command "
+        f"({name}=<path>/github_app.py; python3 \"${name}\" gh …) or write the script's path.")
 
 
 # -- what a line mentions, before it is split --------------------------------
 
-def _whole(words: str) -> str:
-    """A pattern matching any of the `|`-joined alternatives in words as a
+# A word counts however the shell may join it (gh-post spec: a command's
+# words count whether quoted or not): a word pattern lets quotes, `$`,
+# backslashes and backslash-newlines sit between its letters, as in g''h,
+# co$'m'ment or g\\h. The reader searches the raw line so, instead of
+# rewriting it first: a rewrite guesses how quotes pair and where a
+# backslash-newline joins, and some mix defeats every guess, such as an
+# escaped backslash before a newline beside a real continuation.
+SPLIT = r"(?:\\\n|[\\'\"$])*"
+
+
+def _spelled(word: str) -> str:
+    return SPLIT.join(re.escape(char) for char in word)
+
+
+def _whole(*words: str) -> str:
+    """A pattern matching any of words, spelled as _spelled allows, as a
     whole word: no letter, digit or `_` just before it, and none of those or
-    `-` just after, so `--comment` matches but `--comment-file` does not."""
-    return rf"(?<!\w)(?:{words})(?![\w-])"
+    `-` just after, so `--comment` matches but `--comments` does not."""
+    return rf"(?<!\w)(?:{'|'.join(_spelled(word) for word in words)})(?![\w-])"
 
 
 PR_VERBS = ("create", "new", "edit", "comment", "review", "revert", "close", "reopen")
 ISSUE_VERBS = ("create", "new", "edit", "comment", "close", "reopen")
-POST_WORDS = re.compile(
-    _whole("gh") + r"[\s\S]*(?:" + _whole("pr") + r"[\s\S]*" + _whole("|".join(PR_VERBS))
-    + "|" + _whole("issue") + r"[\s\S]*" + _whole("|".join(ISSUE_VERBS)) + ")")
-GH_API_TEXT = re.compile(_whole("gh") + r"[\s\S]*" + _whole("api"))
+GH_WORD = re.compile(_whole("gh"))
+PR_WORD = re.compile(_whole("pr"))
+ISSUE_WORD = re.compile(_whole("issue"))
+PR_VERB = re.compile(_whole(*PR_VERBS))
+ISSUE_VERB = re.compile(_whole(*ISSUE_VERBS))
+# `api` counts with no `/` or `.` beside it, so `gh repo view o/api` holds no
+# gh api call.
+API_WORD = re.compile(rf"(?<![\w/.]){_spelled('api')}(?![\w/.-])")
 DISCORD_SCRIPT = "discord_bot.py"
-# A word ending in discord-bot's script, then anywhere later its post or
-# edit: the spec's requirement *A command that mentions no gh post verb sends
-# no post* counts these as gh post verbs.
-DISCORD_TEXT = re.compile(r"discord_bot\.py(?![\w-])[\s\S]*" + _whole("post|edit"))
+DISCORD_WORD = re.compile(rf"{_spelled(DISCORD_SCRIPT)}(?![\w-])")
+POST_OR_EDIT = re.compile(_whole("post", "edit"))
+
+
+def _in_order(text: str, *patterns: re.Pattern[str]) -> bool:
+    """Whether each pattern matches in text after the one before it. Taking
+    the earliest match of each is enough, and keeps the scan linear: a
+    single regex with `[\\s\\S]*` between the words backtracks in cubic
+    time on a long line of gh and pr words with no verb."""
+    at = 0
+    for pattern in patterns:
+        found = pattern.search(text, at)
+        if not found:
+            return False
+        at = found.end()
+    return True
+
+
+def _post_words(text: str) -> bool:
+    return _in_order(text, GH_WORD, PR_WORD, PR_VERB) \
+        or _in_order(text, GH_WORD, ISSUE_WORD, ISSUE_VERB)
+
+
+def _api_words(text: str) -> bool:
+    return _in_order(text, GH_WORD, API_WORD)
+
+
+def _discord_words(text: str) -> bool:
+    """A word ending in discord-bot's script, then anywhere later its post or
+    edit, which the gh-post spec counts as a gh post verb (*The gh post
+    verbs are a closed list*)."""
+    return _in_order(text, DISCORD_WORD, POST_OR_EDIT)
+
+
+def _names_gh(text: str) -> bool:
+    return bool(GH_WORD.search(text))
 
 
 def _mentions(text: str) -> bool:
     """Whether text mentions a gh post verb other than a gh api call: gh pr
     or gh issue with a post verb, or discord-bot's post or edit."""
-    return bool(POST_WORDS.search(text) or DISCORD_TEXT.search(text))
+    return _post_words(text) or _discord_words(text)
+
+
+def _substitutions(command: str) -> list[tuple[int, int]]:
+    """The spans of the line's outermost command substitutions, `…` and
+    $(…), nesting and quotes inside included; one left open runs to the
+    end of the line."""
+    spans: list[tuple[int, int]] = []
+    i, n, quote = 0, len(command), ""
+    while i < n:
+        char = command[i]
+        if char == "\\":
+            i += 2
+        elif quote == "'":
+            quote = "" if char == "'" else quote
+            i += 1
+        elif char == "'" and not quote:
+            quote = "'"
+            i += 1
+        elif char == '"':
+            quote = "" if quote else '"'
+            i += 1
+        elif char == "`" or command.startswith("$(", i):
+            end = _substitution_end(command, i)
+            spans.append((i, end))
+            i = end
+        else:
+            i += 1
+    return spans
+
+
+def _substitution_end(command: str, start: int) -> int:
+    """Where the substitution starting at start ends."""
+    n = len(command)
+    if command[start] == "`":
+        i = start + 1
+        while i < n and command[i] != "`":
+            i += 2 if command[i] == "\\" else 1
+        return min(i + 1, n)
+    depth, i, quote = 0, start + 1, ""
+    while i < n:
+        char = command[i]
+        if char == "\\" and quote != "'":
+            i += 2
+            continue
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return n
+
+
+def _joined_by_substitution(command: str) -> bool:
+    """Whether a command substitution touches a word on either side, as in
+    g$()h or x$(…), and the line with every substitution dropped mentions a
+    gh post verb or a gh api call. The shell joins the letters around an
+    empty substitution,
+    and gh_shell splits a word at its `$(`, so no split command shows the
+    joined word."""
+    spans = _substitutions(command)
+    edges = " \t\n;&|()<>"
+    if not any((start and command[start - 1] not in edges)
+               or (end < len(command) and command[end] not in edges)
+               for start, end in spans):
+        return False
+    kept: list[str] = []
+    at = 0
+    for start, end in spans:
+        kept.append(command[at:start])
+        at = end
+    joined = "".join(kept) + command[at:]
+    return _mentions(joined) or _api_words(joined)
 
 
 def runs_only_prose(command: str) -> bool:
     """Whether the line is one simple command that runs prose.py, so text in
     its arguments (such as a --goals value that mentions `gh pr create`) is
-    not a post (gh-post
-    spec: *A command that only runs prose's script sends no post*).
-    Redirections are allowed; a substitution, a newline or a second command
-    could run more."""
+    not a post (gh-post spec: *A command that only runs prose's script sends
+    no post*). Redirections are allowed; a substitution, a newline or a
+    second command could run more."""
     if "`" in command or "$(" in command or "\n" in command:
         return False
     read = _commands(command)
@@ -174,6 +291,29 @@ def runs_only_prose(command: str) -> bool:
     words = [text for text, _ in read[0][0][0]]
     program = words[1] if words[0] in PYTHONS and len(words) > 1 else words[0]
     return program == "prose.py" or program.endswith("/prose.py")
+
+
+def literal(source: str) -> bool:
+    """Whether a word, as written, is one the shell does not expand: no `$`,
+    backtick or backslash outside single quotes, and no `*`, `?`, `[`, `{`
+    or `~` outside quotes (gh-post spec: *A literal word is one the shell
+    does not expand*). A word starting with an unquoted `=`, which zsh
+    replaces with a command's path, is not literal either."""
+    if re.match(r"(?:''|\"\")*=", source):
+        return False
+    quote: str | None = None
+    for char in source:
+        if quote == "'":
+            quote = None if char == "'" else quote
+        elif char in "\\`$":
+            return False
+        elif quote == '"':
+            quote = None if char == '"' else quote
+        elif char in "'\"":
+            quote = char
+        elif char in "*?[{~":
+            return False
+    return quote is None
 
 
 def _top_level(command: str) -> set[str] | None:
@@ -245,7 +385,7 @@ def _unsubstitute(command: str) -> str | None:
     return "".join(out)
 
 
-# -- one simple command, with github-app's script read as what it runs ----
+# -- one simple command, a github-app call read as the command it runs ------
 
 @dataclass
 class _Command:
@@ -255,7 +395,6 @@ class _Command:
     # The variable a `python3 "$G" gh …` names, when no command before it
     # assigned github-app's or discord-bot's script to it.
     unassigned: str | None = None
-    api: "Result | str | None" = field(default=None)
     # A call of discord-bot's script: words then hold its subcommand and
     # that subcommand's arguments.
     discord: bool = False
@@ -318,8 +457,7 @@ def _resolve(commands: list[tuple[list[Word], bool]]) -> list[_Command]:
     """The simple commands, each call of github-app's script replaced by the
     command it runs, each call of discord-bot's script marked, and each
     command that only assigns either script's path dropped (gh-post spec:
-    *The reader reads posts sent through the github-app skill and gh api*,
-    *The reader reads discord-bot's post and edit as gh issue comment*)."""
+    *The reader reads posts sent through the github-app skill*)."""
     scripts: set[str] = set()
     discord: set[str] = set()
     resolved: list[_Command] = []
@@ -351,63 +489,6 @@ def _resolve(commands: list[tuple[list[Word], bool]]) -> list[_Command]:
     return resolved
 
 
-# discord-bot's options for post and edit that take a value and carry no
-# text, from its argparse parser. --message and --message-file carry the
-# text and are read apart.
-DISCORD_VALUES = {"post": {"--channel", "--thread", "--agent", "--session", "--project",
-                           "--reply-to"},
-                  "edit": {"--channel", "--thread", "--message-id"}}
-DISCORD_SUBCOMMANDS = {"delete", "read", "thread", "check", "invite-url", "store-token",
-                       "forget-token"}
-
-
-def _read_discord(words: list[Word], cwd: str | None) -> list[Post] | Unreadable:
-    """The message a call of discord-bot's script posts, read as gh issue
-    comment reads its body: --message - and --message-file - as
-    --body-file -, any other --message as --body and --message-file as
-    --body-file. When the option repeats, argparse keeps the last value, so
-    only that one is read; discord-bot refuses a call that gives both, and
-    the reader reads whichever comes last. No message for a subcommand that posts no text,
-    such as delete, read or thread."""
-    plain = _words(" ".join(source for _, source in words))
-    if not plain:
-        return _not_allowed("discord-bot")
-    verb = plain[0][0]
-    if verb in DISCORD_SUBCOMMANDS:
-        return []
-    if verb not in DISCORD_VALUES:
-        return _not_allowed("discord-bot")
-    where = f"discord-bot {verb}"
-    given: tuple[str, str] | None = None
-    i = 1
-    while i < len(plain):
-        arg = plain[i][0]
-        name, eq, value = arg.partition("=")
-        if name in DISCORD_VALUES[verb]:
-            i += 1 if eq else 2
-            continue
-        if name not in ("--message", "--message-file"):
-            return _not_allowed(where)
-        if not eq:
-            if i + 1 >= len(plain):
-                return _not_allowed(where)
-            value = plain[i + 1][0]
-            i += 1
-        i += 1
-        given = (name, value)
-    if given is None:
-        return []
-    name, value = given
-    if value == "-":
-        return Unreadable(f"{where} {name} -: {FROM_STDIN}")
-    if name == "--message":
-        return [Post(f"{where} --message", value, "discord")]
-    body = _read_file(value, cwd)
-    if body is None:
-        return Unreadable(f"{where} {name} {value}: {value} could not be read. " + ACCEPTED)
-    return [Post(f"{where} {name} {value}", body, "discord")]
-
-
 def _strip_reserved(words: list[Word]) -> list[Word]:
     while words and words[0][1] in RESERVED:
         words = words[1:]
@@ -415,697 +496,297 @@ def _strip_reserved(words: list[Word]) -> list[Word]:
 
 
 def _is_gh(words: list[Word]) -> bool:
-    return bool(words) and words[0] == ("gh", "gh")
+    return bool(words) and words[0][0] == "gh" and literal(words[0][1])
 
 
 def _is_api(words: list[Word]) -> bool:
-    return _is_gh(words) and len(words) > 1 and words[1][0] == "api"
-
-
-# -- gh pr and gh issue ----------------------------------------------------
-
-def _body_flag(args: list[tuple[str, bool]], i: int, flags: tuple[str, ...], values: str = "",
-               sources: str = "") -> tuple[str | None, str | None, int]:
-    """(flag, text or None, index of the next arg) for args[i].
-
-    flag is None when args[i] is not a body flag, and SOURCE when it holds a
-    letter from sources, one that makes gh take the text from elsewhere.
-    Reads `--body x`, `--body=x`, and the short forms of pflag, the Go flag
-    library gh uses: `-b x`, `-bx`,
-    `-b=x`, and a group such as `-db x`. values holds the verb's other short
-    letters that take a value. In a group, the first letter that takes a
-    value swallows the rest of the group as that value: in `-tb x`, `b` is
-    the title's text, not the body flag."""
-    arg = args[i][0]
-    following = args[i + 1][0] if i + 1 < len(args) else None
-    for name in flags:
-        if name.startswith("--"):
-            if arg == name:
-                return name, following, i + 2
-            if arg.startswith(name + "="):
-                return name, arg[len(name) + 1:], i + 1
-    if arg.startswith("-") and not arg.startswith("--") and len(arg) > 1:
-        shorts = {name[1] for name in flags if not name.startswith("--")}
-        for position in range(1, len(arg)):
-            letter, rest = arg[position], arg[position + 1:]
-            if letter == "=":
-                # pflag ends a group at `=`: `-d=t` is `--draft=t`.
-                return None, None, i + 1
-            if letter in shorts:
-                if rest:
-                    return f"-{letter}", (rest[1:] if rest.startswith("=") else rest), i + 1
-                return f"-{letter}", following, i + 2
-            if letter in sources:
-                return SOURCE, None, i + 1
-            if letter in values:
-                return None, None, (i + 1 if rest else i + 2)
-    return None, None, i + 1
+    return _is_gh(words) and len(words) > 1 and words[1][0] == "api" \
+        and literal(words[1][1])
 
 
 def _read_file(text: str, cwd: str | None) -> str | None:
-    """A file's text, the path relative to cwd, or None. No expanduser: bash
-    leaves a quoted `~` as it is, and gh opens the path literally."""
+    """The text of the regular file at path text, or None; a relative path
+    is resolved against cwd. `-` is
+    standard input to gh and discord-bot, never a file. A device, pipe or
+    directory is not read: gh would read from it what the hook cannot see."""
+    if text == "-" or not text:
+        return None
     target = pathlib.Path(text)
     if not target.is_absolute():
         target = pathlib.Path(cwd or ".") / target
     try:
+        if not target.is_file():
+            return None
         return target.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError, ValueError):  # ValueError: a NUL byte
         return None
 
 
-def _read_gh(words: list[tuple[str, bool]], cwd: str | None) -> list[Post] | Unreadable:
-    """The bodies a gh command posts, given as gh_shell's _words gives it
-    (words the shell only joins, with no expansion), words[0] being gh: none for a command that sends no text, or Unreadable when its shape
-    is not one the reader reads."""
+# -- gh pr and gh issue ----------------------------------------------------
+
+# The long options that carry a gh pr or gh issue command's text, or take it
+# from somewhere the reader cannot see (commits, a template, an editor, a
+# saved draft, the browser), and the short letters gh gives them. gh's flag
+# parser, pflag, does not abbreviate long options, so each is matched whole.
+TEXT_LONG = {"body", "body-file", "comment", "fill", "fill-first", "fill-verbose", "template",
+             "editor", "web", "recover"}
+TEXT_SHORT = set("bFcfTew")
+
+
+def _sends_text(args: list[Word]) -> bool:
+    """Whether a gh pr or gh issue command's arguments hold an option that
+    carries text (gh-post spec: *A line whose simple commands send no text is
+    no post*). A short group holding any such letter counts, though an
+    earlier letter might take it as its value."""
+    for text, _ in args:
+        if text.startswith("--"):
+            if text[2:].partition("=")[0] in TEXT_LONG:
+                return True
+        elif text.startswith("-") and TEXT_SHORT & set(text[1:]):
+            return True
+    return False
+
+
+PR_ISSUE = {"pr": {"comment", "create", "edit", "review", "close", "reopen"},
+            "issue": {"comment", "create", "edit", "close", "reopen"}}
+VALUE_OPTIONS = {"--title", "--repo", "--base", "--head", "--label", "--assignee", "--reviewer",
+                 "--milestone"}
+REVIEW_MODES = {"--approve", "--request-changes", "--comment"}
+
+
+def _gh_args(words: list[Word]) -> list[Word]:
+    """words[1:] for a gh command, without a leading -R or --repo and its
+    value, as gh_shell's _gh_args gives them."""
+    args = words[1:]
+    while args and (args[0][0] in ("-R", "--repo") or args[0][0].startswith(("--repo=", "-R"))):
+        args = args[2:] if args[0][0] in ("-R", "--repo") else args[1:]
+    return args
+
+
+def _gh_text(words: list[Word]) -> Literal["none", "text", "unreadable"]:
+    """Whether a gh command sends no text, may send text, or is unreadable,
+    for a line that mentions a gh post verb. Only gh pr and gh issue are
+    read: any other gh command, such as gh alias or gh release, is unreadable
+    (gh-post spec: *A line whose simple commands send no text is
+    no post*). A subcommand gh_shell's NO_TEXT_VERBS lists sends none, whatever its
+    arguments; any other sends none when every word is literal and none
+    carries text."""
     args = _gh_args(words)
-    if len(args) >= 2 and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ()):
-        return []
-    if len(args) < 2 or args[1][0] not in GH_VERBS.get(args[0][0], {}):
-        return _not_allowed("gh")
-    noun, verb = args[0][0], args[1][0]
-    flags, values = GH_VERBS[noun][verb], SHORT_VALUES[noun][verb]
-    long_values = LONG_FLAGS[noun][verb][0] | COMMON_LONG[0]
-    long_bools = LONG_FLAGS[noun][verb][1] | COMMON_LONG[1]
-    long_sources, short_sources = BODY_SOURCES[noun].get(verb, NO_SOURCES)
+    if not args or not literal(args[0][1]) or args[0][0] not in PR_ISSUE:
+        return "unreadable"
+    if len(args) < 2 or not literal(args[1][1]):
+        return "unreadable"
+    if args[1][0] in NO_TEXT_VERBS[args[0][0]]:
+        return "none"
+    if not all(literal(source) for _, source in words):
+        return "unreadable"
+    return "text" if _sends_text(args) else "none"
+
+
+def _read_gh(words: list[Word], cwd: str | None, app: bool) -> Result:
+    """The body a whole-line gh pr or gh issue command posts, read only in a
+    canonical form (gh-post spec: *The canonical gh pr and gh issue posts are
+    a closed list*)."""
+    texts = [text for text, _ in words]
+    if len(texts) < 3 or texts[1] not in PR_ISSUE:
+        return _not_canonical("gh")
+    noun, verb = texts[1], texts[2]
     where = f"gh {noun} {verb}"
-    found: list[Post] = []
-    i = 2
-    while i < len(args):
-        arg = args[i][0]
-        name = arg[2:].split("=", 1)[0]
-        if arg.startswith("--") and "--" + name not in flags:
-            if name in long_sources:
-                return _not_allowed(where)
-            if name in long_values:
-                i += 1 if "=" in arg else 2
-                continue
-            if name in long_bools:
-                i += 1
-                continue
-            return _not_allowed(where)
-        flag, text, i = _body_flag(args, i, flags, values, short_sources)
-        if flag == SOURCE:
-            return _not_allowed(where)
-        if flag is None or text is None:
-            continue
-        if flag in ("--body-file", "-F"):
-            if text == "-":
-                return Unreadable(f"{where} {flag} -: {FROM_STDIN}")
-            body = _read_file(text, cwd)
-            if body is None:
-                return Unreadable(f"{where} {flag} {text}: {text} could not be read. " + ACCEPTED)
-            found.append(Post(f"{where} {flag} {text}", body))
+    if verb not in PR_ISSUE[noun]:
+        return _not_canonical(where)
+    i = 3
+    if verb != "create":
+        if len(texts) < 4 or not texts[3].isdigit() or not texts[3].isascii():
+            return _not_canonical(where)
+        i = 4
+    body_options = {"--comment"} if verb in ("close", "reopen") else {"--body", "--body-file"}
+    bodies: list[tuple[str, str]] = []
+    modes: list[str] = []
+    while i < len(texts):
+        option = texts[i]
+        if verb == "review" and option in REVIEW_MODES:
+            modes.append(option)
+            i += 1
+        elif option == "--draft" and verb == "create":
+            i += 1
+        elif option in VALUE_OPTIONS or option in body_options:
+            if i + 1 >= len(texts):
+                return _not_canonical(where)
+            if option in body_options:
+                bodies.append((option, texts[i + 1]))
+            i += 2
         else:
-            found.append(Post(f"{where} {flag}", text))
-    return found
+            return _not_canonical(where)
+    if len(bodies) != 1 or (verb == "review" and len(modes) != 1):
+        return _not_canonical(where)
+    option, value = bodies[0]
+    if option != "--body-file":
+        return [Post(f"{where} {option}", value, via_github_app=app)]
+    body = _read_file(value, cwd)
+    if body is None:
+        return _blocked(f"{where} --body-file {value}: {value} could not be read as a file.")
+    return [Post(f"{where} --body-file {value}", body, via_github_app=app)]
 
 
 # -- gh api ----------------------------------------------------------------
 
-# gh api's flags, from `gh api --help` (gh 2.103): short letters that take a
-# value, short switches, long flags that take a value, and long switches.
-# API_LONG maps each long flag to the kind add() records its value under,
-# "" for a value the reader ignores.
-API_SHORT_VALUES = "FHXfpqt"
-API_SHORT_SWITCHES = "i"
-API_LONG = {"field": "F", "raw-field": "f", "method": "X", "header": "H", "input": "input",
-            "cache": "", "hostname": "", "jq": "", "preview": "", "template": ""}
-API_LONG_SWITCHES = {"allow-escape-sequences", "include", "paginate", "silent", "slurp",
-                     "verbose", "help"}
-# The GraphQL mutations that post text on an issue or pull request (gh-post
-# spec: *The GraphQL mutations that post text are a closed list*).
-MUTATIONS = {"addComment", "addPullRequestReview", "addPullRequestReviewComment",
-             "addPullRequestReviewThread", "addPullRequestReviewThreadReply",
-             "submitPullRequestReview", "createIssue", "createPullRequest", "updateIssue",
-             "updateIssueComment", "updatePullRequest", "updatePullRequestReview",
-             "updatePullRequestReviewComment"}
-# An issue's or pull request's endpoint, by owner and name or by the
-# repository's id.
-ISSUE_ENDPOINT = re.compile(r"(?:repos/[^/]+/[^/]+|repositories/[^/]+)/(?:issues|pulls)(?:/|$)",
-                            re.I)
+NAME = r"(?!\.{1,2}/)[A-Za-z0-9_.-]+"
+# The canonical gh api posts: each endpoint pattern with its one method
+# (gh-post spec: *The canonical gh api posts are a closed list*).
+API_POSTS = [(re.compile(rf"repos/{NAME}/{NAME}/{tail}"), method) for tail, method in (
+    ("issues", "POST"), (r"issues/[0-9]+", "PATCH"), (r"issues/[0-9]+/comments", "POST"),
+    (r"issues/comments/[0-9]+", "PATCH"), ("pulls", "POST"), (r"pulls/[0-9]+", "PATCH"),
+    (r"pulls/[0-9]+/comments", "POST"), (r"pulls/comments/[0-9]+", "PATCH"),
+    (r"pulls/[0-9]+/reviews", "POST"))]
+REVIEWS = re.compile(rf"repos/{NAME}/{NAME}/pulls/[0-9]+/reviews")
+# gh api's options a read may hold beside -X GET and -f: those that take a
+# value, and switches. Each written alone, its value the next word.
+READ_VALUES = {"--jq", "-q", "--template", "-t", "--cache", "--hostname", "--preview", "-p"}
+READ_SWITCHES = {"--paginate", "--slurp", "--include", "-i", "--silent", "--verbose"}
 PLACEHOLDER = re.compile(r"\{(?:owner|repo|branch)\}")
-# The placeholders gh fills in a -F value: `{owner}`, `{repo}` and `{branch}`,
-# and the older `:owner`, `:repo` and `:branch` (gh's own pattern).
-# re.ASCII matches Go's \b, which knows only ASCII word characters.
-FILLED = re.compile(r"\{(?:owner|repo|branch)\}|:(?:owner|repo|branch)\b", re.ASCII)
-FIELD_KEY = re.compile(r"([^\[\]]*)((?:\[[^\[\]]*\])*)")
+MUTATION = re.compile(r"(?<![_0-9A-Za-z])mutation(?![_0-9A-Za-z])", re.I)
 
 
-def literal(source: str, endpoint: bool = False) -> bool:
-    """Whether a word, as written, is one the shell does not expand: no `$`,
-    backtick or backslash outside single quotes, and no `*`, `?`, `[`, `{`
-    or `~` outside quotes (gh-post spec: *A literal word is one the shell
-    does not expand*). An endpoint may also hold `?` and gh's `{owner}`,
-    `{repo}` and `{branch}` placeholders."""
-    if endpoint:
-        source = PLACEHOLDER.sub("", source).replace("?", "")
-    quote: str | None = None
-    for char in source:
-        if quote == "'":
-            quote = None if char == "'" else quote
-        elif char in "\\`$":
-            return False
-        elif quote == '"':
-            quote = None if char == '"' else quote
-        elif char in "'\"":
-            quote = char
-        elif char in "*?[{~":
-            return False
-    return quote is None
-
-
-@dataclass
-class _Api:
-    methods: list[str] = field(default_factory=lambda: [])
-    fields: list[tuple[str, str]] = field(default_factory=lambda: [])  # (flag letter, key=value)
-    inputs: list[str] = field(default_factory=lambda: [])
-    headers: list[str] = field(default_factory=lambda: [])
-    positional: list[int] = field(default_factory=lambda: [])
-
-
-def _parse_api(texts: list[str]) -> _Api | None:
-    """A gh api call's flags and positional arguments (their indices in
-    texts), read as pflag reads them, or None for a flag gh api does not
-    have or a flag missing its value."""
-    call = _Api()
-
-    def add(kind: str, value: str) -> None:
-        if kind == "X":
-            call.methods.append(value)
-        elif kind in ("f", "F"):
-            call.fields.append((kind, value))
-        elif kind == "H":
-            call.headers.append(value)
-        elif kind == "input":
-            call.inputs.append(value)
-
-    i = 0
-    while i < len(texts):
-        arg = texts[i]
-        if arg == "--":
-            call.positional += range(i + 1, len(texts))
-            break
-        if arg.startswith("--"):
-            name, eq, value = arg[2:].partition("=")
-            if name in API_LONG:
-                if not eq:
-                    if i + 1 >= len(texts):
-                        return None
-                    value, i = texts[i + 1], i + 1
-                add(API_LONG[name], value)
-            elif name not in API_LONG_SWITCHES:
-                return None
-        elif arg.startswith("-") and len(arg) > 1:
-            position = 1
-            while position < len(arg):
-                letter, rest = arg[position], arg[position + 1:]
-                if letter in API_SHORT_VALUES:
-                    if rest:
-                        value = rest[1:] if rest.startswith("=") else rest
-                    elif i + 1 < len(texts):
-                        value, i = texts[i + 1], i + 1
-                    else:
-                        return None
-                    add(letter, value)
-                    break
-                if letter not in API_SHORT_SWITCHES:
-                    return None
-                if rest.startswith("="):
-                    break
-                position += 1
-        else:
-            call.positional.append(i)
-        i += 1
-    return call
-
-
-def _endpoint_path(endpoint: str) -> str:
-    """An endpoint as the path the server routes: no host, fragment, query,
-    or leading or trailing `/`, percent-escapes decoded and `.` and `..`
-    segments resolved. gh sends the path as written, and GitHub normalises
-    it, so `repos/o/r/./%69ssues` reaches the issues endpoint."""
-    full = re.match(r"https?://[^/]+/(?:api/v3/)?(.*)", endpoint, re.I)
-    if full:
-        endpoint = full.group(1)
-    path = urllib.parse.unquote(endpoint.split("#", 1)[0].split("?", 1)[0])
-    return posixpath.normpath("/" + path).strip("/")
-
-
-def _segments(key: str) -> tuple[str, ...]:
-    """A field's key as gh nests it: `comments[][body]` is
-    ("comments", "[]", "body")."""
-    match = FIELD_KEY.fullmatch(key)
-    if not match:
-        return (key,)
-    inner = re.findall(r"\[([^\[\]]*)\]", match.group(2))
-    return (match.group(1), *[part or "[]" for part in inner])
-
-
-class _Filled:
-    """A -F value holding a placeholder FILLED matches, such as {owner} or
-    :owner."""
-
-
-class _Missing(Exception):
-    """A value the reader needs that the call does not give or the reader
-    cannot read."""
-
-
-def _field_value(kind: str, value: str, cwd: str | None, whole: bool) -> object:
-    """What gh sends for one field's value: the text for -f; for -F, a
-    file's text for `@<file>` and gh's types for true, false, null and
-    integers."""
-    if kind == "f":
-        return value
-    if value.startswith("@"):
-        if value == "@-":
-            raise _Missing(FROM_STDIN)
-        if not whole:
-            raise _Missing(f"{value[1:]} is read from a file, which the hook reads only when "
-                           "gh api is the whole command. " + ACCEPTED)
-        text = _read_file(value[1:], cwd)
-        if text is None:
-            raise _Missing(f"{value[1:]} could not be read. " + ACCEPTED)
-        return text
-    if FILLED.search(value):
-        # gh fills the placeholder with the repository's owner, name or
-        # branch. The reader cannot know those, so it cannot read a body
-        # holding one.
-        return _Filled()
-    if value in ("true", "false"):
-        return value == "true"
-    if value == "null":
-        return None
-    if re.fullmatch(r"[-+]?[0-9]+", value):
-        return int(value)
-    return value
-
-
-Leaves = list[tuple[tuple[str, ...], object]]
-
-
-def _flatten(value: object, prefix: tuple[str, ...], leaves: Leaves) -> None:
-    if isinstance(value, dict) and value:
-        for key, item in cast(dict[object, object], value).items():
-            _flatten(item, (*prefix, str(key)), leaves)
-    elif isinstance(value, list) and value:
-        for item in cast(list[object], value):
-            _flatten(item, (*prefix, "[]"), leaves)
-    else:
-        leaves.append((prefix, cast(object, value)))
-
-
-def _input_json(path: str, cwd: str | None, whole: bool) -> object:
-    if path == "-":
-        raise _Missing(FROM_STDIN)
-    if not whole:
-        raise _Missing(f"--input {path} is read from a file, which the hook reads only when "
-                       "gh api is the whole command. " + ACCEPTED)
-    text = _read_file(path, cwd)
-    if text is None:
-        raise _Missing(f"--input {path} could not be read. " + ACCEPTED)
-    try:
-        return json.loads(text)
-    except ValueError:
-        raise _Missing(f"--input {path} is not JSON. " + ACCEPTED) from None
-
-
-def _body_text(value: object, where: str) -> list[str]:
-    """A body's value as text: a string; nothing for null; anything else is
-    unreadable."""
-    if isinstance(value, str):
-        return [value]
-    if value is None:
-        return []
-    raise _Missing(f"{where} is not text. " + ACCEPTED)
-
-
-def _read_api(words: list[Word], cwd: str | None, whole: bool) -> "Result | str":
-    """What a gh api call sends: "read" for a read, Unreadable, or its posts
-    (none for a write that sends no post). whole says whether the call is
-    the whole command line, the only case in which a field or input is read
-    from a file."""
-    texts = [text for text, _ in words]
-    label = "gh api"
-    call = _parse_api(texts[2:])
-    if call is None:
-        return Unreadable(f"`{' '.join(src for _, src in words)}`: gh api's arguments could "
-                          "not be read. " + ACCEPTED)
-    endpoint_at = call.positional[0] + 2 if call.positional else -1
-    for k, (_, source) in enumerate(words):
-        if not literal(source, k == endpoint_at) or source.startswith("="):
-            return Unreadable(f"`{' '.join(src for _, src in words)}`: the word `{source}` is "
-                              "one the shell builds, so what the call sends cannot be checked. "
-                              + ACCEPTED)
-    if len(call.positional) != 1:
-        return Unreadable(f"`{' '.join(src for _, src in words)}`: gh api takes one endpoint. "
-                          + ACCEPTED)
-    endpoint = texts[endpoint_at]
-    label = f"gh api {endpoint}"
-    path = _endpoint_path(endpoint)
-    try:
-        if path.lower() in ("graphql", "api/graphql"):
-            return _read_graphql(call, label, cwd, whole, endpoint == "graphql")
-        override = any(h.partition(":")[0].strip().lower() == "x-http-method-override"
-                       for h in call.headers)
-        method = call.methods[-1].upper() if call.methods else None
-        writes = override or (method is not None and method != "GET") \
-            or (method is None and bool(call.fields or call.inputs))
-        if not writes:
-            return "read"
-        if not ISSUE_ENDPOINT.match(path):
-            return []
-        if "?" in endpoint:
-            raise _Missing("the endpoint carries a query string, which GitHub may read too, "
-                           "so what is posted cannot be checked. " + ACCEPTED)
-        posts: list[Post] = []
-        # With --input the file is the request's body, and gh adds the
-        # fields to the URL's query string, which GitHub may read too.
-        if call.inputs and call.fields:
-            raise _Missing("fields beside --input go into the URL, so what is posted cannot "
-                           "be checked. " + ACCEPTED)
-        for kind, raw in call.fields:
-            key, eq, value = raw.partition("=")
-            text = _field_value(kind, value, cwd, whole) if eq else None
-            if eq and _segments(key)[-1] == "body":
-                posts += [Post(f"{label} -{kind} {key}", t)
-                          for t in _body_text(text, f"{label} -{kind} {key}")]
-        for path_given in call.inputs:
-            leaves: Leaves = []
-            _flatten(_input_json(path_given, cwd, whole), (), leaves)
-            for at, value in leaves:
-                if at and at[-1] == "body":
-                    where = f"{label} --input {path_given} {'.'.join(at)}"
-                    posts += [Post(where, t) for t in _body_text(value, where)]
-        return posts
-    except _Missing as missing:
-        return Unreadable(f"{label}: {missing}")
-
-
-# -- GraphQL ---------------------------------------------------------------
-
-GRAPHQL_TOKEN = re.compile(
-    r'(?P<skip>[\s,﻿]+|#[^\n\r]*)'
-    r'|(?P<block>"""(?:\\"""|[\s\S])*?""")'
-    r'|(?P<string>"(?:[^"\\\n\r]|\\["\\/bfnrt]|\\u[0-9A-Fa-f]{4})*")'
-    r'|(?P<spread>\.\.\.)'
-    r'|(?P<punct>[!$&():=@\[\]{|}])'
-    r'|(?P<number>-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)'
-    r'|(?P<name>[_A-Za-z][_0-9A-Za-z]*)')
-
-# A parsed GraphQL value: ("var", name), ("str", text), ("null", None),
-# ("list", [values]), ("obj", [(name, value)]), or ("other", None).
-Value = tuple[str, Any]
-# A selection: ("field", name, arguments, selections), ("spread", name), or
-# ("inline", selections).
-Selection = tuple[Any, ...]
-
-
-def _block_string(raw: str) -> str:
-    """A GraphQL block string's value, by the spec's BlockStringValue."""
-    lines = re.split(r"\r\n|\n|\r", raw.replace('\\"""', '"""'))
-    indents = [len(line) - len(line.lstrip(" \t")) for line in lines[1:] if line.strip(" \t")]
-    common = min(indents) if indents else 0
-    lines = lines[:1] + [line[common:] for line in lines[1:]]
-    while lines and not lines[0].strip(" \t"):
-        lines.pop(0)
-    while lines and not lines[-1].strip(" \t"):
-        lines.pop()
-    return "\n".join(lines)
-
-
-class _Parser:
-    """Reads a GraphQL document far enough to find each operation's kind,
-    its variables' defaults, and its fields' arguments. Raises _Missing for
-    anything it cannot read."""
-
-    def __init__(self, text: str):
-        self.tokens: list[tuple[str, str]] = []
-        i = 0
-        while i < len(text):
-            match = GRAPHQL_TOKEN.match(text, i)
-            if not match:
-                raise _Missing("the GraphQL query could not be parsed. " + ACCEPTED)
-            kind = match.lastgroup or ""
-            if kind != "skip":
-                self.tokens.append((kind, match.group()))
-            i = match.end()
-        self.at = 0
-
-    def peek(self, value: str | None = None, kind: str | None = None) -> bool:
-        if self.at >= len(self.tokens):
-            return False
-        token_kind, token = self.tokens[self.at]
-        return (value is None or token == value) and (kind is None or token_kind == kind)
-
-    def take(self, value: str | None = None, kind: str | None = None) -> str:
-        if not self.peek(value, kind):
-            raise _Missing("the GraphQL query could not be parsed. " + ACCEPTED)
-        self.at += 1
-        return self.tokens[self.at - 1][1]
-
-    def document(self) -> tuple[list[tuple[str, dict[str, Value | None], list[Selection]]],
-                                dict[str, list[Selection]]]:
-        operations: list[tuple[str, dict[str, Value | None], list[Selection]]] = []
-        fragments: dict[str, list[Selection]] = {}
-        while self.at < len(self.tokens):
-            if self.peek("{"):
-                operations.append(("query", {}, self.selections()))
-            elif self.peek("fragment"):
-                self.take()
-                name = self.take(kind="name")
-                self.take("on")
-                self.take(kind="name")
-                self.directives()
-                fragments[name] = self.selections()
-            else:
-                kind = self.take(kind="name")
-                if kind not in ("query", "mutation", "subscription"):
-                    raise _Missing("the GraphQL query could not be parsed. " + ACCEPTED)
-                if self.peek(kind="name"):
-                    self.take()
-                defaults: dict[str, Value | None] = {}
-                if self.peek("("):
-                    self.take()
-                    while not self.peek(")"):
-                        self.take("$")
-                        name = self.take(kind="name")
-                        self.take(":")
-                        self.type()
-                        defaults[name] = None
-                        if self.peek("="):
-                            self.take()
-                            defaults[name] = self.value()
-                        self.directives()
-                    self.take(")")
-                self.directives()
-                operations.append((kind, defaults, self.selections()))
-        if not operations:
-            raise _Missing("the GraphQL query holds no operation. " + ACCEPTED)
-        return operations, fragments
-
-    def type(self) -> None:
-        if self.peek("["):
-            self.take()
-            self.type()
-            self.take("]")
-        else:
-            self.take(kind="name")
-        if self.peek("!"):
-            self.take()
-
-    def directives(self) -> None:
-        while self.peek("@"):
-            self.take()
-            self.take(kind="name")
-            if self.peek("("):
-                self.arguments()
-
-    def arguments(self) -> list[tuple[str, Value]]:
-        self.take("(")
-        found: list[tuple[str, Value]] = []
-        while not self.peek(")"):
-            name = self.take(kind="name")
-            self.take(":")
-            found.append((name, self.value()))
-        self.take(")")
-        return found
-
-    def selections(self) -> list[Selection]:
-        self.take("{")
-        found: list[Selection] = []
-        while not self.peek("}"):
-            if self.peek(kind="spread"):
-                self.take()
-                if self.peek("on") or self.peek("@") or self.peek("{"):
-                    if self.peek("on"):
-                        self.take()
-                        self.take(kind="name")
-                    self.directives()
-                    found.append(("inline", self.selections()))
-                else:
-                    found.append(("spread", self.take(kind="name")))
-                    self.directives()
-                continue
-            name = self.take(kind="name")
-            if self.peek(":"):
-                self.take()
-                name = self.take(kind="name")
-            arguments = self.arguments() if self.peek("(") else []
-            self.directives()
-            inner = self.selections() if self.peek("{") else []
-            found.append(("field", name, arguments, inner))
-        self.take("}")
-        return found
-
-    def value(self) -> Value:
-        if self.peek("$"):
-            self.take()
-            return ("var", self.take(kind="name"))
-        if self.peek(kind="string"):
-            return ("str", json.loads(self.take()))
-        if self.peek(kind="block"):
-            return ("str", _block_string(self.take()[3:-3]))
-        if self.peek("["):
-            self.take()
-            items: list[Value] = []
-            while not self.peek("]"):
-                items.append(self.value())
-            self.take("]")
-            return ("list", items)
-        if self.peek("{"):
-            self.take()
-            pairs: list[tuple[str, Value]] = []
-            while not self.peek("}"):
-                name = self.take(kind="name")
-                self.take(":")
-                pairs.append((name, self.value()))
-            self.take("}")
-            return ("obj", pairs)
-        if self.peek("null"):
-            self.take()
-            return ("null", None)
-        if self.peek(kind="number") or self.peek(kind="name"):
-            self.take()
-            return ("other", None)
-        raise _Missing("the GraphQL query could not be parsed. " + ACCEPTED)
-
-
-class _Bodies:
-    """Finds every `body` argument, at any depth, in a mutation's
-    arguments, resolving variables from the call's fields and input."""
-
-    def __init__(self, leaves: Leaves, defaults: dict[str, Value | None], where: str):
-        self.leaves, self.defaults, self.where = leaves, defaults, where
-
-    def given(self, name: str) -> Leaves:
-        return [(at, value) for at, value in self.leaves if at[:1] == (name,)]
-
-    def body(self, value: Value) -> list[str]:
-        kind, data = value
-        if kind == "str":
-            return [data]
-        if kind == "null":
-            return []
-        if kind == "var":
-            given = self.given(data)
-            exact = [v for at, v in given if len(at) == 1]
-            if exact:
-                return _body_text(exact[-1], f"{self.where} variable ${data}")
-            if given:
-                raise _Missing(f"{self.where}: the body variable ${data} is not text. "
-                               + ACCEPTED)
-            default = self.defaults.get(data)
-            if default is None:
-                raise _Missing(f"{self.where}: the body variable ${data} is not given. "
-                               + ACCEPTED)
-            return self.body(default)
-        raise _Missing(f"{self.where}: a body is not text. " + ACCEPTED)
-
-    def walk(self, key: str | None, value: Value) -> list[str]:
-        if key == "body":
-            return self.body(value)
-        kind, data = value
-        if kind == "obj":
-            return [text for name, item in data for text in self.walk(name, item)]
-        if kind == "list":
-            return [text for item in data for text in self.walk(None, item)]
-        if kind == "var":
-            given = self.given(data)
-            if not given and self.defaults.get(data) is not None:
-                return self.walk(None, self.defaults[data] or ("null", None))
-            return [text for at, item in given if len(at) > 1 and at[-1] == "body"
-                    for text in _body_text(item, f"{self.where} variable ${'.'.join(at)}")]
-        return []
-
-
-def _read_graphql(call: _Api, label: str, cwd: str | None, whole: bool,
-                  nests: bool) -> "Result | str":
-    """What a GraphQL call posts. nests says whether gh sends the fields
-    other than query and operationName as the query's variables, which it
-    does only for the endpoint written exactly `graphql`. For any other
-    spelling it sends them beside the query, so any such field makes the
-    call unreadable: one such as `variables[b]` sets the variables GitHub
-    runs."""
-    query: object = None
-    leaves: Leaves = []
-    for path_given in call.inputs:
-        given = _input_json(path_given, cwd, whole)
-        if isinstance(given, dict):
-            given = cast(dict[str, object], given)
-            query = given.get("query", query)
-            _flatten(given.get("variables") or {}, (), leaves)
-    # With --input, gh sends the file as the body and adds the fields to the
-    # URL's query string, so which query or variables GitHub runs is unknown.
-    if call.inputs and call.fields:
-        raise _Missing("fields beside --input go into the URL, so the query GitHub runs "
-                       "cannot be checked. " + ACCEPTED)
-    for kind, raw in call.fields:
-        key, eq, value = raw.partition("=")
-        text = _field_value(kind, value, cwd, whole) if eq else None
-        if key == "query":
-            query = text
-        elif key != "operationName":
-            if not nests:
-                raise _Missing(f"gh sends the field {key} beside the query, where it may set "
-                               "the variables GitHub runs. " + ACCEPTED)
-            leaves.append((_segments(key), text))
-    if not isinstance(query, str):
-        raise _Missing("the GraphQL query is not given as text. " + ACCEPTED)
-    operations, fragments = _Parser(query).document()
-    if not any(kind == "mutation" for kind, _, _ in operations):
-        return "read"
-    posts: list[Post] = []
-    for kind, defaults, selections in operations:
-        if kind != "mutation":
+def _api_read(words: list[Word]) -> bool:
+    """Whether a gh api call is a read (gh-post spec: *A gh api call is a
+    read only in a plain form*): its endpoint, `-X GET` as exactly those words, `-f`
+    fields and read-only options, every word literal but for an endpoint's
+    `?` and gh's placeholders. With no -X, gh sends a call with a field as
+    POST, so such a call is a read only with no field; graphql, which gh
+    always sends as POST, is a read when its one query holds no word
+    mutation."""
+    endpoints: list[Word] = []
+    fields: list[str] = []
+    methods: list[str] = []
+    i = 2
+    while i < len(words):
+        text, source = words[i]
+        if text in ("-X", "-f") or text in READ_VALUES:
+            if i + 1 >= len(words) or not literal(words[i + 1][1]):
+                return False
+            value = words[i + 1][0]
+            if text == "-X":
+                methods.append(value if words[i + 1][1] == value else "")
+            elif text == "-f":
+                fields.append(value)
+            i += 2
             continue
-        for name, arguments in _top_fields(selections, fragments, 0):
-            if name in MUTATIONS:
-                where = f"{label} {name}"
-                bodies = _Bodies(leaves, defaults, where)
-                posts += [Post(f"{where} body", text) for argument, value in arguments
-                          for text in bodies.walk(argument, value)]
-    return posts
+        if text in READ_SWITCHES:
+            i += 1
+            continue
+        if text.startswith("-") or not literal(PLACEHOLDER.sub("", source).replace("?", "")):
+            return False
+        endpoints.append((text, source))
+        i += 1
+    if len(endpoints) != 1 or methods not in ([], ["GET"]):
+        return False
+    if endpoints[0] == ("graphql", "graphql"):
+        queries = [f.partition("=")[2] for f in fields if f.partition("=")[0] == "query"]
+        return len(queries) == 1 and not MUTATION.search(queries[0])
+    return bool(methods) or not fields
 
 
-def _top_fields(selections: list[Selection], fragments: dict[str, list[Selection]],
-                depth: int) -> list[tuple[str, list[tuple[str, Value]]]]:
-    """A mutation's top-level fields, through fragments, as (name,
-    arguments)."""
-    if depth > 10:
-        raise _Missing("the GraphQL query nests its fragments too deeply. " + ACCEPTED)
-    found: list[tuple[str, list[tuple[str, Value]]]] = []
-    for selection in selections:
-        if selection[0] == "field":
-            found.append((selection[1], selection[2]))
-        elif selection[0] == "inline":
-            found += _top_fields(selection[1], fragments, depth + 1)
-        elif selection[1] in fragments:
-            found += _top_fields(fragments[selection[1]], fragments, depth + 1)
+class _Bad(Exception):
+    pass
+
+
+def _no_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    keys = [key for key, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise _Bad("it holds a key twice")
+    return dict(pairs)
+
+
+def _read_api(words: list[Word], cwd: str | None, app: bool) -> Result:
+    """The bodies a whole-line gh api write posts, read only in a canonical
+    form: `gh api <endpoint> -X <method> --input <file>`, in any order."""
+    texts = [text for text, _ in words]
+    rest = texts[2:]
+    shown = " ".join(source for _, source in words)
+    if len(rest) != 5 or not all(literal(source) for _, source in words):
+        return _not_canonical(f"`{shown}`")
+    method = file = endpoint = None
+    i = 0
+    while i < len(rest):
+        if rest[i] in ("-X", "--input") and i + 1 < len(rest):
+            if rest[i] == "-X" and method is None:
+                method = rest[i + 1]
+            elif rest[i] == "--input" and file is None:
+                file = rest[i + 1]
+            else:
+                return _not_canonical(f"`{shown}`")
+            i += 2
+        elif endpoint is None and not rest[i].startswith("-"):
+            endpoint = rest[i]
+            i += 1
         else:
-            raise _Missing(f"the GraphQL fragment {selection[1]} is not defined. " + ACCEPTED)
-    return found
+            return _not_canonical(f"`{shown}`")
+    if endpoint is None or file is None or not any(
+            pattern.fullmatch(endpoint) and method == want for pattern, want in API_POSTS):
+        return _not_canonical(f"`{shown}`")
+    where = f"gh api {endpoint} --input {file}"
+    text = _read_file(file, cwd)
+    if text is None:
+        return _blocked(f"{where}: {file} could not be read as a file.")
+    try:
+        data = json.loads(text, object_pairs_hook=_no_duplicates)
+        if not isinstance(data, dict):
+            raise _Bad("it is not a JSON object")
+        data = cast(dict[str, object], data)
+        posts: list[Post] = []
+        if "body" in data:
+            if not isinstance(data["body"], str):
+                raise _Bad("its body is not a string")
+            posts.append(Post(f"{where} body", data["body"], via_github_app=app))
+        if REVIEWS.fullmatch(endpoint) and "comments" in data:
+            comments = data["comments"]
+            if not isinstance(comments, list):
+                raise _Bad("its comments are not a list")
+            for k, item in enumerate(cast(list[object], comments)):
+                body = cast(dict[str, object], item).get("body") \
+                    if isinstance(item, dict) else None
+                if not isinstance(body, str):
+                    raise _Bad(f"comments[{k}].body is not a string")
+                posts.append(Post(f"{where} comments[{k}].body", body, via_github_app=app))
+        if not posts:
+            raise _Bad("it holds no body")
+        return posts
+    except ValueError:
+        return _blocked(f"{where}: {file} is not JSON.")
+    except _Bad as bad:
+        return _blocked(f"{where}: {file} cannot be read as a post: {bad}.")
+
+
+# -- discord-bot -------------------------------------------------------------
+
+DISCORD_QUIET = {"delete", "read", "thread", "check", "invite-url", "store-token",
+                 "forget-token"}
+
+
+def _read_discord(words: list[Word], cwd: str | None) -> Result:
+    """The message a whole-line discord-bot call posts: none for a
+    subcommand that posts no text; for post and edit, the file that the
+    one `--message-file <file>` names, with no other option starting
+    `--message` except `--message-id` (gh-post spec: *The reader reads
+    discord-bot's post and edit only from a message file*)."""
+    texts = [text for text, _ in words]
+    if texts[0] in DISCORD_QUIET and literal(words[0][1]):
+        return NoPost()
+    if texts[0] not in ("post", "edit") or not all(literal(source) for _, source in words):
+        return _not_canonical("discord-bot")
+    where = f"discord-bot {texts[0]}"
+    given = [k for k, text in enumerate(texts) if text == "--message-file"]
+    if len(given) != 1 or given[0] + 1 >= len(texts) \
+            or texts[given[0] + 1].startswith("-") or any(
+                text.startswith("--message") and text != "--message-id"
+                and not text.startswith("--message-id=")
+                for k, text in enumerate(texts) if k != given[0]):
+        return _not_canonical(where)
+    file = texts[given[0] + 1]
+    body = _read_file(file, cwd)
+    if body is None:
+        return _blocked(f"{where} --message-file {file}: {file} could not be read as a file.")
+    return [Post(f"{where} --message-file {file}", body, "discord")]
 
 
 # -- a whole command line --------------------------------------------------
@@ -1123,23 +804,20 @@ def _split(command: str) -> tuple[list[tuple[list[Word], bool]], bool] | None:
     return read
 
 
-def _api(command: _Command, cwd: str | None, whole: bool) -> "Result | str":
-    if command.api is None:
-        command.api = _read_api(_strip_reserved(command.words), cwd, whole)
-    return command.api
-
-
-def _is_api_read(command: _Command, cwd: str | None, whole: bool) -> bool:
-    words = _strip_reserved(command.words)
-    return _is_api(words) and _api(command, cwd, whole) == "read"
-
-
-def _as_result(found: "Result | str") -> Result:
-    if isinstance(found, str):
-        return NoPost()
-    if isinstance(found, list) and not found:
-        return NoPost()
-    return found
+def _whole_command(command: str) -> _Command | None:
+    """The one simple command the line is: a gh call or a call of
+    discord-bot's script, with nothing beside it but assignments of either
+    script's path, and no redirection, pipe, subshell or substitution."""
+    ops = _top_level(command)
+    if ops is None or not ops <= {";", "&&"}:
+        return None
+    split = _commands(command)
+    if split is None or split[1]:
+        return None
+    resolved = [c for c in _resolve(split[0]) if c.words]
+    if len(resolved) != 1 or not (resolved[0].discord or _is_gh(resolved[0].words)):
+        return None
+    return resolved[0]
 
 
 def gh_command(command: str) -> list[str] | None:
@@ -1149,136 +827,135 @@ def gh_command(command: str) -> list[str] | None:
     whole = _whole_command(command)
     if whole is None or whole.discord:
         return None
-    plain = _words(" ".join(source for _, source in whole.words))
-    if not plain or plain[0] != ("gh", False):
-        return None
-    return [text for text, _ in _gh_args(plain)]
+    return [text for text, _ in _gh_args(whole.words)]
 
 
-def _whole_command(command: str) -> _Command | None:
-    """The one simple command the line is, when it is one whole command:
-    a gh call or a call of discord-bot's script, with nothing beside it but
-    assignments of either script's path, and no redirection, pipe, subshell
-    or substitution."""
-    ops = _top_level(command)
-    if ops is None or not ops <= {";", "&&"}:
-        return None
-    split = _split(command)
-    if split is None or split[1]:
-        return None
-    resolved = [c for c in _resolve(split[0]) if c.words]
-    if len(resolved) != 1 or not (
-            resolved[0].discord or _is_gh(resolved[0].words)):
-        return None
-    return resolved[0]
+def _names(words: list[Word]) -> list[str]:
+    return [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
+
+
+def _quiet_gh(words: list[Word]) -> bool:
+    """Whether input is allowed to reach a gh command: a gh pr or gh issue
+    subcommand in gh_shell's NO_TEXT_VERBS, or a gh api read (gh-post spec: *Input to a
+    no-post line reaches only data commands*)."""
+    if _is_api(words):
+        return _api_read(words)
+    args = _gh_args(words)
+    return len(args) >= 2 and literal(args[0][1]) and literal(args[1][1]) \
+        and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ())
+
+
+def _input_check(resolved: list[_Command], grouped: bool) -> Unreadable | None:
+    """For a line that mentions no gh post verb: unreadable when input from
+    a pipe or redirection in the line reaches several commands one of which
+    names gh, or reaches a discord-bot
+    call or a gh command that is not quiet (_quiet_gh)."""
+    for command in resolved:
+        words = _strip_reserved(command.words)
+        if not words or not (command.fed or grouped):
+            continue
+        if "gh" not in _names(words) and not command.discord:
+            continue
+        if grouped:
+            return _blocked(GROUPED)
+        if command.discord or not _is_gh(words) or not _quiet_gh(words):
+            return _fed_blocker(words[0][0] or words[0][1])
+    return None
 
 
 def read_command(command: str, cwd: str | None) -> Result:
     """What a Bash command line posts (gh-post spec)."""
-    if not (GH_TEXT.search(command) or DISCORD_TEXT.search(command)) \
-            or runs_only_prose(command):
+    if not (_names_gh(command) or _discord_words(command) or "$(" in command
+            or "`" in command) or runs_only_prose(command):
         return NoPost()
+    if _joined_by_substitution(command):
+        return _not_canonical("this command")
     split = _split(command)
     if split is None:
-        if _mentions(command) or GH_API_TEXT.search(command):
-            return _not_allowed("gh")
+        # A word spelled with escapes, such as co$'\x6d'ment, passes
+        # _mentions and _api_words unseen; the spec leaves it open. Blocking
+        # every line that names gh and holds $'…' would block ordinary reads
+        # such as `gh pr view 5 | tr $'\n' ' '`, which the spec says send no
+        # post.
+        if _mentions(command) or _api_words(command):
+            return _not_canonical("this command")
         return NoPost()
     commands, grouped = split
     resolved = _resolve(commands)
+    if not _mentions(command):
+        # A gh api read is no gh post verb, so drop the reads and see whether
+        # a gh api call is still left. A line holding `<<` keeps its whole
+        # text, since the split commands leave heredoc bodies out.
+        kept = [c for c in resolved
+                if not (_is_api(_strip_reserved(c.words)) and _api_read(_strip_reserved(c.words)))]
+        rest = command if "<<" in command else " ".join(
+            source for c in kept for _, source in c.words)
+        if not _api_words(rest):
+            return _input_check(resolved, grouped) or NoPost()
     whole = _whole_command(command)
     if whole is not None:
-        resolved = [whole]
-    is_whole = whole is not None
-    if not _mentions(command):
-        if not GH_API_TEXT.search(command):
-            return NoPost()
-        # A gh api read is no gh post verb. Drop the reads from the line's
-        # text; the line mentions a gh post verb only when `gh` followed by
-        # `api` is still there.
-        rest = command if "<<" in command else " ".join(
-            source for c in resolved if not _is_api_read(c, cwd, is_whole)
-            for _, source in c.words)
-        if not GH_API_TEXT.search(rest):
-            return NoPost()
-    if whole is not None:
-        if whole.discord:
-            found = _read_discord(whole.words, cwd)
-            return found if isinstance(found, Unreadable) or found else NoPost()
-        if _is_api(whole.words):
-            return _as_result(_api(whole, cwd, True))
-        plain = _words(" ".join(source for _, source in whole.words))
-        if not plain:
-            return _not_allowed("gh")
-        found = _read_gh(plain, cwd)
-        return found if isinstance(found, Unreadable) or found else NoPost()
-    return _read_line(resolved, grouped, cwd)
+        return _read_whole(whole, cwd)
+    return _read_line(resolved, grouped)
 
 
-def _read_line(resolved: list[_Command], grouped: bool, cwd: str | None) -> Result:
-    """What a line of several commands, or of one beside a redirection,
-    posts: no post when each simple command sends none; the posts of a
-    single gh api write when its fields read no file and no other command
-    mentions a gh post verb; otherwise unreadable."""
-    api_posts: list[list[Post]] = []
-    mentions = 0
+def _read_whole(whole: _Command, cwd: str | None) -> Result:
+    if whole.discord:
+        return _read_discord(whole.words, cwd)
+    if _is_api(whole.words):
+        if _api_read(whole.words):
+            return NoPost()
+        return _read_api(whole.words, cwd, whole.app)
+    kind = _gh_text(whole.words)
+    if kind == "none":
+        return NoPost()
+    if kind == "unreadable":
+        return _not_canonical(f"`{' '.join(source for _, source in whole.words)}`")
+    return _read_gh(whole.words, cwd, whole.app)
+
+
+def _read_line(resolved: list[_Command], grouped: bool) -> Result:
+    """What a line other than one canonical command posts: no post when
+    each simple command provably sends none; otherwise unreadable."""
     for command in resolved:
+        words = _strip_reserved(command.words)
+        if not words or all(source in CLOSERS for _, source in words):
+            continue
+        source = " ".join(src for _, src in words)
         if command.discord:
             if command.fed:
                 return _fed_blocker(DISCORD_SCRIPT)
-            if _read_discord(command.words, cwd):
-                return _not_allowed(f"`{DISCORD_SCRIPT} "
-                                    f"{' '.join(src for _, src in command.words)}`")
+            if words[0][0] not in DISCORD_QUIET:
+                return _not_canonical(f"`{DISCORD_SCRIPT} {source}`")
             continue
-        words = _strip_reserved(command.words)
-        if all(source in CLOSERS for _, source in words):
-            continue
-        names = [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
-        source = " ".join(src for _, src in words)
-        api_read = _is_api(words) and _api(command, cwd, False) == "read"
-        if _mentions(source) or (GH_API_TEXT.search(source) and not api_read):
-            mentions += 1
+        names = _names(words)
         if grouped and names[0] not in DATA_COMMANDS:
-            return GROUPED
-        if command.fed and names[0] not in DATA_COMMANDS:
-            plain = _words(source) if _is_gh(words) else None
-            args = _gh_args(plain) if plain else []
-            if not api_read and (len(args) < 2 or args[1][0] not in NO_TEXT_VERBS.get(
-                    args[0][0], ())):
-                return _fed_blocker(names[0])
+            return _blocked(GROUPED)
+        if command.fed and names[0] not in DATA_COMMANDS and not (
+                _is_gh(words) and _quiet_gh(words)):
+            return _fed_blocker(names[0] or words[0][1])
         if command.unassigned and ("gh" in names or {"post", "edit"} & set(names)):
             return _unassigned(command.unassigned)
         if names[0] in PYTHONS and DISCORD_SCRIPT in names:
-            return _not_allowed(f"`{source}`")
+            return _not_canonical(f"`{source}`")
         if "gh" not in names:
-            if (GH_TEXT.search(source) or DISCORD_TEXT.search(source)) \
-                    and names[0] not in DATA_COMMANDS:
-                return _not_allowed(f"`{words[0][1]}`")
+            if (_names_gh(source) or _discord_words(source)) and names[0] not in DATA_COMMANDS:
+                return _not_canonical(f"`{words[0][1]}`")
             continue
         if not _is_gh(words):
-            return _not_allowed(f"`{source}`")
+            return _not_canonical(f"`{source}`")
         if _is_api(words):
-            found = _api(command, cwd, False)
-            if isinstance(found, Unreadable):
-                return found
-            if isinstance(found, list) and found:
-                api_posts.append(found)
+            if not _api_read(words):
+                return _not_canonical(f"`{source}`")
             continue
-        plain = _words(source)
-        if not plain:
-            return _not_allowed(f"`{source}`")
-        if POST_WORDS.search(" ".join(text for text, _ in plain)) and _read_gh(plain, cwd):
-            return _not_allowed(f"`{source}`")
-    if not api_posts:
-        return NoPost()
-    if len(api_posts) > 1 or mentions > 1:
-        return Unreadable("a gh api post stands beside another command that mentions a gh "
-                          "post verb, so the hook cannot tell which text is posted. " + ACCEPTED)
-    return api_posts[0]
+        if _gh_text(words) != "none":
+            return _not_canonical(f"`{source}`")
+    return NoPost()
 
 
 # -- a tool call -----------------------------------------------------------
 
 BODY_KEYS = {"body", "comment"}
+LINEAR_MCP = re.compile(r"^mcp__(?:plugin_.+_)?linear__")
 
 
 def body_fields(value: object, path: str = "") -> list[Post]:
@@ -1302,11 +979,35 @@ def _mcp(tool_input: object) -> Result:
     return body_fields(tool_input) or NoPost()
 
 
+def _linear(tool: str, tool_input: object) -> Result:
+    """A Linear MCP save_comment's body or save_issue's description (gh-post
+    spec: *The reader reads a Linear MCP comment or issue description*). A
+    save_issue holding `patch`, or `template` with no description text,
+    takes its text from what Linear already holds, so it is unreadable."""
+    if not isinstance(tool_input, dict):
+        return NoPost()
+    given = cast(dict[str, object], tool_input)
+    key = {"save_comment": "body", "save_issue": "description"}.get(tool)
+    if key is None:
+        return NoPost()
+    text = given.get(key)
+    if tool == "save_issue" and ("patch" in given or (
+            "template" in given and not (isinstance(text, str) and text))):
+        return _blocked(f"Linear {tool}: a patch or a template builds the description from "
+                        "what Linear holds, so what it posts cannot be checked. Send the whole "
+                        "description instead.")
+    if text is None:
+        return NoPost()
+    if not isinstance(text, str):
+        return _blocked(f"Linear {tool}: its {key} is not text.")
+    return [Post(key, text, "linear")]
+
+
 def read_posts(payload: dict[str, Any], host: str) -> Result:
     """What the hook payload's tool call posts. host is "claude" or
     "cursor", as prose's hook names it, since the two hosts send different
-    payload shapes. A call that posts several bodies,
-    such as a review with comments, gives one Post per body."""
+    payload shapes. A call that posts several bodies, such as a review with
+    comments, gives one Post per body."""
     cwd = payload.get("cwd")
     cwd = cwd if isinstance(cwd, str) else None
     if host == "cursor":
@@ -1314,19 +1015,26 @@ def read_posts(payload: dict[str, Any], host: str) -> Result:
             command = payload.get("command")
             return read_command(command if isinstance(command, str) else "", cwd)
         server = payload.get("mcp_server_name")
+        server = server.lower() if isinstance(server, str) else ""
         tool_input: object = payload.get("tool_input")
         if isinstance(tool_input, str):
             try:
                 tool_input = json.loads(tool_input)
             except ValueError:
                 tool_input = {}
-        return _mcp(tool_input) if isinstance(server, str) and "github" in server.lower() \
-            else NoPost()
+        if "github" in server:
+            return _mcp(tool_input)
+        if "linear" in server:
+            name = payload.get("tool_name")
+            return _linear(name if isinstance(name, str) else "", tool_input)
+        return NoPost()
     tool = payload.get("tool_name")
     tool = tool if isinstance(tool, str) else ""
-    tool_input: object = payload.get("tool_input") or {}
+    tool_input = payload.get("tool_input") or {}
     if GITHUB_MCP.match(tool):
         return _mcp(tool_input)
+    if LINEAR_MCP.match(tool):
+        return _linear(LINEAR_MCP.sub("", tool), tool_input)
     if tool == "Bash" and isinstance(tool_input, dict):
         command = cast(dict[str, object], tool_input).get("command")
         return read_command(command if isinstance(command, str) else "", cwd)
