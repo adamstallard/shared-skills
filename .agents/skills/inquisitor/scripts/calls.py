@@ -13,13 +13,11 @@ holding its latest verdict, in common.verdicts_dir().
 tasks.md's tasks 2.1 and 2.2. Standard library only.
 """
 
-import inspect
 import json
 import os
 import re
 import secrets
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
@@ -261,7 +259,7 @@ def _read_post(path: str, repository: str | None,
     if repository is not None and lore is not None:
         raise Refused("give --repository or --lore, not both")
     body = read_private(path)
-    found = _find_questions(body)
+    found = find_questions(body, in_code=True)
     default: Concerns = ({"repository": repository} if repository else {"lore": lore} if lore
                          else {})
     if not default:
@@ -291,23 +289,17 @@ def _read_post(path: str, repository: str | None,
     return found, questions
 
 
-def _find_questions(body: str) -> list[FoundQuestion]:
-    """Every question either reading finds in body (inquisitor spec:
-    *Questions in a post are found by two readings*; _TokenQuestion's
-    docstring defines both). Called with in_code=True, find_questions
-    returns them all, setting FoundQuestion.in_code on each that only the
-    plain reading finds. qtext's find_questions takes in_code once the
-    shared parser's two-readings change, a separate commit, lands on this
-    branch; without it, find_questions returns the hiding reading's
-    questions alone, none of them open to `not asked`."""
-    if "in_code" in inspect.signature(find_questions).parameters:
-        return cast(Callable[..., list[FoundQuestion]], find_questions)(body, in_code=True)
-    return find_questions(body)
-
-
 def _plain_only(found: FoundQuestion | None) -> bool:
-    """Whether the plain reading alone found the question."""
-    return found is not None and getattr(found, "in_code", False) is True
+    """Whether `not asked` is open to the question: whether find_questions
+    set in_code on it. in_code marks a question only the plain reading
+    found, the reading that takes code and HTML as text (inquisitor spec:
+    *Questions in a post are found by two readings*). qtext's _backstop
+    also sets it on a question made from a `?` that ends no question of
+    either reading, and in_code holds no way to tell the two kinds apart,
+    so `not asked` is open to a backstop question too, though the spec
+    (*Only a question the hiding reading misses may be not asked*) opens it
+    only to the first kind."""
+    return found is not None and found.in_code
 
 
 def _first_option(label: str) -> str:

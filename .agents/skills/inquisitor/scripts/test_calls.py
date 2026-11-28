@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 import time
 import unittest
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from unittest import mock
@@ -18,7 +17,7 @@ import calls
 import config
 from common import Refused, verdicts_dir
 from contracts import QuestionIn, SearchResult
-from qtext import FoundQuestion, Question, find_questions, question_hash, question_text
+from qtext import Question, question_hash, question_text
 
 TOKEN = "ghp_" + "a" * 36
 
@@ -159,6 +158,14 @@ class FirstCall(Base):
             calls.run(calls.VetArgs(post=post))
         self.assertIn("question 1", str(cm.exception))
         self.assertNotIn(TOKEN, str(cm.exception))
+
+    def test_repository_and_lore_together_refused(self) -> None:
+        # A post's questions concern the repository --repository names or the lore repository
+        # --lore names. Given both flags, the call cannot tell which, so it refuses.
+        post = self.file("Should retries back off?\n")
+        with self.assertRaises(Refused) as cm:
+            calls.run(calls.VetArgs(post=post, repository="o/api", lore="o/lore"))
+        self.assertIn("not both", str(cm.exception))
 
     def test_token_in_link_target_refused(self) -> None:
         # @scenario inquisitor: A token in a link target is refused
@@ -598,35 +605,8 @@ class KeepIdentity(Base):
         self.assertTrue((self.state / "inquisitor" / "tokens" / f"{token}.json").exists())
 
 
-@dataclass(frozen=True)
-class _Found(FoundQuestion):
-    """A FoundQuestion with the in_code field that the shared parser's
-    two-readings change, a separate commit, adds. qtext's FoundQuestion has
-    no such field yet, and calls.py reads it with getattr, so this double
-    can stand in for that parser's results."""
-
-    in_code: bool = False
-
-
-def two_readings(body: str, in_code: bool = False) -> list[FoundQuestion]:
-    """A stand-in for find_questions(body, in_code=True): the real parser's
-    questions, then, with in_code, the last line of the body's first fenced
-    block as a question with in_code set, whatever that line says."""
-    found: list[FoundQuestion] = list(find_questions(body))
-    if in_code and "```" in body:
-        code = body.split("```")[1].strip().splitlines()[-1]
-        found.append(_Found(Question("post", code), None, False, raw=code, in_code=True))
-    return found
-
-
 class NotAsked(Base):
     post = "Should retries back off?\n\n```\nwhy = 'Is this code?'\n```\n"
-
-    def setUp(self) -> None:
-        super().setUp()
-        p = mock.patch("calls.find_questions", two_readings)
-        p.start()
-        self.addCleanup(p.stop)
 
     def vet_post(self) -> tuple[str, dict[str, Any]]:
         text, objs = self.run_vet(calls.VetArgs(post=self.file(self.post)))
@@ -649,18 +629,14 @@ class NotAsked(Base):
         self.assertEqual(set(record), {"version", "hash", "verdict", "time"})
         self.assertEqual(record["verdict"], "not asked")
 
-    def test_same_text_in_prose_and_code_keeps_one_record(self) -> None:
-        # @scenario inquisitor: Two questions with one text and different verdicts are refused
-        # The same text in running text and in code is one question text. When both get
-        # `ask`, they make one record; `ask` for one and `not asked` for the other differ in
-        # verdict, and are refused.
+    def test_same_text_in_prose_and_code_is_one_question(self) -> None:
+        # Two readings' copies of one text count once, by their shared hash (inquisitor spec:
+        # *Questions in a post are found by two readings*; no scenario covers it). The hiding
+        # reading finds the copy in running text, so the one question is not plain_only, and the
+        # second call refuses `not asked` for it, as the next test shows.
         self.post = "Should retries back off?\n\n```\nShould retries back off?\n```\n"
         _, out = self.vet_post()
-        ask = {"verdict": "ask", "field": {"recommended": "Yes.", "changes": "No: hammering."}}
-        with self.assertRaises(Refused):
-            self.second(out["token"], [{"question": 1, **ask}, {"question": 2, "verdict": "not asked"}])
-        self.second(out["token"], [{"question": 1, **ask}, {"question": 2, **ask}])
-        self.assertEqual(len(self.records()), 1)
+        self.assertEqual([q["plain_only"] for q in out["questions"]], [False])
 
     def test_question_the_hiding_reading_finds_cannot_be_not_asked(self) -> None:
         # @scenario inquisitor: A question the hiding reading finds cannot be not asked
