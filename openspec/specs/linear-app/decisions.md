@@ -3,8 +3,12 @@
 ## Rationale
 
 - **Rationale: No command prints a relay identity's token.**
-  The inquisitor's answer service treats any post by the person's relay identity that starts `User says: ` as the person's answer. The inquisitor's post hook, which blocks an agent's post with that prefix, reads an agent's command line, so it reads a linear-app `post`'s text but not what a program such as `curl` sends with a printed token.
+  The inquisitor's answer service treats any post by the person's relay identity that starts `User says: ` as the person's answer. The inquisitor's post hook, which blocks an agent's post with that prefix, reads an agent's command line and the body file it names, so it reads a linear-app `post`'s text but not what a program such as `curl` sends with a printed token.
   Evidence: linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), and `headers` prints it inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py); a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
+
+- **Rationale: A comment's text comes from a named file and reaches Linear only as a GraphQL variable.**
+  The post hook reads the file a `--body-file` option names, so linear-app must send exactly that file: Python's option parser accepts a prefix such as `--body` for `--body-file` unless abbreviations are turned off, and keeps the last value of an option given twice.
+  Evidence: `allow_abbrev` defaults to `True`, letting long options be abbreviated to an unambiguous prefix, and an option given twice keeps its last value under the default `store` action, https://docs.python.org/3/library/argparse.html#allow-abbrev
 
 - **Rationale: A relay identity cannot be wired to the Linear MCP server.**
   `wire` gives the MCP server a headers helper that runs `headers`, and any agent can run that same command line, so a relay identity wired to the server would need `headers` to print its token to whichever agent runs it.

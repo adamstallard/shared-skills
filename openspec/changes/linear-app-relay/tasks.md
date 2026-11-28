@@ -29,32 +29,32 @@
 ## 2. Inquisitor
 
 - [ ] 2.1 The shared post reader reads linear-app's `post` and `edit`
-      (gh-post spec: *The reader reads linear-app's post and edit as gh
-      issue comment*)
-- [ ] 2.2 The post hook skips its GitHub-only rule for a linear-app
-      post (inquisitor spec: *The post hook skips its GitHub-only rule
-      for a Linear post*)
-- [ ] 2.3 The answer service posts, edits and deletes on Linear through
-      linear-app's `post`, `edit` and `delete`, not its own request. It
+      (gh-post spec: *The reader reads linear-app's post and edit only
+      from a body file*; *A simple command holding a linear-app post word
+      counts as naming gh*)
+- [ ] 2.2 The answer service posts, edits and deletes on Linear through
+      linear-app's `post`, `edit` and `delete`, not its own request; this
+      replaces the Linear part of the inquisitor change's task 6.4. It
       reads a refusal's cause from what linear-app passes on, and takes
-      the Linear relay's user id from linear-app's `check` (answer-service spec as
-      this change modifies it: *A relay post is posted by a host command,
-      unvetted*)
-- [ ] 2.4 Setup's Linear posting check reads the scopes and teams from
+      the Linear relay's user id from linear-app's `check`
+      (answer-service spec as this change modifies it: *A relay post is
+      posted by a host command, unvetted*; *The service reads the Linear
+      relay's user id from linear-app's check*)
+- [ ] 2.3 Setup's Linear posting check reads the scopes and teams from
       linear-app's `check` (answer-service spec as this change modifies
       it: *A posting check reads what each surface grants*)
-- [ ] 2.5 Drop Linear from the inquisitor README's warning that a relay's
-      token can be printed (answer-service spec as this change modifies
+- [ ] 2.4 Drop Linear from the inquisitor README's warning that a relay's
+      token can be printed, which the inquisitor change's task 5.2 adds (answer-service spec as this change modifies
       it: *The README warns that a relay's token can be printed*)
 
 ## 3. prose
 
 - [ ] 3.1 prose's posting hook prefilter,
       `.agents/skills/prose/scripts/check-post.sh`, passes a payload
-      naming `linear_app.py` on to the shared post reader, so prose's
-      check for a signed footer applies to every linear-app `post` and
-      `edit` an agent runs as a tool call; say so in prose's SKILL.md,
-      since prose has no spec
+      naming `linear_app.py` on to the shared post reader, as it does one
+      naming `discord_bot.py`, so prose's check for a signed footer
+      applies to every linear-app `post` and `edit` an agent runs as a
+      tool call; say so in prose's SKILL.md, since prose has no spec
 
 ## 4. Tests
 

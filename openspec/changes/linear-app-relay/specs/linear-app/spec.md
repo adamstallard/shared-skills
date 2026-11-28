@@ -9,12 +9,11 @@ show as the app user's, never a person's.
 ### Requirement: The answer service's Linear relay is a relay identity
 
 linear-app SHALL treat the identity that `answer_service.linear.relay`
-names in `~/.config/shared-skills/inquisitor.json` as a relay identity
-(answer-service spec: *The person runs the service, and a relay identity
-posts for them*). While that file exists but holds no JSON object
-linear-app can read, linear-app SHALL treat every identity as a relay
-identity under every rule of this spec, naming the file whenever it
-refuses a command for that reason.
+names in `~/.config/shared-skills/inquisitor.json` as a relay identity.
+While that file exists but holds no JSON object linear-app can read, or
+holds an `answer_service.linear.relay` that is present but not a string, linear-app SHALL
+treat every identity as a relay identity under every rule of this spec,
+naming the file whenever it refuses a command for that reason.
 
 #### Scenario: The identity the configuration names is a relay identity
 
@@ -41,12 +40,13 @@ refuses a command for that reason.
 ### Requirement: Every identity holding the relay's client ID is a relay identity
 
 linear-app SHALL also treat as a relay identity every identity whose
-client ID is the relay identity's. It SHALL read each identity's client
-ID from the keychain entries its config names, except that for the
-identity the environment supplies credentials for (`LINEAR_APP_IDENTITY`,
-else `default`) it SHALL read `LINEAR_CLIENT_ID` first. While it cannot read the relay
-identity's own client ID, it SHALL treat every identity as a relay
-identity, saying why.
+client ID is the relay identity's. It SHALL read an identity's client ID
+from the keychain entries its config names, but `LINEAR_CLIENT_ID` first
+for the identity the environment's credentials belong to
+(`LINEAR_APP_IDENTITY`, else `default`). It SHALL read the relay's own
+client ID from the keychain only, and while a Linear relay is configured
+and it cannot, SHALL treat every identity as a relay identity, saying
+why.
 
 #### Scenario: Another identity with the relay's client ID is a relay identity
 
@@ -214,34 +214,44 @@ Linear reports it.
 
 ### Requirement: check reports the identity's user id, scopes and teams
 
-`check` SHALL report, beside the identity's name, its Linear user `id`,
-its token's scopes and the keys of the teams its app user can see. When
-it cannot read the teams, it SHALL say so and still pass, so setup shows
-its posting check (answer-service spec: *A posting check reads what each
-surface grants*) as not checked. The answer service, which never holds
-the relay's token, reads all three from `check`'s output.
+`check` SHALL report, beside the identity's name, fields filled only
+from Linear's responses, never from the config: `userId`, the app
+user's id; `grantedScopes`, the scopes Linear granted the token; and
+`visibleTeams`, the keys of the teams the app user can see. When it
+cannot read the teams, it SHALL say so in place of `visibleTeams` and
+still pass, so setup shows each subscribed Linear team's posting check
+as not checked.
 
 #### Scenario: check prints the user id, scopes and teams
 
 - **WHEN** `check` runs for an identity whose token holds the `read` and
   `write` scopes and whose app user can see the team `ENG`
-- **THEN** its result holds the app user's `id` and name, the scopes
-  `read` and `write`, and the team key `ENG`, and no token
+- **THEN** its result holds the app user's name, its `userId`,
+  `grantedScopes` holding `read` and `write`, and `visibleTeams` holding
+  `ENG`, and no token
+- **AND** when Linear refuses the teams read, `check` still passes and
+  says it could not read the teams, with no `visibleTeams`
+
+#### Scenario: Teams listed in the config are not visible teams
+
+- **WHEN** the identity's config lists the team `OPS` under `teams`, and
+  the app user cannot see `OPS`
+- **THEN** `visibleTeams` does not hold `OPS`
 
 ### Requirement: A comment's text comes from a named file and reaches Linear only as a GraphQL variable
 
 `post` and `edit` SHALL read the text only from the regular file
 `--body-file` names, never from standard input, such as through `-` or
-`/dev/stdin`, which the inquisitor's post hook cannot see. They SHALL refuse an abbreviated option such as `--body`,
-which Python's option parser would accept as `--body-file` while the
-hook reads it as another option. They
-SHALL send the text to Linear only as a GraphQL variable, so no text can
-change the request.
+`/dev/stdin`, which the inquisitor's post hook cannot see. They SHALL
+refuse an abbreviated option such as `--body`, and `--body-file` given
+more than once. They SHALL send the text to Linear only as a GraphQL variable,
+so no text can change the request.
 
 #### Scenario: Text on standard input or an abbreviated option is refused
 
 - **WHEN** `post --issue <id>` runs with no `--body-file` and text on
-  standard input, with `--body-file /dev/stdin`, or with `--body c.md`
+  standard input, with `--body-file /dev/stdin`, with `--body c.md`, or
+  with `--body-file a.md --body-file b.md`
 - **THEN** it exits non-zero, saying to name the text's file with
   `--body-file`, and posts nothing
 

@@ -4,8 +4,8 @@ The inquisitor keeps agents from asking people questions they need not ask.
 Before an agent puts a question to a person, in any task, the question
 passes four filters: already answered, deferrable, not a real question, and
 cheap to reverse. Two runs of the skill's script prove the filters ran, and
-two hooks check that proof before a question reaches the picker or a GitHub
-post. The skill records each answer where a later agent finds it, logs each question it asks and
+two hooks check that proof before a question reaches the picker or a post:
+a GitHub post, or a Discord or Linear message. The skill records each answer where a later agent finds it, logs each question it asks and
 each miss, and proposes lore from answers that generalize. It works in any
 session, and also serves the igor project's AI teammates, the Igors, and the
 workers they start.
@@ -626,8 +626,8 @@ serving what the question concerns.
 - **WHEN** a file under `questions/` or `misses/` on the questions branch
   of the repository the question concerns holds a question whose text
   matches the question's terms
-- **THEN** the search reads that branch with `git show`,
-  without checking it out, and shows that file
+- **THEN** the search reads that branch through GitHub's API and shows
+  that file
 
 #### Scenario: Two lore repositories serving one owner are both searched
 
@@ -744,9 +744,10 @@ The script's `search` command SHALL print filter 1's results for one
 question as one JSON object, issuing no pass token and recording nothing,
 since the answer service records verdicts through `record_verdict`. It
 SHALL fetch nothing, read files only from the answer service's clones
-as last fetched (the lore clones its configuration names and the clones
-of subscribed repositories in its state folder), and read issues as
-filter 1 does, but only of a repository those clones hold.
+as last fetched (its configured lore clones and its subscribed
+repositories' clones), and read questions
+branches and issues as filter 1 does, but only of a repository those
+clones copy.
 
 #### Scenario: The search command prints filter 1's results and nothing more
 
@@ -917,9 +918,11 @@ the item's visibility hides.
 
 #### Scenario: A branch the command cannot read is reported, not empty
 
-- **WHEN** `branch-search` cannot fetch the repository's questions branch
+- **WHEN** `branch-search` cannot read the repository's questions branch
 - **THEN** it exits with an error and prints no `hits`, so a caller reports
   the branch as not searched
+- **AND** for a repository it can read that has no questions branch, it
+  prints empty `hits`
 
 ### Requirement: The Igor reads questions branches with the script
 
@@ -1516,9 +1519,9 @@ the second call prints it, `<skill>` being the requiring skill's name.
 
 The second call SHALL refuse an `ask` naming a requiring skill unless
 the name is lowercase letters, digits and `-`, and SHALL record the name
-with the verdict, except for a question with a category, which no GitHub post
-may hold (*The post hook blocks a post holding a question with a
-category*). The post hook SHALL block a GitHub post in which a
+with the verdict. It records no name for a question with a category,
+which no post may hold (*The post hook blocks a post holding a question
+with a category*). The post hook SHALL block a post in which a
 question whose record names a requiring skill lacks that skill's
 person-required line, or any other question carries one.
 
@@ -1656,8 +1659,8 @@ A **question round** SHALL end at a hand-back to a person, as spec-check's
 skill defines one (`.agents/skills/spec-check/SKILL.md`), such as a pull
 request opened or marked ready. With a person in the session, it SHALL also
 end at every end of the agent's turn, on work with a pull request too; with
-no person in the session, it SHALL end when the agent's run ends, a
-subagent's run excepted.
+no person in the session, it SHALL end when the agent's run ends. A
+subagent's turn or run ends no round.
 
 #### Scenario: Opening a pull request for review ends the round
 
@@ -1693,15 +1696,14 @@ subagent's run excepted.
   started it
 - **THEN** that ends no round, since no person receives the result
 
-### Requirement: Where the host has a picker, an agent asks through it, never in its reply
+### Requirement: With a person in session, an agent asks through the picker, never in its reply
 
 With a person in session, an agent SHALL ask only through the picker, a
 post, a message on another service, or, for a `vulnerability` question, a
 private security advisory, never in its reply, bar an answer service's
 discussion (`answer-service` spec: *A discussion runs in the session's own
-conversation*). On a host with no picker it SHALL ask in its reply instead
-of the picker, once the two calls vet it, unchecked by hooks. Its subagents
-SHALL hand back surviving questions, prepared.
+conversation*). Its subagents SHALL hand back, unasked, each question
+that survives the filters.
 
 #### Scenario: A question goes through the picker
 
@@ -1710,14 +1712,6 @@ SHALL hand back surviving questions, prepared.
 - **THEN** it asks with `AskUserQuestion`, not in its reply text, unless it
   asks in a post, a Linear or Discord message, or, for a `vulnerability`
   question, the private security advisory
-
-#### Scenario: A host with no picker asks in the reply
-
-- **WHEN** an agent, in a session with a person in it on a host with no
-  picker, has a question that survives the filters
-- **THEN** it runs the two calls on the question, then asks it in the text
-  of its reply, its record line (*A question asked in the session shows
-  where its answer will be recorded*) last, and no hook checks it
 
 #### Scenario: A subagent hands its question back
 
@@ -1766,9 +1760,10 @@ stop only work needing the answer, and report it.
 #### Scenario: The script tells a person's session by CLAUDE_CODE_SESSION_ATTENDED
 
 - **WHEN** the script runs where `CLAUDE_CODE_SESSION_ATTENDED` is `0`, or
-  unset
-- **THEN** it counts the session as having no person in it, and where the
-  variable is `1`, as having one
+  unset, and it is unset on every host other than Claude Code
+- **THEN** it counts the session as having no person in it, even an
+  interactive session on another host
+- **AND** where the variable is `1`, it counts the session as having one
 
 ### Requirement: A flagged run's handback comment asks no question
 
@@ -1906,6 +1901,21 @@ only what *Some questions are recorded by hash only* allows.
   verdict for one of them, or names a question that the token's first call
   did not take
 - **THEN** the second call refuses, records nothing, and keeps the token
+
+### Requirement: One question text keeps one record
+
+The second call SHALL refuse, recording nothing and keeping the token,
+two questions whose texts have the same hash but whose verdict, concerns,
+files or category differ, since one text keeps one record.
+
+#### Scenario: Two questions with one text and different verdicts are refused
+
+- **WHEN** the first call took a post listing the same question twice,
+  once under an open-questions label and once under a deferral label,
+  and the second call gives one `ask` and the other `deferred`
+- **THEN** it refuses, records nothing, and keeps the token
+- **AND** it records both when their verdict, concerns, files and
+  category agree
 
 ### Requirement: The two calls' files and records stay private
 
@@ -2203,6 +2213,13 @@ code, `>` lines or prose's footer.
   footer, such as `prose ✓ 3f2a91`, as its last line
 - **THEN** the hook finds the same questions and lets the post through
 
+#### Scenario: A question's text posted as a listed item is found with that text
+
+- **WHEN** any question's text holding no `*`, `_`, `` ` ``, `~`, `[`,
+  `<` or `\` is posted as the only item of an open-questions section
+- **THEN** the post's one question is that item, with the same text and
+  hash
+
 ### Requirement: An item listed as deferred needs a deferred verdict
 
 The post hook SHALL pass an item of a section begun by a deferral label
@@ -2269,6 +2286,29 @@ leading whitespace dropped.
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
 
+### Requirement: The post hook vets a Discord or Linear message as a post
+
+The post hook SHALL vet a Discord or Linear message the shared post
+reader returns as it vets a post, under every rule this spec gives the
+post hook.
+
+#### Scenario: A Discord message through discord-bot is vetted
+
+- **WHEN** an agent runs `python3 /abs/discord_bot.py post --message-file
+  m.md`, where `m.md` asks a question no second call recorded as `ask`,
+  and again where `m.md` starts `User says: `
+- **THEN** the post hook blocks each, naming the question in the first
+
+#### Scenario: A Linear comment or description through the Linear MCP is vetted
+
+- **WHEN** an agent calls `mcp__linear__save_comment` with a `body`
+  starting `User says: `, and `mcp__linear__save_issue` with a
+  `description` asking the question whether to adopt spec-trace, whose
+  `ask` names spec-trace, without spec-trace's person-required line
+- **THEN** the post hook blocks each call
+- **AND** it blocks the same question without its line in a Discord
+  message too
+
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
 A question asked in a post SHALL tag the first of these with write access
@@ -2308,8 +2348,8 @@ for a question about files, the author of the last commit to them.
 
 When no tagging candidate has write access, the
 script SHALL check the configured login, and tag it if it has write
-access and the post is known to go out as a GitHub App (*A post is
-known to go out as a GitHub App only from the environment*). If it tags no
+access and the post goes out as a GitHub App, not as that login (*A post
+goes out as a GitHub App only through github-app's commands*). If it tags no
 one, the agent SHALL ask through the picker when a person is in the
 session, unless gh confirms a configured login that lacks write access;
 in any other case it SHALL tag no one, with the last scenario's fixed
@@ -2351,28 +2391,53 @@ tag line.
   one with authority to decide this could be tagged; name deciders in
   .inquisitor/reviewers.`
 
-### Requirement: A post is known to go out as a GitHub App only from the environment
+### Requirement: A post goes out as a GitHub App only through github-app's commands
 
-The script SHALL know a post goes out as a GitHub App only when
-`GITHUB_APP_ACT_AS`, or else `GITHUB_APP_IDENTITY`, names a github-app
-identity whose stored bot login it reads, or when `GIT_AUTHOR_NAME` ends
-`[bot]`; otherwise the post SHALL count as going out as the configured
-login.
+The script SHALL count a post as going out as a GitHub App only when the
+agent, asking whom to tag, passes the `--identity` of the github-app
+command the post goes through, a command that sends the post with the
+App's installation token, such as `gh` or `run`; the script takes the
+agent's word. The post then goes out as that identity's bot login, which
+github-app stores. Any other post SHALL count as going out as the login
+`gh api user` reads.
 
-#### Scenario: A post as the environment's github-app identity tags the configured login
+#### Scenario: A post through github-app's gh tags the configured login
 
 - **WHEN** no candidate has write access, the configured login has it,
-  and `GITHUB_APP_ACT_AS` names the identity `bot`, whose stored bot login
-  is `x[bot]`
-- **THEN** the post is known to go out as `x[bot]`, and the question tags
-  the configured login
+  and the agent passes the script the identity `bot`, as it will post
+  with `python3
+  /abs/github_app.py --identity bot gh pr comment 5 --body-file c.md`,
+  where the identity `bot`'s stored bot login is `x[bot]`
+- **THEN** the post goes out as `x[bot]`, and the question tags the
+  configured login
 
-#### Scenario: An identity named only on the command line is not known
+#### Scenario: github-app's environment alone does not make a post an App's
 
-- **WHEN** the environment names no github-app identity and
-  `GIT_AUTHOR_NAME` does not end `[bot]`, and the agent will post through
-  the github-app skill's script with `--identity bot`
-- **THEN** the post counts as going out as the configured login
+- **WHEN** `GITHUB_APP_ACT_AS` names the identity `bot` and
+  `GIT_AUTHOR_NAME` is `x[bot]`, as in a project that github-app's `wire`
+  set up, and the agent will post with a plain `gh pr comment`, while `gh api
+  user` reads `alice`, the configured login
+- **THEN** the post counts as going out as `alice`, and the question
+  does not tag `alice`
+
+### Requirement: A tag made for an App's post goes out only through github-app
+
+When the script tags a question's configured login because the post goes
+out as a GitHub App, it SHALL record the identity the agent passed with
+the question's verdict. The post hook SHALL block a post holding that
+question unless the shared post reader reports the post as sent through
+the github-app skill, naming that identity in its message, so the person
+is never tagged on their own post.
+
+#### Scenario: A tag made for an App's post blocks a plain gh post
+
+- **WHEN** the script tagged the configured login `alice` on a question
+  because the agent passed the identity `bot`, and the agent posts it
+  with `gh pr comment 5 --body-file c.md`
+- **THEN** the post hook blocks the post, and says to post it through
+  github-app's script as `bot`
+- **AND** it lets through the same post sent as `python3
+  /abs/github_app.py --identity bot gh pr comment 5 --body-file c.md`
 
 ### Requirement: A candidate or login that cannot be checked is skipped
 
@@ -2431,7 +2496,7 @@ without it SHALL NOT be asked.
 A question SHALL go only where its audience is no wider than what it
 concerns, by *Nothing about a repository goes somewhere more visible* for a
 post or issue. If it is wider or unknown, with a person in session, the
-agent SHALL ask through the picker, or in its reply on a host with none.
+agent SHALL ask through the picker.
 With no person in the session: if wider, it SHALL post in the
 repository the question concerns, or, for a collective's, the one it
 was asked from, when it can; if unknown, it SHALL post
@@ -2553,9 +2618,10 @@ A question about one repository SHALL be pushed straight to that
 repository's questions branch, and one about a collective to the team's
 lore repository's, with no pull request, the branch created as an orphan
 if missing. No other branch SHALL hold a question or miss file. The
-script SHALL push each commit to a questions branch without checking the
-branch out, with the message only `inquisitor: log ` and the paths from
-the branch's root of the files it adds.
+script SHALL add each commit through GitHub's API on the branch's head,
+adding no file whose path the branch holds, with the message only
+`inquisitor: log ` followed by the paths of its files, from the branch's
+root.
 
 #### Scenario: A question about a repository goes to its questions branch
 
@@ -2594,19 +2660,39 @@ the branch's root of the files it adds.
 - **THEN** the checkout's HEAD, its HEAD reflog and its working tree are
   as they were, and no commit-watching hook reports the commit
 
+#### Scenario: A file whose name the branch holds is not added
+
+- **WHEN** the script would add a file to a questions branch that already
+  holds a file of that path
+- **THEN** it adds nothing, and the file on the branch is unchanged
+
+### Requirement: A questions branch is read through GitHub's API
+
+The script and the answer service SHALL read a questions branch only
+through GitHub's API, with `gh`'s authentication: its tree, its files'
+contents, and each file's commits on the branch, which give the commit
+that added the file and whether a later one changed it. Neither SHALL
+keep a clone or copy of a questions branch.
+
+#### Scenario: A branch search reads the branch through the API
+
+- **WHEN** `branch-search` runs for `o/api`
+- **THEN** it reads `o/api`'s questions branch through GitHub's API, and
+  afterwards no clone or copy of that branch is on the machine
+
 ### Requirement: A file the script cannot push stays pending
 
-When a push to a questions branch is rejected because the branch moved, the
-script SHALL fetch and push again. When it cannot push for any other
+When GitHub refuses a commit to a questions branch because the branch
+moved, the script SHALL make the commit again on the new head. When it cannot push for any other
 reason, it SHALL keep the file pending, with mode 0600, in
 `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/pending/`, and push it
 before the next file it pushes to that branch, keeping it pending until then. The agent's report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
-- **WHEN** the push of a log file to the questions branch is rejected
-  because the branch moved
-- **THEN** the script fetches the branch and pushes again
+- **WHEN** GitHub refuses the commit of a log file to the questions
+  branch because the branch moved
+- **THEN** the script makes the commit again on the branch's new head
 
 #### Scenario: A file an agent cannot push is kept pending and reported
 
@@ -2621,7 +2707,7 @@ before the next file it pushes to that branch, keeping it pending until then. Th
 ### Requirement: The answer service's files are never kept pending
 
 The answer service SHALL pass the `log` and `cite` commands' **service
-option**, which nothing else passes, on every push. With it, the command SHALL fetch and push again when the branch moved, keep
+option**, which the skill's instructions let nothing else pass, on every push. With it, the command SHALL commit again when the branch moved, keep
 no pending copy of a file it cannot push, and tell the service why the
 push failed, leaving the file's retry to the service's owed push, which
 the answer-service spec sets for each kind of file.
@@ -2699,12 +2785,13 @@ question is unlogged.
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 
-When the person answering or declining confirms a warning naming the more
-private source, the script SHALL push the question's answered log file or
-its miss file to a questions branch more visible than that source. The
-file SHALL then hold no `asked_in`, `answer_link` or `recorded_in` URL into the source, no
-miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
-`asked_from` the branch's own repository. Only that person confirms it.
+When the person answering or declining confirms a warning that the
+record is more visible than its source, the script SHALL push the
+answered log file or miss file to that questions branch, with no
+`asked_in`, `answer_link` or `recorded_in` URL into the source, no miss's
+`asked_by`, no `Re: ` line in its answer, and as `asked_from` the
+branch's repository. Whatever runs `log`, agent or answer service, SHALL
+pass its confirmation option only then.
 
 #### Scenario: A confirmed answer from a Discord thread is recorded on a public branch
 
@@ -2724,6 +2811,23 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
   `o/lore` is the relay comment's text without its last line,
   `Re: https://github.com/o/api/issues/7`
 
+#### Scenario: A confirmed miss drops who asked
+
+- **WHEN** a person declines, in their answer service, an agent's
+  organization question asked by `x[bot]` in an issue of the private
+  `o/api`, and confirms sending the miss to the questions branch of the
+  public lore repository `o/lore`
+- **THEN** the miss file pushed there holds no `asked_by` and no
+  `asked_in`, and its `asked_from` is `o/lore`
+
+#### Scenario: The confirmation sends no unanswered question
+
+- **WHEN** the `log` command is given the confirmation for a question
+  file with no answer, bound for a questions branch more visible than its
+  source
+- **THEN** it refuses, writing nothing, as it would without the
+  confirmation
+
 #### Scenario: Without the confirmation the record stays as private as its source
 
 - **WHEN** a session with no person in it holds an answer, read in a
@@ -2732,8 +2836,8 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 
 ### Requirement: A question asked in the session shows where its answer will be recorded
 
-For each question given the verdict `ask` and asked in the picker or the
-agent's reply, the second call SHALL print its **record line**:
+For each picker question given the verdict `ask`, the second call SHALL
+print its **record line**:
 `Recorded: `, the repository whose questions branch will hold the record
 and its visibility, naming the repository it was asked from where that
 branch is more visible; or `Not recorded: ` and a reason that *Not
@@ -2766,14 +2870,16 @@ confirms it.
   about the person's way of working, one with the category
   `vulnerability`, one with another category, one whose
   questions branch the session cannot push to, a collective's question
-  no configured lore repository serves, or any picker question in a session
-  with no login configured
-- **THEN** it prints `Not recorded: about your way of working`, `Not
+  no configured lore repository serves, any picker question in a session
+  with no login configured, or one asked from a folder no git repository
+  holds
+- **THEN** it prints, for each in the same order, `Not recorded: about
+  your way of working`, `Not
   recorded: only a security advisory may hold it`, `Not recorded: it has a
   category`, `Not recorded: no push access to its
-  questions branch`, `Not recorded: no team's lore repository serves it`
-  or `Not recorded: no GitHub login configured`, the first of these that
-  applies
+  questions branch`, `Not recorded: no team's lore repository serves it`,
+  `Not recorded: no GitHub login configured` or `Not recorded: asked
+  outside any repository`, the first of these that applies
 
 ### Requirement: A question shown as not recorded is never logged
 
@@ -2988,7 +3094,7 @@ SHALL exit with an error and print no `answer`.
 - **THEN** it prints `{"version": 1, "answer": "<alice's answer>"}`, since
   only the tagged person's file can be its answer, and no other field: no
   answer file's name, path or author
-- **AND** when it cannot fetch the branch, or no single file has that date
+- **AND** when it cannot read the branch, or no single file has that date
   and suffix, it exits with an error and prints no `answer`
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
@@ -3087,7 +3193,7 @@ the comment.
 
 ### Requirement: The log command takes answered_by from the linked comment
 
-With its service option, which only an answer service passes, the `log`
+With its service option, which the skill's instructions let only an answer service pass, the `log`
 command SHALL record as `answered_by` the login of the person running the
 session. Without it, where the command reads a linked comment, it SHALL
 record as `answered_by` the comment's author login, followed by `[bot]`
@@ -3130,7 +3236,7 @@ pushes names where it was asked from*); its Igor writes those it needs.
 
 ### Requirement: The log command fetches no Linear or Discord answer link
 
-For a Linear or Discord `answer_link`, which only an answer service passes,
+For a Linear or Discord `answer_link`, which the skill's instructions let only an answer service pass,
 the `log` command SHALL refuse a call without its service option, since a
 link only the answer service makes would otherwise record words nothing
 checked. With the option it SHALL fetch nothing, and record word for word
@@ -3188,6 +3294,32 @@ holding a line that is exactly `## Rephrased question`, `## Discussion` or
   `## Discussion`
 - **THEN** it writes nothing, and says that the line would be read as a
   closing section
+
+### Requirement: The log command refuses an empty answer
+
+The `log` command SHALL refuse, writing nothing and saying why, an answer
+that is empty or only whitespace, whether given in its input or read from
+a linked comment.
+
+#### Scenario: An answer with no text is refused
+
+- **WHEN** the `log` command is given an answer whose `answer_link` names
+  a comment holding no text, and separately an answer given as `" "`
+- **THEN** it writes nothing for either, and says the answer holds no
+  text
+
+### Requirement: The log command refuses outside a git repository
+
+Without its service option, the `log` command SHALL refuse, writing
+nothing and saying why, a file whose `asked_from` would be the current
+work's repository, when it runs in no git repository.
+
+#### Scenario: A log run in no repository is refused
+
+- **WHEN** the `log` command, without its service option, is given a
+  question file in a folder that no git repository holds
+- **THEN** it writes nothing, and says it found no repository to name as
+  `asked_from`
 
 ### Requirement: The log command withholds a link where it would leak
 
@@ -3952,7 +4084,7 @@ category.
 ### Requirement: A question with a category is asked only of the person or in its advisory
 
 The filters SHALL run on a question with a category. The agent SHALL ask it
-only through the picker, in its reply on a host with no picker, or, if
+only through the picker or, if
 `vulnerability`, in the repository's private security advisory, recording a `vulnerability` question's answer in the
 advisory and using it in the fix. It SHALL list one in no post or issue, and
 defer one under filter 2 only by listing it as not done in its report or,
@@ -3975,7 +4107,7 @@ if `vulnerability`, in the advisory.
 
 An agent that cannot open, or write in, the repository's private security
 advisory SHALL ask a `vulnerability` question only of the person, through
-the picker or, on a host with none, in its reply, record neither the
+the picker, record neither the
 question nor its answer, use the answer only in the fix's code, and report
 only that the question blocks.
 
@@ -4151,6 +4283,24 @@ question's repository, it SHALL tell the person the lesson.
   the question's repository
 - **THEN** the agent tells the person the lesson, and opens no pull request
 
+### Requirement: The lore command opens its pull request through GitHub's API
+
+The script's `lore` command SHALL create the pull request's branch, its
+commit adding the entry, and the pull request through GitHub's API, with
+`gh`'s authentication, adding no file whose path the lore repository's
+default branch holds, and SHALL neither use nor change a clone. When the
+account `gh` is logged in as cannot push a branch to the lore repository,
+it SHALL open nothing and say so.
+
+#### Scenario: A lore pull request is opened with no clone
+
+- **WHEN** the `lore` command proposes an entry to `o/lore`, whose
+  configured clone is on the machine
+- **THEN** it opens the pull request through GitHub's API, and the
+  clone's HEAD, branches and working tree are as they were
+- **AND** when `o/lore`'s default branch already holds `entries/<id>.md`,
+  it opens nothing and says the id is taken
+
 ### Requirement: During an Igor's run, the Igor proposes the run's lore entries
 
 During an Igor's run, the agent SHALL open no lore pull request but put
@@ -4211,10 +4361,9 @@ and tell the person in the session why it refused, if one is there.
 
 Outside an Igor's run, with a person in the session, for a lore
 repository more visible than an entry's source, the agent SHALL
-generalise away private context and ask them, in the picker (else in its
-reply), a question showing the entry and lore repository and warning
-that it is more visible, logged on the source's most private
-repository's questions branch. Only on their yes SHALL it pass the
+generalise away private context and ask them, in the picker, a question showing the entry and lore repository and warning
+that it is more visible, logged on the questions branch of the
+entry's most private source. Only on their yes SHALL it pass the
 script's confirmation option. The entry SHALL hold no link, path or
 provenance into the source.
 
@@ -4428,9 +4577,8 @@ about item `<n>`, counted from 1, among the open-questions items of the post,
 or Linear or Discord message, it replies to or names in its `Re: ` line
 (the line linking what it answers),
 or, one past the last item, about that message's sentences ending in `?`
-outside that section. A reply SHALL be input when its message was
-edited after the reply, save as *A sequencer block's update keeps a numbered
-reply* allows.
+outside its open-questions section. A numbered reply SHALL be input when the message
+it is about was edited after the reply.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -4453,33 +4601,6 @@ reply* allows.
   reply starting `Inquisitor: question 3: filter 4` has its miss file
 - **THEN** the agent acts on it for that sentence only, and both items
   stand
-
-### Requirement: A sequencer block's update keeps a numbered reply
-
-An edit after a numbered `Inquisitor: ` reply SHALL leave the reply in
-force when it only added, changed or removed whole sequencer blocks (the
-lines `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` and the
-text between them) and blank lines beside them, which the sequencer skill writes in each ordered item's
-description.
-
-#### Scenario: A sequencer block's update keeps a numbered reply
-
-- **WHEN** an agent's issue description lists three questions, a reply
-  starting `Inquisitor: question 2: filter 4` has its miss file, and the
-  sequencer then rewrote only the text between the description's
-  `<!-- sequencer:begin -->` and `<!-- sequencer:end -->` lines
-- **THEN** the agent acts on the reply for the second item
-- **AND** an edit that also changed a line outside those markers, other
-  than a blank line beside a block, makes the reply input
-
-#### Scenario: A sequencer block added or removed keeps a numbered reply
-
-- **WHEN** a reply starting `Inquisitor: question 2: filter 4` has its
-  miss file, and the sequencer then added a whole block, from its
-  `<!-- sequencer:begin -->` line to its `<!-- sequencer:end -->` line, to
-  the issue's description as the issue joined the order, or removed one as
-  it left
-- **THEN** the agent acts on the reply for the second item
 
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 
