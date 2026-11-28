@@ -490,8 +490,19 @@ class Igor(Base):
         self.assertEqual(r["hits"][0]["source"], "igor-lore-search")
         self.assertIn(search.IGOR_NOTE, err.getvalue())
         self.assertTrue(any(search.IGOR_NOTE in s for s in r["not_searched"]))
+        # igor lore-search searched o/api's questions branch, so not_searched does not name it.
+        self.assertFalse(any(s.startswith("questions branch of o/api") for s in r["not_searched"]))
         self.assertEqual(r["clones"], [])
         self.assertEqual(self.fetched, [])
+
+    def test_failed_igor_search_names_the_questions_branch(self) -> None:
+        # @scenario inquisitor: An unsearched source is named
+        # When igor lore-search fails, nothing searched o/api's questions branch, so not_searched names it.
+        self.configure([self.lore("lore", {"entries/g.md": entry("global")}, owners=["o"])])
+        with mock.patch.dict(os.environ, {"IGOR_RUN": "igor"}), self.igor(None), \
+                mock.patch("sys.stderr", io.StringIO()):
+            r = search.filter1(q(repository="o/api"), False)
+        self.assertTrue(any(s.startswith("questions branch of o/api") for s in r["not_searched"]))
 
     def test_worker(self) -> None:
         # @scenario inquisitor: An Igor worker whose igor search fails searches no lore

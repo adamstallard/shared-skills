@@ -491,17 +491,18 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                     hits += found[0]
                     if found[1]:
                         not_searched.append(f"issues of {repo} older than the newest {ISSUE_LIMIT}")
-            # When the repository is also a lore repository the lore loop
-            # below searches, its questions branch is searched there, once,
-            # as a lore branch.
+            # Outside an Igor's run, a repository that is also a lore
+            # repository serving this question is skipped here: the lore
+            # loop below searches its questions branch as a lore branch, and
+            # searching it here too would show each hit twice. In an Igor's
+            # own run, igor lore-search searches the branch, and
+            # not_searched names it only when that command fails; a worker's
+            # run names it above.
             configured = {lore.repository for lore in cfg.lore}
             served = {lore.repository for lore in serving(cfg.lore, concerns)}
             if run is None and repo not in served:
                 hits += _branch(repo, repo in configured, clone if service else work,
                                 service, fetch, checks, wanted, work, not_searched)
-            elif run is not None:
-                not_searched.append(f"questions branch of {repo}: {IGOR_NOTE}; searched through "
-                                    "igor lore-search")
     # Work-branch decision documents: the current change's own.
     if run != "worker" and work is not None and not service:
         ref = default_ref(work)
@@ -521,6 +522,8 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
         found = igor_lore_search(text, wanted)
         if found is None:
             not_searched.append("lore: igor lore-search failed, so no lore was searched")
+            if repo is not None and run == "igor":
+                not_searched.append(f"questions branch of {repo}: igor lore-search failed")
         else:
             hits += found
     else:
