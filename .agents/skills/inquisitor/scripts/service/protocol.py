@@ -266,16 +266,31 @@ class DiscussionRequest(TypedDict):
 
 
 class ReviseRequest(TypedDict):
-    """The core keeps the rephrasing the person accepted after a discussion,
-    in the question's discussion record, or in memory only for a question
-    with a category, since such a question has no discussion record. When
-    the question's next "answer" preview builds its post, that post
-    includes it."""
+    """The mod sends this request when the person accepts a rephrasing,
+    never when the model's draft of one reaches the mod. The core keeps the
+    revision until the question is answered: in its discussion record, or,
+    for a question with a category, which is never written to disk and so
+    has no discussion record, in memory only, lost if the core restarts.
+    Each "answer" preview of the question then builds a post carrying the
+    revision's `Rephrased question: ` and `Discussion: ` lines beside the
+    answer; other previews leave the revision kept."""
 
     command: Literal["discussion.revise"]
     session_id: str
     question: str
     revision: Revision
+
+
+class SetAsideRequest(TypedDict):
+    """The mod sends this request when the person sets a question aside for
+    later (aside true) or takes it back into the open ones (aside false).
+    The core saves that choice in its state folder (state.py), and each
+    later poll's QuestionView for the question gives it as `state`."""
+
+    command: Literal["set-aside"]
+    session_id: str
+    question: str
+    aside: bool
 
 
 class ContextRequest(TypedDict):
@@ -339,7 +354,7 @@ class ReopenRequest(TypedDict):
 
 Request = (OpenRequest | SessionRequest | SetupSaveRequest | SetupGuessRequest
            | SetupCreateLoreRequest | VerdictRequest | TurnEndRequest | DiscussionRequest
-           | ReviseRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
+           | ReviseRequest | SetAsideRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
            | ReopenRequest)
 
 
@@ -507,8 +522,9 @@ class PendingResponse(TypedDict):
 
 
 class DoneResponse(TypedDict):
-    """The response to close, discussion.append, discussion.revise,
-    screen.set, reopen and setup.create-lore."""
+    """The response to the commands close (a SessionRequest),
+    discussion.append, discussion.revise, set-aside, screen.set, reopen
+    and setup.create-lore."""
 
     version: int
     ok: Literal[True]

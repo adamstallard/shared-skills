@@ -358,6 +358,18 @@ export const EXAMPLES = {
       "ok": true
     }
   },
+  "set-aside": {
+    "request": {
+      "command": "set-aside",
+      "session_id": "sess-1",
+      "question": "gh:o/web:IC_kwDO7",
+      "aside": true
+    },
+    "response": {
+      "version": 1,
+      "ok": true
+    }
+  },
   "context": {
     "request": {
       "command": "context",
