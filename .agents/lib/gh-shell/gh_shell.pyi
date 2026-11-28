@@ -8,7 +8,6 @@ import re
 Word = tuple[str, str]
 SimpleCommand = tuple[list[Word], bool]
 
-GITHUB_MCP: re.Pattern[str]
 NO_TEXT_VERBS: dict[str, set[str]]
 DATA_COMMANDS: set[str]
 RESERVED: set[str]

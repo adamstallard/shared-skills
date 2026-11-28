@@ -753,6 +753,68 @@ class Continuations(Reader):
                                "g$(: ')')h pr comment 5 --body hi",
                                "g`echo \\`true\\``h pr comment 5 --body hi")
 
+    # A single-quoted backslash does not hide a later substitution.
+    # @scenario gh-post: A backslash-newline and a comment are read as nothing
+    def test_a_single_quoted_backslash_before_a_substitution(self):
+        self.assert_unreadable("echo 'a\\'; g$()h pr comment 5 --body x",
+                               "echo 'a\\'; gh pr co``mment 5 --body x",
+                               "echo 'a\\' && gh a$()pi repos/o/r/issues/1/comments -f body=x")
+
+    # A `)` in a heredoc, comment or case pattern need not close $(…).
+    # @scenario gh-post: A backslash-newline and a comment are read as nothing
+    def test_a_parenthesis_that_does_not_close_a_substitution(self):
+        self.assert_unreadable("gh pr co$(true <<'E'\n)\nE\n)mment 5 --body x",
+                               "gh pr co$(case a in a) ;; esac)mment 5 --body x",
+                               "gh pr co$(# )\n)mment 5 --body x")
+
+    # An apostrophe in a comment or heredoc, or an escaped one in $'…', is no
+    # quote to the shell.
+    # @scenario gh-post: A backslash-newline and a comment are read as nothing
+    def test_an_apostrophe_the_shell_does_not_pair(self):
+        self.assert_unreadable("echo # don't\ng$()h pr comment 1 --body x",
+                               "echo # it's\ng``h pr comment 1 --body x",
+                               "cat <<'E'\nit's\nE\ng$()h pr comment 1 --body x",
+                               "cat <<E\nit's\nE\ng$()h pr comment 1 --body x",
+                               "echo $'\\''; g$()h pr comment 1 --body x",
+                               "echo $'it\\'s'; g``h pr comment 1 --body x",
+                               "a=$'\\''\ng$()h pr comment 1 --body x",
+                               "g$(: $'\\')')h pr comment 1 --body x",
+                               "g$(: $'\\'')h pr comment 1 --body x")
+
+    # A substitution only inside quotes, or beside no letter, joins no
+    # letters, whatever it holds.
+    # @scenario gh-post: The gh post verbs are a closed list
+    def test_a_quoted_substitution_holding_a_heredoc(self):
+        self.assert_no_post(
+            "git commit -m \"$(cat <<'EOF'\nFix the thing\n\nCo-Authored-By: X <x@y>\nEOF\n)\"",
+            "git commit -m \"$(printf 'Fix #12\\n')\"",
+            "echo \"$(git log -1 --format='%h # %s')\"",
+            "x=$(git rev-parse HEAD#)")
+
+    # A substitution that prints nothing, in quotes beside letters, joins
+    # them, whatever the line holds before it. One beside a letter on a line
+    # that mentions no post verb is no post.
+    # @scenario gh-post: A backslash-newline and a comment are read as nothing
+    def test_a_quoted_substitution_beside_letters(self):
+        post = 'g"$(true)"h pr comment 1 --body hi'
+        self.assert_unreadable(*(lead + post for lead in (
+            "x=$(true)#; ", "cat <<<x\n", "cat <<E\"O\"F\nbody\nEOF\n",
+            "cat <<\\EOF\nbody\nEOF\n", "cat <<EOF\r\nbody\r\nEOF\r\n",
+            "(( y = 1<<3 ))\n", "x=\"$(cat <<EOF\ndon't\nEOF\n)\"\n",
+            "git commit -m \"$(cat <<'EOF'\nIt's fixed\nEOF\n)\"; ")),
+            'g"$(# )\n)"h pr comment 1 --body hi')
+        self.assert_no_post("echo 'a$(b # c)d'",
+                            "git commit -m \"$(cat <<'EOF'\nSupport the 2)nd form\nEOF\n)\"",
+                            "git tag v$(node -p \"require('./package.json').version\")",
+                            "echo v$(echo '" + "(x) " * 100 + "')")
+
+    # A substitution that prints nothing, touching a word on one side only,
+    # still joins it to that side.
+    # @scenario gh-post: A backslash-newline and a comment are read as nothing
+    def test_an_empty_substitution_beside_a_word(self):
+        self.assert_unreadable("/abs/discord_bot.py $(true)post --message-file m.md",
+                               "python3 /abs/discord_bot.py$(true) post --message-file m.md")
+
     # A quote the shell pairs differently from any rewrite of the line: an
     # escaped quote in $'...', or a comment inside backticks.
     # @scenario gh-post: A backslash-newline and a comment are read as nothing
@@ -762,6 +824,112 @@ class Continuations(Reader):
                                "echo $'it\\'s'; echo x\\\\\ng\\h api -X POST "
                                "repos/o/r/issues/1/comments -f body=hi")
 
+
+
+class Round5(Reader):
+    # @scenario gh-post: A canonical gh post is read
+    def test_edit_options_that_add_or_remove(self):
+        self.assertEqual(self.bodies("gh pr edit 5 --add-reviewer alice --remove-label wip "
+                                     "--title t --body-file body.md"), ["text of body.md\n"])
+        self.assertEqual(self.bodies("gh issue edit 5 --add-assignee bob --remove-project P "
+                                     "--remove-milestone --body hi"), ["hi"])
+        # --remove-milestone takes no value, so the --body-file after it is an
+        # option; it takes --body as its file, and the stray x is unreadable.
+        self.assert_unreadable("gh pr edit 5 --remove-milestone --body-file --body x")
+        # Reviewer options belong to pull requests, and the --add-… and
+        # --remove-… options only to edit.
+        self.assert_unreadable("gh issue edit 5 --add-reviewer alice --body hi",
+                               "gh pr comment 5 --add-label x --body hi")
+
+    # @scenario gh-post: A gh post in any other form is unreadable
+    def test_new_is_no_canonical_verb(self):
+        self.assert_unreadable("gh pr new --body x", "gh issue new --body x")
+
+    # @scenario gh-post: An MCP comment field is read
+    def test_the_claude_ai_github_prefix(self):
+        self.assertEqual(self.payload("mcp__claude_ai_GitHub__add_issue_comment", {"body": "ok"}),
+                         [Post("body", "ok")])
+
+    # @scenario gh-post: A Linear MCP comment and description are read
+    def test_the_claude_ai_linear_prefix(self):
+        self.assertEqual(self.payload("mcp__claude_ai_Linear__save_comment", {"body": "ok"}),
+                         [Post("body", "ok", "linear")])
+
+    # @scenario gh-post: The text options are a closed list
+    def test_a_short_group_holding_a_text_letter(self):
+        self.assert_unreadable("cd x && gh pr edit 5 -db x")
+        self.assertEqual(post_reader.TEXT_LONG, {
+            "body", "body-file", "fill", "fill-first", "fill-verbose", "template", "recover",
+            "comment", "editor", "web"})
+        self.assertEqual(post_reader.TEXT_SHORT, set("bFcfTew"))
+
+    # @scenario gh-post: Input may reach one gh command that uses no post verb
+    def test_input_into_a_verb_off_the_no_text_list(self):
+        self.assert_unreadable("cat c.md | gh pr merge 5")
+        self.assert_no_post("cat c.md | gh pr view 5", "cat c.md | gh issue view 5")
+
+    # A command run through a variable names no gh, so it passes unread.
+    # @scenario gh-post: A gh command off the list passes unread
+    def test_gh_held_in_a_variable(self):
+        self.assert_no_post("$X pr comment 5 --body 'Should retries back off?'")
+
+    # @scenario gh-post: A Discord message given any other way is unreadable
+    def test_a_message_file_given_another_way(self):
+        self.assert_unreadable("python3 /abs/discord_bot.py post --message-file=m.md",
+                               "python3 /abs/discord_bot.py post --message-file m.md "
+                               "--message-file b.md",
+                               "python3 -m discord_bot post --message-file m.md")
+
+    # @scenario gh-post: A discord-bot post outside the reader's form is unreadable
+    def test_discord_bot_as_a_word_counts_as_gh(self):
+        self.assert_unreadable("echo hi && python3 -m discord_bot post --message-file m.md",
+                               "true; cat discord_bot post")
+        # The post word must be a word of its own in the same simple command;
+        # a quoted string is one word.
+        self.assert_no_post("echo 'python3 -m discord_bot post'", "ls discord_bot",
+                            "cat discord_bot.py; echo post")
+
+
+class LinearWrites(Reader):
+    # @scenario gh-post: A Linear write call holding no text sends no post
+    def test_a_write_holding_no_text(self):
+        for tool, given in (
+                ("mcp__linear__save_project",
+                 {"id": "P-ENG-12", "state": "completed", "targetDate": "2026-12-01"}),
+                ("mcp__linear__update_diff",
+                 {"urlOrId": "ENG-5", "statusAction": "markReadyForReview",
+                  "addedReviewRequests": [{"user": "alice"}]}),
+                ("mcp__linear__submit_diff_review", {"urlOrId": "ENG-5", "decision": "approved"}),
+                ("mcp__linear__save_project", {"id": "P-1", "priority": 2, "archived": None}),
+                ("mcp__linear__get_issue", {"id": "A-1", "query": "Should retries back off?"})):
+            with self.subTest(tool=tool, given=given):
+                self.assertEqual(self.payload(tool, given), NoPost())
+
+    # @scenario gh-post: A Linear write call holding text is unreadable
+    def test_a_write_holding_text(self):
+        for tool, given in (
+                ("mcp__linear__save_document", {"content": "Done?"}),
+                ("mcp__linear__save_status_update", {"body": "Done?"}),
+                ("mcp__linear__save_project", {"id": "P-1", "summary": "Done?"}),
+                ("mcp__linear__update_diff", {"urlOrId": "ENG-5", "title": "Done?"}),
+                ("mcp__linear__save_milestone", {"project": "P-1", "name": "Done?"}),
+                ("mcp__linear__save_release_note",
+                 {"id": "R-1", "patch": [{"op": "append", "text": "Done?"}]}),
+                ("mcp__linear__create_attachment_from_upload",
+                 {"issue": "A-1", "assetUrl": "https://x/y"}),
+                ("mcp__linear__submit_diff_review", {"urlOrId": "ENG-5", "body": "Done?"}),
+                ("mcp__claude_ai_Linear__save_document", {"content": "Done?"})):
+            with self.subTest(tool=tool):
+                self.assertIsInstance(self.payload(tool, given), Unreadable)
+
+    # @scenario gh-post: The no-text list names keys that hold no text
+    def test_the_key_a_string_sits_under(self):
+        self.assertEqual(post_reader._text_keys(  # pyright: ignore[reportPrivateUsage]
+            {"addTeams": ["a", "b"], "addedIssueLinks": [{"issue": "A-1"}],
+             "patch": [{"text": "x"}]}), {"text"})
+        self.assertEqual(len(post_reader.NO_TEXT_KEYS), 45)
+        self.assertIn("removedIssueLinks", post_reader.NO_TEXT_KEYS)
+        self.assertNotIn("assetUrl", post_reader.NO_TEXT_KEYS)
 
 if __name__ == "__main__":
     unittest.main()

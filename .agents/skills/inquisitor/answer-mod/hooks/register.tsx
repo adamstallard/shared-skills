@@ -6,18 +6,21 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   DONE_WORD,
-  PUT_BACK_MS,
   addTurn,
   boxChanged,
   contextOf,
   dropped,
+  putBackOf,
+  leaveBox,
+  looked,
   enter,
   enterHint,
   intent,
-  isPutBack,
   isToModel,
   proposeReply,
   recordSay,
+  sayEntered,
+  unsay,
   schedulePreview,
   settleBox,
   snapshot,
@@ -34,7 +37,7 @@ import {
   judgeTurnStarted,
   loadSetup,
   openService,
-  pumpJudge,
+  startService,
   recordVerdict,
   strip,
   stripListed,
@@ -105,9 +108,10 @@ export const register: Register = on => {
         .catch(() => undefined)
     }
     const started = await next(e)
-    // Only a session the answer launcher started opens the answer service,
-    // by itself, with no prompt typed: started, resumed or reloaded alike.
-    if (marker && e.isInteractive) await openService($, false)
+    // Only an interactive session the answer launcher started opens the
+    // answer service, by itself, with no prompt typed, started or resumed
+    // alike; a reload leaves it as it was.
+    if (marker && e.isInteractive) await startService($)
     return started
   })
 
@@ -172,6 +176,8 @@ export const register: Register = on => {
   // The band previews what Enter would do with the box's text, so it keeps a copy.
   on('prompt.edit', async ($, e, next) => {
     const box = await next(e)
+    // A bare caret move edits nothing.
+    if (e.inputText || e.start !== e.end) leaveBox()
     if (await isShown($)) {
       await update($, promptAtom, () => box.text)
       await boxChanged($, box.text)
@@ -181,8 +187,13 @@ export const register: Register = on => {
   })
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
-    if (e.origin.kind === 'engine' && isPutBack(e.text)) await settleBox($, true)
-    else if (await isShown($)) {
+    const due = putBackOf(e.origin.kind, e.text)
+    if (due) {
+      await settleBox($, due)
+      return changed
+    }
+    leaveBox()
+    if (await isShown($)) {
       await update($, promptAtom, () => e.text)
       await boxChanged($, e.text)
       schedulePreview($)
@@ -201,32 +212,50 @@ export const register: Register = on => {
       dropped(e.text)
       const done = await serviceEnter($, e.text)
       await update($, promptAtom, () => '')
-      $.clock.after(PUT_BACK_MS, () => void settleBox($, false))
       return { drop: done }
     }
     const c = await snapshot($)
     const it = intent(c, e.text, await read($, knownPlacesAtom))
     if (isToModel(it)) {
+      await looked($, c)
       const q = c.q
       if (!q) return { drop: 'Nothing to discuss here.' }
-      if (await read($, judgingAtom)) return { drop: 'Claude is judging a new message: send it again in a moment.' }
+      const busy = 'Claude is judging a new message: send it again in a moment.'
+      if (await read($, judgingAtom)) return { drop: busy }
       const context = await contextOf($, q.id)
       if (context === undefined) return { drop: 'The answer service could not read the question for Claude, so the message was not sent.' }
+      // A poll during the read of the context may have started judging; a no-op update reads what stands now (see service.ts).
+      if (await update($, judgingAtom, v => v)) return { drop: busy }
+      // A prompt sent while a turn runs is delivered into that turn, and no turn of its own would carry Claude's reply to this question.
+      if (e.turnId !== undefined || (await update($, turnAtom, v => v))) return { drop: 'Claude is still answering: send it again once it is done.' }
       await update($, promptAtom, () => '')
       await recordSay($, q, it.text)
+      // Each side writes first and then reads the other: this message is recorded as waiting before judging is checked, and the judging timer holds the model before it checks for a waiting message. So one always sees the other.
+      if (await update($, judgingAtom, v => v)) {
+        await unsay($, q, it.text, busy)
+        return { drop: busy }
+      }
       const mode =
         c.declining?.stage === 'place'
           ? `[Answer service] The person is declining this question for the inquisitor under filter 1, and asks you to help find where the answer is recorded. If they ask you to fill it in, call ${PROPOSE_TOOL} with only the record's URL.`
           : c.editing && c.answer?.post
             ? `[Answer service] The person is editing their post in this thread, which now says, as quoted data: ${JSON.stringify(c.answer.post)}. If they ask for a new version, call ${PROPOSE_TOOL} with the full replacement text.`
             : `[Answer service] If the person asks you to write or draft their reply, call ${PROPOSE_TOOL} with exactly the text to post.`
-      return next({ ...e, context: [...(e.context ?? []), context, mode] })
+      const entered = await next({ ...e, context: [...(e.context ?? []), context, mode] })
+      // Dropped beneath (a settings hook's block, the engine's own), the message started no turn to answer it.
+      if (entered.drop !== undefined) await unsay($, q, it.text, entered.drop)
+      else await sayEntered($, q, it.text)
+      return entered
     }
+    // The engine raises no prompt.submit from the composer for a blank box
+    // (Enter on nothing, spaces or a line break submits nothing), so this
+    // only narrows the type.
+    if (it.kind === 'none') return { drop: 'Nothing to send.' }
     dropped(e.text)
     const rowsBefore = Object.keys(await read($, rowsAtom)).length
     const done = await enter($, c, it)
+    await looked($, c)
     await update($, promptAtom, () => '')
-    $.clock.after(PUT_BACK_MS, () => void settleBox($, false))
     schedulePreview($)
     const rows = Object.values(await read($, rowsAtom))
     const row = rows.length > rowsBefore ? rows[rows.length - 1] : undefined
@@ -240,9 +269,10 @@ export const register: Register = on => {
       await update($, turnAtom, () => e.turnId)
       if (!(await judgeTurnStarted($, e.turnId, e.text))) {
         const waiting = await read($, awaitingAtom)
-        if (waiting.length && e.text.trim()) {
-          const exact = waiting.findIndex(w => e.text.includes(w.text))
-          const i = exact >= 0 ? exact : 0
+        const exact = waiting.findIndex(w => e.text.includes(w.text))
+        // A judging prompt's turn that no longer holds the model (released, or freed after a while) is never a discussion reply; any other unmatched turn takes the first waiting message.
+        const i = exact >= 0 ? exact : e.text.includes('[Answer service] Judge message') ? -1 : 0
+        if (waiting.length && e.text.trim() && i >= 0) {
           const id = waiting[i]!.id
           await update($, awaitingAtom, w => w.filter((_, j) => j !== i))
           await update($, replyTurnsAtom, m => ({ ...m, [e.turnId]: id }))
@@ -269,7 +299,6 @@ export const register: Register = on => {
       }
       await think($, id, undefined)
     }
-    await pumpJudge($)
     return done
   }).catch((_$, e, next) => next(e))
 

@@ -25,7 +25,6 @@ from gh_shell import (
     APP_SCRIPT,
     CLOSERS,
     DATA_COMMANDS,
-    GITHUB_MCP,
     NO_TEXT_VERBS,
     PYTHONS,
     RESERVED,
@@ -87,8 +86,9 @@ plain text the shell does not expand (or run through github-app's script, \
 review endpoint, written repos/<owner>/<repo>/…; the JSON's body, and a review's comments[].body)
   python3 <path>/discord_bot.py [--identity <name>] post|edit … --message-file <file>
 Options beside the body: --title, --repo, --base, --head, --draft, --label, --assignee, \
---reviewer, --milestone, each written long with its value as the next word. A file must \
-exist. Write the text to a file first, then post it with one of these commands on its own."""
+--reviewer, --milestone, and for edit gh's --add-… and --remove-… options for reviewers, \
+labels, assignees and projects and --remove-milestone, each written long with its value as \
+the next word (--draft and --remove-milestone take none). A file must exist. Write the text to a file first, then post it with one of these commands on its own."""
 
 
 def _blocked(why: str) -> Unreadable:
@@ -155,7 +155,11 @@ ISSUE_VERB = re.compile(_whole(*ISSUE_VERBS))
 # gh api call.
 API_WORD = re.compile(rf"(?<![\w/.]){_spelled('api')}(?![\w/.-])")
 DISCORD_SCRIPT = "discord_bot.py"
-DISCORD_WORD = re.compile(rf"{_spelled(DISCORD_SCRIPT)}(?![\w-])")
+DISCORD_MODULE = "discord_bot"
+# A word ending in discord_bot.py (DISCORD_SCRIPT), or the word discord_bot
+# itself, as `python3 -m discord_bot` names it.
+DISCORD_WORD = re.compile(rf"{_spelled(DISCORD_SCRIPT)}(?![\w-])"
+                          rf"|(?<![\w/.-]){_spelled(DISCORD_MODULE)}(?![\w./-])")
 POST_OR_EDIT = re.compile(_whole("post", "edit"))
 
 
@@ -201,24 +205,17 @@ def _mentions(text: str) -> bool:
 
 def _substitutions(command: str) -> list[tuple[int, int]]:
     """The spans of the line's outermost command substitutions, `…` and
-    $(…), nesting and quotes inside included; one left open runs to the
-    end of the line."""
+    $(…). The scan takes a backslash as the only escape and reads no quote,
+    comment or heredoc: a scan that misreads one loses track of what is
+    quoted, and a later substitution goes unseen. So a `)` or backtick in a
+    quote, comment, heredoc or case pattern may end a span early;
+    _joined_by_substitution tries each later end for such a span."""
     spans: list[tuple[int, int]] = []
-    i, n, quote = 0, len(command), ""
+    i, n = 0, len(command)
     while i < n:
-        char = command[i]
-        if char == "\\":
+        if command[i] == "\\":
             i += 2
-        elif quote == "'":
-            quote = "" if char == "'" else quote
-            i += 1
-        elif char == "'" and not quote:
-            quote = "'"
-            i += 1
-        elif char == '"':
-            quote = "" if quote else '"'
-            i += 1
-        elif char == "`" or command.startswith("$(", i):
+        elif command[i] == "`" or command.startswith("$(", i):
             end = _substitution_end(command, i)
             spans.append((i, end))
             i = end
@@ -228,23 +225,19 @@ def _substitutions(command: str) -> list[tuple[int, int]]:
 
 
 def _substitution_end(command: str, start: int) -> int:
-    """Where the substitution starting at start ends."""
+    """Where the substitution starting at start ends, counting parentheses
+    and reading backslashes alone."""
     n = len(command)
-    if command[start] == "`":
-        i = start + 1
-        while i < n and command[i] != "`":
-            i += 2 if command[i] == "\\" else 1
-        return min(i + 1, n)
-    depth, i, quote = 0, start + 1, ""
+    closer = "`" if command[start] == "`" else ")"
+    depth, i = 0, start + 1
     while i < n:
         char = command[i]
-        if char == "\\" and quote != "'":
+        if char == "\\":
             i += 2
             continue
-        if quote:
-            quote = "" if char == quote else quote
-        elif char in "'\"":
-            quote = char
+        if closer == "`":
+            if char == "`":
+                return i + 1
         elif char == "(":
             depth += 1
         elif char == ")":
@@ -255,26 +248,60 @@ def _substitution_end(command: str, start: int) -> int:
     return n
 
 
+# A span holding a quote, a backtick, `#`, `<<` or `case` might end at a
+# later `)` or backtick than the one the scan found.
+UNSURE = re.compile(r"[`'\"#]|<<|\bcase\b")
+MOST_ENDS = 64
+
+
 def _joined_by_substitution(command: str) -> bool:
-    """Whether a command substitution touches a word on either side, as in
-    g$()h or x$(…), and the line with every substitution dropped mentions a
-    gh post verb or a gh api call. The shell joins the letters around an
-    empty substitution,
-    and gh_shell splits a word at its `$(`, so no split command shows the
-    joined word."""
-    spans = _substitutions(command)
-    edges = " \t\n;&|()<>"
-    if not any((start and command[start - 1] not in edges)
-               or (end < len(command) and command[end] not in edges)
-               for start, end in spans):
+    """Whether a command substitution joins a word's letters, as in g$()h,
+    g"$(true)"h or co`:`mment, and the line with each such substitution
+    dropped mentions a gh post verb or a gh api call. gh_shell splits a word
+    at its `$(`, so none of the simple commands it returns shows the joined
+    word, and only this check catches it.
+
+    A substitution joins letters when, past any quotes beside it, a letter,
+    digit or `_` touches it, so `--body '$(x)'` and `-m "$(cat <<'EOF' …)"`
+    join none. One holding a quote, a backtick, a comment, a heredoc or a
+    case pattern may end at any later `)` (or backtick), so each such end
+    with a letter after it is tried, as well as the end the scan found. Past
+    MOST_ENDS tries, the function returns True without checking for a
+    mention."""
+    n = len(command)
+
+    def letter_beside(at: int, step: int) -> bool:
+        while 0 <= at < n and command[at] in "'\"":
+            at += step
+        return 0 <= at < n and (command[at].isalnum() or command[at] == "_")
+
+    joined = [(start, end) for start, end in _substitutions(command)
+              if letter_beside(start - 1, -1) or letter_beside(end, 1)]
+    if not joined:
         return False
-    kept: list[str] = []
-    at = 0
-    for start, end in spans:
-        kept.append(command[at:start])
-        at = end
-    joined = "".join(kept) + command[at:]
-    return _mentions(joined) or _api_words(joined)
+    sure = [span for span in joined if not UNSURE.search(command, span[0] + 1, span[1])]
+    tries: list[list[tuple[int, int]]] = [sure]
+    for start, end in joined:
+        if (start, end) in sure:
+            continue
+        closer = "`" if command[start] == "`" else ")"
+        ends = {end} | {k + 1 for k in range(start + 1, n)
+                        if command[k] == closer and letter_beside(k + 1, 1)}
+        tries.extend(sure + [(start, k)] for k in sorted(ends))
+        if len(tries) > MOST_ENDS:
+            return True
+    for spans in tries:
+        kept: list[str] = []
+        at = 0
+        for start, end in sorted(spans):
+            if end <= at:
+                continue
+            kept.append(command[at:max(start, at)])
+            at = end
+        text = "".join(kept) + command[at:]
+        if _mentions(text) or _api_words(text):
+            return True
+    return False
 
 
 def runs_only_prose(command: str) -> bool:
@@ -551,6 +578,16 @@ PR_ISSUE = {"pr": {"comment", "create", "edit", "review", "close", "reopen"},
             "issue": {"comment", "create", "edit", "close", "reopen"}}
 VALUE_OPTIONS = {"--title", "--repo", "--base", "--head", "--label", "--assignee", "--reviewer",
                  "--milestone"}
+# gh pr edit's and gh issue edit's options that add or remove a reviewer,
+# label, assignee or project, each taking a value. --remove-milestone is left
+# out: gh gives it no value, so _read_gh reads it as a flag. Were the reader
+# to take the next word as its value, a body option there would go unread
+# while gh sends the body.
+EDIT_OPTIONS = {
+    "pr": {"--add-reviewer", "--remove-reviewer", "--add-label", "--remove-label",
+           "--add-assignee", "--remove-assignee", "--add-project", "--remove-project"},
+    "issue": {"--add-label", "--remove-label", "--add-assignee", "--remove-assignee",
+              "--add-project", "--remove-project"}}
 REVIEW_MODES = {"--approve", "--request-changes", "--comment"}
 
 
@@ -607,9 +644,11 @@ def _read_gh(words: list[Word], cwd: str | None, app: bool) -> Result:
         if verb == "review" and option in REVIEW_MODES:
             modes.append(option)
             i += 1
-        elif option == "--draft" and verb == "create":
+        elif option == "--draft" and verb == "create" \
+                or option == "--remove-milestone" and verb == "edit":
             i += 1
-        elif option in VALUE_OPTIONS or option in body_options:
+        elif option in VALUE_OPTIONS or option in body_options or (
+                verb == "edit" and option in EDIT_OPTIONS[noun]):
             if i + 1 >= len(texts):
                 return _not_canonical(where)
             if option in body_options:
@@ -913,6 +952,16 @@ def _read_whole(whole: _Command, cwd: str | None) -> Result:
     return _read_gh(whole.words, cwd, whole.app)
 
 
+def _discord_post(words: list[Word]) -> bool:
+    """Whether a word that is discord_bot or ends in discord_bot.py comes
+    before a word post or edit. Such a command counts as naming gh (gh-post
+    spec: *A simple command holding a discord-bot post word counts as naming
+    gh*)."""
+    texts = [text for text, _ in words]
+    return any((text == DISCORD_MODULE or text.endswith(DISCORD_SCRIPT))
+               and {"post", "edit"} & set(texts[k + 1:]) for k, text in enumerate(texts))
+
+
 def _read_line(resolved: list[_Command], grouped: bool) -> Result:
     """What a line other than one canonical command posts: no post when
     each simple command provably sends none; otherwise unreadable."""
@@ -935,7 +984,7 @@ def _read_line(resolved: list[_Command], grouped: bool) -> Result:
             return _fed_blocker(names[0] or words[0][1])
         if command.unassigned and ("gh" in names or {"post", "edit"} & set(names)):
             return _unassigned(command.unassigned)
-        if names[0] in PYTHONS and DISCORD_SCRIPT in names:
+        if names[0] in PYTHONS and DISCORD_SCRIPT in names or _discord_post(words):
             return _not_canonical(f"`{source}`")
         if "gh" not in names:
             if (_names_gh(source) or _discord_words(source)) and names[0] not in DATA_COMMANDS:
@@ -955,7 +1004,18 @@ def _read_line(resolved: list[_Command], grouped: bool) -> Result:
 # -- a tool call -----------------------------------------------------------
 
 BODY_KEYS = {"body", "comment"}
-LINEAR_MCP = re.compile(r"^mcp__(?:plugin_.+_)?linear__")
+GITHUB_MCP = re.compile(r"^mcp__(?:github|plugin_.+_github|claude_ai_GitHub)__")
+LINEAR_MCP = re.compile(r"^mcp__(?:linear|plugin_.+_linear|claude_ai_Linear)__")
+LINEAR_WRITES = ("save_", "create_", "update_", "submit_")
+# The keys whose strings hold no text Linear shows (gh-post spec: *The
+# no-text list names keys that hold no text*).
+NO_TEXT_KEYS = frozenset((
+    "id issue project initiative cycle team teamId parent parentId lead leadTeam addTeams "
+    "removeTeams setTeams addInitiatives removeInitiatives setInitiatives labels pipeline "
+    "stage releases rangeFromRelease rangeToRelease urlOrId commentId draftId user "
+    "externalUserId githubTeamId removedIssueLinks commitSha state health type decision "
+    "statusAction groupType startDateResolution targetDateResolution startDate targetDate "
+    "startedAt completedAt createdAt color").split())
 
 
 def body_fields(value: object, path: str = "") -> list[Post]:
@@ -979,6 +1039,21 @@ def _mcp(tool_input: object) -> Result:
     return body_fields(tool_input) or NoPost()
 
 
+def _text_keys(value: object, key: str = "") -> set[str]:
+    """The keys not on the no-text list that a string in value sits under: its
+    nearest object key, so a string in a list takes the list's key."""
+    if isinstance(value, str):
+        return set() if key in NO_TEXT_KEYS else {key}
+    found: set[str] = set()
+    if isinstance(value, dict):
+        for name, item in cast(dict[object, object], value).items():
+            found |= _text_keys(item, str(name))
+    elif isinstance(value, list):
+        for item in cast(list[object], value):
+            found |= _text_keys(item, key)
+    return found
+
+
 def _linear(tool: str, tool_input: object) -> Result:
     """A Linear MCP save_comment's body or save_issue's description (gh-post
     spec: *The reader reads a Linear MCP comment or issue description*). A
@@ -989,6 +1064,14 @@ def _linear(tool: str, tool_input: object) -> Result:
     given = cast(dict[str, object], tool_input)
     key = {"save_comment": "body", "save_issue": "description"}.get(tool)
     if key is None:
+        # Another write tool sends no post only when it holds no text (gh-post
+        # spec: *Another Linear write tool sends no post only when it holds no
+        # text*); a tool whose name starts with none of LINEAR_WRITES, such
+        # as get_issue, sends none.
+        keys: set[str] = _text_keys(given) if tool.startswith(LINEAR_WRITES) else set()
+        if keys:
+            return _blocked(f"Linear {tool}: {', '.join(sorted(keys))} may hold text the hook "
+                            "cannot check.")
         return NoPost()
     text = given.get(key)
     if tool == "save_issue" and ("patch" in given or (

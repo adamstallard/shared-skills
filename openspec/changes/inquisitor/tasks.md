@@ -468,9 +468,12 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
 - [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
-      `description` from the Linear MCP as messages; reports as unreadable a `save_issue` holding `patch`, one
+      `description` from the Linear MCP as messages, and every other
+      Linear save, create, update or submit call's `summary` and
+      `description` as Linear summary text; reports as unreadable a `save_issue` holding `patch`, one
       holding `template` but no `description`, and every Linear save,
-      create, update or submit call other than those two holding a string under a key
+      create, update or submit call other than `save_comment` and
+      `save_issue` holding a string under a key
       that is neither on the no-text list nor `title`, `name`, `summary`
       or `description` (gh-post spec:
       *The reader reads a Linear MCP comment or issue description*;
@@ -479,8 +482,8 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 - [ ] 1.6a The library returns each title a call sets, marked as a
       title: `--title` in a canonical gh pr or gh issue form, `title` in
       a canonical gh api post's JSON or a GitHub MCP tool's input,
-      `save_issue`'s `title`; `title`, `name`, `summary` and
-      `description` in any other Linear write call; and discord-bot
+      `save_issue`'s `title`; `title` and `name` in any other Linear
+      save, create, update or submit call; and discord-bot
       `thread`'s `--name`. `--title`, and any single-dash option word
       holding `t`, join the text options (the options that carry a
       post's text), and a discord-bot `thread` call
@@ -765,8 +768,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       deferred needs a deferred verdict*); and blocks
       every other unvetted question (inquisitor spec: *Questions in posts
       pass the same filters*). It blocks a call any of whose titles holds
-      a question by the plain reading, telling the agent to ask it in the
-      body (*A title holding a question is refused*)
+      a question by the plain reading, telling the agent where to ask it
+      instead (*A title holding a question is refused*), and a call whose
+      Linear summary text holds a question the hiding reading finds
+      (*A question in Linear summary text is refused*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests

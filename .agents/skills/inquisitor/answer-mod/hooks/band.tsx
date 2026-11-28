@@ -199,7 +199,8 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
   const waiting = count(a => !a.pending && a.kind === 'wait')
   const wont = count(a => a.kind === 'wont')
   const recorded = count(a => a.kind === 'recorded' && !!a.auto)
-  const mine = count(a => !a.pending && a.kind === 'handled')
+  const handledForYou = count(a => a.kind === 'handled' && !!a.auto)
+  const mine = count(a => !a.pending && a.kind === 'handled' && !a.auto)
   const fresh = N - kinds.filter(Boolean).length
   const marked = await read($, markedAtom)
   const markedAt = queue.flatMap((one, i) => (marked[one.id] ? [i] : []))
@@ -209,7 +210,7 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
   const cmds = commands(c)
   const run = (doing: Promise<unknown>) => void doing.catch(() => undefined)
   const isTalking = !!base && talking === base.id
-  const relayOf = (q: Question) => relays[q.surface] ?? 'your relay'
+  const relayOf = (q: Question) => q.relay ?? relays[q.surface] ?? 'your relay'
 
   // ── rows ─────────────────────────────────────────────────────────────
   type Row = RenderElement
@@ -366,6 +367,7 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
       [pendingCount, 'pending'],
       [wont, "won't answer"],
       [recorded, 'done for you'],
+      [handledForYou, 'handled for you'],
       [mine, 'for the inquisitor'],
     ] as const
   )
@@ -583,7 +585,18 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
       const relay = typeof entry['relay'] === 'string' ? entry['relay'] : '—'
       const user = surface === 'discord' && typeof entry['user'] === 'string' ? ` · user ${entry['user']}` : ''
       rowsOut.push(blank(), label(`${SURFACE_NAME[surface]} · relay ${relay}${user}`))
-      if (!mine.length) rowsOut.push(plain('  no channels', { dim: true }))
+      if (surface === 'linear' && s.linear_key_command) {
+        rowsOut.push(
+          <Box height={1} width={W} overflowX="scroll">
+            <Text>
+              <Text color={LATER}>  Your Linear key goes in the keychain: run in your own terminal, never here, then (r)echeck: </Text>
+              <Text bold>{s.linear_key_command}</Text>
+            </Text>
+          </Box>,
+        )
+      }
+      const offered = (s.candidates ?? []).filter(k => k.surface === surface && !k.subscribed)
+      if (!mine.length && !offered.length) rowsOut.push(plain('  no channels', { dim: true }))
       for (const { ch, i } of mine) {
         const k = checkOf(s.checks, ch)
         const repos = ch.surface === 'github' ? '' : ch.repos === undefined ? '  repos not set' : `  repos ${ch.repos.length ? ch.repos.join(', ') : 'none'}`
@@ -597,6 +610,19 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
               {k ? mark(k.ok) : <Text dimColor>·</Text>}
               <Text dimColor>{k ? ` ${k.name}${k.ok === null ? ': not checked' : ''}${k.fix ? ` · ${k.fix}` : ''}` : ''}</Text>
             </Text>
+          </Box>,
+        )
+      }
+      for (const k of offered) {
+        rowsOut.push(
+          <Box height={1} width={W} overflowX="scroll">
+            <Button key={`cand:${k.surface}:${k.id}`} plain onPress={() => run(putInBox($, `add ${k.surface} ${k.id}`))}>
+              <Text>
+                <Text dimColor>{'    + '}</Text>
+                <Text color={ACCENT}>add {k.surface} {k.id}</Text>
+                <Text dimColor>{k.name && k.name !== k.id ? `  ${k.name}` : ''}</Text>
+              </Text>
+            </Button>
           </Box>,
         )
       }
@@ -652,7 +678,9 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
             : a.kind === 'wont'
               ? `│ won't answer: nothing to answer`
               : a.auto
-                ? '│ answered for you'
+                ? a.kind === 'handled'
+                  ? '│ handled for you'
+                  : '│ answered for you'
                 : `│ ${a.kind === 'handled' ? 'you chose · ' : ''}${one.branch && a.kind === 'answer' ? `logged · ${a.text}` : (a.post ?? a.text).replace(/\n/g, ' ')}`
       return (
         <Box height={1} width={W} overflowX="scroll">
@@ -692,6 +720,7 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
         [
           `${relayed} of ${N} relayed this session`,
           ...(recorded ? [`${recorded} answered for you`] : []),
+          ...(handledForYou ? [`${handledForYou} handled for you`] : []),
           ...(mine ? [`${mine} you answered for the inquisitor`] : []),
           ...(wont ? [`${wont} you won't answer`] : []),
           ...(waiting ? [`${waiting} back with their askers`] : []),
@@ -731,7 +760,9 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
   }
   const stateText = answer?.pending
     ? 'pending · '
-    : answer?.kind === 'recorded'
+    : answer?.kind === 'handled' && answer.auto
+      ? 'handled for you · '
+      : answer?.kind === 'recorded'
       ? answer.auto
         ? 'answered for you · '
         : q.branch
@@ -1009,7 +1040,10 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
             </Text>,
           ]
         : []
-    const concerns: Row[] = q.concerns && t.related && !q.branch ? [plain(`Concerns ${q.concerns}`, { dim: true })] : []
+    const concerns: Row[] = [
+      ...(q.concerns && t.related && !q.branch ? [plain(`Concerns ${q.concerns}`, { dim: true })] : []),
+      ...(q.suggested && q.asker.kind === 'agent' && c.open ? [plain(`Claude suggests filter ${q.suggested.filter}, ${FILTERS[q.suggested.filter].name}: ${q.suggested.why}`, { dim: true })] : []),
+    ]
     return stack([provenance(t.provenance), [...changeMark, ...questionRows(width)], evidence(t, width, g, 'left'), [...concerns, ...related]], [g('question'), g('thread'), g('related')])
   }
 
@@ -1030,7 +1064,7 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
     const words = a.pending
       ? `Pending ${postsAs}`
       : a.auto
-        ? `Answered for you ${postsAs}`
+        ? `${a.kind === 'handled' ? 'Handled' : 'Answered'} for you ${postsAs}`
         : a.kind === 'wait'
           ? `Waiting for ${q.asker.name}. Asked ${postsAs}`
           : a.kind === 'handled'
@@ -1062,10 +1096,10 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
     const why =
       a.pending
         ? `Not relayed yet: ${a.pending}. It is relayed once its channel works again.`
-        : a.kind === 'handled'
-          ? `A miss is logged against filter ${a.filter ?? 1} (${FILTERS[a.filter ?? 1].name})${a.text ? ', with what you said:' : '.'}`
-          : a.auto
-            ? 'The service posted it by itself: filter 1 found a recorded answer with authority, or the inquisitor should have stopped it.'
+        : a.auto
+          ? 'The service posted it by itself: filter 1 found a recorded answer with authority, or the inquisitor should have stopped it.'
+          : a.kind === 'handled'
+            ? `A miss is logged against filter ${a.filter ?? 1} (${FILTERS[a.filter ?? 1].name})${a.text ? ', with what you said:' : '.'}`
             : a.kind === 'recorded' && q.branch
               ? 'Nothing was posted: a new log file on the questions branch holds it as the answer.'
               : q.branch && a.kind === 'answer'
@@ -1186,11 +1220,21 @@ export async function band($: EngineInterface, e: BandEvent, ui: ReturnType<Engi
         )),
       ]
     })
+    const hint = q.suggested
+      ? [
+          <Text wrap="truncate-end">
+            <Text dimColor>Claude suggests </Text>
+            <Text color={ACCENT}>{q.suggested.filter}</Text>
+            <Text dimColor>: {cut(q.suggested.why, Math.max(10, width - 20))}</Text>
+          </Text>,
+        ]
+      : []
     return [
       <Text wrap="truncate-end">
         <Text color={ACCENT}>{GLYPH.handled} </Text>
         <Text dimColor>{'WHICH FILTER SHOULD HAVE STOPPED IT? · NOTHING IS POSTED YET'}</Text>
       </Text>,
+      ...hint,
       ...filters,
     ]
   }
