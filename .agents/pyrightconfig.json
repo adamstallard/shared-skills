@@ -1,9 +1,19 @@
 {
-  "include": ["skills/inquisitor/scripts", "lib/gh-shell/post_reader.py"],
+  "include": ["skills/inquisitor/scripts",
+    "lib/gh-shell/post_reader.py",
+    "skills/linear-app/scripts/linear_app.py"
+  ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",
   "executionEnvironments": [
-    {"root": "skills/inquisitor/scripts", "extraPaths": ["lib/gh-shell"]},
-    {"root": "lib/gh-shell"}
+    {
+      "root": "skills/inquisitor/scripts",
+      "extraPaths": [
+        "lib/gh-shell"
+      ]
+    },
+    {
+      "root": "lib/gh-shell"
+    }
   ]
 }

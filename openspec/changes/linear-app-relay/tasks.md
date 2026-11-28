@@ -1,28 +1,28 @@
 ## 1. linear-app
 
-- [ ] 1.1 Read the relay identity from `inquisitor.json`, and match every
+- [x] 1.1 Read the relay identity from `inquisitor.json`, and match every
       identity holding its client ID (linear-app spec: *The answer
       service's Linear relay is a relay identity*; *Every identity holding
       the relay's client ID is a relay identity*)
-- [ ] 1.2 Refuse `token`, `headers` and `wire` for a relay identity, and
+- [x] 1.2 Refuse `token`, `headers` and `wire` for a relay identity, and
       warn in `check` of an MCP server wired to one (linear-app spec: *No
       command prints a relay identity's token*; *A relay identity cannot
       be wired to the Linear MCP server*)
-- [ ] 1.3 Read a relay identity's credentials only from the keychain,
+- [x] 1.3 Read a relay identity's credentials only from the keychain,
       refusing on a host with no keychain tool; cache its token only in
       the keychain; delete any token cached for it in linear-app's state
       folder; and delete the keychain's copy in `forget` (linear-app spec:
       *A relay identity's credentials come only from the keychain*; *A
       relay identity's token is cached only in the keychain*)
-- [ ] 1.4 Add `post`, `edit` and `delete`, passing on Linear's refusals
+- [x] 1.4 Add `post`, `edit` and `delete`, passing on Linear's refusals
       (linear-app spec: *post, edit and delete act as an identity without
       printing its token*; *post, edit and delete pass on Linear's
       refusal*; *A comment's text comes from a named file and reaches
       Linear only as a GraphQL variable*)
-- [ ] 1.5 Report the user id, scopes and visible teams in `check`
+- [x] 1.5 Report the user id, scopes and visible teams in `check`
       (linear-app spec: *check reports the identity's user id, scopes and
       teams*)
-- [ ] 1.6 Say in linear-app's SKILL.md and README what a relay identity
+- [x] 1.6 Say in linear-app's SKILL.md and README what a relay identity
       is, which commands it refuses, and that `post` and `edit` take
       their text from `--body-file`
 
