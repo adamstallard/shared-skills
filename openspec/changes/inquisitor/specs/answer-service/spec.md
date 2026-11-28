@@ -1601,25 +1601,6 @@ posts.
   the new question
 - **AND** the person's next confirmation posts that preview
 
-### Requirement: The answer mod sets the box after acting on a prompt
-
-When the answer mod acts on a prompt the person entered, such as an
-answer or a key, it drops the prompt instead of sending it to the
-model, and Claude Code puts the dropped prompt back in the box, as typed
-or as a collapsed paste. The mod SHALL replace that put-back text with
-what its action leaves: the prompt as entered, whole, when the action
-stopped short of its post, as when it only showed a preview or a post
-was refused, and otherwise nothing.
-
-#### Scenario: Claude Code's put-back of a dropped prompt is replaced
-
-- **WHEN** the person pastes a long answer, which the prompt box shows
-  collapsed, and confirms twice, the first confirmation showing the
-  preview and the second relaying the answer
-- **THEN** after the first confirmation the box holds the whole pasted
-  answer again, ready for the second, and after the second it is empty,
-  whatever Claude Code puts back after each
-
 ### Requirement: A GitHub or Linear relay post names its question in a Re line
 
 A relay post on Linear or GitHub SHALL end with a `Re: ` line holding

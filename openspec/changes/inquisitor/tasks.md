@@ -468,20 +468,22 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
 - [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
-      `description` from the Linear MCP, and every other Linear save,
-      create, update or submit call's `summary` and `description`, as
-      messages; reports as unreadable a `save_issue` holding `patch`, one
-      holding `template` but no `description`, and every other such call
-      holding a string under a key off the no-text list (gh-post spec:
+      `description` from the Linear MCP as messages; reports as unreadable a `save_issue` holding `patch`, one
+      holding `template` but no `description`, and every Linear save,
+      create, update or submit call other than those two holding a string under a key
+      that is neither on the no-text list nor `title`, `name`, `summary`
+      or `description` (gh-post spec:
       *The reader reads a Linear MCP comment or issue description*;
       *Another Linear write tool sends no post only when it holds no
       text*)
 - [ ] 1.6a The library returns each title a call sets, marked as a
       title: `--title` in a canonical gh pr or gh issue form, `title` in
       a canonical gh api post's JSON or a GitHub MCP tool's input,
-      `title` and `name` in a Linear write call, and discord-bot
-      `thread`'s `--name`; `--title`, and any single-dash option word
-      holding `t`, join the text options, and a discord-bot `thread` call
+      `save_issue`'s `title`; `title`, `name`, `summary` and
+      `description` in any other Linear write call; and discord-bot
+      `thread`'s `--name`. `--title`, and any single-dash option word
+      holding `t`, join the text options (the options that carry a
+      post's text), and a discord-bot `thread` call
       counts as mentioning a gh post verb. prose's posting hook skips
       titles (gh-post spec: *The reader returns each title apart from
       bodies*)
@@ -1057,10 +1059,6 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       tells an agent using the skill, when the person wants to answer the questions asked
       of them, to offer to install the answer mod and then to tell them
       to run `answer`
-- [ ] 6.6b The answer mod replacing the prompt Claude Code puts back
-      after the mod drops one, a collapsed paste included, with what its
-      action leaves (answer-service spec: *The answer mod sets the box
-      after acting on a prompt*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed

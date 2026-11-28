@@ -278,11 +278,12 @@ does a Linear MCP tool with a name of any other form.
 
 ### Requirement: A Linear write tool's titles and descriptions are read
 
-For a Linear write tool that *Another Linear write tool sends no post
-only when it holds no text* covers, the reader SHALL return each string
-under `title` or `name` as a title and each under `summary` or
-`description` as a Linear message, unless another string makes the call
-unreadable.
+For a Linear write tool covered by *Another Linear write tool sends no
+post only when it holds no text*, the reader SHALL return each string
+under `title`, `name`, `summary` or `description`, the four keys that
+requirement exempts from its no-text judgement, as a title. A string
+under a key that is neither on the no-text list nor one of those four
+makes the call unreadable.
 
 #### Scenario: A Linear write call's titles, names, summary and description are read
 
@@ -290,15 +291,15 @@ unreadable.
   `name` `Retries?` and `summary` `Should retries back off?`, and about
   `mcp__linear__save_milestone` with `project`, `name` `Beta` and
   `description` `Ship it?`
-- **THEN** the reader returns `Retries?` and `Beta` as titles, and
-  `Should retries back off?` and `Ship it?` as Linear messages
+- **THEN** the reader returns `Retries?`, `Should retries back off?`,
+  `Beta` and `Ship it?` as titles
 
 ### Requirement: The reader returns each title apart from bodies
 
 The reader SHALL mark each title it returns as a title rather than a
 body, with its surface, GitHub, Linear or Discord. A title is the title
-or name a call sets on anything, such as an issue, a pull request, a
-Linear project or a Discord thread. A call that
+or name a call sets on anything, or a Linear `summary` or `description` that *A Linear write tool's
+titles and descriptions are read* returns as one. A call that
 sets a title and sends no body SHALL return its titles alone. prose's
 posting hook SHALL skip titles, since prose signs bodies only.
 

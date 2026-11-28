@@ -2407,19 +2407,21 @@ leading whitespace dropped.
 The post hook SHALL find questions in each title the shared post reader
 returns by the plain reading, and SHALL block a call any of whose titles
 holds one, telling the agent to ask the question in a post's body
-instead, since a
-title cannot carry the concerns, tag or person-required line a question
-in a post needs. It SHALL let
-any other title through.
+instead, or, for a Linear call, in an issue's description or a comment,
+because only a post is vetted, and read by the answer service. It SHALL
+let any other title through.
 
 #### Scenario: A question in a title is refused on every surface
 
 - **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
   --body-file body.md`, where `body.md` holds no question, calls
-  `mcp__linear__save_project` with `name` `Retries?`, or runs discord-bot
-  `thread` with `--name 'Ship it?'`
+  `mcp__linear__save_project` with `name` `Retries?` or with `summary`
+  `Should retries back off?`, or runs discord-bot `thread` with `--name
+  'Ship it?'`
 - **THEN** the post hook blocks each call and tells the agent to ask the
-  question in the body, even when a second call recorded it as `ask`
+  question in a post's body, or for the Linear calls in an issue's
+  description or a comment, even when the inquisitor's second call
+  recorded the question as `ask`
 - **AND** it lets `gh pr create --title 'Retry with backoff' --body-file
   body.md` through
 

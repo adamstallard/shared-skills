@@ -36,16 +36,21 @@ does if the fact does not hold.
 
 ### Decisions for the repository's owner
 
-- **Where is a question in a Linear project's or milestone's description
-  answered?** The shared post reader reads `summary` and `description`
-  of every Linear write call as a message, so the post hook passes a
-  vetted question there with an `ask` verdict. But the answer service
-  reads only issues and comments on Linear, and `log` has an `asked_in`
-  form only for a Linear comment or issue description, so such a
-  question is neither answered nor logged. Either the post hook blocks a
-  question in any Linear `summary` or `description` but an issue's, as
-  it does in a title, or the answer service and `log` learn to read and
-  record questions in every such `summary` and `description`.
+- **Does prose run its pass on a Linear project's or milestone's
+  description?**
+  The reader returns a Linear write call's `summary` and `description`
+  as titles (gh-post spec: *A Linear write tool's titles and descriptions
+  are read*), and prose's posting hook skips titles, so such text,
+  often a long markdown document, goes out with no prose pass. Either
+  that stands, or prose's hook reads those two keys as bodies.
+- **Which reading finds a question in a Linear description?** The post
+  hook refuses a title holding a question by the plain reading, which
+  counts a `?` even in code (inquisitor spec: *A title holding a question
+  is refused*; *Questions in a post are found by two readings*), and no
+  verdict of the inquisitor's second call passes it. In a long `summary`
+  or `description`, any such `?`, even a ternary in a code block, then
+  blocks the call. Either that stands, or those two keys are read by the
+  hiding reading, which skips code blocks.
 
 ### Facts the answer service relies on
 
