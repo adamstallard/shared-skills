@@ -28,28 +28,9 @@ through it.
 ### Requirement: A command that mentions no gh post verb sends no post
 
 A command SHALL send no post when it **mentions** no **gh post verb**
-(its first scenario lists them), unless input within
-the line reaches a `gh` command (*Input to a no-post line reaches only
-data commands*). It mentions one when its text holds `gh`, then `pr` or
-`issue`, then a post verb listed for that word; `gh`, then `api`, unless
-the line is a read (*A gh api call is a read only in a plain form*); or
-a word that is `discord_bot` or ends in `discord_bot.py`, then a
-discord-bot post word.
-
-#### Scenario: The gh post verbs are a closed list
-
-- **WHEN** a hook asks about a command
-- **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
-  `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
-  call that is not a read; and a discord-bot `post`, `edit` or `thread`
-  call, though such a call holds no gh word
-- **AND** a command's words count whether quoted or not, and `gh`, `pr`,
-  `issue`, `api` and each verb count only as whole
-  words, with no letter, digit or `_` just before and no letter, digit,
-  `_` or `-` just after, so `--comments` holds no `comment` and
-  `--comment` holds one; and `api` counts only with no `/` or `.` just
-  before or after it, so `gh repo view o/api` mentions no post verb
+(*A command mentions a gh post verb by one of a closed list of word
+sequences*), unless input within the line reaches a `gh` command
+(*Input to a no-post line reaches only data commands*).
 
 #### Scenario: A gh command off the list passes unread
 
@@ -71,6 +52,31 @@ discord-bot post word.
 - **THEN** the reader reports that each line sends no post, since a read
   is no gh post verb, so the line mentions none and no rule for a
   post-verb line applies
+
+### Requirement: A command mentions a gh post verb by one of a closed list of word sequences
+
+A command SHALL **mention** a gh post verb when its text holds any of:
+
+- `gh`, then `pr` or `issue`, then a post verb listed for that word;
+- `gh`, then `api`, unless the line is a read (*A gh api call is a read
+  only in a plain form*);
+- a word that is `discord_bot` or ends in `discord_bot.py`, then a
+  discord-bot post word.
+
+#### Scenario: The gh post verbs are a closed list
+
+- **WHEN** a hook asks about a command
+- **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
+  `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
+  call that is not a read; and a discord-bot `post`, `edit` or `thread`
+  call, though such a call holds no gh word
+- **AND** a command's words count whether quoted or not, and `gh`, `pr`,
+  `issue`, `api` and each verb count only as whole
+  words, with no letter, digit or `_` just before and no letter, digit,
+  `_` or `-` just after, so `--comments` holds no `comment` and
+  `--comment` holds one; and `api` counts only with no `/` or `.` just
+  before or after it, so `gh repo view o/api` mentions no post verb
 
 ### Requirement: A command that only runs prose's script sends no post
 
@@ -279,11 +285,12 @@ does a Linear MCP tool with a name of any other form.
 ### Requirement: A Linear write tool's titles and descriptions are read
 
 For a Linear write tool covered by *Another Linear write tool sends no
-post only when it holds no text*, the reader SHALL return each string
-under `title`, `name`, `summary` or `description`, the four keys that
-requirement exempts from its no-text judgement, as a title. A string
-under a key that is neither on the no-text list nor one of those four
-makes the call unreadable.
+post only when it holds no text*, which leaves these four keys to this
+requirement, the reader SHALL return each string under `title` or
+`name` as a title, and each under `summary` or `description` as
+**Linear summary text**: a Linear message marked as such, which prose's
+posting hook reads as a body; `save_issue`'s `description` is never
+Linear summary text.
 
 #### Scenario: A Linear write call's titles, names, summary and description are read
 
@@ -291,15 +298,16 @@ makes the call unreadable.
   `name` `Retries?` and `summary` `Should retries back off?`, and about
   `mcp__linear__save_milestone` with `project`, `name` `Beta` and
   `description` `Ship it?`
-- **THEN** the reader returns `Retries?`, `Should retries back off?`,
-  `Beta` and `Ship it?` as titles
+- **THEN** the reader returns `Retries?` and `Beta` as titles, and
+  `Should retries back off?` and `Ship it?` as Linear summary text;
+  prose's posting hook reads those two as bodies
 
 ### Requirement: The reader returns each title apart from bodies
 
 The reader SHALL mark each title it returns as a title rather than a
-body, with its surface, GitHub, Linear or Discord. A title is the title
-or name a call sets on anything, or a Linear `summary` or `description` that *A Linear write tool's
-titles and descriptions are read* returns as one. A call that
+body, with its surface, GitHub, Linear or Discord. A title is a
+`title` or `name` value, or a `--title` or `--name` option's value, that
+a call sets and this spec returns as one. A call that
 sets a title and sends no body SHALL return its titles alone. prose's
 posting hook SHALL skip titles, since prose signs bodies only.
 

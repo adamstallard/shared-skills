@@ -34,24 +34,6 @@ does if the fact does not hold.
   changes to that way. Either way, a call that fails leaves filter 1 in an
   Igor's run searching no lore and saying so.
 
-### Decisions for the repository's owner
-
-- **Does prose run its pass on a Linear project's or milestone's
-  description?**
-  The reader returns a Linear write call's `summary` and `description`
-  as titles (gh-post spec: *A Linear write tool's titles and descriptions
-  are read*), and prose's posting hook skips titles, so such text,
-  often a long markdown document, goes out with no prose pass. Either
-  that stands, or prose's hook reads those two keys as bodies.
-- **Which reading finds a question in a Linear description?** The post
-  hook refuses a title holding a question by the plain reading, which
-  counts a `?` even in code (inquisitor spec: *A title holding a question
-  is refused*; *Questions in a post are found by two readings*), and no
-  verdict of the inquisitor's second call passes it. In a long `summary`
-  or `description`, any such `?`, even a ternary in a code block, then
-  blocks the call. Either that stands, or those two keys are read by the
-  hiding reading, which skips code blocks.
-
 ### Facts the answer service relies on
 
 - **What form does igor's handback marker take?** (task 0.6) Until it is

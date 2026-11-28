@@ -2415,21 +2415,41 @@ let any other title through.
 
 - **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
   --body-file body.md`, where `body.md` holds no question, calls
-  `mcp__linear__save_project` with `name` `Retries?` or with `summary`
-  `Should retries back off?`, or runs discord-bot `thread` with `--name
-  'Ship it?'`
+  `mcp__linear__save_project` with `name` `Retries?`, or runs discord-bot
+  `thread` with `--name 'Ship it?'`
 - **THEN** the post hook blocks each call and tells the agent to ask the
-  question in a post's body, or for the Linear calls in an issue's
+  question in a post's body, or for the Linear call in an issue's
   description or a comment, even when the inquisitor's second call
   recorded the question as `ask`
 - **AND** it lets `gh pr create --title 'Retry with backoff' --body-file
   body.md` through
 
+### Requirement: A question in Linear summary text is refused
+
+The post hook SHALL block a call whose Linear summary text (gh-post
+spec: *A Linear write tool's titles and descriptions are read*) holds a
+question the hiding reading finds, as in any body, whatever verdict the
+inquisitor's second call recorded for it, telling the agent to ask it in
+an issue's description or a comment, since the answer service reads no
+other Linear text. It SHALL apply no other rule to Linear summary text
+but the reserved-prefix block.
+
+#### Scenario: A question in a Linear project's summary is refused
+
+- **WHEN** an agent calls `mcp__linear__save_project` with `summary`
+  `Should retries back off?`, even after the inquisitor's second call
+  recorded that question as `ask`
+- **THEN** the post hook blocks the call and tells the agent to ask it
+  in an issue's description or a comment
+- **AND** it lets the call through when the summary's only `?` is in a
+  fenced code block
+
 ### Requirement: The post hook vets a Discord or Linear message as a post
 
 The post hook SHALL vet a Discord or Linear message the shared post
 reader returns as it vets a post, under every rule this spec gives the
-post hook.
+post hook, except Linear summary text (*A question in Linear summary
+text is refused*).
 
 #### Scenario: A Discord message through discord-bot is vetted
 
