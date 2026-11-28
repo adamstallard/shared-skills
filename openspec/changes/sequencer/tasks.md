@@ -78,8 +78,13 @@ remove the question from design.md.
 
 ## 3. Publishing
 
-- [ ] 3.1 Find or create the order's issue labelled `sequencer`, and stop on
-      two open order issues, or on broken markers in it
+- [ ] 3.1 Find the order's issue: where the workflow exists, the one its
+      `SEQUENCER_ORDER_ISSUE` pins, ignoring and naming every other issue
+      labelled `sequencer`; otherwise the labelled issue a writer opened,
+      created when none is open, stopping on two or more and on one a
+      non-writer opened; stop on broken markers
+      in it; and tell an App in a session without the workflow to run
+      `setup-ci`
 - [ ] 3.2 Write the order's issue and each item's block between the
       markers, each opening with its heading, each block giving its place
       without the number of places, editing a body only when that text
@@ -129,7 +134,9 @@ remove the question from design.md.
       *An API key's model step runs only on events that can change a pair* names; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
-      existing file without `--force`, and filling the template's
+      existing file without `--force`, pinning the order's issue, creating
+      it unless exactly one labelled issue is open and a writer opened it,
+      and filling the template's
       `trusted-apps` setting from the github-app skill's identities
 - [ ] 5.4 Run the workflow in this repository
 

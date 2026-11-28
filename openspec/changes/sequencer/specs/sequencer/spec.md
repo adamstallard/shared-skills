@@ -807,9 +807,9 @@ end `chosen at <link to the comment>`, and the cycle's mark SHALL become
 #### Scenario: A comment an App posts overrides nothing
 
 - **WHEN** the workflow's `trusted-apps` setting lists `relay-app`, and
-  `relay-app[bot]` posts `#85 first` on the order's issue, as when it relays
-  a person's reply
-- **THEN** the cycle stays ordered by rule
+  `relay-app[bot]` posts `#85 first` on the order's issue
+- **THEN** the cycle stays ordered by rule, since trust never covers an
+  App's comments
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -1014,25 +1014,19 @@ read failed.
 
 ### Requirement: The whole order lives in one issue's body
 
-The script SHALL keep the whole order in the body of the open issue
-labelled `sequencer`, creating it when none is open and publishing nothing when more than one is. It SHALL
-use that issue only when a writer opened it, or `github-actions[bot]`;
-otherwise it SHALL publish nothing and name the issue, its author and why
-its author is not a writer.
-Nothing of the order
-SHALL go in a comment.
+The script SHALL keep the whole order in the body of the order's issue, an
+open issue labelled `sequencer`, and nothing of it in a comment. Where the
+default branch holds no `.github/workflows/sequencer.yml`, the order's
+issue SHALL be the one such issue, created when none is open. Two or more
+SHALL stop the publish. A single one SHALL be used only when a writer
+opened it; when a non-writer did, the script SHALL publish nothing and
+name the issue, its author and that its author is not a writer.
 
 #### Scenario: The first publish creates the order's issue
 
-- **WHEN** the script publishes in a repository with no open issue labelled
-  `sequencer`
+- **WHEN** the script publishes in a repository with no workflow file and
+  no open issue labelled `sequencer`
 - **THEN** it opens one, labelled `sequencer`, whose body holds the order
-
-#### Scenario: An order issue the workflow opened is used
-
-- **WHEN** the one open issue labelled `sequencer` was opened by
-  `github-actions[bot]`
-- **THEN** the script publishes the order in it
 
 #### Scenario: The order is never posted as a comment
 
@@ -1042,30 +1036,90 @@ SHALL go in a comment.
 
 #### Scenario: Two order issues stop the publish
 
-- **WHEN** two open issues are labelled `sequencer`
+- **WHEN** a repository has no workflow file, and two open issues are
+  labelled `sequencer`
 - **THEN** the script edits nothing and names both issues
 
 #### Scenario: An order issue opened without write access is refused
 
-- **WHEN** the one open issue labelled `sequencer` was opened by an
-  account without write access to the repository
+- **WHEN** a repository has no workflow file, and the one open issue
+  labelled `sequencer` was opened by an account without write access to
+  the repository
 - **THEN** the script reads no override from its comments and no stored
   code edge from its body, edits nothing, and names the issue, its author
   and that its author is not a writer
 
-### Requirement: Only a writer's account or the workflow creates the order's issue
+### Requirement: The workflow pins the order's issue
 
-The script SHALL create the order's issue only as a writer or as
-`github-actions[bot]`, since a run uses the order's issue only when a
-writer or `github-actions[bot]` opened it.
+Where the default branch holds `.github/workflows/sequencer.yml`, the
+order's issue SHALL be the issue its top-level `env:` entry
+`SEQUENCER_ORDER_ISSUE` names, while open and labelled `sequencer`. The
+script SHALL read stored code edges, cycle times and overrides only from
+it, and ignore every other issue labelled `sequencer`, naming each in the
+order's issue. With no such issue, as when the entry is missing or names a
+closed issue, it SHALL publish nothing and say to run `setup-ci --force`.
+
+#### Scenario: A labelled issue another workflow opened is ignored
+
+- **WHEN** the workflow pins #200, and `github-actions[bot]`, running
+  another workflow that files user input, opens #210, labelled
+  `sequencer`, whose body holds the order's markers and a stored code edge
+- **THEN** the script publishes in #200, reads nothing from #210, and the
+  order's issue names #210 as an issue labelled `sequencer` that it ignored
+
+#### Scenario: A workflow with no pinned issue publishes nothing
+
+- **WHEN** the default branch's workflow file has no
+  `SEQUENCER_ORDER_ISSUE` entry
+- **THEN** the script edits nothing and says to run `setup-ci --force`
+
+### Requirement: setup-ci pins the order's issue
+
+`setup-ci` SHALL write into the workflow's `SEQUENCER_ORDER_ISSUE` entry
+the number of the one open issue labelled `sequencer`, when a writer
+opened it. Otherwise, as when none, two or a non-writer's is open, it
+SHALL create the order's issue, labelled and holding the order's markers
+and `# Order` heading, before writing the workflow; the issues already
+labelled then do not matter, since the pin makes the script ignore them.
+
+#### Scenario: setup-ci creates and pins the order's issue
+
+- **WHEN** `setup-ci` runs as a writer in a repository with no open issue
+  labelled `sequencer`
+- **THEN** it opens #200, labelled `sequencer` and holding the order's
+  markers and heading, and the workflow it writes holds
+  `SEQUENCER_ORDER_ISSUE: 200`
+
+### Requirement: Only a writer creates the order's issue
+
+The script SHALL create the order's issue only as a writer: without the
+workflow, a run uses only an order's issue a writer opened, and with it,
+the order's issue is pinned and the workflow creates none.
 
 #### Scenario: No order issue is created that would be refused
 
-- **WHEN** no issue labelled `sequencer` is open, and the script runs as
-  `zed-app[bot]`, whose App the workflow's `trusted-apps` setting does not
-  list
-- **THEN** it opens no issue, publishes nothing, and says that a writer or
-  the workflow must open it
+- **WHEN** a repository has no workflow file and no open issue labelled
+  `sequencer`, and the script runs in a session of `zed`, a user without
+  write access
+- **THEN** it opens no issue, publishes nothing, and says that a writer
+  must open the order's issue
+
+### Requirement: An App in a session without the workflow is told to run setup-ci
+
+Where the default branch holds no `.github/workflows/sequencer.yml` and the
+script runs as a GitHub App's bot account, it SHALL say, beside whatever
+it publishes, that the App is not trusted, since the trusted Apps are
+listed only in the workflow file, so the issues and pull requests
+it opens set no edges or ties and it cannot create the order's issue, and suggest that a person with write
+access run `setup-ci`.
+
+#### Scenario: A session's untrusted App is told to run setup-ci
+
+- **WHEN** a repository has no workflow file, and an agent runs `publish`
+  as `octo-agent[bot]`
+- **THEN** the script says that `octo-agent` is not trusted, so its issues
+  and pull requests set no edges or ties and it cannot create the order's issue, and suggests that a
+  person with write access run `setup-ci`
 
 ### Requirement: Broken markers in the order's issue stop the run
 
@@ -1090,8 +1144,9 @@ markers, at the end of the body, keeping the text already there.
 
 #### Scenario: A labelled issue gets the order below its text
 
-- **WHEN** a writer adds the label `sequencer` to their issue #120, whose
-  body is `Sequencer order`, and no other issue holds the label
+- **WHEN** a repository has no workflow file, and a writer adds the label
+  `sequencer` to their issue #120, whose body is `Sequencer order`, and no
+  other issue holds the label
 - **THEN** the script publishes the order in #120, between markers below
   `Sequencer order`
 
