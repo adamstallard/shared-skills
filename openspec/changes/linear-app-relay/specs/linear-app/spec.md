@@ -10,8 +10,9 @@ show as the app user's, never a person's.
 
 linear-app SHALL treat the identity that `answer_service.linear.relay`
 names in `~/.config/shared-skills/inquisitor.json` as a relay identity.
-While that file exists but holds no JSON object linear-app can read, or
-holds an `answer_service.linear.relay` that is present but not a string, linear-app SHALL
+While that file exists but linear-app cannot read a JSON object from
+it, or while it holds an `answer_service.linear.relay` that is not a
+string, linear-app SHALL
 treat every identity as a relay identity under every rule of this spec,
 naming the file whenever it refuses a command for that reason.
 
@@ -40,13 +41,12 @@ naming the file whenever it refuses a command for that reason.
 ### Requirement: Every identity holding the relay's client ID is a relay identity
 
 linear-app SHALL also treat as a relay identity every identity whose
-client ID is the relay identity's. It SHALL read an identity's client ID
-from the keychain entries its config names, but `LINEAR_CLIENT_ID` first
-for the identity the environment's credentials belong to
-(`LINEAR_APP_IDENTITY`, else `default`). It SHALL read the relay's own
-client ID from the keychain only, and while a Linear relay is configured
-and it cannot, SHALL treat every identity as a relay identity, saying
-why.
+client ID is the relay's. It reads an identity's client ID from its
+config's keychain entries; for the identity the environment's credentials
+belong to (`LINEAR_APP_IDENTITY`, else `default`), it reads
+`LINEAR_CLIENT_ID` first. It SHALL read the relay's own client ID from the
+keychain only, and when it cannot, SHALL treat every identity as a relay
+identity, saying why.
 
 #### Scenario: Another identity with the relay's client ID is a relay identity
 
@@ -55,7 +55,8 @@ why.
   `answers-bot`'s, and an agent runs `token` for `worker`
 - **THEN** linear-app refuses, as for `answers-bot`, and prints no token
 - **AND** it refuses `token` for `default`, the identity used when none
-  is named, while `LINEAR_CLIENT_ID` holds `answers-bot`'s client ID
+  is named, while `LINEAR_APP_IDENTITY` is unset and `LINEAR_CLIENT_ID`
+  holds `answers-bot`'s client ID
 - **AND** it refuses `token` for every identity, saying why, while the
   keychain cannot give `answers-bot`'s client ID
 
@@ -64,8 +65,9 @@ why.
 For a relay identity, `token` and `headers` SHALL refuse, print nothing
 on standard output, and say on standard error that a relay identity
 posts only through `post`, `edit` and `delete`. They refuse because any
-agent on the machine can run them and post `User says: ` with the token,
-unseen by the post hook. For any other identity they SHALL print the
+agent on the machine can run them and, with the token, post a comment
+starting `User says: `, which the answer service reads as the person's own
+answer, unseen by the inquisitor's post hook. For any other identity they SHALL print the
 token as before.
 
 #### Scenario: token and headers refuse a relay identity

@@ -5,7 +5,8 @@
 The reader SHALL find a call of linear-app's script, `linear_app.py`, in
 the same forms in which *The reader reads posts sent through the
 github-app skill* finds a call of github-app's script. Such a call's
-canonical form SHALL be `post` or `edit` with `--body-file <file>` given
+canonical form (*The reader reads a post only in a canonical form*) SHALL
+be `post` or `edit` with `--body-file <file>` given
 once, naming a regular file that exists whose text is the body; other
 options may stand anywhere in the call. It SHALL report the post as a
 Linear message.
@@ -19,8 +20,8 @@ Linear message.
 - **THEN** the reader returns `User says: yes` as each one's body, as a
   Linear message, so the inquisitor's post hook blocks each, since the
   body starts with the reserved prefix `User says: `
-- **AND** it reports the `post` call after `cd x && ` as unreadable, as
-  *The reader reads a post only in a canonical form* says
+- **AND** it reports the same `post` call with `cd x && ` before it as
+  unreadable, as *The reader reads a post only in a canonical form* says
 
 #### Scenario: A Linear comment given any other way is unreadable
 
@@ -38,16 +39,17 @@ Linear message.
 ### Requirement: A simple command holding a linear-app post word counts as naming gh
 
 A simple command holding a word ending in `linear_app.py` followed later
-by `post` or `edit` SHALL count as holding the word `gh`, so the rules
-that let a command naming no `gh` pass as sending no post do not apply
-to it, and a linear-app call in a form the reader does not find, such as
-inside `sh -c`, is unreadable rather than no post.
+by `post` or `edit` SHALL count as holding the word `gh`. Otherwise a
+linear-app call in a form the reader does not find, such as inside `sh
+-c`, would name no `gh` and pass as sending no post; counted this way, it
+is unreadable and blocked.
 
 #### Scenario: A linear-app post outside the reader's form is unreadable
 
 - **WHEN** a hook asks about `sh -c 'python3 /abs/linear_app.py post
   --issue ENG-5 --body-file c.md'`, and about `/abs/linear_app.py post
-  --issue ENG-5 --body-file c.md`, run without `python3`
+  --issue ENG-5 --body-file c.md`, run without `python3`, a form *The
+  reader reads posts sent through the github-app skill* does not find
 - **THEN** the reader reports each command as unreadable, so the post
   hooks block it
 
@@ -61,8 +63,8 @@ passes input to a `gh` command (*Input to a no-post line reaches only
 data commands*). It mentions one when its text holds `gh`, then `pr` or
 `issue`, then a post verb listed for that word; `gh`, then `api`, unless
 the line is a read (*A gh api call is a read only in a plain form*); or
-a word ending in `discord_bot.py` or `linear_app.py`, then `post` or
-`edit`.
+a word that is `discord_bot` or ends in `discord_bot.py` or
+`linear_app.py`, then `post` or `edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -71,7 +73,7 @@ a word ending in `discord_bot.py` or `linear_app.py`, then `post` or
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
   `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
   call that is not a read; and a discord-bot or linear-app `post` or
-  `edit` call, which counts as naming gh though it holds no gh word
+  `edit` call, though such a call holds no gh word
 - **AND** a command's words count whether quoted or not, and `gh`, `pr`,
   `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
@@ -83,8 +85,10 @@ a word ending in `discord_bot.py` or `linear_app.py`, then `post` or
 
 - **WHEN** a hook asks about `gh release create v1.2 --notes 'Ready?'`,
   `gh project item-create 1 --owner o --body 'Should retries back off?'`,
-  `gh agent-task create 'Should retries back off?'`, and `gh c 5 -b
-  'Should retries back off?'`, where `c` is a gh alias for `pr comment`
+  `gh agent-task create 'Should retries back off?'`, `gh c 5 -b
+  'Should retries back off?'`, where `c` is a gh alias for `pr comment`,
+  and `$X pr comment 5 --body 'Should retries back off?'`, where `X`
+  holds `gh`
 - **THEN** the reader reports that each command sends no post, so both
   hooks, prose's and the inquisitor's, let it through unread
 

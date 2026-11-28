@@ -16,7 +16,7 @@ Owned by P0. Standard library only.
 from typing import Literal, NotRequired, TypedDict
 
 Category = Literal["vulnerability", "secret", "personal"]
-VerdictName = Literal["answered", "deferred", "decided", "ask"]
+VerdictName = Literal["answered", "deferred", "decided", "ask", "not asked"]
 QuestionKind = Literal["picker", "post", "text"]
 
 
@@ -92,12 +92,15 @@ class AskField(TypedDict):
 class VerdictIn(TypedDict):
     """One verdict. question: the question's number as the first call
     printed it, from 1. related: the URL of a related earlier decision from
-    the question's filter 1 hits (ask only). requires: the skill requiring a
-    person to decide it (ask only), lowercase letters, digits and `-`."""
+    the question's filter 1 hits (ask only). requires (ask only): the name
+    of the skill whose rules need a person to decide the question,
+    lowercase letters, digits and `-`. field: given for every verdict but
+    `not asked`, which carries none; the type cannot say so, so the second
+    call refuses a verdict breaking it."""
 
     question: int
     verdict: VerdictName
-    field: AnsweredField | WhereField | AskField
+    field: NotRequired[AnsweredField | WhereField | AskField]
     related: NotRequired[str]
     requires: NotRequired[str]
 
@@ -160,7 +163,8 @@ class TagResult(TypedDict):
 
 # -- filter 1's hits ------------------------------------------------------------
 
-InputReason = Literal["unconfirmed", "unanswered", "miss", "superseded", "unreadable", "input"]
+InputReason = Literal["unconfirmed", "permission unreadable", "unanswered", "miss", "superseded",
+                      "unreadable", "input"]
 
 
 class BranchHit(TypedDict):

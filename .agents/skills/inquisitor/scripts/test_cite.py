@@ -6,7 +6,6 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from pathlib import Path
 from typing import Any
 from unittest import mock
 
@@ -18,17 +17,12 @@ from common import Refused
 from formats import CitationFile, parse
 
 
-def fetched(clone: Path, repository: str) -> bool:
-    return True
-
-
 class Cite(unittest.TestCase):
     def setUp(self) -> None:
         self.pushed: list[dict[str, Any]] = []
         self.result = branches.PushResult(pushed=True)
         self.visibility_calls: list[str] = []
         patches = [
-            mock.patch.object(branches, "fetch", fetched),
             mock.patch.object(branches, "push_file", self.push_file),
             mock.patch.object(github, "visibility", self.visibility),
             mock.patch.object(log_command, "today", lambda: "2026-10-20"),
@@ -40,10 +34,10 @@ class Cite(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def push_file(self, clone: Path, repository: str, path: str, content: str, message: str,
+    def push_file(self, repository: str, path: str, content: str,
                   as_inquisitor: bool, service: bool) -> branches.PushResult:
         self.pushed.append({"repository": repository, "path": path, "content": content,
-                            "message": message, "as_inquisitor": as_inquisitor,
+                            "message": f"inquisitor: log {path}", "as_inquisitor": as_inquisitor,
                             "service": service})
         return self.result
 

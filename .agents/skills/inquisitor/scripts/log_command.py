@@ -14,13 +14,13 @@ import secrets
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Literal, NotRequired, TypedDict, cast
+from typing import Any, Callable, Literal, cast
 
 import branches
 import config
 import github
 from common import NotBuilt, Refused, VERSION, igor_run, print_json
-from contracts import LogResult
+from contracts import LogResult, MissesResult, MissOut
 from credentials import matches_credentials
 from formats import (Answer, HandledFile, HashOnlyMiss, LogFile, MissFile, QuestionsBranchFile,
                      Unreadable, is_answer_link, is_asked_in, is_login, is_recorded_in,
@@ -150,29 +150,21 @@ def current_repository() -> str | None:
 
 
 # -- the questions-branch adapter ------------------------------------------------
-# Every call into the branches module goes through the functions below, so
-# that the clone argument the module takes today can be dropped in one place
-# when the module reads and writes questions branches through GitHub's API.
-
-def _clone() -> Path:
-    return Path.cwd()
-
+# Every call this module makes into the branches module, which reads and
+# writes questions branches through GitHub's API, goes through the
+# functions below.
 
 def branch_files(repository: str) -> list[branches.BranchFile] | None:
     """Every file on repository's questions branch, oldest first, or None
     when the branch cannot be read."""
-    clone = _clone()
-    if not branches.fetch(clone, repository):
-        return None
-    return branches.list_files(clone, repository)
+    return branches.list_files(repository)
 
 
 def push_to_branch(repository: str, path: str, content: str, as_inquisitor: bool,
                    service: bool) -> branches.PushResult:
     """Push one file to repository's questions branch, its commit's message
     `inquisitor: log <path>`."""
-    return branches.push_file(_clone(), repository, path, content, f"inquisitor: log {path}",
-                              as_inquisitor, service)
+    return branches.push_file(repository, path, content, as_inquisitor, service)
 
 
 def read_branch(repository: str) -> list[branches.BranchFile]:
@@ -682,32 +674,6 @@ def run(args: LogArgs) -> int:
 
 
 # -- misses ----------------------------------------------------------------------
-
-class MissOut(TypedDict):
-    branch: str
-    path: str
-    filter: str
-    said: str
-    asked: str
-    question: str
-    said_by: NotRequired[str]
-    asked_by: NotRequired[str]
-    repository: NotRequired[str]
-    asked_from: NotRequired[str]
-    asked_in: NotRequired[str]
-
-
-class MissesResult(TypedDict):
-    """What `misses` prints: each readable miss file, oldest first; how
-    many hash-only miss files each branch holds; `<repository>:<path>` of
-    each unreadable one; and the branches it could not read."""
-
-    version: int
-    misses: list[MissOut]
-    hash_only: dict[str, int]
-    unreadable: list[str]
-    not_read: list[str]
-
 
 def _miss_out(branch: str, path: str, miss: MissFile) -> MissOut:
     out: MissOut = {"branch": branch, "path": path, "filter": miss.filter, "said": miss.said,

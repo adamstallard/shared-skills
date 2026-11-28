@@ -60,7 +60,6 @@ class Fakes(unittest.TestCase):
         self.vis = dict(VIS)
         self.unreadable: set[str] = set()
         patches = [
-            mock.patch.object(branches, "fetch", self.fetch),
             mock.patch.object(branches, "list_files", self.list_files),
             mock.patch.object(branches, "push_file", self.push_file),
             mock.patch.object(github, "visibility", self.visibility),
@@ -83,9 +82,6 @@ class Fakes(unittest.TestCase):
 
     # -- fakes
 
-    def fetch(self, clone: Path, repository: str) -> bool:
-        return repository not in self.unreadable
-
     def session_login(self, configured: str | None) -> str | None:
         return configured if configured == "alice" else None
 
@@ -104,13 +100,15 @@ class Fakes(unittest.TestCase):
     def random_hex(self) -> str:
         return "a1b2c3"
 
-    def list_files(self, clone: Path, repository: str | None = None) -> list[branches.BranchFile]:
-        return list(self.branch.get(repository or "", []))
+    def list_files(self, repository: str) -> list[branches.BranchFile] | None:
+        if repository in self.unreadable:
+            return None
+        return list(self.branch.get(repository, []))
 
-    def push_file(self, clone: Path, repository: str, path: str, content: str, message: str,
+    def push_file(self, repository: str, path: str, content: str,
                   as_inquisitor: bool, service: bool) -> branches.PushResult:
         self.pushed.append({"repository": repository, "path": path, "content": content,
-                            "message": message, "as_inquisitor": as_inquisitor,
+                            "message": f"inquisitor: log {path}", "as_inquisitor": as_inquisitor,
                             "service": service})
         return self.push_result
 

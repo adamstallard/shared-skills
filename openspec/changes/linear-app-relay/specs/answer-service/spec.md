@@ -20,11 +20,12 @@ and keep it in its state folder.
 ### Requirement: A relay post is posted by a host command, unvetted
 
 The answer service SHALL post by a host command, never the model's tool
-call: the relay's skill, run as an argument vector with no shell, the
-text on standard input or in a private file. On Linear that skill is
-linear-app, given the text in a private file, so the service never holds
-the relay's token. Neither prose's pass nor the inquisitor's filters, its post hook
-included, SHALL apply to a relay post. The answer service SHALL scan
+call: the relay's skill, run as an argument vector with no shell and
+given the text on standard input or in a private file. On Linear that
+skill is linear-app, given the text in a private file; linear-app holds
+the relay's token itself, so the service never does. Neither prose's pass
+nor any of the inquisitor's filters, including its post hook, SHALL apply
+to a relay post. The answer service SHALL scan
 each relay post's text for the token shapes the inquisitor's *The credential patterns are a
 closed list of token shapes* lists, and post none that matches.
 
@@ -73,11 +74,11 @@ closed list of token shapes* lists, and post none that matches.
 
 Setup's **posting check** SHALL pass on GitHub when the repository is
 among the relay App installation's repositories and the installation may
-write issues and pull requests, both read with the App's own token; on
+write issues and pull requests; on
 Linear when linear-app's `check` for the relay reports `write` in its
-`grantedScopes` and each subscribed team in its `visibleTeams`, a team
-counting as on, shown not checked, while that `check` says it could not
-read the teams; and on Discord when discord-bot's `check --channel` reports
+`grantedScopes` and lists each subscribed team in its `visibleTeams`
+(when that `check` says it could not read the teams, each team counts as
+on and setup shows it as not checked); and on Discord when discord-bot's `check --channel` reports
 `viewChannel`, `readMessageHistory`, `sendMessages` and
 `sendMessagesInThreads` all `true` for the channel.
 
@@ -101,8 +102,9 @@ read the teams; and on Discord when discord-bot's `check --channel` reports
 
 While github-app hands a relay identity's token to a command that can
 print it, the inquisitor's README SHALL say that any agent on the person's
-machine can print that token and post `User says: ` unseen by the post
-hooks. No linear-app command prints a relay identity's token (linear-app
+machine can print that token and post a comment starting `User says: `,
+which the answer service reads as the person's own answer, unseen by the
+post hooks. No linear-app command prints a relay identity's token (linear-app
 spec: *No command prints a relay identity's token*), so the README SHALL
 give no such warning for Linear.
 

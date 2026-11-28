@@ -418,6 +418,13 @@ def _text(question: QuestionIn) -> str:
                                   options=tuple(question.get("options", []))))
 
 
+def same_repository(a: str | None, b: str | None) -> bool:
+    """Whether a and b name one GitHub repository: both given and equal
+    ignoring case, since GitHub ignores case in owner and repository
+    names."""
+    return a is not None and b is not None and a.lower() == b.lower()
+
+
 def subscribed_clone(repository: str) -> Path:
     """The answer service's clone of a subscribed repository."""
     owner, name = repository.split("/")
@@ -426,9 +433,10 @@ def subscribed_clone(repository: str) -> Path:
 
 def filter1(question: QuestionIn, service: bool) -> SearchResult:
     """Filter 1's results for one question. service: read only the answer
-    service's clones as last fetched, run no git fetch, and read issues only
-    of repositories those clones hold. Outside an Igor's run it reads the configured
-    lore clones; in one (common.igor_run()) it searches lore only through
+    service's clones as last fetched, run no git fetch, and read questions
+    branches (through GitHub's API) and issues only of the repositories
+    those clones hold. Outside an Igor's run (common.igor_run() is None) it
+    reads the configured lore clones; in one it searches lore only through
     `igor lore-search`. A question with a category is searched on the
     machine only: no fetch and no GitHub call."""
     cfg = config.load()
@@ -442,7 +450,6 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
     hits: list[SearchHit] = []
     not_searched: list[str] = []
     clones: list[CloneFreshness] = []
-    fetch = not service and not offline
     if run is not None:
         sys.stderr.write(f"inquisitor: {IGOR_NOTE}\n")
 
@@ -453,7 +460,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
     # where this mode can reach it.
     if repo is not None:
         if run == "worker":
-            if work is not None and work_repo == repo:
+            if work is not None and same_repository(work_repo, repo):
                 hits += _worker_docs(work, repo, wanted)
             else:
                 not_searched.append(f"decision documents of {repo}: the worker's working tree "
@@ -462,7 +469,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                              f"questions branch of {repo}: an Igor worker's search covers only its "
                              "working tree beyond igor lore-search"]
         else:
-            clone = subscribed_clone(repo) if service else (work if work_repo == repo else None)
+            clone = subscribed_clone(repo) if service else (work if same_repository(work_repo, repo) else None)
             if clone is not None and not clone.exists():
                 clone = None
             if service and clone is None:
@@ -491,25 +498,31 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                     hits += found[0]
                     if found[1]:
                         not_searched.append(f"issues of {repo} older than the newest {ISSUE_LIMIT}")
-            # When the repository is also a lore repository the lore loop
-            # below searches, its questions branch is searched there, once,
-            # as a lore branch.
+            # The repository's questions branch is searched here only
+            # outside an Igor's run (run is None). The answer service
+            # searches it only when the service holds a clone of the
+            # repository. A lore repository serving this question is
+            # skipped here as well: the lore loop below searches its
+            # questions branch, and searching it here too would show each
+            # hit twice. _branch reads a configured lore repository's files
+            # by a lore branch's rules. In an Igor's run (run "igor" or
+            # "worker"), igor lore-search covers the branch of the run's
+            # item's repository. The lore section below names the branch in
+            # not_searched for an "igor" run when igor lore-search fails or
+            # the repository may not be one it covers; the run == "worker"
+            # block above names it for a worker.
             configured = {lore.repository for lore in cfg.lore}
             served = {lore.repository for lore in serving(cfg.lore, concerns)}
-            if run is None and repo not in served:
-                hits += _branch(repo, repo in configured, clone if service else work,
-                                service, fetch, checks, wanted, work, not_searched)
-            elif run is not None:
-                not_searched.append(f"questions branch of {repo}: {IGOR_NOTE}; searched through "
-                                    "igor lore-search")
+            if run is None and repo not in served and not (service and clone is None):
+                hits += _branch(repo, repo in configured, checks, wanted, work, not_searched)
     # Work-branch decision documents: the current change's own.
     if run != "worker" and work is not None and not service:
         ref = default_ref(work)
         if ref is not None:
             changed = work_branch_docs(work, ref)
             if changed:
-                own = repo is not None and repo == work_repo and work_branch_author_ok(
-                    work, repo, checks, cfg.login)
+                own = (repo is not None and same_repository(repo, work_repo)
+                       and work_branch_author_ok(work, repo, checks, cfg.login))
                 hits += doc_hits(changed, wanted, work_repo, "decision" if own else "input",
                                  "this change's, not yet merged" if own
                                  else "on a work branch, which answers only its own work")
@@ -523,6 +536,19 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             not_searched.append("lore: igor lore-search failed, so no lore was searched")
         else:
             hits += found
+        if repo is not None and run == "igor":
+            # igor lore-search covers the questions branches of the
+            # repository of the issue or pull request the run works on, and
+            # of the Igor's lore repository. The script cannot know the lore
+            # repository and takes the checkout's origin as the item's, so
+            # it names the branch as not searched unless repo is that
+            # origin, even when repo is in fact the lore repository.
+            if found is None:
+                not_searched.append(f"questions branch of {repo}: igor lore-search failed")
+            elif not same_repository(repo, work_repo):
+                not_searched.append(f"questions branch of {repo}: igor lore-search covers the "
+                                    "run's item's repository and the Igor's lore repository, "
+                                    f"and neither is known to be {repo}")
     else:
         scopes = {"global"}
         if repo is not None:
@@ -543,8 +569,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             if lore.repository is None:
                 not_searched.append(f"questions branch of {name}: its origin is not a GitHub repository")
             else:
-                hits += _branch(lore.repository, True, clone, service, fetch, checks, wanted, work,
-                                not_searched)
+                hits += _branch(lore.repository, True, checks, wanted, work, not_searched)
                 not_searched.append(f"decision records of {lore.repository}: igor's scribe's record "
                                     "path (igor PR #202) is not set")
 
@@ -553,12 +578,10 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             "clones": clones, "left_out": max(0, len(hits) - CAP)}
 
 
-def _worker_docs(work: Path | None, repo: str, wanted: set[str]) -> list[SearchHit]:
+def _worker_docs(work: Path, repo: str, wanted: set[str]) -> list[SearchHit]:
     """An Igor worker's decision documents: those in its working tree.
     Those its branch changed, those left uncommitted, and all of them when
     no merge base is found, are shown as input."""
-    if work is None:
-        return []
     files: dict[str, str] = {}
     for prefix in DOC_PREFIXES:
         for p in sorted((work / prefix).rglob("*.md")):
@@ -577,17 +600,20 @@ def _worker_docs(work: Path | None, repo: str, wanted: set[str]) -> list[SearchH
             + doc_hits(other, wanted, repo, "input", "on a work branch, which answers only its own work"))
 
 
-def _branch(repository: str, lore_branch: bool, clone: Path | None, service: bool, fetch: bool,
-            checks: Checks, wanted: set[str], work: Path | None, not_searched: list[str]) -> list[SearchHit]:
-    """One questions branch's hits, fetched first unless fetch is False."""
-    if clone is None and service:
+def _branch(repository: str, lore_branch: bool, checks: Checks, wanted: set[str],
+            work: Path | None, not_searched: list[str]) -> list[SearchHit]:
+    """One questions branch's hits, read through GitHub's API. A question
+    with a category (checks.offline) asks GitHub nothing, so its search
+    reads no questions branch."""
+    if checks.offline:
+        not_searched.append(f"questions branch of {repository}: the question has a category, "
+                            "so nothing off the machine is searched")
         return []
-    files = read_branch(repository, clone, fetch)
+    files = read_branch(repository)
     if files is None:
-        not_searched.append(f"questions branch of {repository}: it cannot be fetched or read"
-                            + ("" if clone else " without a local git repository"))
+        not_searched.append(f"questions branch of {repository}: it cannot be read")
         return []
-    labelled = label_branch(files, repository, lore_branch, checks, clone=clone)
+    labelled = label_branch(files, repository, lore_branch, checks)
     return branch_hits(labelled, wanted, repository, work)
 
 
