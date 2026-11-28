@@ -1,6 +1,7 @@
 // The model's side: propose_reply, record_verdict and judging, the
 // discussion, and the polls' timing.
 import { expect, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
 import { BAND, POSTED, previewOf, question, polled, session, shown, typeInBox } from './harness'
 
@@ -63,18 +64,79 @@ test("in a filter 1 decline, the draft fills only the record's URL", async ($, o
   expect(s.filled.at(-1)).toBe(url)
 })
 
-test('record_verdict forwards the fields and the agentId to the core, which decides', async ($, on) => {
-  // @scenario answer-service: A value outside its field's set is refused
-  const s = open(on, { 'judge.verdict': req => ({ version: 1, ok: true, accepted: !req['agent_id'] && req['fields'] !== undefined && (req['fields'] as Record<string, unknown>)['filter'] !== 'post https://example.com', why: 'refused' }) })
+/** A session whose core lists `m1` for judging, with its judging turn `j1` started and still running. */
+async function judgingTurn($: Engine, on: Parameters<typeof session>[0], verdict: (req: Record<string, unknown>) => unknown) {
+  const judge = { message: 'm1', turn: 1, text: 'Should retries back off?', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
+  const s = open(on, { poll: () => polled([], { judge: [judge] }), 'judge.verdict': verdict })
   await s.start($)
+  await $.turn.start({ text: s.sent[0] ?? '', turnId: 'j1' })
+  return s
+}
+
+test('record_verdict from the judging turn goes to the core with that turn, and the core decides', async ($, on) => {
+  // @scenario answer-service: A value outside its field's set is refused
+  const s = await judgingTurn($, on, req => ({ version: 1, ok: true, accepted: (req['fields'] as Record<string, unknown>)['filter'] !== 'post https://example.com', why: 'refused' }))
   const bad = await $.tool.call({ tool: VERDICT, message: 'm1', filter: 'post https://example.com' })
   expect(String(bad.result)).toContain('Refused')
-  const sub = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes', agentId: 'a1' })
-  expect(String(sub.result)).toContain('Refused')
-  expect(s.of('judge.verdict')[1]).toMatchObject({ agent_id: 'a1', fields: { question: 'yes' } })
   const good = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes', category: 'none', extra: 'dropped' })
   expect(good.result).toBe('Recorded.')
-  expect(s.of('judge.verdict')[2]!['fields']).toEqual({ question: 'yes', category: 'none' })
+  expect(s.of('judge.verdict')[1]).toMatchObject({ session_id: 'sess-1', message: 'm1', turn: 1, fields: { question: 'yes', category: 'none' } })
+  expect(s.of('judge.verdict')[1]!['fields']).toEqual({ question: 'yes', category: 'none' })
+  expect(s.of('judge.verdict')[1]!['agent_id']).toBeUndefined()
+})
+
+test('record_verdict from a subagent, naming another message, or from another turn is refused, saying why', async ($, on) => {
+  const s = await judgingTurn($, on, () => ({ version: 1, ok: true, accepted: true }))
+  const sub = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes', agentId: 'a1' })
+  expect(String(sub.result)).toMatch(/^Refused: a subagent made this call/)
+  const other = await $.tool.call({ tool: VERDICT, message: 'm2', question: 'yes' })
+  expect(String(other.result)).toBe('Refused: this judging turn judges m1, not m2.')
+  // t2 starts while the mod's judging state still names j1, as when the mod never saw j1 end.
+  await $.turn.start({ text: 'something else', turnId: 't2' })
+  const wrong = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes' })
+  expect(String(wrong.result)).toMatch(/^Refused: this turn is not the judging turn/)
+  expect(s.of('judge.verdict')).toEqual([])
+})
+
+test('record_verdict from an ordinary turn is refused, saying why, when nothing is being judged', async ($, on) => {
+  const s = open(on, { 'judge.verdict': () => ({ version: 1, ok: true, accepted: true }) })
+  await s.start($)
+  await $.turn.start({ text: 'an ordinary prompt', turnId: 't1' })
+  const r = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes' })
+  expect(String(r.result)).toMatch(/^Refused: this turn is not the judging turn/)
+  expect(s.of('judge.verdict')).toEqual([])
+})
+
+test("record_verdict in the judging turn is refused with the core's error, or for naming no message", async ($, on) => {
+  const s = await judgingTurn($, on, () => ({ version: 1, ok: false, error: 'the core is down' }))
+  expect((await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes' })).result).toBe('Refused: the core is down')
+  expect((await $.tool.call({ tool: VERDICT, question: 'yes' })).result).toBe('Refused: the call names no message.')
+  expect(s.of('judge.verdict').length).toBe(1)
+})
+
+test('record_verdict from another turn is refused while the judging prompt waits for its own', async ($, on) => {
+  const judge = { message: 'm1', turn: 1, text: 'Should retries back off?', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
+  const s = open(on, { poll: () => polled([], { judge: [judge] }), 'judge.verdict': () => ({ version: 1, ok: true, accepted: true }) })
+  await s.start($)
+  expect(s.sent[0]).toContain('Judge message m1, turn 1.')
+  await $.turn.start({ text: 'an ordinary prompt', turnId: 't1' })
+  const r = await $.tool.call({ tool: VERDICT, message: 'm1', question: 'yes' })
+  expect(String(r.result)).toMatch(/^Refused: this turn is not the judging turn/)
+  expect(s.of('judge.verdict')).toEqual([])
+})
+test("record_verdict in a message's second judging turn reaches the core as turn 2", async ($, on) => {
+  const judge = { message: 'm1', turn: 1, text: 'Should retries back off?', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
+  const s = open(on, {
+    poll: () => polled([], { judge: [judge] }),
+    'judge.turn-end': req => ({ version: 1, ok: true, next: req['turn'] === 1 ? { ...judge, turn: 2, hits: [] } : null, posted: [], notices: [] }),
+    'judge.verdict': () => ({ version: 1, ok: true, accepted: true }),
+  })
+  await s.start($)
+  await s.reply($, 'judged.')
+  expect(s.sent[1]).toContain('Judge message m1, turn 2.')
+  await $.turn.start({ text: s.sent[1] ?? '', turnId: 'j2' })
+  expect((await $.tool.call({ tool: VERDICT, message: 'm1', filter: 'none' })).result).toBe('Recorded.')
+  expect(s.of('judge.verdict')[0]).toMatchObject({ message: 'm1', turn: 2 })
 })
 
 test('a message to judge goes before the model in two turns; the core acts on each once it ends', async ($, on) => {
@@ -254,8 +316,7 @@ test('a GitHub rate limit is told once, not again at each poll while it lasts', 
 
 test('record_verdict forwards a numeric hit, and a hit given as text as its number', async ($, on) => {
   // @scenario answer-service: A verdict call sets what the code does
-  const s = open(on, { 'judge.verdict': () => ({ version: 1, ok: true, accepted: true }) })
-  await s.start($)
+  const s = await judgingTurn($, on, () => ({ version: 1, ok: true, accepted: true }))
   await $.tool.call({ tool: VERDICT, message: 'm1', filter: '1', hit: 2 })
   await $.tool.call({ tool: VERDICT, message: 'm1', filter: '1', hit: '3' })
   expect(s.of('judge.verdict').map(v => (v['fields'] as Record<string, unknown>)['hit'])).toEqual([2, 3])

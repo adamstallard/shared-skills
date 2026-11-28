@@ -58,10 +58,11 @@ sequences*), unless input within the line reaches a `gh` command
 A command SHALL **mention** a gh post verb when its text holds any of:
 
 - `gh`, then `pr` or `issue`, then a post verb listed for that word;
+- `gh`, then `pr` or `issue`, then a word *A word after gh pr or gh
+  issue that may become a post verb mentions one* names;
 - `gh`, then `api`, unless the line is a read (*A gh api call is a read
   only in a plain form*);
-- a word that is `discord_bot` or ends in `discord_bot.py`, then a
-  discord-bot post word.
+- a word naming discord-bot, then a discord-bot post word.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -77,6 +78,21 @@ A command SHALL **mention** a gh post verb when its text holds any of:
   `_` or `-` just after, so `--comments` holds no `comment` and
   `--comment` holds one; and `api` counts only with no `/` or `.` just
   before or after it, so `gh repo view o/api` mentions no post verb
+
+### Requirement: A word after gh pr or gh issue that may become a post verb mentions one
+
+In a `gh` command, the first word after `pr` or `issue` that neither
+starts with `-` nor follows `-R` or `--repo` SHALL mention a post verb
+unless it is one of gh's no-text verbs, the list the scenario *Input may
+reach one gh command that uses no post verb* gives, since a word filled in when the line runs, as
+`find`'s `{}`, may become a post verb.
+
+#### Scenario: A subcommand filled in at run time mentions a post verb
+
+- **WHEN** a hook asks about `find comment -exec gh pr {} 5 --body x ';'`,
+  `gh pr "$V" 5`, `gh pr --repo o/r "$V" 5`, `gh pr merge 5` and `gh pr
+  view 5`
+- **THEN** the first four mention a post verb and the last does not
 
 ### Requirement: A command that only runs prose's script sends no post
 
@@ -153,8 +169,8 @@ takes a value as the next word.
   `--base`, `--head`, `--draft`, `--label`, `--assignee`, `--reviewer`,
   `--milestone`, and, where gh has them, `gh pr edit`'s and `gh issue
   edit`'s `--add-` and `--remove-` options for reviewers, labels,
-  assignees and projects, and `--remove-milestone`; only `--draft` takes
-  no value
+  assignees and projects, and `--remove-milestone`; only `--draft` and
+  `--remove-milestone` take no value
 - **AND** `gh pr edit 5 --add-reviewer alice --remove-label wip --title t
   --body-file body.md`, where `body.md` exists, is read, its body
   `body.md`'s text
@@ -188,9 +204,8 @@ need a body, and return only its title; a `create` still needs one.
 
 ### Requirement: The reader reads a GitHub MCP tool's body and comment keys
 
-A **GitHub MCP tool** is one whose name starts `mcp__github__`,
-`mcp__plugin_<name>_github__` or `mcp__claude_ai_GitHub__`.
-For one, the reader SHALL return, at any depth, every string under a
+For a GitHub MCP tool (*An MCP tool's server name tells GitHub's tools
+from Linear's*), the reader SHALL return, at any depth, every string under a
 key named `body` or `comment` as a body, and every string under a key
 named `title` as a title.
 
@@ -205,11 +220,27 @@ named `title` as a title.
 - **AND** it returns `Retries?` as the title of a GitHub MCP tool whose
   input holds `title` `Retries?`
 
+### Requirement: An MCP tool's server name tells GitHub's tools from Linear's
+
+An MCP tool's **server name** SHALL be the part of its name between
+`mcp__` and the next `__`. A **GitHub MCP tool** is one whose server name
+holds `github`, ignoring case, and a **Linear MCP tool** one whose server
+name holds `linear`, ignoring case; a tool whose server name holds both
+SHALL be unreadable.
+
+#### Scenario: Any server name holding github or linear is read
+
+- **WHEN** a hook asks about `mcp__GitHub__add_issue_comment` and
+  `mcp__plugin_x_github__add_issue_comment` with `body` `ok`, and about
+  `mcp__linear-server__save_comment` and `mcp__Linear__save_comment`
+  with `body` `ok`
+- **THEN** the reader reads the first two as GitHub MCP tools and the
+  last two as Linear MCP tools
+- **AND** it reports `mcp__github_linear__save_comment` as unreadable
+
 ### Requirement: The reader reads a Linear MCP comment or issue description
 
-For a tool named `save_comment` or `save_issue` under a **Linear MCP
-prefix**, `mcp__linear__`, `mcp__plugin_<name>_linear__` or
-`mcp__claude_ai_Linear__`, the reader SHALL return, as a Linear
+For a Linear MCP tool named `save_comment` or `save_issue`, the reader SHALL return, as a Linear
 message, `save_comment`'s `body` or `save_issue`'s `description`, and
 `save_issue`'s `title` as a title. A
 `save_issue` call holding `patch`, or holding `template` but no
@@ -577,8 +608,10 @@ message.
   yes`, `printf 'User says: yes' | python3 /abs/discord_bot.py post
   --message -`, `python3 /abs/discord_bot.py post --message-file=m.md`,
   `python3 /abs/discord_bot.py post --message-file a.md --message-file
-  b.md`, and `python3 -m discord_bot post --message-file m.md`, whose
-  `discord_bot` is a module name, not a path to the script
+  b.md`, and `python3 -m discord_bot post --message-file m.md`, and the
+  same post run as `python3 -m scripts.discord_bot`, `python3
+  -mdiscord_bot` or `python3 -m discord_bot.__main__`, each naming a
+  module, not a path to the script
 - **THEN** the reader reports each command as unreadable
 
 #### Scenario: A Discord delete or read is no post
@@ -592,14 +625,15 @@ message.
 For a call of discord-bot's script with `thread`, found as *The reader
 reads discord-bot's post and edit only from a message file* finds one,
 the canonical form SHALL give `--name` once, its value the next word,
-which the reader returns as a Discord title, and no other option but
-`--identity`, `--channel` and `--message-id`, each at most once, its
-value the next word.
+which the reader returns as a Discord title, and after `thread` no other
+option but `--channel` and `--message-id`, each at most once, its value
+the next word. An `--identity` SHALL come before `thread`, as before
+`post`; one after `thread` makes the call unreadable.
 
 #### Scenario: A thread's name is a title
 
-- **WHEN** a hook asks about `python3 /abs/discord_bot.py thread
-  --message-id 9 --name Retries`
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py --identity
+  relay thread --message-id 9 --name Retries`
 - **THEN** the reader returns `Retries` as its title
 - **AND** it reports a `thread` call giving `--name=Retries`, `--name`
   twice, or `--na x`, which discord-bot would take for `--name`, or
@@ -607,11 +641,14 @@ value the next word.
 
 ### Requirement: A simple command holding a discord-bot post word counts as naming gh
 
-A simple command holding a word that is `discord_bot` or ends in
-`discord_bot.py`, followed later by a **discord-bot post word**,
+A simple command holding a word that names discord-bot's script or
+module, followed later by a **discord-bot post word**,
 `post`, `edit` or `thread`, SHALL count as
-holding a word that is `gh`, so the rules under which a command naming
-no `gh` sends no post never apply to it.
+holding a word that is `gh`, so no rule that lets through a command
+naming no `gh` applies to it. A word SHALL name the script when it ends
+in `discord_bot.py`, and the module when, with any leading `-m` dropped,
+it is `discord_bot` or `discord_bot.__main__`, or ends in `.discord_bot`
+or `.discord_bot.__main__`.
 
 #### Scenario: A discord-bot post outside the reader's form is unreadable
 

@@ -832,7 +832,8 @@ returns. If the command fails, the search SHALL search no lore and say so.
 
 - **WHEN** filter 1 runs in an Igor's run
 - **THEN** the script runs `igor lore-search` with no argument and the
-  question on standard input
+  question on standard input, as igor PR #216's decision 23 has the
+  command take it
 
 #### Scenario: An Igor's own inquisitor run searches lore through igor's command
 
@@ -2065,8 +2066,9 @@ SHA-256 of that text as UTF-8, in lowercase hex.
 
 Where this spec reduces **inline markup** to text, a code span, emphasis,
 strong emphasis or `~~` strikethrough SHALL become its inner text; a link or
-image its link text or alt text; an autolink its URL; and a backslash escape
-the escaped character. Nothing else SHALL change:
+image its link text or alt text; an autolink its URL; a backslash escape
+the escaped character; and a character reference that counts as `?`
+(*A sentence and a question's terms are defined*) a `?`. Nothing else SHALL change:
 an HTML tag stays as written, and so do Discord's `<@id>`, `<#id>`,
 `<:name:id>`, `<a:name:id>` and `<t:…>` forms.
 
@@ -2076,6 +2078,7 @@ an HTML tag stays as written, and so do Discord's `<@id>`, `<#id>`,
   <https://example.com> and \*this\* <b>now</b>?``
 - **THEN** its text is `Use retry() in v1 v2, see https://example.com and
   *this* <b>now</b>?`
+- **AND** the text of `Ship it&#63;` is `Ship it?`
 
 #### Scenario: Discord's angle-bracket forms and a single tilde stay as written
 
@@ -2312,6 +2315,33 @@ reading finds SHALL be marked so in the first call's output.
   by the plain reading alone, and the post hook vets each
 - **AND** a question in an inline code span, or in an HTML comment
   sharing a line with other text, is found by both readings
+
+#### Scenario: A plain-reading sentence inside a section item is that item's
+
+- **WHEN** an open-questions section holds the item `- Ship it? Or
+  wait?`, and the plain reading, which finds no open-questions section,
+  finds its two sentences wholly on the item's line and inside the
+  item's text
+- **THEN** each sentence counts as the item's, and the first call takes
+  the one question `Ship it? Or wait?`, found by both readings
+
+### Requirement: A question mark both readings pass over ends a question of its own
+
+The first call and the post hook SHALL take, for each `?` with no letter
+or digit right after it that ends no question either reading found,
+outside `>` lines, prose's footer and related-decision and tag lines, a
+question found by the plain reading alone, so no misread markup hides a
+question. It holds the text between this `?` and
+the last earlier `?` on its line with no letter or digit after it, or
+the last `.` or `!` followed by whitespace, whichever is later; or else
+from the line's start.
+
+#### Scenario: A question mark both readings pass over is still vetted
+
+- **WHEN** a post's only line reads `Ship _v2?_now`, whose `?` ends no
+  sentence, since a `_` follows it
+- **THEN** the first call takes the question `Ship _v2?`, marked as
+  found by the plain reading alone, so the agent may give it `not asked`
 
 ### Requirement: The markdown reading errs toward finding a question
 
@@ -2597,6 +2627,22 @@ is never tagged on their own post.
   github-app's script as `bot`
 - **AND** it lets through the same post sent as `python3
   /abs/github_app.py --identity bot gh pr comment 5 --body-file c.md`
+
+### Requirement: Vetting a tagged question again keeps its identity only for ask
+
+A later second call SHALL keep the identity recorded for a question's tag
+in the question's new record only when it records `ask`. Running `tag`
+again replaces the identity, or drops it when given none.
+
+#### Scenario: Vetting a tagged question again keeps its identity only for ask
+
+- **WHEN** the script tagged `alice` on a question because the agent
+  passed the identity `bot`, and a later second call records `ask` for
+  the same question
+- **THEN** the post hook still blocks the question posted with a plain
+  `gh pr comment`
+- **AND** a later second call that records `deferred` or `not asked`
+  for it drops the identity, and so does `tag` run again without one
 
 ### Requirement: A candidate or login that cannot be checked is skipped
 
@@ -4137,7 +4183,8 @@ GitHub, any such value.
   or in the form *Where an answer_link may be written* gives for an
   answer relayed on Linear or Discord, and nothing else
 - **AND** it accepts a `recorded_in` only as a URL in a form an
-  `answer_link` may take, or as a path from the repository's root that
+  `answer_link` may take, or as such a GitHub issue URL with no fragment,
+  naming the issue whose decision block records the answer, or as a path from the repository's root that
   *An answered log file's keys* gives, with no leading `/`, optionally
   followed by `@` and a 40-digit hex commit hash, with no empty, `.` or
   `..` segment and none starting with `-`

@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 import time
 import unittest
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from unittest import mock
@@ -18,7 +17,7 @@ import calls
 import config
 from common import Refused, verdicts_dir
 from contracts import QuestionIn, SearchResult
-from qtext import FoundQuestion, Question, find_questions, question_hash, question_text
+from qtext import Question, question_hash, question_text
 
 TOKEN = "ghp_" + "a" * 36
 
@@ -159,6 +158,14 @@ class FirstCall(Base):
             calls.run(calls.VetArgs(post=post))
         self.assertIn("question 1", str(cm.exception))
         self.assertNotIn(TOKEN, str(cm.exception))
+
+    def test_repository_and_lore_together_refused(self) -> None:
+        # A post's questions concern the repository --repository names or the lore repository
+        # --lore names. Given both flags, the call cannot tell which, so it refuses.
+        post = self.file("Should retries back off?\n")
+        with self.assertRaises(Refused) as cm:
+            calls.run(calls.VetArgs(post=post, repository="o/api", lore="o/lore"))
+        self.assertIn("not both", str(cm.exception))
 
     def test_token_in_link_target_refused(self) -> None:
         # @scenario inquisitor: A token in a link target is refused
@@ -438,6 +445,53 @@ class ReadRecords(Base):
         self.assertIsNone(calls.read_records({"c" * 64}))
         self.assertEqual(calls.read_records({"d" * 64}), {})
 
+    def test_records_that_do_not_read_as_records(self) -> None:
+        # @scenario inquisitor: A post is blocked when the verdict records cannot be read
+        # Each of these files fails as a record, so read_records gives None for its hash. The
+        # refusal then names the file. It does not name the other hash asked for, "e" * 64,
+        # which has no file at all.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        for n, content in enumerate((b"\xff\xfe", b"[1]", b'{"verdict": "ask"}', b'{"time": true}')):
+            h = f"{n}" * 64
+            (d / f"{h}.json").write_bytes(content)
+            self.assertIsNone(calls.read_records({h}), content)
+            message = str(calls.unreadable_records_refusal({h, "e" * 64}))
+            self.assertIn(str(d / f"{h}.json"), message)
+            self.assertNotIn("e" * 64, message)
+            (d / f"{h}.json").unlink()
+
+    def test_only_records_asked_for_are_returned(self) -> None:
+        # @scenario inquisitor: An old record is deleted
+        # Its requirement deletes old records and nothing else (the deleting itself is
+        # test_old_records_deleted): an old `.json` file not named by a hash, and an old file
+        # named by a hash without `.json`, are no records and stay. Also, only the record asked
+        # for comes back, not b's fresh one.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        fresh = {"version": 1, "verdict": "ask", "time": time.time()}
+        stale = json.dumps({"version": 1, "verdict": "ask", "time": time.time() - 7300})
+        for h in ("a" * 64, "b" * 64):
+            (d / f"{h}.json").write_text(json.dumps({**fresh, "hash": h}))
+        (d / "notes.json").write_text(stale)
+        (d / ("c" * 64)).write_text(stale)
+        self.assertEqual(set(calls.read_records({"a" * 64}) or {}), {"a" * 64})
+        self.assertTrue((d / "notes.json").exists())
+        self.assertTrue((d / ("c" * 64)).exists())
+
+    def test_old_record_already_gone_is_no_failure(self) -> None:
+        # @scenario inquisitor: An old record is deleted
+        # Another call may delete the old record between this call's listing and its delete.
+        # The patched unlink raises FileNotFoundError, as that delete would, and read_records
+        # still returns its result, not None.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        old = "a" * 64
+        (d / f"{old}.json").write_text(json.dumps({"version": 1, "hash": old, "verdict": "ask",
+                                                   "time": time.time() - 7300}))
+        with mock.patch("pathlib.Path.unlink", side_effect=FileNotFoundError):
+            self.assertEqual(calls.read_records({"b" * 64}), {})
+
 
 class AllOrNone(Base):
     def test_failed_record_write_records_nothing(self) -> None:
@@ -492,12 +546,18 @@ class Edges(Base):
             "recommended": "Yes", "changes": "No: x."}}])
         return result["lines"][0]["record_line"]
 
-    def test_record_line_without_asked_from(self) -> None:
-        # @scenario inquisitor: The picker shows where the answer will be recorded
-        with mock.patch("calls._working_repository", return_value=None), \
-                mock.patch("github.visibility", side_effect={"o/api": "public"}.get):
-            self.assertEqual(self.line(picker("Retry?", ["Yes", "No"])),
-                             "Recorded: o/api questions branch (public)")
+    def test_record_line_outside_any_repository(self) -> None:
+        # @scenario inquisitor: Not recorded gives a listed reason
+        # Both questions concern o/api (picker's default concerns). _working_repository gives
+        # None, as in a folder no git repository holds, so the first call sets no asked_from
+        # and the first question is not recorded. The second names its asked_from in the
+        # questions input, which says where it was asked, so it is recorded (private: the
+        # visibility Base mocks).
+        q = picker("Retry?", ["Yes", "No"])
+        with mock.patch("calls._working_repository", return_value=None):
+            self.assertEqual(self.line(q), "Not recorded: asked outside any repository")
+            self.assertEqual(self.line({**q, "concerns": {"repository": "o/api", "asked_from": "o/api"}}),
+                             "Recorded: o/api questions branch (private)")
 
     def test_no_login_before_access_check(self) -> None:
         # @scenario inquisitor: Not recorded gives a listed reason
@@ -584,6 +644,20 @@ class KeepIdentity(Base):
         self.second(token, [{"question": 1, **self.ASK}])
         self.assertEqual(json.loads(path.read_text()).get("identity"), "bot")
 
+    def test_vetting_again_to_another_verdict_drops_the_identity(self) -> None:
+        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
+        # The other side of that scenario: a post vetted again as `deferred` holds no tag line
+        # (only an `ask` gets the one `tag` adds), so its record drops the identity, and nothing
+        # then blocks posting it with plain gh.
+        token, path = self.vet()
+        self.second(token, [{"question": 1, **self.ASK}])
+        record = json.loads(path.read_text())
+        path.write_text(json.dumps({**record, "identity": "bot"}))
+        token, _ = self.vet()
+        self.second(token, [{"question": 1, "verdict": "deferred", "field": {"where": "issue #9"}}])
+        record = json.loads(path.read_text())
+        self.assertEqual((record["verdict"], "identity" in record), ("deferred", False))
+
     def test_unreadable_records_refuse_and_keep_the_token(self) -> None:
         # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
         # That scenario's block rests on the identity in the record. A record that cannot be read
@@ -592,41 +666,15 @@ class KeepIdentity(Base):
         token, path = self.vet()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("not json")
-        with self.assertRaises(Refused):
+        with self.assertRaises(Refused) as cm:
             self.second(token, [{"question": 1, **self.ASK}])
+        self.assertIn(str(path), str(cm.exception))
         self.assertEqual(path.read_text(), "not json")
         self.assertTrue((self.state / "inquisitor" / "tokens" / f"{token}.json").exists())
 
 
-@dataclass(frozen=True)
-class _Found(FoundQuestion):
-    """A FoundQuestion with the in_code field that the shared parser's
-    two-readings change, a separate commit, adds. qtext's FoundQuestion has
-    no such field yet, and calls.py reads it with getattr, so this double
-    can stand in for that parser's results."""
-
-    in_code: bool = False
-
-
-def two_readings(body: str, in_code: bool = False) -> list[FoundQuestion]:
-    """A stand-in for find_questions(body, in_code=True): the real parser's
-    questions, then, with in_code, the last line of the body's first fenced
-    block as a question with in_code set, whatever that line says."""
-    found: list[FoundQuestion] = list(find_questions(body))
-    if in_code and "```" in body:
-        code = body.split("```")[1].strip().splitlines()[-1]
-        found.append(_Found(Question("post", code), None, False, raw=code, in_code=True))
-    return found
-
-
 class NotAsked(Base):
     post = "Should retries back off?\n\n```\nwhy = 'Is this code?'\n```\n"
-
-    def setUp(self) -> None:
-        super().setUp()
-        p = mock.patch("calls.find_questions", two_readings)
-        p.start()
-        self.addCleanup(p.stop)
 
     def vet_post(self) -> tuple[str, dict[str, Any]]:
         text, objs = self.run_vet(calls.VetArgs(post=self.file(self.post)))
@@ -649,18 +697,14 @@ class NotAsked(Base):
         self.assertEqual(set(record), {"version", "hash", "verdict", "time"})
         self.assertEqual(record["verdict"], "not asked")
 
-    def test_same_text_in_prose_and_code_keeps_one_record(self) -> None:
-        # @scenario inquisitor: Two questions with one text and different verdicts are refused
-        # The same text in running text and in code is one question text. When both get
-        # `ask`, they make one record; `ask` for one and `not asked` for the other differ in
-        # verdict, and are refused.
+    def test_same_text_in_prose_and_code_is_one_question(self) -> None:
+        # Two readings' copies of one text count once, by their shared hash (inquisitor spec:
+        # *Questions in a post are found by two readings*; no scenario covers it). The hiding
+        # reading finds the copy in running text, so the one question is not plain_only, and the
+        # second call refuses `not asked` for it, as the next test shows.
         self.post = "Should retries back off?\n\n```\nShould retries back off?\n```\n"
         _, out = self.vet_post()
-        ask = {"verdict": "ask", "field": {"recommended": "Yes.", "changes": "No: hammering."}}
-        with self.assertRaises(Refused):
-            self.second(out["token"], [{"question": 1, **ask}, {"question": 2, "verdict": "not asked"}])
-        self.second(out["token"], [{"question": 1, **ask}, {"question": 2, **ask}])
-        self.assertEqual(len(self.records()), 1)
+        self.assertEqual([q["plain_only"] for q in out["questions"]], [False])
 
     def test_question_the_hiding_reading_finds_cannot_be_not_asked(self) -> None:
         # @scenario inquisitor: A question the hiding reading finds cannot be not asked

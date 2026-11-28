@@ -488,7 +488,7 @@ _RECORDED = re.compile(RECORDED_PREFIX + r"(\S+) questions branch " + _VISIBILIT
 NOT_RECORDED_LINES = frozenset(NOT_RECORDED_PREFIX + reason for reason in (
     "about your way of working", "only a security advisory may hold it", "it has a category",
     "no push access to its questions branch", "no team's lore repository serves it",
-    "no GitHub login configured"))
+    "no GitHub login configured", "asked outside any repository"))
 
 
 def line_kind(line: str) -> LineKind | None:
