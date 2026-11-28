@@ -72,8 +72,10 @@ Ask your agent to *"check the acme linear-app identity"*, or run:
 python3 ~/.agents/skills/linear-app/scripts/linear_app.py --identity acme check
 ```
 
-It mints the first token and shows the app user's name, the workspace,
-`"canBeDelegate": true`, and how many days the token has left. **The `user`
+It mints the first token and shows the app user's name and `userId`, the
+workspace, `"canBeDelegate": true`, how many days the token has left, the
+scopes Linear granted (`grantedScopes`) and the keys of the teams the app user
+can see (`visibleTeams`). **The `user`
 must be the agent's name, not yours.**
 
 ### 5. Connect the agent
@@ -96,6 +98,15 @@ prints it as JSON.
 
 **Programs** (igor, scripts): run `linear_app.py --identity acme token` and
 use what it prints as a bearer token.
+
+**Comments without a token:** `post --issue <id> --body-file <file>` (with
+`--parent <comment id>` for a reply), `edit --comment <id> --body-file
+<file>` and `delete --comment <id>` act as the identity and print the
+comment's `id` (and, for `post` and `edit`, its `url`), never the token. The
+text comes only from the file `--body-file` names; standard input and
+`--body` are refused, so the inquisitor's post hook, which reads an agent's
+command line before it runs, reads exactly what is posted. A refusal from
+Linear comes back with its HTTP status and errors unchanged.
 
 ---
 
@@ -129,6 +140,39 @@ mint over each other.
 Claim work by **delegate**, never assignee. An app user can't be an assignee,
 and Linear accepts the request and silently ignores it, so always read the
 issue back after claiming it.
+
+## Relay identities
+
+The [inquisitor](../inquisitor/)'s answer service posts your answers to
+agents' questions on Linear, each starting `User says: `, through the identity that `answer_service.linear.relay` names in
+`~/.config/shared-skills/inquisitor.json`. That identity, and any other
+holding its client ID, is a **relay identity**:
+
+- `token`, `headers` and `wire` refuse it, since any agent that could print
+  its token could post a `User says: ` comment the service takes as yours. It posts only through `post`,
+  `edit` and `delete`.
+- Its client ID and secret come only from the keychain, never from
+  `LINEAR_CLIENT_ID` or `LINEAR_CLIENT_SECRET`, and its token is cached in
+  the keychain, under the service `linear-app` and the account
+  `<identity>:token`. On a host with neither `security` nor `secret-tool`,
+  every command but `forget` refuses it.
+- `check` warns of any MCP server wired to it, since that server's
+  headers helper runs `headers`, which now refuses.
+
+If `inquisitor.json` exists but cannot be read, or `answer_service`,
+`answer_service.linear` or `answer_service.linear.relay` has the wrong
+type, or the relay's client ID cannot be read from the keychain, every
+identity counts as a relay identity until that is fixed, since any of them
+might be the relay: none takes credentials from the environment, and
+`token`, `headers` and `wire` refuse. A relay name no identity can have,
+such as `a/b`, makes no identity a relay identity, but the commands
+`token`, `headers` and `wire` still refuse for every identity, since
+linear-app cannot tell which one was meant. Either way each refusal, and
+every other command's warnings, say what is wrong and how to fix it.
+
+A known limit: linear-app reads `inquisitor.json` only under `HOME`, so a
+command run with `HOME` pointed at a folder without that file applies none
+of the relay rules above, even to the relay your own file names.
 
 ---
 

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import linear_app as la  # noqa: E402
 
 # The real keychain functions, kept before each test replaces them with stubs.
-REAL_READ, REAL_DELETE = la.read_keychain, la.delete_keychain
+REAL_READ, REAL_DELETE, REAL_WRITE = la.read_keychain, la.delete_keychain, la.write_keychain
 
 DAY = 24 * 3600
 
@@ -210,7 +210,7 @@ class WriteKeychainOnMacOS(unittest.TestCase):
 class Http(unittest.TestCase):
     def test_mint_sends_client_credentials_and_scopes(self):
         opener = mock.Mock(return_value=response({"access_token": "t", "expires_in": 100}))
-        self.assertEqual(la.mint("cid", "sec", "read,write", opener), ("t", 100))
+        self.assertEqual(la.mint("cid", "sec", "read,write", opener), ("t", 100, None))
         req = opener.call_args[0][0]
         self.assertEqual(req.full_url, la.TOKEN_URL)
         sent = dict(x.split("=", 1) for x in req.data.decode().split("&"))
@@ -287,7 +287,7 @@ class Cache(Env):
         def read(p):
             calls.append(p)
             if len(calls) == 2:  # the re-read under the lock sees another process's token
-                return {"token": "theirs", "scopes": la.DEFAULT_SCOPES,
+                return {"token": "theirs", "scopes": la.DEFAULT_SCOPES, "grantedScopes": ["read"],
                         "credential": la.fingerprint("cid", "secret", la.DEFAULT_SCOPES),
                         "renewAt": 1000 + 15 * DAY, "expiresAt": 1000 + 30 * DAY}
             return real_read(p)
@@ -500,7 +500,8 @@ class Forget(Env):
         with mock.patch.object(la, "delete_keychain") as delete:
             la.cmd_forget(types.SimpleNamespace(identity="default"), {})
         self.assertFalse(os.path.exists(la.cache_path("default")))
-        self.assertEqual(delete.call_count, 2)
+        self.assertEqual(delete.call_count, 3)
+        self.assertEqual(delete.call_args_list[-1].args, ("linear-app", "default:token"))
 
 
 class Regressions(Env):
@@ -557,12 +558,12 @@ class Regressions(Env):
 
 
     def test_check_replaces_a_token_linear_has_revoked(self):
-        minted = iter([("tok1", 30 * DAY), ("tok2", 30 * DAY)])
+        minted = iter([("tok1", 30 * DAY, None), ("tok2", 30 * DAY, None)])
         with mock.patch.object(la, "mint", side_effect=lambda *a, **k: next(minted)) as mint:
             la.current_token("default", {})
             real_graphql = la.graphql
 
-            def graphql(token, query, opener=None):
+            def graphql(token, query, opener=None, variables=None):
                 if token == "tok1":
                     return real_graphql(token, query, mock.Mock(side_effect=http_error(
                         401, {"errors": [{"message": "Authentication required"}]})))
@@ -586,7 +587,8 @@ class Regressions(Env):
                                "clientSecretAccount": "linear-client-secret"}}
         with mock.patch.object(la, "delete_keychain") as delete:
             la.cmd_forget(types.SimpleNamespace(identity="default"), config)
-        delete.assert_not_called()
+        # Only linear-app's own cached-token entry is deleted, never the other tool's.
+        self.assertEqual([c.args for c in delete.call_args_list], [("linear-app", "default:token")])
 
     def test_store_credentials_without_a_terminal_says_so(self):
         out = io.StringIO()
@@ -608,12 +610,12 @@ class Regressions(Env):
         self.assertIn("LINEAR_CLIENT_SECRET", " ".join(result.get("warnings", [])))
 
     def test_check_reuses_a_token_another_process_already_replaced(self):
-        minted = iter([("tok1", 30 * DAY), ("tok2", 30 * DAY), ("tok3", 30 * DAY)])
+        minted = iter([("tok1", 30 * DAY, None), ("tok2", 30 * DAY, None), ("tok3", 30 * DAY, None)])
         with mock.patch.object(la, "mint", side_effect=lambda *a, **k: next(minted)) as mint:
             la.current_token("default", {})
             real_graphql = la.graphql
 
-            def graphql(token, query, opener=None):
+            def graphql(token, query, opener=None, variables=None):
                 if token == "tok1":
                     # Another session already saw tok1 refused and replaced it with tok2.
                     la.current_token("default", {}, refused="tok1")
@@ -736,6 +738,535 @@ class ForgetAgainstAKeychain(Env):
         la.read_keychain.side_effect = lambda s, a: REAL_READ(s, a, run=no_service, which=which)
         la.delete_keychain.side_effect = lambda s, a: REAL_DELETE(s, a, run=no_service, which=which)
         self.assertNotIn("warnings", self.forget("default", {}))
+
+
+# --- relay identities, post, edit and delete (linear-app spec) -----------------------
+
+REAL_POST = la.post
+RELAY_KEYCHAIN = {("linear-app", "answers-bot:client-id"): "relay-cid",
+                  ("linear-app", "answers-bot:client-secret"): "relay-sec"}
+
+
+class FakeLinear:
+    """Linear's token endpoint and GraphQL API, holding comments in memory."""
+
+    def __init__(self):
+        self.mints = 0
+        self.requests = []  # (token, payload) of each GraphQL request
+        self.comments = {}
+        self.revoked = set()
+        self.revoke_every_token = False
+        self.refusal = None  # (status, body) for every mutation
+        self.teams = ["ENG"]
+        self.team_pages = None  # lists of keys, served one per request
+        self.teams_after = []  # the `after` of each teams request
+        self.teams_refused = False
+        self.scope = "read write"
+
+    def __call__(self, req, timeout=None):
+        if req.full_url == la.TOKEN_URL:
+            self.mints += 1
+            return response({"access_token": f"tok{self.mints}", "expires_in": 30 * DAY, "scope": self.scope})
+        token = req.get_header("Authorization")[len("Bearer "):]
+        payload = json.loads(req.data)
+        self.requests.append((token, payload))
+        if self.revoke_every_token or token in self.revoked:
+            raise http_error(401, {"errors": [{"message": "Authentication required"}]})
+        query, variables = payload["query"], payload.get("variables") or {}
+        if self.refusal and query.startswith("mutation"):
+            raise http_error(*self.refusal)
+        if "viewer" in query:
+            return response({"data": {"viewer": {"id": "user-1", "name": "answers-bot"},
+                                      "organization": {"name": "Acme", "urlKey": "acme"}}})
+        if "teams" in query:
+            if self.teams_refused:
+                raise http_error(400, {"errors": [{"message": "Forbidden"}]})
+            self.teams_after.append(variables.get("after"))
+            pages = self.team_pages or [self.teams]
+            index = int(variables["after"][1:]) if variables.get("after") else 0
+            return response({"data": {"teams": {"nodes": [{"key": k} for k in pages[index]], "pageInfo": {
+                "hasNextPage": index + 1 < len(pages), "endCursor": f"p{index + 1}"}}}})
+        if "commentCreate" in query:
+            comment_id = f"c{len(self.comments) + 1}"
+            self.comments[comment_id] = dict(variables["input"])
+            return response({"data": {"commentCreate": {"success": True, "comment": {
+                "id": comment_id, "url": f"https://linear.app/acme/issue/x#comment-{comment_id}"}}}})
+        if "commentUpdate" in query:
+            self.comments[variables["id"]]["body"] = variables["input"]["body"]
+            return response({"data": {"commentUpdate": {"success": True, "comment": {
+                "id": variables["id"], "url": f"https://linear.app/acme/issue/x#comment-{variables['id']}"}}}})
+        if "commentDelete" in query:
+            del self.comments[variables["id"]]
+            return response({"data": {"commentDelete": {"success": True}}})
+        raise AssertionError(query)
+
+    def mutations(self):
+        return [p for _, p in self.requests if p["query"].startswith("mutation")]
+
+
+class RelayEnv(Env):
+    """A fake keychain, a fake Linear, and an inquisitor.json naming answers-bot as the Linear relay."""
+
+    def setUp(self):
+        super().setUp()
+        self.keychain = dict(RELAY_KEYCHAIN)
+        la.read_keychain.side_effect = lambda s, a, *rest: self.keychain.get((s, a))
+        la.write_keychain.side_effect = lambda s, a, v, label, *rest: self.keychain.__setitem__((s, a), v)
+        la.delete_keychain.side_effect = lambda s, a, *rest: self.keychain.pop((s, a), None) is not None or True
+        self.tool = "security"
+        tool = mock.patch.object(la, "keychain_tool", side_effect=lambda which=None: self.tool)
+        tool.start()
+        self.addCleanup(tool.stop)
+        self.linear = FakeLinear()
+        net = mock.patch.object(la, "post", side_effect=lambda url, data, headers, opener=None:
+                                REAL_POST(url, data, headers, self.linear))
+        net.start()
+        self.addCleanup(net.stop)
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "answers-bot"}}})
+        self.body = os.path.join(self.tmp.name, "c.md")
+        self.write_body("User says: yes")
+
+    def write_inquisitor(self, config, raw=None):
+        folder = os.path.join(self.tmp.name, ".config", "shared-skills")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "inquisitor.json"), "w") as f:
+            f.write(raw if raw is not None else json.dumps(config))
+
+    def write_body(self, text):
+        with open(self.body, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def run_main(self, argv, stdin=""):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err), mock.patch.object(sys, "stdin", io.StringIO(stdin)):
+            code = la.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def relay(self, identity, config=None):
+        return la.relay_status(identity, config or {})
+
+    def state_files(self):
+        folder = os.path.join(self.env["XDG_STATE_HOME"], "linear-app")
+        found = {}
+        for name in os.listdir(folder) if os.path.isdir(folder) else []:
+            with open(os.path.join(folder, name), encoding="utf-8") as f:
+                found[name] = f.read()
+        return found
+
+
+class RelayIdentities(RelayEnv):
+    def test_the_named_identity_is_a_relay_identity(self):
+        # @scenario linear-app: The identity the configuration names is a relay identity
+        self.assertTrue(self.relay("answers-bot").relay)
+
+    def test_without_a_linear_relay_no_identity_is_one(self):
+        # @scenario linear-app: Without a Linear relay no identity is one
+        for config in ({}, {"answer_service": {}}, {"answer_service": {"linear": {}}}):
+            with self.subTest(config):
+                self.write_inquisitor(config)
+                self.assertFalse(self.relay("answers-bot").relay)
+        os.remove(la.inquisitor_config_path())
+        self.assertFalse(self.relay("answers-bot").relay)
+
+    def test_an_unreadable_configuration_makes_every_identity_a_relay(self):
+        # @scenario linear-app: An unreadable configuration refuses token commands for every identity
+        self.write_inquisitor(None, raw="not json")
+        code, out, err = self.run_main(["--identity", "worker", "token"])
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("inquisitor.json", err)
+        # The environment's credentials are ignored for `default`, too.
+        code, out, _ = self.run_main(["post", "--issue", "ENG-5", "--body-file", self.body])
+        self.assertEqual(code, 1)
+        self.assertIn("no client credentials", json.loads(out)["error"])
+        self.assertEqual(self.linear.mints, 0)
+        # And a token the state folder held for `worker` is deleted.
+        la.write_cache(la.cache_path("worker"), {"token": "old"})
+        self.run_main(["--identity", "worker", "check"])
+        self.assertFalse(os.path.exists(la.cache_path("worker")))
+
+    def test_a_relay_that_is_not_a_string_makes_every_identity_a_relay(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": 5}}})
+        relay = self.relay("worker")
+        self.assertTrue(relay.relay)
+        self.assertIn("must be a string naming the relay identity, not a number", relay.why)
+
+    def test_a_malformed_relay_setting_is_named_with_its_fix(self):
+        # @scenario linear-app: A malformed relay setting is named with its fix
+        for config, key in (({"answer_service": 5}, "answer_service"),
+                            ({"answer_service": {"linear": "x"}}, "answer_service.linear")):
+            with self.subTest(key):
+                self.write_inquisitor(config)
+                code, out, err = self.run_main(["--identity", "worker", "token"])
+                self.assertEqual((code, out), (1, ""))
+                self.assertIn(f"{key} in ", err)
+                self.assertIn("must be a JSON object", err)
+                self.assertIn("make it an object, or remove it", err)
+                code, out, _ = self.run_main(["--identity", "worker", "check"])
+                warnings = " ".join(json.loads(out).get("warnings", []))
+                self.assertIn(f"{key} in ", warnings)
+                self.assertIn("must be a JSON object", warnings)
+                self.assertIn("make it an object, or remove it", warnings)
+
+    def test_a_relay_named_a_b_refuses_token_commands_and_warns_elsewhere(self):
+        # @scenario linear-app: A relay named a/b refuses token commands and warns elsewhere
+        self.keychain[("linear-app", "a/b:client-id")] = "cid"
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
+        os.environ["LINEAR_APP_IDENTITY"] = "worker"
+        for command in ("token", "headers", "wire"):
+            with self.subTest(command):
+                code, out, err = self.run_main(["--identity", "worker", command])
+                text = err if command != "wire" else json.loads(out)["error"]
+                self.assertEqual(code, 1)
+                self.assertNotIn("tok1", out)
+                for part in ("'a/b'", "letters, digits, '_', '.' and '-'", "store-credentials"):
+                    self.assertIn(part, text)
+        self.assertEqual(self.linear.mints, 0)
+        code, out, _ = self.run_main(["--identity", "worker", "post", "--issue", "ENG-5", "--body-file", self.body])
+        result = json.loads(out)
+        self.assertEqual((code, result["id"]), (0, "c1"), out)
+        self.assertIn("'a/b'", " ".join(result["warnings"]))
+        self.assertEqual(self.linear.mints, 1)  # worker is no relay identity, so it mints from the environment
+
+    def test_an_identity_holding_the_relays_client_id_is_a_relay_identity(self):
+        # @scenario linear-app: Another identity with the relay's client ID is a relay identity
+        self.write_config("worker", {"keychain": {"clientIdAccount": "answers-bot:client-id",
+                                                  "clientSecretAccount": "answers-bot:client-secret"}})
+        code, out, err = self.run_main(["--identity", "worker", "token"])
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("client ID of the Linear relay", err)
+        os.environ["LINEAR_CLIENT_ID"] = "relay-cid"
+        code, out, err = self.run_main(["token"])
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("'default'", err)
+        os.environ["LINEAR_CLIENT_ID"] = "cid"
+        del self.keychain[("linear-app", "answers-bot:client-id")]
+        code, out, err = self.run_main(["--identity", "other", "token"])
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("no client ID for the Linear relay 'answers-bot'", err)
+        self.assertEqual(self.linear.mints, 0)
+
+    def test_token_and_headers_refuse_a_relay_identity(self):
+        # @scenario linear-app: token and headers refuse a relay identity
+        for command in ("token", "headers"):
+            with self.subTest(command):
+                code, out, err = self.run_main(["--identity", "answers-bot", command])
+                self.assertNotEqual(code, 0)
+                self.assertEqual(out, "")
+                for word in ("post", "edit", "delete"):
+                    self.assertIn(word, err)
+        self.assertEqual(self.linear.mints, 0)
+
+    def test_other_identities_keep_token_and_headers(self):
+        # @scenario linear-app: Other identities keep token and headers
+        self.assertEqual(self.run_main(["token"])[:2], (0, "tok1\n"))
+        code, out, _ = self.run_main(["headers"])
+        self.assertEqual((code, json.loads(out)), (0, {"Authorization": "Bearer tok1"}))
+
+    def test_wire_refuses_a_relay_identity(self):
+        # @scenario linear-app: wire refuses a relay identity
+        run = mock.Mock()
+        args = types.SimpleNamespace(identity="answers-bot", project=None, name="linear",
+                                     relay=self.relay("answers-bot"))
+        with self.assertRaisesRegex(la.Failure, "post, edit and delete.*no MCP server was changed"):
+            la.cmd_wire(args, {}, run=run, which=lambda t: "/bin/claude")
+        run.assert_not_called()
+        code, out, _ = self.run_main(["--identity", "answers-bot", "wire"])
+        self.assertEqual(code, 1)
+        self.assertIn("post, edit and delete", json.loads(out)["error"])
+
+    def test_check_warns_of_a_server_wired_to_a_relay_identity(self):
+        # @scenario linear-app: check warns of a server wired to a relay identity
+        helper = la.helper_command("answers-bot", script=os.path.abspath(la.__file__), python=sys.executable)
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump({"mcpServers": {"linear": {"type": "http", "headersHelper": helper}}}, f)
+        code, out, _ = self.run_main(["--identity", "answers-bot", "check"])
+        warnings = " | ".join(json.loads(out)["warnings"])
+        self.assertEqual(code, 0)
+        self.assertIn("'linear' MCP server", warnings)
+        self.assertIn("relay identity 'answers-bot', whose headers refuses", warnings)
+
+    def test_a_relay_identity_ignores_credentials_in_the_environment(self):
+        # @scenario linear-app: A relay identity ignores credentials in the environment
+        self.keychain.clear()
+        os.environ["LINEAR_APP_IDENTITY"] = "answers-bot"
+        code, out, _ = self.run_main(["post", "--issue", "ENG-5", "--body-file", self.body])
+        self.assertEqual(code, 1)
+        self.assertIn("no client credentials", json.loads(out)["error"])
+        # A relay identity is never told to use the environment it ignores.
+        self.assertNotIn("set LINEAR_CLIENT_ID", json.loads(out)["error"])
+        self.assertEqual(self.linear.mints, 0)
+
+    def test_a_host_with_no_keychain_tool_refuses_a_relay_identity(self):
+        # @scenario linear-app: A host with no keychain tool refuses a relay identity
+        self.tool = None
+        self.keychain.clear()  # nothing can be read without a tool
+        for argv in (["--identity", "answers-bot", "post", "--issue", "ENG-5", "--body-file", self.body],
+                     ["post", "--issue", "ENG-5", "--body-file", self.body]):
+            with self.subTest(argv):
+                code, out, _ = self.run_main(argv)
+                error = json.loads(out)["error"]
+                self.assertEqual(code, 1)
+                self.assertIn("'security'", error)
+                self.assertIn("'secret-tool'", error)
+        self.assertEqual(self.linear.mints, 0)
+        self.assertNotIn("tok", "".join(self.state_files().values()))
+        code, out, _ = self.run_main(["--identity", "answers-bot", "forget"])
+        self.assertEqual((code, json.loads(out)["forgotten"]), (0, True))
+
+
+class RelayTokenCache(RelayEnv):
+    def test_a_relay_identitys_token_is_cached_in_the_keychain(self):
+        # @scenario linear-app: A relay identity's token is cached in the keychain
+        self.assertEqual(self.run_main(["--identity", "answers-bot", "post", "--issue", "ENG-5",
+                                        "--body-file", self.body])[0], 0)
+        self.write_body("User says: no")
+        self.assertEqual(self.run_main(["--identity", "answers-bot", "edit", "--comment", "c1",
+                                        "--body-file", self.body])[0], 0)
+        cached = json.loads(self.keychain[("linear-app", "answers-bot:token")])
+        self.assertEqual(cached["token"], "tok1")
+        self.assertEqual(self.linear.mints, 1)
+        self.assertEqual([t for t, _ in self.linear.requests], ["tok1", "tok1"])
+        self.assertNotIn("tok1", "".join(self.state_files().values()))
+
+    def test_the_keychain_cache_ignores_the_configs_credential_service(self):
+        self.keychain[("old", "id")] = "relay-cid"
+        self.keychain[("old", "sec")] = "relay-sec"
+        self.write_config("answers-bot", {"keychain": {"service": "old", "clientIdAccount": "id",
+                                                       "clientSecretAccount": "sec"}})
+        self.run_main(["--identity", "answers-bot", "post", "--issue", "ENG-5", "--body-file", self.body])
+        self.assertIn(("linear-app", "answers-bot:token"), self.keychain)
+
+    def test_a_token_cached_before_the_identity_became_a_relay_is_deleted(self):
+        # @scenario linear-app: A token cached before the identity became a relay identity is deleted
+        la.write_cache(la.cache_path("answers-bot"), {"token": "old"})
+        self.run_main(["--identity", "answers-bot", "check"])
+        self.assertFalse(os.path.exists(la.cache_path("answers-bot")))
+
+    def test_forget_deletes_a_relay_identitys_cached_token(self):
+        # @scenario linear-app: forget deletes a relay identity's cached token
+        self.run_main(["--identity", "answers-bot", "check"])
+        self.assertIn(("linear-app", "answers-bot:token"), self.keychain)
+        self.assertEqual(self.run_main(["--identity", "answers-bot", "forget"])[0], 0)
+        self.assertNotIn(("linear-app", "answers-bot:token"), self.keychain)
+
+
+class PostEditDelete(RelayEnv):
+    def post(self, *extra, identity="answers-bot"):
+        return self.run_main(["--identity", identity, "post", "--issue", "ENG-5", "--body-file", self.body, *extra])
+
+    def test_a_post_prints_the_comments_id_and_url(self):
+        # @scenario linear-app: A post prints the comment's id and URL
+        code, out, _ = self.post()
+        result = json.loads(out)
+        self.assertEqual((code, result["ok"], result["id"]), (0, True, "c1"))
+        self.assertIn("comment-c1", result["url"])
+        self.assertEqual(self.linear.comments["c1"], {"issueId": "ENG-5", "body": "User says: yes"})
+        self.assertNotIn("tok1", out)
+
+    def test_a_reply_goes_into_its_comments_thread(self):
+        # @scenario linear-app: A reply goes into its comment's thread
+        self.assertEqual(self.post("--parent", "c9")[0], 0)
+        self.assertEqual(self.linear.comments["c1"]["parentId"], "c9")
+
+    def test_edit_and_delete_change_the_identitys_own_comment(self):
+        # @scenario linear-app: edit and delete change the identity's own comment
+        self.post()
+        self.write_body("User says: no")
+        code, out, _ = self.run_main(["--identity", "answers-bot", "edit", "--comment", "c1",
+                                      "--body-file", self.body])
+        result = json.loads(out)
+        self.assertEqual((code, result["id"], len(self.linear.comments)), (0, "c1", 1))
+        self.assertIn("comment-c1", result["url"])
+        self.assertEqual(self.linear.comments["c1"]["body"], "User says: no")
+        code, out, _ = self.run_main(["--identity", "answers-bot", "delete", "--comment", "c1"])
+        self.assertEqual((code, json.loads(out)), (0, {"ok": True, "identity": "answers-bot", "id": "c1"}))
+        self.assertEqual(self.linear.comments, {})
+
+    def test_post_edit_and_delete_work_for_any_identity(self):
+        code, out, _ = self.post(identity="default")
+        self.assertEqual((code, json.loads(out)["id"]), (0, "c1"))
+
+    def test_a_revoked_token_is_replaced_once(self):
+        # @scenario linear-app: A revoked token is replaced once
+        self.run_main(["--identity", "answers-bot", "check"])
+        self.linear.revoked.add("tok1")
+        self.assertEqual(self.post()[0], 0)
+        self.assertEqual(self.linear.mints, 2)
+        self.assertEqual(len(self.linear.mutations()), 2)  # the refused try and the one post
+        self.assertEqual(len(self.linear.comments), 1)
+        self.linear.revoke_every_token = True
+        code, out, _ = self.post()
+        result = json.loads(out)
+        self.assertEqual((code, result["ok"], result["status"]), (1, False, 401))
+        self.assertEqual(self.linear.mints, 3)
+
+    def test_a_refusal_for_lack_of_permission_is_passed_on(self):
+        # @scenario linear-app: A refusal for lack of permission is passed on
+        errors = [{"message": "Forbidden", "extensions": {"code": "FORBIDDEN", "userPresentableMessage":
+                                                          "You don't have access to this team"}}]
+        self.linear.refusal = (403, {"errors": errors})
+        code, out, _ = self.post()
+        result = json.loads(out)
+        self.assertEqual((code, result["ok"], result["status"], result["errors"]), (1, False, 403, errors))
+        self.assertNotIn("tok1", out)
+
+    def test_text_on_stdin_or_an_abbreviated_option_is_refused(self):
+        # @scenario linear-app: Text on standard input or an abbreviated option is refused
+        other = os.path.join(self.tmp.name, "b.md")
+        with open(other, "w") as f:
+            f.write("User says: no")
+        base = ["--identity", "answers-bot", "post", "--issue", "ENG-5"]
+        for extra in ([], ["--body-file", "/dev/stdin"], ["--body-file", "-"], ["--body", self.body],
+                      ["--body-file", self.body, "--body-file", other], ["--body-f=" + self.body]):
+            with self.subTest(extra):
+                code, out, _ = self.run_main(base + extra, stdin="User says: yes")
+                self.assertEqual(code, 1)
+                self.assertIn("--body-file", json.loads(out)["error"])
+        self.assertEqual(self.linear.mutations(), [])
+
+    def test_text_cannot_change_the_request(self):
+        # @scenario linear-app: Text cannot change the request
+        text = '"}) { id } } mutation {\n$(rm -rf ~)\n`whoami`'
+        self.write_body(text)
+        self.assertEqual(self.post()[0], 0)
+        self.assertEqual(self.linear.comments["c1"]["body"], text)
+        self.assertEqual(self.linear.mutations()[0]["query"], la.COMMENT_CREATE)
+
+
+class CheckReportsWhatLinearGrants(RelayEnv):
+    def test_check_prints_the_user_id_scopes_and_teams(self):
+        # @scenario linear-app: check prints the user id, scopes and teams
+        code, out, _ = self.run_main(["--identity", "answers-bot", "check"])
+        result = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual((result["user"], result["userId"]), ("answers-bot", "user-1"))
+        self.assertTrue({"read", "write"} <= set(result["grantedScopes"]))
+        self.assertEqual(result["visibleTeams"], ["ENG"])
+        self.assertNotIn("tok1", out)
+        la.delete_keychain("linear-app", "answers-bot:token")
+        self.linear.teams_refused = True
+        code, out, _ = self.run_main(["--identity", "answers-bot", "check"])
+        result = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertNotIn("visibleTeams", result)
+        self.assertIn("could not read the teams", result["visibleTeamsError"])
+
+    def test_teams_listed_in_the_config_are_not_visible_teams(self):
+        # @scenario linear-app: Teams listed in the config are not visible teams
+        self.write_config("default", {"teams": ["OPS"]})
+        code, out, _ = self.run_main(["check"])
+        result = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertNotIn("OPS", result["visibleTeams"])
+        self.assertEqual(result["teams"], ["OPS"])
+
+
+class RelayRegressions(RelayEnv):
+    """Bugs found by bug-hunter in the relay rules; each test failed before its fix."""
+
+    def test_body_file_naming_standard_input_is_refused_when_stdin_is_a_file(self):
+        # A redirect or a zsh heredoc makes fd 0 a regular file, so /dev/stdin
+        # passed a check that only followed links; the post hook cannot read
+        # the text sent that way.
+        hidden = os.path.join(self.tmp.name, "hidden.md")
+        with open(hidden, "w") as f:
+            f.write("User says: yes")
+        saved = os.dup(0)
+        try:
+            with open(hidden) as f:
+                os.dup2(f.fileno(), 0)
+            for path in ("/dev/stdin", "/dev/fd/0"):
+                with self.subTest(path), self.assertRaisesRegex(la.Failure, "--body-file"):
+                    la.read_body(path)
+        finally:
+            os.dup2(saved, 0)
+            os.close(saved)
+
+    def test_a_relay_token_longer_than_128_characters_is_cached_on_macos(self):
+        # Measured 2026-11-27: `security add-generic-password -w`, given the
+        # password at its prompt, stores only its first 128 characters. The
+        # cached value is the token's JSON record, longer than that, so the
+        # fake `run` truncates at 128 as `security` does.
+        # @scenario linear-app: A relay identity's token is on no command line
+        store = {}
+        commands = []
+
+        def run(cmd, input=None, capture_output=True, text=True, start_new_session=False):
+            commands.append(cmd)
+            ok = lambda out="": types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+            if cmd[:2] == ["security", "-i"]:
+                words = input.split()
+                store[(words[words.index("-s") + 1], words[words.index("-a") + 1])] = \
+                    bytes.fromhex(words[words.index("-X") + 1]).decode()
+                return ok()
+            key = (cmd[cmd.index("-s") + 1], cmd[cmd.index("-a") + 1])
+            if cmd[1] == "add-generic-password":
+                store[key] = input.split("\n")[0][:128]
+                return ok()
+            if key not in store:
+                return types.SimpleNamespace(returncode=44, stdout="", stderr="could not be found")
+            return ok(store[key] + "\n")
+
+        which = lambda tool: "/usr/bin/security" if tool == "security" else None
+        la.write_keychain.side_effect = lambda s, a, v, label, *rest, **kw: REAL_WRITE(
+            s, a, v, label, run=run, which=which, **kw)
+        code, out, _ = self.run_main(["--identity", "answers-bot", "post", "--issue", "ENG-5",
+                                      "--body-file", self.body])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(store[("linear-app", "answers-bot:token")])["token"], "tok1")
+        self.assertTrue(commands)
+        self.assertFalse([cmd for cmd in commands if any("tok1" in word for word in cmd)])
+
+
+class MutationSurvivors(RelayEnv):
+    """Tests for behaviour that no test checked until bug-hunter's mutants showed it."""
+
+    def test_check_reads_every_page_of_teams_and_stops_at_the_last(self):
+        self.linear.team_pages = [["ENG"], ["OPS"], ["WEB"]]
+        code, out, _ = self.run_main(["check"])
+        self.assertEqual((code, json.loads(out)["visibleTeams"]), (0, ["ENG", "OPS", "WEB"]))
+        self.assertEqual(self.linear.teams_after, [None, "p1", "p2"])
+
+    def test_a_value_that_is_a_prefix_of_body_file_but_no_option_is_not_refused(self):
+        code, out, _ = self.run_main(["post", "--issue", "-", "--body-file", self.body])
+        self.assertEqual((code, self.linear.comments["c1"]["issueId"]), (0, "-"), out)
+
+    def test_a_relay_name_that_is_no_identity_name_makes_no_identity_a_relay(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
+        relay = self.relay("default")
+        self.assertFalse(relay.relay)
+        self.assertIn("no identity name", relay.warning)
+
+    def test_a_malformed_value_is_named_by_its_json_type(self):
+        for config, named in (({"answer_service": {"linear": {"relay": True}}}, "not a boolean"),
+                              ({"answer_service": None}, "not null")):
+            with self.subTest(named):
+                self.write_inquisitor(config)
+                self.assertIn(named, self.relay("worker").why)
+
+    def test_a_token_cached_with_no_granted_scopes_is_replaced(self):
+        # @scenario linear-app: A token cached before scopes were recorded is replaced
+        self.run_main(["check"])
+        path = la.cache_path("default")
+        cached = la.read_cache(path)
+        del cached["grantedScopes"]
+        la.write_cache(path, cached)
+        mints = self.linear.mints
+        code, out, _ = self.run_main(["check"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.linear.mints, mints + 1)
+        self.assertTrue({"read", "write"} <= set(json.loads(out)["grantedScopes"]))
+
+    def test_a_wire_refusal_does_not_repeat_its_error_as_a_warning(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
+        _, out, _ = self.run_main(["--identity", "worker", "wire"])
+        self.assertNotIn("warnings", json.loads(out))
+
+    def test_a_relay_name_ending_in_a_newline_is_no_identity_name(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "worker\n"}}})
+        relay = self.relay("worker")
+        self.assertFalse(relay.relay, relay.why)
+        self.assertIn("no identity name", relay.warning)
 
 
 if __name__ == "__main__":

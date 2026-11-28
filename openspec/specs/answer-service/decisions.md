@@ -2,10 +2,10 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer: such an agent can read a relay's credentials where its skill keeps them and post with `curl`.**
-  Because: the hooks stop an agent that uses the skills as their instructions say, and one that works around the skills has its person's own tools and the files where the skills keep keys.
-  Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
-  Holds while: a relay identity's key sits where the person's own agents can read it.
+- **Constraint: Two kinds of guard stop only accidents, not an agent set on forging a relayed answer: the post hooks (prose's and the inquisitor's) and linear-app's refusal to hand a relay identity's token to a command that can print it. Such an agent can read a relay's credentials where the relay's skill keeps them and post with `curl`.**
+  Because: each stops an agent that uses the skills as their instructions say, and one that works around the skills can still use its person's own tools and read the places where the skills keep keys.
+  Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks; linear-app keeps an identity's client credentials in the system keychain, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py), and github-app keeps an App's private key in a `.pem` file under its config folder or reads it from `GITHUB_APP_PRIVATE_KEY`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py)
+  Holds while: a relay identity's credentials sit where the person's own agents can read them.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
 
 - **Constraint: GitHub's events API shows the pusher and push time of each hash-only miss file, one with no keys named by a hash, to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
@@ -37,16 +37,18 @@
 ## Rationale
 
 - **Rationale: The README warns that a relay's token can be printed.**
-  While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.
-  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
+  While github-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.
+  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token
 
 - **Rationale: An automatic post is deleted when another relay post came first.**
   Only an earlier post by the person's own relay identities, the bots that post for them, makes the service delete its automatic post, so two people's services answering one message both post. Counting any bot's prefixed post would let anyone who registers a bot, as any GitHub or Discord user can, suppress an automatic answer with a fake one.
   Evidence: anyone can register a GitHub App, https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app, or a Discord bot, https://discord.com/developers/docs/quick-start/getting-started
 
 - **Rationale: The answer service reads with the person's credentials, except on Discord.**
-  Reading with the person's own logins keeps a relay's token to the right to post, and the service reads nothing as a bot that the person can read as themselves. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts.
+  Reading with the person's own logins keeps a relay's token to the right to post, and the service reads nothing as a bot that the person can read as themselves. Discord is the exception because reading as the person there would mean automating their user account, which Discord forbids, so the relay's bot both reads and posts. The person's own Linear key, which the service reads Linear with, stays out of command arguments because every user of the host can read each process's command line.
   Evidence: Discord's Community Guidelines, which its Terms of Service incorporate, say "Do not use self-bots or user-bots. Each account must be associated with a human, not a bot.", https://discord.com/terms/guidelines
+  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
+  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
 
 - **Rationale: The answer service polls only while it is open.**
   The skill runs nothing while the answer service is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the service is closed would be lost. Polling needs neither, and catches up on what came while the service was closed when it next opens.
@@ -121,11 +123,6 @@
   The service finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text unchanged, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
   Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
 
-- **Rationale: The Linear relay's token stays in memory.**
-  A token passed in a command's arguments would be readable by every user of the host, since each process's command line is.
-  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
-  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
-
 - **Rationale: A relay post is posted by a host command, unvetted.**
   A relay post carries words the person already confirmed, or a fixed text of the answer service's own, so no hook may block or reword it; a command the answer mod runs on the host is not a tool call, so no `PreToolUse` hook, the post hooks included, sees it.
   Evidence: on 2026-11-26, in Claude Code 2.1.332, a command a mod ran through `$.process.run` reached no `PreToolUse` hook, while the same hook saw the model's own Bash call, recorded in task 0.18, [tasks.md](../../changes/inquisitor/tasks.md)
@@ -157,8 +154,8 @@
   Evidence: on 2026-11-26, in Claude Code 2.1.332, a tool a mod registered while a turn waited on another tool was offered within that turn and called; a mod calling `$.turn.abort` and then `$.command.run` of `exit` as the tool joined ended the session 32 ms later, before the tool was called, recorded in task 0.30, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: A posting check reads what each surface grants.**
-  discord-bot's `check --channel` works out the bot's permissions in a channel, and a thread falls under its parent channel's `sendMessagesInThreads`. linear-app's `check` reads no team, and Linear's app user posts without belonging to any team, so setup reads the teams the app user can see and its token's scopes itself; a private team is unmeasured. github-app's `check` lists up to 100 of the installation's repositories, its `repo_visible` step reads one named repository beyond those, and it reports the installation's permissions, which apply to every repository; setup reads the repositories with the App's installation token and the permissions from github-app's mint of it, since the person's own `gh` login cannot list installations.
-  Evidence: on 2026-11-27, reading each skill's `check` at 48370e0 and running discord-bot's and linear-app's: discord-bot's `check --channel` reported the five channel permissions as `true` on two channels; Linear's app user, which had commented on a test issue, had no team membership and saw two public teams; and `GET user/installations` with the person's `gh` login answered `403`, recorded in task 0.20, [tasks.md](../../changes/inquisitor/tasks.md)
+  discord-bot's `check --channel` works out the bot's permissions in a channel, and a thread falls under its parent channel's `sendMessagesInThreads`. Linear's app user posts without belonging to any team, so team membership cannot tell whether it may post in a team, and setup reads the teams the app user can see and its token's scopes from linear-app's `check`, since under *A relay post is posted by a host command, unvetted* the service never holds the relay's token; whether the app user can see a private team is unmeasured. github-app's `check` lists up to 100 of the installation's repositories, its `repo_visible` step reads one named repository beyond those, and it reports the installation's permissions, which apply to every repository; setup reads the repositories with the App's installation token and the permissions from github-app's mint of that token, since the person's own `gh` login cannot list installations.
+  Evidence: on 2026-11-27, reading each skill's `check` at 48370e0 and running discord-bot's and linear-app's: discord-bot's `check --channel` reported the five channel permissions as `true` on two channels; Linear's app user, which had commented on a test issue, had no team membership and saw two public teams; and `GET user/installations` with the person's `gh` login answered `403`, all three recorded in task 0.20, [tasks.md](../../changes/inquisitor/tasks.md). Also on 2026-11-27, linear-app's `check` for that app user reported its `grantedScopes`, `read` and `write` among them, and two teams in `visibleTeams`, recorded in [linear-app's decision record](../linear-app/decisions.md)
 
 - **Rationale: A Discord thread is read with its first message.**
   A thread started on a message keeps that message in its parent channel, at the parent channel's address, and shows it inside the thread only as a placeholder whose `message_reference` points at it, so a reader of the thread alone misses the message that started it.

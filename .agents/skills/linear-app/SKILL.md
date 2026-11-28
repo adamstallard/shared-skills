@@ -61,6 +61,40 @@ python3 $L check
 `check` also shows the app user's name and workspace. If the name is a
 person's, the wrong credentials are stored: stop and tell the user.
 
+## Commenting without a token
+
+```bash
+python3 $L post --issue ENG-5 --body-file c.md        # --parent <comment id> replies in its thread
+python3 $L edit --comment <comment id> --body-file c.md
+python3 $L delete --comment <comment id>
+```
+
+Each prints JSON with `ok` and the comment's `id` (and `url` for `post` and
+`edit`). The text comes only from the regular file `--body-file` names,
+given once and spelled in full, so the inquisitor's post hook reads the
+same file; standard input is refused. When Linear
+refuses, the output holds `"ok": false`, its HTTP `status` and its `errors`
+unchanged.
+
+## Relay identities
+
+The identity that `answer_service.linear.relay` names in
+`~/.config/shared-skills/inquisitor.json` is a **relay identity**: the
+inquisitor's answer service posts your user's answers through it, as
+comments starting `User says: `. So is any identity holding the same client
+ID. For a relay identity, `token`, `headers` and `wire` refuse, since an
+agent holding its token could post such a comment: it posts only through
+`post`, `edit` and `delete`. Its credentials and cached token live only in the keychain, never
+in the environment or the state folder. If `inquisitor.json` exists but cannot be read, or
+a key on the way to `answer_service.linear.relay` has the wrong type, or
+the keychain gives no client ID for the relay, every identity is treated
+as a relay identity; if the relay is no valid identity name, the commands
+`token`, `headers` and `wire` refuse for every identity. Refusals and
+warnings say what to fix: pass that text on to the user. Never point
+`HOME` elsewhere to reach a relay identity's token: linear-app reads
+`inquisitor.json` only under `HOME`, so with no such file there it treats
+no identity as a relay identity, a known limit of these rules.
+
 ## Claiming work: delegate, never assign
 
 An app user can be an issue's **delegate**, never its **assignee**. Setting an
@@ -92,3 +126,4 @@ session, never a token. The server takes effect in **new** sessions (or after
   using right now.
 - Never put a token or a secret in a file, a commit or a message.
 - `token` prints a raw token for programs. Don't run it to look at the token.
+  To comment as the identity, use `post`, `edit` and `delete` instead.
