@@ -2,10 +2,11 @@
 
 The shared post reader tells a hook what body a command or tool call
 would post on a GitHub issue or pull request, in a Discord message
-through the discord-bot skill, or on Linear through the Linear MCP, so
-prose's posting hook
-and the inquisitor's post hook judge the same text, and each blocks a
-call the reader reports as unreadable.
+through the discord-bot skill, or on Linear through the Linear MCP, and
+each title or name the call sets, so prose's posting hook
+and the inquisitor's post hook judge the same bodies, the inquisitor's
+post hook judges titles too, and each blocks a call the reader reports as
+unreadable.
 
 ## ADDED Requirements
 
@@ -27,28 +28,9 @@ through it.
 ### Requirement: A command that mentions no gh post verb sends no post
 
 A command SHALL send no post when it **mentions** no **gh post verb**
-(its first scenario lists them), unless input within
-the line reaches a `gh` command (*Input to a no-post line reaches only
-data commands*). It mentions one when its text holds `gh`, then `pr` or
-`issue`, then a post verb listed for that word; `gh`, then `api`, unless
-the line is a read (*A gh api call is a read only in a plain form*); or
-a word that is `discord_bot` or ends in `discord_bot.py`, then `post`
-or `edit`.
-
-#### Scenario: The gh post verbs are a closed list
-
-- **WHEN** a hook asks about a command
-- **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
-  `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
-  call that is not a read; and a discord-bot `post` or `edit` call, though
-  such a call holds no gh word
-- **AND** a command's words count whether quoted or not, and `gh`, `pr`,
-  `issue`, `api` and each verb count only as whole
-  words, with no letter, digit or `_` just before and no letter, digit,
-  `_` or `-` just after, so `--comments` holds no `comment` and
-  `--comment` holds one; and `api` counts only with no `/` or `.` just
-  before or after it, so `gh repo view o/api` mentions no post verb
+(*A command mentions a gh post verb by one of a closed list of word
+sequences*), unless input within the line reaches a `gh` command
+(*Input to a no-post line reaches only data commands*).
 
 #### Scenario: A gh command off the list passes unread
 
@@ -70,6 +52,31 @@ or `edit`.
 - **THEN** the reader reports that each line sends no post, since a read
   is no gh post verb, so the line mentions none and no rule for a
   post-verb line applies
+
+### Requirement: A command mentions a gh post verb by one of a closed list of word sequences
+
+A command SHALL **mention** a gh post verb when its text holds any of:
+
+- `gh`, then `pr` or `issue`, then a post verb listed for that word;
+- `gh`, then `api`, unless the line is a read (*A gh api call is a read
+  only in a plain form*);
+- a word that is `discord_bot` or ends in `discord_bot.py`, then a
+  discord-bot post word.
+
+#### Scenario: The gh post verbs are a closed list
+
+- **WHEN** a hook asks about a command
+- **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
+  `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
+  call that is not a read; and a discord-bot `post`, `edit` or `thread`
+  call, though such a call holds no gh word
+- **AND** a command's words count whether quoted or not, and `gh`, `pr`,
+  `issue`, `api` and each verb count only as whole
+  words, with no letter, digit or `_` just before and no letter, digit,
+  `_` or `-` just after, so `--comments` holds no `comment` and
+  `--comment` holds one; and `api` counts only with no `/` or `.` just
+  before or after it, so `gh repo view o/api` mentions no post verb
 
 ### Requirement: A command that only runs prose's script sends no post
 
@@ -159,16 +166,33 @@ takes a value as the next word.
   c.md)"`, `cat c.md | gh pr comment 5 --body-file -`, `gh pr comment 5
   --body-file missing.md`, where `missing.md` does not exist, `gh pr
   create --title t --template tmpl.md`, `gh pr create --fill`, `gh
-  pr revert 5 --body x`, and `gh pr new --body x` and `gh issue new
-  --body x`, since `new` is not a canonical verb
+  pr revert 5 --body x`, `gh pr new --body x` and `gh issue new
+  --body x`, since neither `revert` nor `new` is a canonical verb, and
+  `gh issue edit 5 -t x` and `gh issue edit 5 --title=x`
 - **THEN** the reader reports each command as unreadable
+
+### Requirement: A canonical gh pr or gh issue post may set a title
+
+The reader SHALL return `--title`'s value in a canonical `gh pr` or `gh
+issue` form as a title. A `gh pr edit` or `gh issue edit` giving
+`--title <word>` and no body SHALL be canonical too, though other forms
+need a body, and return only its title; a `create` still needs one.
+
+#### Scenario: A gh post's title is read
+
+- **WHEN** a hook asks about `gh pr create --title t --body-file body.md`,
+  where `body.md` exists, and about `gh issue edit 5 --title 'Rename
+  it?'`
+- **THEN** the reader returns `t` as the first's title, beside its body,
+  and `Rename it?` as the second's only title
 
 ### Requirement: The reader reads a GitHub MCP tool's body and comment keys
 
 A **GitHub MCP tool** is one whose name starts `mcp__github__`,
 `mcp__plugin_<name>_github__` or `mcp__claude_ai_GitHub__`.
-For one, the reader SHALL return every string under a key
-named `body` or `comment`, at any depth, as a body.
+For one, the reader SHALL return, at any depth, every string under a
+key named `body` or `comment` as a body, and every string under a key
+named `title` as a title.
 
 #### Scenario: An MCP comment field is read
 
@@ -178,13 +202,16 @@ named `body` or `comment`, at any depth, as a body.
 - **THEN** the reader returns `ok` and the nested string as bodies
 - **AND** it reads `mcp__claude_ai_GitHub__add_issue_comment` with `body`
   `ok` as it reads `mcp__github__add_issue_comment`
+- **AND** it returns `Retries?` as the title of a GitHub MCP tool whose
+  input holds `title` `Retries?`
 
 ### Requirement: The reader reads a Linear MCP comment or issue description
 
 For a tool named `save_comment` or `save_issue` under a **Linear MCP
 prefix**, `mcp__linear__`, `mcp__plugin_<name>_linear__` or
 `mcp__claude_ai_Linear__`, the reader SHALL return, as a Linear
-message, `save_comment`'s `body` or `save_issue`'s `description`. A
+message, `save_comment`'s `body` or `save_issue`'s `description`, and
+`save_issue`'s `title` as a title. A
 `save_issue` call holding `patch`, or holding `template` but no
 `description`, SHALL be unreadable, since its text depends on what
 Linear already holds.
@@ -195,7 +222,7 @@ Linear already holds.
   says: yes`, and about `mcp__linear__save_issue` with `title` `Retries?`
   and `description` `Should retries back off?`
 - **THEN** the reader returns `User says: yes` and `Should retries back
-  off?` as Linear messages, and no title
+  off?` as Linear messages, and `Retries?` as a title
 - **AND** it reports as unreadable a `save_issue` call holding `patch`, or
   `template` with no `description`
 - **AND** `mcp__claude_ai_Linear__save_comment` is read as
@@ -209,14 +236,13 @@ Linear already holds.
 
 ### Requirement: Another Linear write tool sends no post only when it holds no text
 
-For a tool under a Linear MCP prefix whose name starts `save_`,
-`create_`, `update_` or `submit_`, other than `save_comment` and
-`save_issue`, the reader SHALL report that the call sends no post when
-every string in its input sits under a key on the **no-text list**, and
-SHALL report it unreadable otherwise. A string sits under the nearest
-object key above it. The reader SHALL report a call of any other Linear
-MCP tool as sending no post, since those tools take no text Linear
-shows.
+For a Linear MCP tool named `save_*`, `create_*`, `update_*` or
+`submit_*`, other than `save_comment` and `save_issue`, the reader SHALL
+judge each string by the nearest object key above it: under a key on
+the **no-text list** it holds no text; under `title`, `name`, `summary`
+or `description` it is read, as the next requirement says; under any
+other key it makes the call unreadable. A call holding only text-free strings sends no post, and so
+does a Linear MCP tool with a name of any other form.
 
 #### Scenario: The no-text list names keys that hold no text
 
@@ -250,14 +276,46 @@ shows.
 
 - **WHEN** a hook asks about `mcp__linear__save_document` with
   `content`, `mcp__linear__save_status_update` with `body`,
-  `mcp__linear__save_project` with `id` and `summary`,
-  `mcp__linear__update_diff` with `urlOrId` and `title`,
-  `mcp__linear__save_milestone` with `project` and `name`,
   `mcp__linear__save_release_note` with `id` and `patch`
   `[{"op": "append", "text": "Done?"}]`, and
   `mcp__linear__create_attachment_from_upload` with `issue` and
   `assetUrl`
 - **THEN** the reader reports each call as unreadable
+
+### Requirement: A Linear write tool's titles and descriptions are read
+
+For a Linear write tool covered by *Another Linear write tool sends no
+post only when it holds no text*, which leaves these four keys to this
+requirement, the reader SHALL return each string under `title` or
+`name` as a title, and each under `summary` or `description` as
+**Linear summary text**: a Linear message marked as such, which prose's
+posting hook reads as a body; `save_issue`'s `description` is never
+Linear summary text.
+
+#### Scenario: A Linear write call's titles, names, summary and description are read
+
+- **WHEN** a hook asks about `mcp__linear__save_project` with `id`,
+  `name` `Retries?` and `summary` `Should retries back off?`, and about
+  `mcp__linear__save_milestone` with `project`, `name` `Beta` and
+  `description` `Ship it?`
+- **THEN** the reader returns `Retries?` and `Beta` as titles, and
+  `Should retries back off?` and `Ship it?` as Linear summary text;
+  prose's posting hook reads those two as bodies
+
+### Requirement: The reader returns each title apart from bodies
+
+The reader SHALL mark each title it returns as a title rather than a
+body, with its surface, GitHub, Linear or Discord. A title is a
+`title` or `name` value, or a `--title` or `--name` option's value, that
+a call sets and this spec returns as one. A call that
+sets a title and sends no body SHALL return its titles alone. prose's
+posting hook SHALL skip titles, since prose signs bodies only.
+
+#### Scenario: A title alone is returned as a title
+
+- **WHEN** a hook asks about `gh pr edit 5 --title 'Retry?'`
+- **THEN** the reader returns `Retry?` as a GitHub title and no body,
+  and prose's posting hook lets the call through
 
 ### Requirement: The reader says whether a post goes through the github-app skill
 
@@ -331,8 +389,8 @@ that is `gh` or a path ending in `/gh`.
 
 #### Scenario: A command that sends no body is no post
 
-- **WHEN** a hook asks about `gh pr edit 5 --add-label spec`, `gh issue
-  edit 5 --title 'Rename it?'`, an assignee, reviewer or milestone edit,
+- **WHEN** a hook asks about `gh pr edit 5 --add-label spec`, `gh pr
+  edit 5 --add-assignee x --add-reviewer y --milestone m`,
   `gh pr ready`, a close without `--comment`, `gh pr list`, or `python3
   /abs/github_app.py gh pr edit 5 --add-label spec`
 - **THEN** the reader reports that each command sends no post
@@ -346,11 +404,11 @@ that is `gh` or a path ending in `/gh`.
   that no canonical form can read it
 - **THEN** the reader reports the line as unreadable, since `-db` holds
   the text option `-b`
-- **AND** the text options are `--body`, `--body-file`, `--fill`,
-  `--fill-first`, `--fill-verbose`, `--template`, `--recover`,
+- **AND** the text options are `--body`, `--body-file`, `--title`,
+  `--fill`, `--fill-first`, `--fill-verbose`, `--template`, `--recover`,
   `--comment`, `--editor` and `--web`, and any option word starting
   with a single `-`, not `--`, that holds one of the letters `b`, `F`,
-  `c`, `f`, `T`, `e` or `w`
+  `t`, `c`, `f`, `T`, `e` or `w`
 
 #### Scenario: A gh post quoted as data is no post
 
@@ -523,18 +581,35 @@ message.
   `discord_bot` is a module name, not a path to the script
 - **THEN** the reader reports each command as unreadable
 
-#### Scenario: A Discord delete, read or thread is no post
+#### Scenario: A Discord delete or read is no post
 
 - **WHEN** a hook asks about `python3 /abs/discord_bot.py delete
-  --message-id 9`, `python3 /abs/discord_bot.py read --limit 5` and
-  `python3 /abs/discord_bot.py thread --message-id 9 --name Retries`
-- **THEN** the reader reports that each command sends no post, a
-  thread's name being read no more than a post's title
+  --message-id 9` and `python3 /abs/discord_bot.py read --limit 5`
+- **THEN** the reader reports that each command sends no post
+
+### Requirement: A discord-bot thread's name is read as a title
+
+For a call of discord-bot's script with `thread`, found as *The reader
+reads discord-bot's post and edit only from a message file* finds one,
+the canonical form SHALL give `--name` once, its value the next word,
+which the reader returns as a Discord title, and no other option but
+`--identity`, `--channel` and `--message-id`, each at most once, its
+value the next word.
+
+#### Scenario: A thread's name is a title
+
+- **WHEN** a hook asks about `python3 /abs/discord_bot.py thread
+  --message-id 9 --name Retries`
+- **THEN** the reader returns `Retries` as its title
+- **AND** it reports a `thread` call giving `--name=Retries`, `--name`
+  twice, or `--na x`, which discord-bot would take for `--name`, or
+  after `cd x && `, as unreadable
 
 ### Requirement: A simple command holding a discord-bot post word counts as naming gh
 
 A simple command holding a word that is `discord_bot` or ends in
-`discord_bot.py`, followed later by `post` or `edit`, SHALL count as
+`discord_bot.py`, followed later by a **discord-bot post word**,
+`post`, `edit` or `thread`, SHALL count as
 holding a word that is `gh`, so the rules under which a command naming
 no `gh` sends no post never apply to it.
 
@@ -579,9 +654,9 @@ A canonical `gh api` post SHALL be the words `gh api`, an endpoint and
 method its scenario lists, `-X` and that method, and `--input` naming a
 file that exists and holds a JSON object, in any order and nothing else.
 The reader SHALL return the object's `body` as the body and, for a
-review, each `body` in its `comments`. A `body` that is not a string, or
-an object with neither a `body` nor review comments, SHALL make the call
-unreadable.
+review, each `body` in its `comments`, and its `title` as a title. A
+`body` or `title` that is not a string, or an object with no `body`,
+`title` or review comments, SHALL make the call unreadable.
 
 #### Scenario: A canonical gh api post is read
 

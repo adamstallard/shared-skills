@@ -133,6 +133,30 @@ class Tag(unittest.TestCase):
         with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ATTENDED": "0"}):
             self.assertEqual(self.tag(identity="bot")["line"], "@alice")
 
+    def test_tag_for_an_app_post_records_the_identity(self) -> None:
+        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
+        # The record holds the identity only while the configured login is tagged for an App's
+        # post. A later run of `tag` that tags a reviewer with write access instead, or one with
+        # no --identity (here ending in the picker), removes it from the record.
+        self.record()
+        path = verdicts_dir() / f"{HASH}.json"
+
+        def recorded() -> VerdictRecord:
+            return json.loads(path.read_text())
+
+        self.access[("o/api", "alice")] = True
+        self.tag(identity="bot")
+        self.assertEqual(recorded().get("identity"), "bot")
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual({k: v for k, v in recorded().items() if k != "identity"}["verdict"], "ask")
+        self.assertEqual(self.tag()["action"], "picker")
+        self.assertNotIn("identity", recorded())
+        self.tag(identity="bot")
+        self.reviewers["o/api"] = ["dave"]
+        self.access[("o/api", "dave")] = True
+        self.assertEqual(self.tag(identity="bot")["line"], "@dave")
+        self.assertNotIn("identity", recorded())
+
     def test_post_as_login_asks_through_picker(self) -> None:
         # @scenario inquisitor: A post by the configured login asks through the picker
         # @scenario inquisitor: github-app's environment alone does not make a post an App's

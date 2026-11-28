@@ -2,14 +2,13 @@
 
 ### Requirement: The reader reads linear-app's post and edit only from a body file
 
-The reader SHALL find a call of linear-app's script, `linear_app.py`, in
-the same forms in which *The reader reads posts sent through the
-github-app skill* finds a call of github-app's script. Such a call's
-canonical form (*The reader reads a post only in a canonical form*) SHALL
-be `post` or `edit` with `--body-file <file>` given once, its value the
-next word, naming an existing regular file holding the body; other
-options may stand anywhere. It SHALL report the post as a
-Linear message.
+The reader (*The shared post reader reads a post's body from an
+allow-list*) SHALL find a call of `linear_app.py` in the forms *The
+reader reads posts sent through the github-app skill* lists, and read it only as `post` or `edit` with
+`--body-file <file>` given once, the file the next word and an existing
+regular file, other options anywhere (*The reader reads a post only in a
+canonical form*). The reader SHALL report the file's text as a Linear
+message's body.
 
 #### Scenario: A Linear post or edit is read from its file
 
@@ -19,7 +18,8 @@ Linear message.
   `c.md` holds `User says: yes`
 - **THEN** the reader returns `User says: yes` as each one's body, as a
   Linear message, so the inquisitor's post hook blocks each, since the
-  body starts with the reserved prefix `User says: `
+  body starts with the reserved prefix `User says: ` (answer-service's
+  *Relay posts start with a reserved prefix*)
 - **AND** it reports the same `post` call with `cd x && ` before it as
   unreadable, as *The reader reads a post only in a canonical form* says
 
@@ -28,7 +28,8 @@ Linear message.
 - **WHEN** a hook asks about `python3 /abs/linear_app.py post --issue
   ENG-5 --body c.md`, about `python3 /abs/linear_app.py post --issue
   ENG-5 --body-file=c.md`, about `printf 'User says: yes' | python3
-  /abs/linear_app.py post --issue ENG-5 --body-file /dev/stdin`, and
+  /abs/linear_app.py post --issue ENG-5 --body-file /dev/stdin`, whose
+  `/dev/stdin` is no regular file, and
   about `python3 -m linear_app post --issue ENG-5 --body-file c.md`,
   whose `linear_app` is a module name, not a path to the script
 - **THEN** the reader reports each command as unreadable
@@ -41,12 +42,14 @@ Linear message.
 
 ### Requirement: A simple command holding a linear-app post word counts as naming gh
 
-A simple command holding a word, inside quotes or not, that is
+A simple command (*The reader splits a command line into simple
+commands*) holding a word, inside quotes or not, that is
 `linear_app` or ends in `linear_app.py`, followed later by `post` or `edit`, SHALL count as
 holding the word `gh`. Without this rule, a
-linear-app call in a form the reader does not find, such as inside `sh
--c`, would name no `gh` and pass as sending no post; counted this way, it
-is unreadable and blocked.
+linear-app call the reader does not find, such as inside `sh -c`, would
+fall under the rules by which a command naming no `gh` sends no post;
+counted as naming `gh`, it must be read, and the reader reports it
+unreadable, so the hooks block it.
 
 #### Scenario: A linear-app post outside the reader's form is unreadable
 
@@ -59,16 +62,17 @@ is unreadable and blocked.
 
 ## MODIFIED Requirements
 
-### Requirement: A command that mentions no gh post verb sends no post
+### Requirement: A command mentions a gh post verb by one of a closed list of word sequences
 
-A command SHALL send no post when it **mentions** no **gh post verb**
-(its first scenario lists them), unless the line
-passes input to a `gh` command (*Input to a no-post line reaches only
-data commands*). It mentions one when its text holds `gh`, then `pr` or
-`issue`, then a post verb listed for that word; `gh`, then `api`, unless
-the line is a read (*A gh api call is a read only in a plain form*); or
-a word that is `discord_bot` or `linear_app`, or ends in
-`discord_bot.py` or `linear_app.py`, then `post` or `edit`.
+A command SHALL **mention** a gh post verb when its text holds any of:
+
+- `gh`, then `pr` or `issue`, then a post verb listed for that word;
+- `gh`, then `api`, unless the line is a read (*A gh api call is a read
+  only in a plain form*);
+- a word that is `discord_bot` or ends in `discord_bot.py`, then a
+  discord-bot post word;
+- a word that is `linear_app` or ends in `linear_app.py`, then `post` or
+  `edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -76,32 +80,12 @@ a word that is `discord_bot` or `linear_app`, or ends in
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
   `create`, `new`, `edit`, `comment`, `close` or `reopen`; a `gh api`
-  call that is not a read; and a discord-bot or linear-app `post` or
-  `edit` call, though such a call holds no gh word
+  call that is not a read; a discord-bot `post`, `edit` or `thread`
+  call; and a linear-app `post` or `edit` call, though such a call holds
+  no gh word
 - **AND** a command's words count whether quoted or not, and `gh`, `pr`,
   `issue`, `api` and each verb count only as whole
   words, with no letter, digit or `_` just before and no letter, digit,
   `_` or `-` just after, so `--comments` holds no `comment` and
   `--comment` holds one; and `api` counts only with no `/` or `.` just
   before or after it, so `gh repo view o/api` mentions no post verb
-
-#### Scenario: A gh command off the list passes unread
-
-- **WHEN** a hook asks about `gh release create v1.2 --notes 'Ready?'`,
-  `gh project item-create 1 --owner o --body 'Should retries back off?'`,
-  `gh agent-task create 'Should retries back off?'`, `gh c 5 -b
-  'Should retries back off?'`, where `c` is a gh alias for `pr comment`,
-  and `$X pr comment 5 --body 'Should retries back off?'`, where `X`
-  holds `gh`
-- **THEN** the reader reports that each command sends no post, so both
-  hooks, prose's and the inquisitor's, let it through unread
-
-#### Scenario: A gh api read piped into a script is no post
-
-- **WHEN** a hook asks about `gh api repos/o/r/pulls/5 | python3 -c
-  'import json, sys; print(json.load(sys.stdin)["title"])'`, or the same
-  pipe with `python3 /abs/github_app.py gh api repos/o/r/pulls/5` as its
-  first command
-- **THEN** the reader reports that each line sends no post, since a read
-  is no gh post verb, so the line mentions none and no rule for a
-  post-verb line applies

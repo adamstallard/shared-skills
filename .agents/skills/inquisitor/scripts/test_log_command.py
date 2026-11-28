@@ -19,6 +19,9 @@ import log_command
 from common import Refused
 from formats import (HashOnlyMiss, LogFile, MissFile, Unreadable, miss_hash, parse, render)
 from log_command import LogArgs, MissesArgs
+from test_branches import FakeGitHub
+
+PUSH_FILE = branches.push_file
 
 Q1 = "2026-10-20-should-retries-back-off-3f9a1c.md"
 Q2 = "2026-10-20-should-retries-back-off-4b0b0b.md"
@@ -520,6 +523,18 @@ class Service(Fakes):
         result = self.log(question())
         self.assertEqual((result["status"], result["why"]), ("pending", "no write access"))
         self.assertFalse(self.pushed[0]["service"])
+
+
+    def test_repository_with_no_commits_keeps_the_file_pending(self) -> None:
+        # @scenario inquisitor: A repository with no commits keeps the file pending
+        gh = FakeGitHub(repos={"o/api"}, empty={"o/api"})
+        with mock.patch.object(branches, "push_file", PUSH_FILE), \
+                mock.patch.object(branches, "run_gh", gh.run_gh):
+            result = self.log(question())
+        self.assertEqual((result["status"], result["why"]),
+                         ("pending", "o/api has no commits: it needs a first commit before its "
+                                     "questions can be logged"))
+        self.assertTrue((branches.pending_dir("o/api") / str(result["path"])).exists())
 
 
 class Misses(Fakes):
