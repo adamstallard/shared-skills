@@ -631,10 +631,11 @@ class KeepIdentity(Base):
         return objs[-1]["token"], verdicts_dir() / f"{objs[-1]['questions'][0]['hash']}.json"
 
     def test_vetting_again_keeps_the_identity(self) -> None:
-        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
-        # That scenario's block rests on the identity `tag --identity bot` records; this test
-        # writes it into the record as that command would. Vetting the post again must keep it in
-        # the new record, or the block would lapse.
+        # @scenario inquisitor: Vetting a tagged question again keeps its identity only for ask
+        # While the record holds the identity `tag --identity bot` records, the post hook blocks
+        # posting the question with plain gh. This test writes the identity into the record as
+        # that command would. Vetting the post again as `ask` must keep it in the new record, or
+        # plain gh could post the question tagged for the App.
         token, path = self.vet()
         self.second(token, [{"question": 1, **self.ASK}])
         record = json.loads(path.read_text())
@@ -645,10 +646,10 @@ class KeepIdentity(Base):
         self.assertEqual(json.loads(path.read_text()).get("identity"), "bot")
 
     def test_vetting_again_to_another_verdict_drops_the_identity(self) -> None:
-        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
-        # The other side of that scenario: a post vetted again as `deferred` holds no tag line
-        # (only an `ask` gets the one `tag` adds), so its record drops the identity, and nothing
-        # then blocks posting it with plain gh.
+        # @scenario inquisitor: Vetting a tagged question again keeps its identity only for ask
+        # The scenario's AND step: a post vetted again as `deferred` holds no tag line (`tag`
+        # adds its line, naming whom it tags, only to an `ask`), so its record drops the
+        # identity, and the post hook no longer blocks posting it with plain gh.
         token, path = self.vet()
         self.second(token, [{"question": 1, **self.ASK}])
         record = json.loads(path.read_text())
@@ -659,10 +660,11 @@ class KeepIdentity(Base):
         self.assertEqual((record["verdict"], "identity" in record), ("deferred", False))
 
     def test_unreadable_records_refuse_and_keep_the_token(self) -> None:
-        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
-        # That scenario's block rests on the identity in the record. A record that cannot be read
-        # might hold one, so the second call refuses and leaves the file as it is, recording
-        # nothing and keeping the token.
+        # @scenario inquisitor: Vetting a tagged question again keeps its identity only for ask
+        # The post hook's block rests on the identity in the record, and a record that cannot be
+        # read might hold one. So vet's second call (self.second) refuses and leaves the file as
+        # it is, recording nothing, and keeps the token, so the call can run again with it once
+        # the file is removed.
         token, path = self.vet()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("not json")

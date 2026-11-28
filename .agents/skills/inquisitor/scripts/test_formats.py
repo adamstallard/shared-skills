@@ -179,9 +179,15 @@ class Forms(unittest.TestCase):
                     "https://linear.app/acme/issue/ENG-12"):
             self.assertFalse(is_answer_link(bad), bad)
         for ok in ("openspec/changes/retry/design.md", "docs/x.md@" + "a" * 40,
-                   "https://github.com/o/api/pull/12#issuecomment-1002"):
+                   "https://github.com/o/api/pull/12#issuecomment-1002",
+                   "https://github.com/o/api/issues/4"):
             self.assertTrue(is_recorded_in(ok), ok)
-        for bad in ("/etc/passwd", "a//b", "a/./b", "../x", "a/-b", "docs/x.md@abc\n", ""):
+        # Of URLs with no fragment, only an issue's is accepted, as only an issue has a
+        # decision block; a pull request's is refused, as are a malformed one and a fragment
+        # or trailing `/` on an issue's.
+        for bad in ("/etc/passwd", "a//b", "a/./b", "../x", "a/-b", "docs/x.md@abc\n", "",
+                    "https://github.com/o/api/pull/4", "https://github.com/o/../issues/4",
+                    "https://github.com/o/api/issues/4#top", "https://github.com/o/api/issues/4/"):
             self.assertFalse(is_recorded_in(bad), bad)
         self.assertTrue(is_login("web-bot"))
         self.assertFalse(is_login("web-bot[bot]"))
