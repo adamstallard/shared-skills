@@ -115,6 +115,7 @@ test("record_verdict in the judging turn is refused with the core's error, or fo
 })
 
 test('record_verdict from another turn is refused while the judging prompt waits for its own', async ($, on) => {
+  // @scenario answer-service: A verdict call in the person's turn is refused
   const judge = { message: 'm1', turn: 1, text: 'Should retries back off?', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
   const s = open(on, { poll: () => polled([], { judge: [judge] }), 'judge.verdict': () => ({ version: 1, ok: true, accepted: true }) })
   await s.start($)

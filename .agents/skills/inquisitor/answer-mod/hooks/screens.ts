@@ -4,7 +4,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { quitSession } from './actions'
-import { openService } from './service'
+import { OPENING_LINE, openService } from './service'
 import { enterSetup } from './setup'
 import { INITIAL } from './state'
 
@@ -30,7 +30,7 @@ export async function serviceEnter($: EngineInterface, text: string): Promise<st
   if (s.status === 'setup') return enterSetup($, text, () => openService($, false), () => quitSession($))
   if (key === 'q') return quitSession($)
   if (s.status === 'locked' && key === 't') return serviceKey($, 't')
-  const why = s.status === 'locked' ? '(t)ake over, or (q)uit.' : s.status === 'opening' ? 'The answer service is opening: a moment.' : '/answer opens the answer service again; q leaves.'
+  const why = s.status === 'locked' ? '(t)ake over, or (q)uit.' : s.status === 'opening' ? OPENING_LINE : '/answer opens the answer service again; q leaves.'
   await update($, flashAtom, () => why)
   return why
 }
