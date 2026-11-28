@@ -471,9 +471,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       `description` from the Linear MCP, and reports as unreadable a
       `save_issue` holding `patch`, one holding `template` but no
       `description`, and every other Linear save, create, update or
-      submit tool (gh-post spec: *The reader reads a
-      Linear MCP comment or issue description*; *Every other Linear save,
-      create, update or submit tool is unreadable*)
+      submit call holding a string under a key off the no-text list
+      (gh-post spec: *The reader reads a Linear MCP comment or issue
+      description*; *Another Linear write tool sends no post only when it
+      holds no text*)
 - [ ] 1.7 The library reports whether each post goes through the
       github-app skill's script (gh-post spec: *The reader says whether a
       post goes through the github-app skill*)
@@ -734,7 +735,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash, the GitHub MCP
-      tools and the Linear MCP's `save_comment` and `save_issue`, through
+      tools and the Linear MCP's tools, through
       `.agents/lib/gh-shell/`. Every check below applies to a Discord or
       Linear message the reader returns too. It blocks a post holding a
       question tagged for a github-app identity unless the post goes
@@ -1019,7 +1020,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       *propose_reply refuses a draft the prompt box would run* say, and filling the record's URL for a filter 1
       decline), `record_verdict` and the code's checks of each call
       (answer-service spec: *The model's judgements reach the service's
-      code only through record_verdict*), and the rephrased answer's
+      code only through record_verdict*), the core listing each message
+      awaiting judgement at every poll until its turn ends, with the mod
+      keeping no queue of its own (*A message awaits judgement until its
+      turn ends*), and the rephrased answer's
       post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
