@@ -9,7 +9,6 @@ import type { Request } from './core-protocol'
 import type { ServiceState } from '../types'
 import { INITIAL } from './state'
 
-const judgeQueueAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judgeQueue' } as const, INITIAL.judgeQueue)
 const judgingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judging' } as const, INITIAL.judging)
 const serviceAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'service' } as const, INITIAL.service)
 
@@ -44,7 +43,6 @@ export async function lost($: EngineInterface): Promise<void> {
   stopTimers()
   await update($, serviceAtom, () => ({ status: 'lost' as const }))
   await update($, judgingAtom, () => null)
-  await update($, judgeQueueAtom, () => [])
   $.ui.toast('Another session took over the answer service: this one has closed it.')
 }
 

@@ -5,6 +5,7 @@
 import type {
   Answer,
   Declining,
+  Judged,
   Judging,
   PlacedRow,
   Previewed,
@@ -13,7 +14,7 @@ import type {
   ServiceState,
   Turn,
 } from '../types'
-import type { JudgeRequest, PendingView, QuestionView } from './core-protocol'
+import type { PendingView, QuestionView } from './core-protocol'
 
 export const INITIAL = {
   marker: false,
@@ -40,13 +41,14 @@ export const INITIAL = {
   posting: {} as Record<string, true>,
   marked: {} as Record<string, true>,
   previewed: null as Previewed | null,
-  displaced: null as string | null,
+  confirm: null as (Previewed & { asked: string }) | null,
+  arrived: null as string | null,
   places: {} as Record<string, string>,
   picking: false,
   knownPlaces: [] as string[],
   pending: [] as PendingView[],
-  judgeQueue: [] as JudgeRequest[],
   judging: null as Judging | null,
+  judged: { last: null, ends: 0 } as Judged,
   turn: null as string | null,
   relays: {} as Record<string, string>,
   rateLimitedUntil: null as string | null,

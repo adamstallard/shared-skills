@@ -311,3 +311,99 @@ test('setup asked for twice over an open service keeps the lock, and b goes back
   expect(s.of('refresh').length).toBeGreaterThan(0)
   expect(await s.enter($, 'b')).toContain('Back to the questions')
 })
+
+test('after a hot reload the open answer service refreshes its lock and polls again, announcing what it finds', async ($, on) => {
+  // @scenario answer-service: An idle answer service keeps its lock fresh
+  // A hot reload ends the old copy's timers: a wait it started before the reload never resolves.
+  let copy = 0
+  const old = async <T,>(next: () => Promise<T>): Promise<T> => {
+    const mine = copy
+    const done = await next()
+    return mine === copy ? done : new Promise<never>(() => undefined)
+  }
+  on('clock.every', { ms: 30_000 }, (_, e, next) => old(() => next(e)))
+  on('clock.after', { ms: 60_000 }, (_, e, next) => old(() => next(e)))
+  const s = session(on, { core: { poll: () => polled(copy ? [question('q9', { asked_by: 'dev' })] : []) } })
+  await s.start($)
+  copy++
+  const r0 = s.of('refresh').length
+  await s.clock.advance(65_000)
+  expect(s.of('refresh').length).toBe(r0)
+  // The reload raises session.start again, while the open status survives it.
+  await s.start($)
+  expect(s.toasts.some(t => /New question: dev asks/.test(t))).toBe(true)
+  const refreshes = s.of('refresh').length
+  const polls = s.of('poll').length
+  await s.clock.advance(60_000)
+  expect(s.of('refresh').length).toBeGreaterThanOrEqual(refreshes + 2)
+  expect(s.of('poll').length).toBeGreaterThan(polls)
+  expect(s.of('open').length).toBe(1)
+})
+
+test('a hot reload keeps a service the person closed closed', async ($, on) => {
+  // @scenario answer-service: Nothing polls without an open answer service
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  const polls = s.of('poll').length
+  await s.start($)
+  await s.clock.advance(120_000)
+  expect(s.of('open').length).toBe(1)
+  expect(s.of('poll').length).toBe(polls)
+})
+
+test('a hot reload keeps setup asked for over the open service on screen, its lock still refreshed', async ($, on) => {
+  // @scenario answer-service: Setup runs again on request
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer', 'setup')
+  await s.clock.settle()
+  await s.start($)
+  const refreshes = s.of('refresh').length
+  await s.clock.advance(60_000)
+  expect(s.of('open').length).toBe(1)
+  expect(s.of('refresh').length).toBeGreaterThan(refreshes)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /SETUP · THE ANSWER SERVICE/)).toBeDefined()
+})
+
+test('setup shows the keychain command for the Linear key, never takes the key in the prompt box, and offers channels', async ($, on) => {
+  // @scenario answer-service: The person's Linear key never passes through the prompt
+  // @scenario answer-service: Setup offers the person's channels
+  const s = session(on, {
+    core: {
+      open: () => ({ version: 1, ok: true, status: 'setup', notices: [] }),
+      'setup.status': () => ({
+        version: 1,
+        ok: true,
+        complete: false,
+        config: { linear: { relay: 'eng-relay', subscriptions: [] } },
+        checks: [],
+        candidates: [
+          { surface: 'github', id: 'o/api', name: 'o/api', subscribed: false },
+          { surface: 'linear', id: 'ENG', name: 'Engineering', subscribed: false },
+        ],
+        linear_key_command: 'security add-generic-password -s inquisitor-linear -a alice -w',
+      }),
+      'setup.save': req => ({ version: 1, ok: true, complete: false, config: req['config'], checks: [] }),
+    },
+  })
+  await s.start($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // Each line sits under its own surface's heading, and nowhere else: GitHub, then Linear, then Discord.
+  const lines = ((await ui.findAll({ type: 'Text' })) as { text?: string }[]).map(t => t.text ?? '')
+  const at = (re: RegExp) => lines.flatMap((t, i) => (re.test(t) ? [i] : []))
+  const [github, linear, discord] = [at(/^GITHUB · RELAY/)[0]!, at(/^LINEAR · RELAY/)[0]!, at(/^DISCORD · RELAY/)[0]!]
+  const within = (re: RegExp, from: number, to: number) => {
+    const found = at(re)
+    expect(found.length).toBeGreaterThan(0)
+    expect(found.every(i => i > from && i < to)).toBe(true)
+  }
+  within(/add github o\/api/, github, linear)
+  within(/add linear ENG/, linear, discord)
+  within(/security add-generic-password -s inquisitor-linear -a alice -w/, linear, discord)
+  expect(await s.enter($, 'linear-key lin_api_secret')).toContain('never takes the Linear key')
+  await s.enter($, 's')
+  expect(JSON.stringify(s.of('setup.save'))).not.toContain('lin_api_secret')
+})
