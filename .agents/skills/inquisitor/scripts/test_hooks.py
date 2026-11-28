@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -93,6 +94,7 @@ class Picker(Base):
         code, err = self.ask((self.Q, self.OPTIONS))
         self.assertEqual(code, 2)
         self.assertIn("Should retries back off?", err)
+        self.assertIn("Run the two calls on each question named", err)
         self.assertIn("vet --questions", err)
 
     def test_vetted_passes(self) -> None:
@@ -121,6 +123,23 @@ class Picker(Base):
         self.assertEqual(code, 2)
         self.assertIn("credential", err)
         self.assertNotIn("no verdict", err)
+
+    # Only the checks that need the records fail open; a credential blocks.
+    # @scenario inquisitor: A related-decision line holding a secret is blocked
+    def test_secret_blocked_when_records_unreadable(self) -> None:
+        text = f"{self.Q}\nRelated: https://github.com/o/r/pull/3?t={TOKEN}"
+        verdicts_dir().mkdir(parents=True)
+        (verdicts_dir() / f"{picker_hash(text, self.OPTIONS)}.json").write_text("{bad")
+        code, err = self.ask((text, self.OPTIONS))
+        self.assertEqual(code, 2)
+        self.assertIn("credential", err)
+        self.assertNotIn("Run the two calls", err)
+        with mock.patch("hooks.read_records", side_effect=RuntimeError("boom")):
+            self.assertEqual(self.ask((text, self.OPTIONS))[0], 2)
+        with mock.patch("hooks.read_records", return_value=None):
+            code, err = self.ask((text, self.OPTIONS), ("Cap at a minute?", self.OPTIONS))
+        self.assertEqual(code, 2)
+        self.assertNotIn("question 2", err)
 
     # @scenario inquisitor: A question edited after vetting is blocked
     def test_edited(self) -> None:
@@ -290,6 +309,39 @@ class Post(Base):
             "Should we rename `retry\n  policy` for @alice or keep `old`?"), 2)
 
     # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_mention_after_a_fence_or_quote_in_the_item(self) -> None:
+        for item in ("Should we X?\n  ```\n  code\n  ```\n  @bob what do you think",
+                     "Should we X?\n  > quoted\n\n  @bob what do you think",
+                     "Should we X?\n  ```\n  code\n  ```\n\n\tAsk @bob.",
+                     "Should we X?\n  > quoted\n\n\tAsk @bob."):
+            with self.subTest(item=item):
+                self.assertEqual(self.deferred_item(item), 2)
+
+    # Discord shows HTML comments and indented text as written.
+    # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_discord_mention_in_a_comment_line(self) -> None:
+        command = "python3 /abs/discord_bot.py post --channel 1 --message-file m.md"
+        self.assertEqual(self.deferred_item("Should we X?\n  <!-- <@123> -->", command), 2)
+
+    # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_tag_or_mention_further_into_the_item(self) -> None:
+        for item in ("Should we X?\n  ```\n  code\n  ```\n  @alice",
+                     "Should we X?\n\n  ### Notes\n\n  Ask @alice."):
+            with self.subTest(item=item):
+                self.assertEqual(self.deferred_item(item), 2)
+
+    # A body through an MCP tool keeps its line endings, a lone carriage
+    # return included.
+    # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_mention_in_a_body_with_carriage_returns(self) -> None:
+        body = ("Not in this change:\n\n- Should we X?\r  ask @alice now\n"
+                "  Related: https://github.com/o/r/pull/3\n")
+        for found in find_questions(body, in_code=True):
+            self.record(question_hash(question_text(found.question)), "deferred")
+        self.assertEqual(self.tool("mcp__github__add_issue_comment", owner="o", repo="r",
+                                   issue_number=7, body=body)[0], 2)
+
+    # @scenario inquisitor: A deferred question that tags a person is blocked
     def test_deferred_discord_mention_in_either_form(self) -> None:
         command = "python3 /abs/discord_bot.py post --channel 1 --message-file m.md"
         for mention in ("<@123456789>", "<@!123456789>"):
@@ -298,12 +350,32 @@ class Post(Base):
                                                     command), 2)
 
     # @scenario inquisitor: A deferred question may be listed in a post
-    def test_deferred_naming_a_team_or_a_commented_login(self) -> None:
-        for question in ("Should @o/devs own the retry policy?",
-                         "Should retries back off? <!-- @alice -->"):
-            with self.subTest(question=question):
-                self.record(post_hash(question), "deferred")
-                self.assertEqual(self.post(f"Not in this change:\n\n- {question}\n")[0], 0)
+    def test_deferred_naming_a_team(self) -> None:
+        self.assertEqual(self.deferred_item("Should @o/devs own the retry policy?"), 0)
+
+    # The mention reading leans toward finding: a mention in a code span, a
+    # link or an inline HTML comment counts.
+    # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_mention_in_code_span_link_or_comment(self) -> None:
+        for item in ("Should retries back off? <!-- @alice -->",
+                     "Should `@alice` decide whether retries back off?",
+                     "Should [@alice](https://x/) decide whether retries back off?"):
+            with self.subTest(item=item):
+                self.assertEqual(self.deferred_item(item), 2)
+
+    # A mention on a `>` line, or in code the hiding reading hides, does not count.
+    # @scenario inquisitor: A deferred question may be listed in a post
+    def test_deferred_mention_in_hidden_code_or_a_quote(self) -> None:
+        for item in ("Should retries back off?\n\n  ```\n  @alice\n  ```",
+                     "Should retries back off?\n  > @alice said so"):
+            with self.subTest(item=item):
+                self.assertEqual(self.deferred_item(item), 0)
+
+    # A paragraph indented under the item, after a blank line, is the item's
+    # text, not an indented code block, so its mention counts.
+    # @scenario inquisitor: A deferred question that tags a person is blocked
+    def test_deferred_mention_in_a_later_paragraph(self) -> None:
+        self.assertEqual(self.deferred_item("Should retries back off?\n\n    Ask @alice."), 2)
 
     # @scenario inquisitor: A deferred question that tags a person is blocked
     def test_deferred_mentioning_a_person_in_its_text(self) -> None:
@@ -588,6 +660,17 @@ class Scripts(Base):
         self.assertEqual(result.returncode, 2)
         self.assertIn("post hook failed", result.stderr)
         self.assertEqual(self.script("check-post.sh", "not json").returncode, 0)
+
+    def test_post_script_without_python3(self) -> None:
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "dirname").symlink_to(shutil.which("dirname") or "/usr/bin/dirname")
+        result = self.script("check-post.sh", "{}", {"PATH": str(bin_dir)})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("python3 is missing", result.stderr)
+        self.assertNotIn("post hook failed", result.stderr)
+        skills = (HERE.parent.parent / "manage-skills" / "scripts" / "skills.py").resolve()
+        self.assertIn(f"python3 {skills} disable-hook inquisitor", result.stderr)
 
     # @scenario inquisitor: A GitHub MCP post is checked
     def test_matchers(self) -> None:

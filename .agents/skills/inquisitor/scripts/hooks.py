@@ -1,14 +1,15 @@
-"""The picker hook and the post hook, run by scripts/check-ask.sh and
-scripts/check-post.sh with Claude Code's PreToolUse payload on standard
+"""The picker hook, run by scripts/check-ask.sh, and the post hook, run by
+scripts/check-post.sh, each with Claude Code's PreToolUse payload on standard
 input (inquisitor spec: *A hook blocks a picker question that was not
 vetted*; *Questions in posts pass the same filters*; *The post hook vets
 what the shared post reader returns*).
 
 Each returns 0 to let the call through, or 2 to block it with its message
 on stderr, which Claude Code shows the model. The picker hook fails open:
-when it cannot read the call or the verdict records, the call goes
-through. The post hook lets through a payload that is not a JSON object,
-and fails closed on any call that may post: anything it cannot check
+when it cannot read the call, the call goes through, and when it cannot
+read the verdict records, only a credential in a question blocks it.
+The post hook reads a payload that is not a JSON object as no call that
+may post, and lets it through. It fails closed on every call that may post: anything it cannot check
 blocks, since a published post cannot be taken back.
 
 Standard library only.
@@ -25,8 +26,8 @@ from calls import read_records
 from contracts import VerdictRecord
 from credentials import matches_credentials
 from qtext import (PERSON_REQUIRED_FORMAT, RELATED_PREFIX, UNTAGGED_LINE, FoundQuestion, Question,
-                   find_questions, line_kind, question_hash, question_text, reduce_markup)
-from qtext import _LOGIN  # pyright: ignore[reportPrivateUsage]
+                   find_questions, line_kind, mentions, question_hash, question_text,
+                   reduce_markup)
 from service.relay import RESERVED_PREFIXES
 
 # The shared post reader lives in this repository's .agents/lib/gh-shell/,
@@ -87,7 +88,10 @@ def _picker_questions(payload: Any) -> list[Question] | None:
 
 def ask_problems(raw: str) -> list[str]:
     """Why the picker hook blocks the call: a line for each question that
-    fails, then the command to run. Empty to let the call through."""
+    fails, then, when a verdict is missing or is anything but ask, the
+    command to run. Empty to let the call through. A credential in a
+    question or one of its options blocks whatever the records hold; only the checks that need the verdict
+    records fail open, when the records cannot be read."""
     try:
         questions = _picker_questions(json.loads(raw))
     except ValueError:
@@ -95,16 +99,23 @@ def ask_problems(raw: str) -> list[str]:
     if not questions:
         return []
     texts = [question_text(q) for q in questions]
-    records = read_records({question_hash(t) for t in texts})
-    if records is None:
-        return []
     problems: list[str] = []
+    clean: list[tuple[str, str]] = []
     for n, (q, text) in enumerate(zip(questions, texts), 1):
         name = f"question {n} ({_first_line(text)!r})"
         if any(matches_credentials(part) for part in (q.question, *q.options)):
             problems.append(f"{name} holds a string shaped like a credential, its "
                             "related-decision line included: take it out")
-            continue
+        else:
+            clean.append((name, text))
+    try:
+        records = read_records({question_hash(t) for _, t in clean}) if clean else {}
+    except Exception:  # noqa: BLE001 - the record checks fail open
+        records = None
+    if records is None:
+        return problems
+    unvetted = False
+    for name, text in clean:
         record = records.get(question_hash(text))
         if record is None:
             problems.append(f"{name} has no verdict from the last 2 hours: vet it, or vet it "
@@ -112,7 +123,10 @@ def ask_problems(raw: str) -> list[str]:
         elif record["verdict"] != "ask":
             problems.append(f"{name}: its latest verdict is {record['verdict']}{_field(record)}, "
                             "so it is not asked")
-    if problems:
+        else:
+            continue
+        unvetted = True
+    if unvetted:
         problems.append(f"Run the two calls on each question named: {FIRST_CALL_PICKER}, then "
                         "the second call it prints.")
     return problems
@@ -182,64 +196,52 @@ def _credential_problems(post: post_reader.Post, found: list[FoundQuestion]) -> 
     return problems
 
 
-# A mention as the answer-service spec counts one (*A mention names a user
-# outside code, quotes and links*): `@login`, not inside a word, a path or
-# an email, and not a team's `@org/team`. A `_` beside it, as emphasis
-# puts there, does not stop the match. Discord's user mention, `<@id>` or
-# `<@!id>`, counts on every surface; `<@&id>` names a role, which counts as
-# none.
-_MENTION = re.compile(r"(?<![A-Za-z0-9@/])@" + _LOGIN + r"(?![A-Za-z0-9-]|/[A-Za-z0-9])"
-                      r"|<@!?\d+>")
-# A code span: a backtick run no backslash escapes, closed by a run of the
-# same length.
-_CODE_SPAN = r"(?<![\\`])(`+)(?!`).*?(?<!`)\1(?!`)"
-# Code spans and HTML comments in one pass, so the one opening first wins,
-# as in markdown. `<!-->` and `<!--->` open no comment.
-_HIDDEN = re.compile(_CODE_SPAN + r"|(?<!\\)<!--(?!-?>).*?-->")
-_SPAN_ONLY = re.compile(_CODE_SPAN)
-# A link: a destination with no space unless in angle brackets, then an
-# optional quoted title. A link is removed with its text; `[a](b c)` is no
-# link, so it stays and a mention in it counts.
-_LINK = re.compile(r"""(?<!\\)\[[^\]]*\]\(\s*(?:<[^>]*>|[^\s()]*)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)""")
-# Where a span or an inline comment cannot continue: a blank line or a
-# list item's start.
-_BLOCK_START = re.compile(r"\s*$|\s*(?:[-*+]|\d{1,9}[.)])(?:\s|$)")
+_INTERRUPTS = re.compile(r"\s*(?:[-*+]|\d{1,9}[.)])(?:\s|$)|\s*#{1,6}(?:\s|$)|\s*(?:`{3,}|~{3,})"
+                         r"|\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$")
 
 
-def _shown(text: str, discord: bool) -> str:
-    """text with each code span, HTML comment and link replaced by a
-    space, since a mention in one names no one. Discord has no HTML
-    comments and no such links, so there only code spans go."""
-    if discord:
-        return _SPAN_ONLY.sub(" ", text)
-    return _LINK.sub(" ", _HIDDEN.sub(" ", text))
+def _width(line: str) -> int:
+    """How many columns of whitespace the line starts with, with a tab
+    stop every 4 columns."""
+    expanded = line.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip())
 
 
-def _mentions(text: str, discord: bool = False) -> bool:
-    """Whether a question's own lines mention a user, which tags that
-    person as a tag line does (inquisitor spec, Purpose: *A question
-    tags* a person when its tag line, list item or sentence mentions
-    them). The lines question_text leaves out, such as Related, tag and
-    Concerns lines, are skipped, but record lines are read; so are `>`
-    lines. Every kept line is read two ways, alone and joined with the
-    other lines of its block, and a mention either reading finds counts:
-    the post hook errs toward blocking. Fenced code blocks are not
-    recognized, so a mention in one counts too."""
-    lines = text.split("\n")
-    kept = [line for n, line in enumerate(lines)
-            if (n == 0 or line_kind(line) in (None, "record"))
-            and not line.lstrip().startswith(">")]
-    blocks: list[list[str]] = [[]]
-    for line in kept:
-        if _BLOCK_START.match(line) and blocks[-1]:
-            blocks.append([])
-        blocks[-1].append(line)
-    readings = kept + [" ".join(block) for block in blocks]
-    return any(_MENTION.search(_shown(reading, discord)) for reading in readings)
+def _item_span(lines: list[str], at: tuple[int, ...]) -> list[int]:
+    """The lines of the list item that starts at at[0], as GitHub shows it.
+    find_questions ends an item at a fence or a `>` line inside it, but a
+    mention further into the item still tags the question, so the post hook
+    finds the item's lines again here, leaning toward taking a line in. A
+    line belongs while it is blank, indented at least 2 columns past the
+    marker's indent, or continues a paragraph lazily. The item ends at a
+    later item, heading, fence or thematic break (`---`) indented less than
+    that, or at any line indented less than that after a blank line."""
+    if not at:
+        return []
+    start = at[0]
+    marker = _width(lines[start])
+    span = [start]
+    blank = False
+    for i in range(start + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            blank = True
+            span.append(i)
+            continue
+        if _width(line) >= marker + 2:
+            span.append(i)
+        elif blank or _INTERRUPTS.match(line):
+            break
+        else:
+            span.append(i)
+        blank = False
+    return sorted(set(span) | set(at))
 
 
-def _verdict_problem(post: post_reader.Post, q: _Vetted, record: VerdictRecord | None) -> str | None:
-    """Why one question blocks the post, or None."""
+def _verdict_problem(post: post_reader.Post, q: _Vetted, record: VerdictRecord | None,
+                     mentioned: set[int]) -> str | None:
+    """Why one question blocks the post, or None. mentioned holds the
+    index of each line of the post's body that mentions a user."""
     name = f"{post.where}: the question {_first_line(q.text)!r}"
     if record is None:
         return (f"{name} has no verdict from the last 2 hours: vet it with {FIRST_CALL_POST}, or "
@@ -252,9 +254,16 @@ def _verdict_problem(post: post_reader.Post, q: _Vetted, record: VerdictRecord |
     found = q.found
     # The fixed untagged line is a tag line that tags no one (inquisitor spec:
     # *A question no one can decide is posted untagged*).
+    # An item tags the login on each of its tag lines, and whom any other
+    # line of its span mentions (inquisitor spec, Purpose: *A question
+    # tags*), except that a mention on a Related, person-required or
+    # Concerns line tags no one.
+    body_lines = post.body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     tagged = (any(line_kind(line) == "tag" and line.strip() != UNTAGGED_LINE
                   for line in found.lines)
-              or _mentions(found.question.question, post.surface == "discord"))
+              or any(i in mentioned
+                     and line_kind(body_lines[i]) not in ("related", "person-required", "concerns")
+                     for i in _item_span(body_lines, found.at)))
     if verdict == "ask":
         if found.deferred:
             return (f"{name} is listed under a deferral label with an ask verdict: a question "
@@ -290,7 +299,9 @@ def _verdict_problem(post: post_reader.Post, q: _Vetted, record: VerdictRecord |
 def _body_problems(posts: list[post_reader.Post]) -> list[str]:
     problems: list[str] = []
     pending: list[tuple[post_reader.Post, _Vetted]] = []
+    mentioned: dict[int, set[int]] = {}
     for post in posts:
+        mentioned[id(post)] = {m.line for m in mentions(post.body, post.surface == "discord")}
         found = find_questions(post.body, in_code=True)
         problems += _credential_problems(post, found)
         for f in found:
@@ -303,7 +314,7 @@ def _body_problems(posts: list[post_reader.Post]) -> list[str]:
         return problems + ["the verdict records cannot be read, and this post holds a question; "
                            "a published post cannot be taken back, so it is blocked"]
     for post, q in pending:
-        problem = _verdict_problem(post, q, records.get(q.hash))
+        problem = _verdict_problem(post, q, records.get(q.hash), mentioned[id(post)])
         if problem is not None:
             problems.append(problem)
     return problems

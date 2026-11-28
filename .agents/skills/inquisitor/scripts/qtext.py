@@ -62,8 +62,11 @@ class FoundQuestion:
     found in, link targets included: an item's lines, or a sentence's whole
     paragraph. The post hook scans raw for credentials, which a link target
     can hold (*The credential scan reads raw markdown*). in_code is True for
-    a sentence only find_questions(body, in_code=True) adds, which the
-    hiding reading does not find: GitHub may show it as code, or not show it.
+    a sentence only find_questions(body, in_code=True) adds, from the code
+    blocks and HTML comments find_questions(body) skips: GitHub shows it as
+    code, or, in a comment, does not show it. at is the post's line index of
+    each line the item was found with, which can stop short of a fence or
+    `>` line inside the item; it is empty for a sentence.
     """
 
     question: Question
@@ -72,6 +75,7 @@ class FoundQuestion:
     lines: tuple[str, ...] = field(default=())
     raw: str = ""
     in_code: bool = False
+    at: tuple[int, ...] = field(default=())
 
 
 # -- inline markup -------------------------------------------------------------
@@ -475,9 +479,10 @@ def reduce_markup(text: str) -> str:
 
 # -- the lines a question's text leaves out -----------------------------------
 
-_LOGIN = r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}"
+# A GitHub login: letters, digits and single inner hyphens, at most 39.
+LOGIN = r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}"
 _RELATED = re.compile(r"Related: https?://\S+")
-_TAG = re.compile(r"@" + _LOGIN)
+_TAG = re.compile(r"@" + LOGIN)
 _PERSON_REQUIRED = re.compile(r"Inquisitor: a person must decide this \(required by [^()\s]+\)\.")
 _CONCERNS = re.compile(r"Concerns: (?:lore )?(\S+)")
 _VISIBILITY = r"\((?:private|internal|public)\)"
@@ -932,7 +937,53 @@ def _escape(text: str) -> str:
 def _item_question(item: _Item, number: int) -> FoundQuestion:
     lines = tuple(line for line in item.lines[1:] if line_kind(line) is not None)
     text = "\n".join(item.lines)
-    return FoundQuestion(Question("post", text), number, item.deferred, lines, text)
+    return FoundQuestion(Question("post", text), number, item.deferred, lines, text,
+                         at=tuple(item.at))
+
+
+# A mention: `@login` not inside a word, an email or a path, and not a
+# team's `@org/team`; or Discord's user mention, `<@id>` or `<@!id>`.
+# A role's mention, `<@&id>`, is not matched.
+_MENTION = re.compile(r"(?<![A-Za-z0-9@/])@(" + LOGIN + r")(?![A-Za-z0-9-]|/[A-Za-z0-9])"
+                      r"|<@!?(\d+)>")
+
+
+# What hides a line from the hiding reading.
+_Hidden = Literal["fence", "tilde", "indented", "comment"]
+
+
+def _fenced(fence: str) -> _Hidden:
+    """What hides a line inside a fence opened by the string fence: a
+    backtick fence or a tilde fence."""
+    return "tilde" if fence[0] == "~" else "fence"
+
+
+@dataclass(frozen=True)
+class Mention:
+    """One mention in a post: name is the login, or a Discord user id;
+    line is the index of the post's line it is on."""
+
+    name: str
+    line: int
+
+
+def mentions(body: str, discord: bool = False) -> list[Mention]:
+    """The users a post mentions, in order. The reading leans toward
+    finding one: every `@login` and Discord user mention counts, in code
+    spans, links and inline HTML comments too, except on `>` lines and on
+    the lines the hiding reading hides: closed code fences, indented code
+    blocks and HTML comments filling whole lines (find_questions). With
+    discord, only backtick fences hide lines, since Discord shows HTML
+    comments, indented text and `~~~` blocks as written. The post hook and
+    the answer service both read mentions with this."""
+    lines = body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    hidden: dict[int, _Hidden] = {}
+    _read(lines, False, True, hidden)
+    shown = {i for i, what in hidden.items() if discord and what != "fence"}
+    return [Mention(m.group(1) or m.group(2), i)
+            for i, line in enumerate(lines)
+            if (i not in hidden or i in shown) and not _QUOTE.match(line)
+            for m in _MENTION.finditer(line)]
 
 
 def find_questions(body: str, in_code: bool = False) -> list[FoundQuestion]:
@@ -1089,14 +1140,19 @@ def _comment_ends(lines: list[str]) -> list[int]:
     return out
 
 
-def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
+def _read(lines: list[str], plain: bool, sections: bool,
+          hidden: dict[int, _Hidden] | None = None) -> list[_Found]:
     """The questions in a post's lines, by find_questions' hiding reading,
-    or with plain by its plain reading; with sections, an open-questions
-    section's items are items, otherwise sentences.
+    or with plain by its plain reading. With sections, an open-questions
+    section's items are read as items; without, as sentences.
 
     Both readings find the same code blocks and comments. The hiding
     reading skips their lines; the plain reading reads them as text, in
-    paragraphs of their own, so text outside them reads alike in both."""
+    paragraphs of their own, so text outside them reads alike in both.
+    hidden, when given, is filled in either reading: it maps the index of
+    each line the hiding reading skips to what hides it. That is a backtick
+    or tilde fence (both the lines inside it and its opening line), an
+    indented code block, or an HTML comment."""
     found: list[_Found] = []
     number = 0
     section: Section | None = None
@@ -1149,9 +1205,11 @@ def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
     # The paragraph is code or comment lines, read literally.
     literal = [False]
 
-    def keep(i: int, text: str) -> None:
+    def keep(i: int, text: str, what: _Hidden = "fence") -> None:
         """In the plain reading, read line i, a code or comment line, as
         the literal text GitHub shows; the hiding reading skips it."""
+        if hidden is not None:
+            hidden[i] = what
         if plain:
             paragraph.append((i, text))
             literal[0] = True
@@ -1191,7 +1249,7 @@ def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
         if code_block:
             if indented or not line.strip():
                 if line.strip():
-                    keep(i, line)
+                    keep(i, line, "indented")
                 else:
                     end_paragraph()
                 continue
@@ -1200,21 +1258,21 @@ def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
         if (fence is None and indented and not paragraph and item is None and not in_list
                 and (blank_before or i == 0)):
             code_block = True
-            keep(i, line)
+            keep(i, line, "indented")
             continue
         if fence is not None:
             if _closes(line, fence):
                 fence = None
                 end_paragraph()
             else:
-                keep(i, line)
+                keep(i, line, _fenced(fence))
             continue
         if comment_ends[i] >= 0 and not lazy(i):
             # GitHub hides the comment, and it ends a paragraph.
             end_paragraph()
             comment_end = comment_ends[i]
             for k in range(i, comment_end + 1):
-                keep(k, lines[k])
+                keep(k, lines[k], "comment")
             end_paragraph()
             blank_before = True
             continue
@@ -1264,7 +1322,7 @@ def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
             end_paragraph()
             end_item()
             fence = str(kind.fence)
-            keep(i, line)
+            keep(i, line, _fenced(fence))
             end_paragraph()
             blank_before = False
             in_list = in_list and line[:1].isspace()
@@ -1327,7 +1385,7 @@ def _read(lines: list[str], plain: bool, sections: bool) -> list[_Found]:
             if marker_fence is None:
                 paragraph.append((i, kind.text))
             else:
-                keep(i, kind.text)
+                keep(i, kind.text, _fenced(marker_fence))
                 end_paragraph()
         else:
             paragraph.append((i, line))

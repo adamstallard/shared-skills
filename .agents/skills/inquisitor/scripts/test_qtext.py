@@ -6,8 +6,8 @@ import random
 import time
 import unittest
 
-from qtext import (UNTAGGED_LINE, FoundQuestion, Question, find_questions, line_kind,
-                   question_hash, question_text, reduce_markup, sentences, terms)
+from qtext import (UNTAGGED_LINE, FoundQuestion, Mention, Question, find_questions, line_kind,
+                   mentions, question_hash, question_text, reduce_markup, sentences, terms)
 
 
 class QuestionText(unittest.TestCase):
@@ -1245,6 +1245,51 @@ class RoundEightScenarios(unittest.TestCase):
         # @scenario inquisitor: A plain-reading sentence inside a section item is that item's
         self.assertEqual(self.found("## Open questions\n- Ship it? Or wait?\n"),
                          [("Ship it? Or wait?", False)])
+
+
+class Mentions(unittest.TestCase):
+    """mentions() leans toward finding a mention: only a mention on a `>`
+    line, or in code the hiding reading hides, does not count."""
+
+    def names(self, body: str) -> list[str]:
+        return [m.name for m in mentions(body)]
+
+    def test_every_login_counts_outside_hidden_code_and_quotes(self) -> None:
+        self.assertEqual(self.names("Ask @alice, `@bob`, [@carol](https://x/) <!-- @dave -->"),
+                         ["alice", "bob", "carol", "dave"])
+        self.assertEqual(self.names("_cc @alice_ and **@bob**"), ["alice", "bob"])
+        self.assertEqual(self.names("> @alice said\n\n```\n@bob\n```\n\n    @carol\n\n"
+                                    "<!--\n@dave\n-->\nThen @erin."), ["erin"])
+
+    def test_what_is_no_mention(self) -> None:
+        self.assertEqual(self.names("Mail a@alice.com, see x/@alice, ask @o/devs, @@alice, @bob-"),
+                         [])
+        # An HTML comment indented under a section's item, filling its own
+        # line, is hidden like one at the line's start.
+        self.assertEqual(self.names("Open questions:\n\n- Should we X?\n    <!-- @alice -->\n"), [])
+
+    def test_discord_user_mentions(self) -> None:
+        self.assertEqual(self.names("Ask <@123> or <@!456>, not <@&789>"), ["123", "456"])
+
+    def test_discord_shows_comments_and_indented_text(self) -> None:
+        body = "Hi.\n\n<!-- <@1> -->\n\n    <@2>\n\n```\n<@3>\n```"
+        self.assertEqual(self.names(body), [])
+        self.assertEqual([m.name for m in mentions(body, discord=True)], ["1", "2"])
+
+    def test_discord_shows_tilde_fences(self) -> None:
+        body = "Hi.\n\n~~~\n<@1>\n~~~"
+        self.assertEqual(self.names(body), [])
+        self.assertEqual([m.name for m in mentions(body, discord=True)], ["1"])
+
+    def test_lone_carriage_returns_end_lines(self) -> None:
+        self.assertEqual(mentions("a\rb\r@bob"), [Mention("bob", 2)])
+
+    def test_lines_are_the_post_s(self) -> None:
+        body = "Open questions:\n\n- Should retries back off?\n\n    Ask @alice."
+        self.assertEqual(mentions(body), [Mention("alice", 4)])
+        [found] = find_questions(body)
+        self.assertEqual(found.at, (2, 4))
+        self.assertIn(4, found.at)
 
 
 if __name__ == "__main__":

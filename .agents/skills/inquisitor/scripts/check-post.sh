@@ -13,6 +13,14 @@ fail() {
   exit 2
 }
 here=$(CDPATH= cd -P -- "$(dirname -- "$0")" 2>/dev/null && pwd -P) || fail "its folder cannot be found"
+if ! command -v python3 >/dev/null 2>&1; then
+  # $here is this skill's scripts folder in the shared-skills clone, and
+  # manage-skills is a skill beside this one.
+  skills=$(CDPATH= cd -P -- "$here/../../manage-skills/scripts" 2>/dev/null && pwd -P) \
+    || skills="<shared-skills clone>/.agents/skills/manage-skills/scripts"
+  echo "inquisitor: blocked this call, since python3 is missing and what it posts cannot be checked. Install python3, or disable the hook: python3 $skills/skills.py disable-hook inquisitor" >&2
+  exit 2
+fi
 python3 -I "$here/inquisitor.py" hook-post
 status=$?
 case $status in
