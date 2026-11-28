@@ -150,29 +150,21 @@ def current_repository() -> str | None:
 
 
 # -- the questions-branch adapter ------------------------------------------------
-# Every call into the branches module goes through the functions below, so
-# that the clone argument the module takes today can be dropped in one place
-# when the module reads and writes questions branches through GitHub's API.
-
-def _clone() -> Path:
-    return Path.cwd()
-
+# Every call this module makes into the branches module, which reads and
+# writes questions branches through GitHub's API, goes through the
+# functions below.
 
 def branch_files(repository: str) -> list[branches.BranchFile] | None:
     """Every file on repository's questions branch, oldest first, or None
     when the branch cannot be read."""
-    clone = _clone()
-    if not branches.fetch(clone, repository):
-        return None
-    return branches.list_files(clone, repository)
+    return branches.list_files(repository)
 
 
 def push_to_branch(repository: str, path: str, content: str, as_inquisitor: bool,
                    service: bool) -> branches.PushResult:
     """Push one file to repository's questions branch, its commit's message
     `inquisitor: log <path>`."""
-    return branches.push_file(_clone(), repository, path, content, f"inquisitor: log {path}",
-                              as_inquisitor, service)
+    return branches.push_file(repository, path, content, as_inquisitor, service)
 
 
 def read_branch(repository: str) -> list[branches.BranchFile]:
