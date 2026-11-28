@@ -7,6 +7,7 @@ checked is skipped*).
 tasks.md's task 2.6. Standard library only.
 """
 
+import json
 import os
 import re
 import subprocess
@@ -17,9 +18,10 @@ from urllib.parse import urlparse
 import config
 import github
 from calls import read_records
-from common import VERSION, Refused, print_json
+from common import VERSION, Refused, print_json, verdicts_dir
 from contracts import TagResult, VerdictRecord
 from formats import is_login, is_repository
+from private_files import write_private
 from qtext import UNTAGGED_LINE
 
 _HASH = re.compile(r"[0-9a-f]{64}")
@@ -90,26 +92,50 @@ def candidates(record: VerdictRecord, target: str) -> Iterator[str]:
             yield author
 
 
-def choose(record: VerdictRecord, identity: str | None) -> TagResult:
+def choose(record: VerdictRecord, identity: str | None) -> tuple[TagResult, str | None]:
+    """The TagResult for a question (a tag, untagged, or ask through the
+    picker), and the github-app identity to record with its verdict. That
+    identity is the identity argument, returned only when the configured
+    login is tagged for an App's post; otherwise it is None. The script
+    takes the agent's word that when it passes --identity, the post goes
+    out through that App."""
     concerns = record.get("concerns", {})
     target = concerns.get("repository") or concerns.get("lore")
     if target is None:
         raise Refused("this question is about one person's way of working, which is never posted")
     for login in candidates(record, target):
         if github.write_access(target, login) is True:
-            return {"version": VERSION, "action": "tag", "line": f"@{login}"}
+            return {"version": VERSION, "action": "tag", "line": f"@{login}"}, None
     login = github.session_login(config.load().login)
     attended = person_in_session()
     if login is None:
         return {"version": VERSION, "action": "picker" if attended else "untagged",
-                "line": None if attended else UNTAGGED_LINE}
+                "line": None if attended else UNTAGGED_LINE}, None
     if github.write_access(target, login) is not True:
-        return {"version": VERSION, "action": "untagged", "line": UNTAGGED_LINE}
+        return {"version": VERSION, "action": "untagged", "line": UNTAGGED_LINE}, None
     if identity is not None:
-        return {"version": VERSION, "action": "tag", "line": f"@{login}"}
+        return {"version": VERSION, "action": "tag", "line": f"@{login}"}, identity
     if attended:
-        return {"version": VERSION, "action": "picker", "line": None}
-    return {"version": VERSION, "action": "untagged", "line": UNTAGGED_LINE}
+        return {"version": VERSION, "action": "picker", "line": None}, None
+    return {"version": VERSION, "action": "untagged", "line": UNTAGGED_LINE}, None
+
+
+def _record_identity(record: VerdictRecord, identity: str | None) -> None:
+    """Write identity into the question's verdict record, or remove it
+    when identity is None. The spec has the post hook read it: a post
+    holding a tag made for an App's post goes out only through github-app
+    as that identity (inquisitor spec: *A tag made for an App's post goes
+    out only through github-app*). Each run of `tag` for the question
+    replaces what an earlier run recorded, whether it ends in a tag,
+    untagged or the picker."""
+    if record.get("identity") == identity:
+        return
+    updated: VerdictRecord = {**record}
+    if identity is None:
+        updated.pop("identity", None)
+    else:
+        updated["identity"] = identity
+    write_private(verdicts_dir() / f"{record['hash']}.json", json.dumps(updated))
 
 
 def run(args: TagArgs) -> int:
@@ -128,5 +154,7 @@ def run(args: TagArgs) -> int:
     if "category" in record:
         raise Refused("a question with a category goes in no post: ask the person directly, or "
                       "in the repository's private security advisory")
-    print_json(choose(record, args.identity))
+    result, identity = choose(record, args.identity)
+    _record_identity(record, identity)
+    print_json(result)
     return 0

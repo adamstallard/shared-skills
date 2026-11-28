@@ -28,7 +28,7 @@ export const TYPED = { origin: { kind: 'composer' }, wait: false } as const
 
 /** A request the mod sent the core. */
 export type Req = { command: string } & Record<string, unknown>
-type Answerer = (req: Req) => unknown
+type Answerer = (req: Req) => unknown | Promise<unknown>
 
 export const OPENED = { version: 1, ok: true, status: 'opened', screen: null, notices: [] }
 export const DONE = { version: 1, ok: true }
@@ -79,12 +79,12 @@ export function session(on: On, opts: Options = {}) {
     close: () => DONE,
     ...opts.core,
   }
-  on('process.run', (_, e) => {
+  on('process.run', async (_, e) => {
     const req = JSON.parse(e.init?.stdin ?? '{}') as Req
     calls.push(req)
     const answer = core[req.command]
     const example = (EXAMPLES as Record<string, { response: unknown }>)[req.command]
-    const res = answer ? answer(req) : example ? example.response : { version: 1, ok: false, error: `no answer for ${req.command}` }
+    const res = answer ? await answer(req) : example ? example.response : { version: 1, ok: false, error: `no answer for ${req.command}` }
     return { value: { exitCode: 0, stdout: `${JSON.stringify(res)}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   mock.env(on, opts.marker === false ? {} : { INQUISITOR_ANSWER: '1' })
@@ -107,9 +107,11 @@ export function session(on: On, opts: Options = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
+  on('prompt.change', (_, e) => ({ text: e.text }))
   const sent: string[] = []
   const contexts: (readonly string[] | undefined)[] = []
-  on('prompt.submit', (_, e) => {
+  on('prompt.submit', async (_, e) => {
+    await self.onSubmit?.()
     const dropped = opts.drop?.(e.text)
     if (dropped !== undefined) return { drop: dropped }
     sent.push(e.text)
@@ -144,7 +146,11 @@ export function session(on: On, opts: Options = {}) {
     return { value: undefined }
   })
   let turns = 0
-  return {
+  const self = {
+    /** Called after Enter's prompt is dropped, before the engine puts it back. */
+    onDrop: undefined as undefined | (() => Promise<unknown>),
+    /** Called as a prompt reaches the engine beneath the mod, before it enters or is dropped. */
+    onSubmit: undefined as undefined | (() => Promise<unknown>),
     calls,
     of: (command: string) => calls.filter(c => c.command === command),
     clock,
@@ -160,8 +166,11 @@ export function session(on: On, opts: Options = {}) {
       await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
       await clock.settle()
     },
-    enter: async ($: Engine, text: string) => {
+    /** Enter on `text`; a drop is put back in the box, as the engine does, as `back` (a long paste shows collapsed). */
+    enter: async ($: Engine, text: string, back = text) => {
       const res = await $.prompt.submit({ ...TYPED, text })
+      if (res.drop !== undefined) await self.onDrop?.()
+      if (res.drop !== undefined) await ($.prompt as unknown as { change(e: unknown): Promise<unknown> }).change({ text: back, cursor: back.length, origin: { kind: 'engine' } })
       await clock.settle()
       return res.drop
     },
@@ -175,6 +184,7 @@ export function session(on: On, opts: Options = {}) {
       return turnId
     },
   }
+  return self
 }
 
 /**
@@ -184,6 +194,15 @@ export function session(on: On, opts: Options = {}) {
  */
 export function typeInBox($: Engine, text: string): Promise<unknown> {
   return ($.prompt as unknown as { change(e: unknown): Promise<unknown> }).change({ text, cursor: text.length, origin: { kind: 'app' } })
+}
+
+/**
+ * Enter as the engine raises it: the box emptied first (a prompt.change of
+ * origin `clear`), then the prompt.submit, as Claude Code 2.1.332 orders them.
+ */
+export async function enterAsTyped($: Engine, s: { enter: ($: Engine, text: string, back?: string) => Promise<string | undefined> }, text: string, back = text): Promise<string | undefined> {
+  await ($.prompt as unknown as { change(e: unknown): Promise<unknown> }).change({ text: '', cursor: 0, origin: { kind: 'clear' } })
+  return s.enter($, text, back)
 }
 
 type Drawn = {

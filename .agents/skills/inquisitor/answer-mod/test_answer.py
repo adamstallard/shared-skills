@@ -62,22 +62,45 @@ class Launcher(unittest.TestCase):
             # them: the launcher adds no argument that turns plugins off.
             self.assertFalse(any(a.startswith("--settings") or "plugin" in a for a in argv))
 
-    def test_refuses_an_argument_it_sets_itself(self) -> None:
-        # @scenario answer-service: The answer launcher refuses an argument it sets itself
-        for args in (["--name", "x"], ["--tools", "Bash"], ["--strict-mcp-config"], ["--mcp-config", "x.json"], ["-n", "x"], ["--name=x"], ["--resume", "id", "--tools=Bash"]):
+    def test_passes_only_its_listed_arguments(self) -> None:
+        # @scenario answer-service: The answer launcher passes only its listed arguments
+        for args in (
+            ["--resume", "abc-123"], ["-r", "abc-123"], ["--resume"], ["-r"], ["--continue"], ["-c"],
+            ["--model", "opus"], ["--debug"], ["--debug=api"], ["--resume=abc-123"], ["--model=opus"],
+            ["-cr", "abc-123"], ["-c", "--model", "opus", "--debug=hooks"],
+        ):
             status, calls = self.launch(args)
-            self.assertEqual(status, 2, args)
-            self.assertEqual(calls, [], args)
+            self.assertIsNone(status, args)
+            self.assertEqual(calls[0][1][6:], args)
 
-    def test_refuses_a_short_name_flag_attached_or_bundled(self) -> None:
-        # @scenario answer-service: The answer launcher refuses an argument it sets itself
-        # `-nfoo` and `-n=foo` are -n with its value attached. claude reads
-        # `-cn Other` as `-c -n Other`. Each gives a second name after the
-        # launcher's own, and claude takes the last.
-        for args in (["-nfoo"], ["-n=foo"], ["-cn", "Other"], ["-pn", "Other"], ["--resume", "id", "-cpn", "x"]):
-            status, calls = self.launch(args)
+    def test_refuses_any_other_argument(self) -> None:
+        # @scenario answer-service: The answer launcher refuses any other argument
+        cases = {
+            ("--name", "x"): "--name",
+            ("--tools", "Bash"): "--tools",
+            ("--mcp-config", "x.json"): "--mcp-config",
+            ("--agents", "{}"): "--agents",
+            ("--settings", "s.json"): "--settings",
+            ("--plugin-dir", "d"): "--plugin-dir",
+            ("-cn", "x"): "-n",
+            ("a prompt",): "a prompt",
+            ("-rabc",): "-rabc",
+            ("--model",): "--model",
+            ("-c", "x"): "x",
+            ("--resume", "id", "--tools=Bash"): "--tools=Bash",
+            ("--model", "--", "--tools", "Bash"): "--model",
+            ("-",): "-",
+            ("--continue", "--settings=s.json"): "--settings=s.json",
+            ("--debug", "--plugin-dir=d"): "--plugin-dir=d",
+            ("--resume", "--tools=Bash"): "--tools=Bash",
+        }
+        for args, named in cases.items():
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                status, calls = self.launch(list(args))
             self.assertEqual(status, 2, args)
             self.assertEqual(calls, [], args)
+            self.assertIn(f"answer: {named} is not allowed", err.getvalue(), args)
 
     def test_without_claude_on_path_it_says_so_and_starts_nothing(self) -> None:
         # @scenario answer-service: The answer launcher starts a restricted session
@@ -90,25 +113,6 @@ class Launcher(unittest.TestCase):
         self.assertEqual(status, 127)
         self.assertEqual(calls, [])
         self.assertIn("claude is not on PATH", err.getvalue())
-
-    def test_refuses_past_a_double_dash_that_is_another_options_value(self) -> None:
-        # @scenario answer-service: The answer launcher refuses an argument it sets itself
-        # claude reads `--model -- --tools Bash` as model `--`, then --tools Bash.
-        for args in (["--model", "--", "--tools", "Bash"], ["--system-prompt", "--", "--mcp-config", "m.json"], ["--system-prompt", "--", "--name", "X"]):
-            status, calls = self.launch(args)
-            self.assertEqual(status, 2, args)
-            self.assertEqual(calls, [], args)
-
-    def test_names_the_refused_argument(self) -> None:
-        # @scenario answer-service: The answer launcher refuses an argument it sets itself
-        self.assertEqual(answer.refused(["--resume", "x", "--mcp-config", "y.json"]), "--mcp-config")
-        self.assertEqual(answer.refused(["--name=foo"]), "--name=foo")
-        self.assertEqual(answer.refused(["--", "--name"]), "--name")
-        self.assertIsNone(answer.refused(["--resume", "abc"]))
-        # -r and -d take a value, so the n after them is that value, not -n.
-        self.assertIsNone(answer.refused(["-rn"]))
-        self.assertIsNone(answer.refused(["-dn"]))
-
 
 class FakeCoreFixture(unittest.TestCase):
     def test_the_mod_tests_run_on_the_cores_examples(self) -> None:

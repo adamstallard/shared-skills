@@ -59,7 +59,6 @@ export type SetupIntent =
   | { kind: 'remove'; index: number }
   | { kind: 'repos'; id: string; repos: string[] }
   | { kind: 'user'; id: string }
-  | { kind: 'key' }
   | { kind: 'lore'; repository: string; path: string; serves: string[] }
   | { kind: 'save' }
   | { kind: 'recheck' }
@@ -71,7 +70,7 @@ export type SetupIntent =
 const REPO = /^[A-Za-z0-9][\w.-]*(\/[\w.-]+)?$/
 
 export const SETUP_HELP =
-  'Type a line, then ⏎: login <your GitHub login> · relay github|linear|discord <identity> · add github <owner or owner/repo> · add linear <team key> · add discord <channel id> · user <your Discord user id> · repos <team or channel> <owner/repo …|none> · linear-key <key> · lore <owner/repo> <clone path> <owner …> · a number removes that channel.'
+  'Type a line, then ⏎: login <your GitHub login> · relay github|linear|discord <identity> · add github <owner or owner/repo> · add linear <team key> · add discord <channel id> · user <your Discord user id> · repos <team or channel> <owner/repo …|none> · lore <owner/repo> <clone path> <owner …> · a number removes that channel.'
 
 export function setupIntent(draft: string, channels: readonly Channel[], back: boolean): SetupIntent {
   const text = draft.trim()
@@ -112,7 +111,7 @@ export function setupIntent(draft: string, channels: readonly Channel[], back: b
     case 'user':
       return rest.length === 1 && /^\d+$/.test(rest[0]!) ? { kind: 'user', id: rest[0]! } : { kind: 'refused', why: 'user takes your Discord user id, a number.' }
     case 'linear-key':
-      return rest.length === 1 ? { kind: 'key' } : { kind: 'refused', why: 'linear-key takes the key, one word.' }
+      return { kind: 'refused', why: 'Setup never takes the Linear key here: run the command setup shows in your own terminal, which stores it in the keychain, then (r)echeck.' }
     case 'lore': {
       const [repository, path, ...serves] = rest
       if (!repository || !/^[\w.-]+\/[\w.-]+$/.test(repository) || !path || !serves.length) return { kind: 'refused', why: 'lore takes the repository to create, owner/repo, its clone path, and the owners or repositories it serves.' }
@@ -151,10 +150,6 @@ export function applySetup(config: Record<string, unknown>, it: SetupIntent, cha
   return config
 }
 
-// The Linear key typed in setup: held here until the save hands it to the
-// core, which keeps it in the keychain. Never in `$.state` or the config.
-let linearKey: string | undefined
-
 /** The setup on screen, or undefined. */
 async function current($: EngineInterface): Promise<{ setup: SetupStatusResponse; back: boolean; login?: string } | undefined> {
   const s = await read($, serviceAtom)
@@ -188,9 +183,6 @@ export async function enterSetup($: EngineInterface, draft: string, reopen: () =
     case 'login':
       await put($, now.setup, { login: it.login })
       return say(`Your GitHub login: ${it.login}. (s)ave keeps it.`)
-    case 'key':
-      linearKey = draft.trim().split(/\s+/)[1]
-      return say('The Linear key goes to the keychain when you (s)ave; it is never written to the configuration.')
     case 'recheck': {
       const res = await ask($, { command: 'setup.status', session_id: await $.session.id() })
       if (!res.ok) return say(`Setup could not read the configuration: ${res.error}`)
@@ -207,10 +199,8 @@ export async function enterSetup($: EngineInterface, draft: string, reopen: () =
         session_id: await $.session.id(),
         config: now.setup.config,
         ...(now.login ? { login: now.login } : {}),
-        ...(linearKey ? { linear_key: linearKey } : {}),
       })
       if (!res.ok) return say(`Not saved: ${res.error}`)
-      linearKey = undefined
       await put($, res)
       if (!res.complete) return say('Saved. Setup is not complete yet: it needs your GitHub login and a surface with both a relay and a channel.')
       await reopen()

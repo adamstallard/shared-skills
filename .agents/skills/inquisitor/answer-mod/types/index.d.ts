@@ -22,6 +22,10 @@ export type QuestionView = {
   replies: CoreReply[]
   has_category: boolean
   new: boolean
+  state?: 'open' | 'set-aside' | 'pending'
+  suggested?: { filter: 2 | 3 | 4; why: string }
+  relay?: string
+  revision?: { text: string; summary: string; options?: { label: string; effect: string }[] }
 }
 export type PendingView = { question: string; text: string; why: string }
 export type JudgeRequest = {
@@ -47,7 +51,16 @@ export type PreviewResponse = {
   reword?: string
 }
 export type SetupCheck = { surface: Surface | 'login' | 'lore'; channel?: string; name: string; ok: boolean | null; fix?: string }
-export type SetupStatusResponse = { version: number; ok: true; complete: boolean; config: Record<string, unknown>; checks: SetupCheck[] }
+export type SetupCandidate = { surface: Surface; id: string; name: string; subscribed: boolean }
+export type SetupStatusResponse = {
+  version: number
+  ok: true
+  complete: boolean
+  config: Record<string, unknown>
+  checks: SetupCheck[]
+  candidates?: SetupCandidate[]
+  linear_key_command?: string
+}
 
 /** The inquisitor's filters: 1 already answered, 2 can wait, 3 only one option has merit, 4 cheap to reverse. */
 export type Filter = 1 | 2 | 3 | 4
@@ -149,8 +162,15 @@ export type Previewed = { key: string; res: PreviewResponse }
 /** What the person has been shown of a question's replies: how many, and from which on they are new. */
 export type Seen = { shown: number; fresh?: number }
 
-/** The judging turn under way: the message, its turn, and the turn id once it started. */
-export type Judging = { req: JudgeRequest; text: string; turnId?: string }
+/**
+ * The judging prompt the model is held for: the message and its turn, the
+ * token of the one timer that may submit it, when it was submitted, and
+ * the turn id once its turn started.
+ */
+export type Judging = { req: JudgeRequest; text: string; token: string; submitted?: number; turnId?: string }
+
+/** The message and turn whose turn-end the core last took, and how many replies to a turn-end the core has given, refused ones included. */
+export type Judged = { last: { message: string; turn: 1 | 2 } | null; ends: number }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -203,8 +223,10 @@ declare module 'claude-code' {
       marked: Record<string, true>
       /** The latest preview the core made. */
       previewed: Previewed | null
-      /** The question a poll took from under the cursor, until the person next moves or presses Enter. */
-      displaced: string | null
+      /** The preview the last Enter showed, and the question's words then shown: the next Enter posts only if its own preview is the same. */
+      confirm: (Previewed & { asked: string }) | null
+      /** The question that came on screen, by a move, a poll or opening, with no Enter since: the next Enter only shows it. */
+      arrived: string | null
       /** The place the person picked for each question's record, by id. */
       places: Record<string, string>
       /** True while the person picks another place for the record of the question on screen. */
@@ -213,10 +235,9 @@ declare module 'claude-code' {
       knownPlaces: string[]
       /** Answers kept pending, from the core. */
       pending: PendingView[]
-      /** Messages waiting for the model's judgement, oldest first. */
-      judgeQueue: JudgeRequest[]
       /** The judging turn under way, or null. */
       judging: Judging | null
+      judged: Judged
       /** The main conversation's running turn, so a tool joining can abort it. */
       turn: string | null
       /** Each surface's relay identity, as the configuration names it. */

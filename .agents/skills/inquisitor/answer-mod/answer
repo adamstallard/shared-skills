@@ -1,44 +1,73 @@
 #!/usr/bin/env -S python3 -I
 """answer: start or resume Claude Code as the inquisitor's answer service.
 
-Passes the person's arguments on to `claude`, and adds on every run the
-session name `Answers`, the fullscreen layout, the answer marker the answer
-mod opens the service on, and the tool restriction: the model keeps only
-Read, Grep and Glob of the built-in tools and no MCP server's. Refuses the
-arguments it sets itself, and `--mcp-config`, which would bring MCP servers
-back, before starting anything.
+Passes on to `claude` only the arguments on its list, and adds on every run
+the session name `Answers`, the fullscreen layout, the answer marker the
+answer mod opens the service on, and the tool restriction: the model keeps
+only Read, Grep and Glob of the built-in tools and no MCP server's. Any
+other argument is refused before anything starts.
+
+The list: `--resume` or `-r`, with or without a session id; `--continue` or
+`-c`; `--model <name>`; `--debug` or `--debug=<filter>`. A long option's
+value may follow `=`. A group of short options, such as `-cr <id>`, is read
+letter by letter, only the last taking a value; a value written onto its
+letter, such as `-r<id>`, is refused.
 
 `install-mod` links ~/.local/bin/answer here. Standard library only.
 """
 
 import os
-import re
 import shutil
 import sys
 from collections.abc import Sequence
 
-# The arguments this launcher sets, or that would undo what it sets.
-REFUSED = ("--name", "--tools", "--strict-mcp-config", "--mcp-config")
-# claude's `-n` (`--name`), alone, with its value attached, or after claude's
-# short flags that take no value, which claude unbundles: `-cn x` is `-c -n x`.
-SHORT_NAME = re.compile(r"-[chpv]*n")
 ADDED = ["--name", "Answers", "--tools", "Read,Grep,Glob", "--strict-mcp-config"]
 MARKER = "INQUISITOR_ANSWER"
 
+# Each listed long option: whether its value is optional ("maybe"), required
+# ("needs") or only after `=` ("joined").
+LONG = {"--resume": "maybe", "--continue": "none", "--model": "needs", "--debug": "joined"}
+# Each listed short letter, as its long option.
+SHORT = {"r": "--resume", "c": "--continue"}
+
+
+def _value_next(args: Sequence[str], i: int) -> bool:
+    """Whether the argument after `i` is a value: there is one, and it is no option."""
+    return i + 1 < len(args) and not args[i + 1].startswith("-")
+
 
 def refused(args: Sequence[str]) -> str | None:
-    """The first argument the launcher refuses, as the person wrote it.
-
-    Every argument is checked, those after `--` too: claude reads the `--` in
-    `--model -- --tools Bash` as the model's value and parses on, so stopping
-    there would let `--tools Bash` through. A refused value, such as a system
-    prompt starting with `-n`, is the cost."""
-    for arg in args:
-        if SHORT_NAME.match(arg):
-            return arg
-        for flag in REFUSED:
-            if arg == flag or arg.startswith(flag + "="):
+    """The first argument off the launcher's list, as `answer` names it in its
+    error: the whole argument, or for a short group the letter, such as `-n`
+    for `-cn`. None when every argument is on the list."""
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg.startswith("--"):
+            name, eq, _value = arg.partition("=")
+            kind = LONG.get(name)
+            if kind is None or (eq and kind == "none"):
                 return arg
+            if not eq and kind == "needs":
+                if not _value_next(args, i):
+                    return arg
+                i += 1
+            elif not eq and kind == "maybe" and _value_next(args, i):
+                i += 1
+        elif arg.startswith("-") and len(arg) > 1:
+            letters = arg[1:]
+            for j, letter in enumerate(letters):
+                long = SHORT.get(letter)
+                if long is None:
+                    return f"-{letter}"
+                if LONG[long] == "maybe" and j < len(letters) - 1:
+                    # A value written onto its letter, such as -r<id>.
+                    return arg
+            if LONG[SHORT[letters[-1]]] == "maybe" and _value_next(args, i):
+                i += 1
+        else:
+            return arg
+        i += 1
     return None
 
 
@@ -55,8 +84,7 @@ def environment(base: dict[str, str]) -> dict[str, str]:
 def main(argv: Sequence[str]) -> int:
     bad = refused(argv)
     if bad is not None:
-        name = bad.split("=", 1)[0]
-        print(f"answer: {name} is not allowed: answer sets the session's name, tools and MCP servers itself.", file=sys.stderr)
+        print(f"answer: {bad} is not allowed: answer passes on only --resume/-r, --continue/-c, --model and --debug.", file=sys.stderr)
         return 2
     if shutil.which("claude") is None:
         print("answer: claude is not on PATH.", file=sys.stderr)
