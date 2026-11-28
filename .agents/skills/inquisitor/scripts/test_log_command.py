@@ -498,6 +498,27 @@ class Service(Fakes):
         self.assertEqual((f.answer.answer_link, f.asked_in, f.asked_from), (None, None, "o/web"))
         self.assertEqual(f.answer.recorded_in, "questions/" + f.name)
 
+    def test_withheld_issue_url_is_not_recorded_in(self) -> None:
+        # @scenario inquisitor: The log command withholds a link where it would leak
+        # An issue's URL with no fragment falls under the rule that withholds a comment's URL
+        # where it would leak. Here it points into o/api, private in VIS, and the file goes to
+        # o/web's branch, public in VIS, so recorded_in becomes the file's own path.
+        self.here = "o/web"
+        self.log(answer({"answered_by": "alice", "authority": "input", "text": "Yes.",
+                         "recorded_in": "https://github.com/o/api/issues/4"},
+                        branch={"repository": "o/web"}, repository="o/web"))
+        f = self.written()
+        assert isinstance(f, LogFile) and f.answer is not None
+        self.assertEqual(f.answer.recorded_in, "questions/" + f.name)
+        # An issue in o/web itself leaks nothing on o/web's branch, so its URL is kept.
+        self.pushed.clear()
+        self.log(answer({"answered_by": "alice", "authority": "input", "text": "Yes.",
+                         "recorded_in": "https://github.com/o/web/issues/4"},
+                        branch={"repository": "o/web"}, repository="o/web"))
+        f = self.written()
+        assert isinstance(f, LogFile) and f.answer is not None
+        self.assertEqual(f.answer.recorded_in, "https://github.com/o/web/issues/4")
+
     def test_handled_file(self) -> None:
         # @scenario inquisitor: A handled file's keys
         # @scenario inquisitor: A handled file may go to a more visible questions branch

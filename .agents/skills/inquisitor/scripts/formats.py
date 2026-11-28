@@ -179,6 +179,7 @@ _GITHUB_ITEM = rf"https://github\.com/({_LOGIN})/({_REPO_NAME})/(?:issues|pull)/
 _GITHUB_COMMENT = re.compile(
     _GITHUB_ITEM + r"#(?:issuecomment-[0-9]+|pullrequestreview-[0-9]+|discussion_r[0-9]+)")
 _GITHUB_BODY = re.compile(_GITHUB_ITEM)
+_GITHUB_ISSUE = re.compile(rf"https://github\.com/({_LOGIN})/({_REPO_NAME})/issues/[0-9]+")
 _DISCORD = re.compile(r"https://discord\.com/channels/[0-9]+/[0-9]+/[0-9]+")
 _LINEAR_ISSUE = r"https://linear\.app/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/issue/[A-Z][A-Z0-9]*-[0-9]+"
 _LINEAR_COMMENT = re.compile(_LINEAR_ISSUE + r"#comment-[0-9a-f]{8}")
@@ -230,12 +231,19 @@ def is_asked_in(value: str) -> bool:
 
 
 def is_recorded_in(value: str) -> bool:
-    """A `recorded_in`: an answer_link form, or a path from the repository's
-    root, optionally `@<40 hex>`, with no leading `/`, no empty, `.` or `..`
-    segment, none starting with `-`, and no control character or line or
-    paragraph separator, which could start a line of its own when the value
-    is printed or posted."""
-    if is_answer_link(value):
+    """A `recorded_in` in one of three forms. An answer_link form. A GitHub
+    issue's URL with no fragment, naming the issue whose decision block
+    (the start of its body or its Decision section, which states what is
+    decided; inquisitor spec, scenarios *An issue's opening text is its
+    decision block* and *An issue's Decision section is its decision
+    block*) records the answer; a pull request has no
+    decision block, so its URL needs a comment's fragment. Or a path from
+    the repository's root, optionally `@<40 hex>`: no leading `/`, no
+    segment empty, `.`, `..` or starting with `-`, and no control
+    character or line or paragraph separator, since one would break the
+    printed or posted value onto a new line that could pass for a line of
+    its own."""
+    if is_answer_link(value) or _github_ok(_GITHUB_ISSUE, value):
         return True
     m = _PINNED.fullmatch(value)
     path = m.group(1) if m else value

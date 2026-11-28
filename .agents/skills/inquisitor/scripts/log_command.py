@@ -577,9 +577,12 @@ class _Log:
         kept_link = written(link)
         if recorded_in is None:
             recorded_in = kept_link or own_path
-        elif is_answer_link(recorded_in) and written(recorded_in) is None:
-            # A withheld URL is not kept as recorded_in: the file itself
-            # records the answer.
+        elif recorded_in.startswith("https://") and written(recorded_in) is None:
+            # written gives None for a URL that would leak here. Such a
+            # recorded_in, a comment's URL or an issue's, is replaced by
+            # own_path: the file being written stands as the answer's
+            # record. The https:// test tells a URL from a path from the
+            # repository's root, which can never start that way.
             recorded_in = own_path
         rephrased = opt_str(answer_in, "rephrased", "answer")
         discussion = opt_str(answer_in, "discussion", "answer")

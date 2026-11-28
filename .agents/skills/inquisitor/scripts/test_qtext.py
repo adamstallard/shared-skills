@@ -1041,7 +1041,11 @@ class PlainReadingHidesNothing(unittest.TestCase):
         return [(question_text(q.question), q.in_code) for q in find_questions(body, in_code=True)]
 
     def test_a_question_mark_markup_hides_comes_back_marked(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # Neither reading ends a sentence at a `?` in a link destination, a URL or an image
+        # title, so qtext's backstop makes one ending there, and in_code=True returns it marked
+        # (in_code True). A URL's `?` with a letter after it ends nothing, and a span title's
+        # `?` ends a sentence the hiding reading finds, so neither is the backstop's.
         for body, want in (("See [a](Why?) ok.\n", "See [a](Why?"),
                            ("<!-- c --> See [the docs](https://x/search?)\n", "<!-- c --> See [the docs](https://x/search?"),
                            ('![a](b.png "Is it?") end\n', '![a](b.png "Is it?')):
@@ -1133,7 +1137,9 @@ class PlainReadingHidesNothing(unittest.TestCase):
         self.assertEqual(find_questions(body, in_code=True), find_questions(body))
 
     def test_every_question_mark_a_misread_hides_comes_back_marked(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # Each misread link swallows the `?` in its title, so neither reading ends a sentence
+        # there, and qtext's backstop returns one ending in it.
         for body in ('## Questions\n- [a\n\n  b](u "Should we retry?")\n',
                      '## Questions\n- [a <!--\n\n  b -->](u "Should we retry?")\n',
                      '## Questions\n- [a `x\n\n  b` c](u "Should we retry?")\n',
@@ -1146,13 +1152,17 @@ class PlainReadingHidesNothing(unittest.TestCase):
             self.assertTrue(any(t.endswith("Should we retry?") for t, _ in self.found(body)), (body, self.found(body)))
 
     def test_a_question_mark_before_closing_emphasis_is_covered(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # A `_` or `*` closing emphasis after the `?` keeps either reading from ending a
+        # sentence there, and qtext's backstop returns one, its text ending at the `?` or
+        # taking the closing `_` too, depending on how the reading reduced the emphasis.
         for body, want in (("# H\n    <!--\n_q1?_\n    -->\n", "q1?"), ("---\n    <!-- note\nWhat about _this?_\n-->\n", "this?"),
                            ("<details>\n```\n\n# Should we _ship?_\n\n```\n", "ship?")):
             self.assertTrue(any(t.endswith(want) or t.endswith(want + "_") for t, _ in self.found(body)), (body, self.found(body)))
 
     def test_a_literal_mark_after_closing_emphasis_hides_no_question_mark(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # A `~` or `*` after the closing emphasis still leaves the `?` to qtext's backstop.
         for x in ("_q1?_~b", "_q1?_*b", "_q1?_**b", "_q1?_~~b", "__q1?__~b", "Ship _q1?_~maybe"):
             body = f"# H\n    <!--\n{x}\n    -->\n"
             self.assertTrue(any("q1?" in t for t, _ in self.found(body)), (body, self.found(body)))
@@ -1174,12 +1184,16 @@ class BackstopAndLinkTails(unittest.TestCase):
         self.assertEqual(self.found("a\nRelated: https://x?\n"), [])
 
     def test_a_backstop_sentence_starts_after_the_sentence_before_it(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # `&#63;` in a code span stays as written, so no reading takes it for a `?`; qtext's
+        # backstop does, starting its sentence after the sentence or `?` before it.
         self.assertEqual(self.found("`a. b&#63;` c\n"), [("b?", True)])
         self.assertEqual(self.found("`a&#63; b&#63;`\n"), [("`a?", True), ("b?", True)])
 
     def test_a_character_reference_counts_as_a_mark(self) -> None:
-        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # A `&#63;` in a code span, which no reading reads as a `?`, makes qtext's backstop
+        # return a question ending there: "`?", from the line's previous `?` to it.
         self.assertIn(("`?", True), self.found("&#63; `&#63;` x. q?\n"))
 
     def test_an_item_claims_only_sentences_wholly_its_own_and_in_order(self) -> None:
@@ -1208,6 +1222,29 @@ class BackstopAndLinkTails(unittest.TestCase):
     def test_code_keeps_its_markup_in_the_plain_reading(self) -> None:
         # @scenario inquisitor: A question in code is found by the plain reading alone
         self.assertEqual(self.found("```\n*q?*\n```\n"), [("*q?", True)])
+
+
+class RoundEightScenarios(unittest.TestCase):
+    def found(self, body: str) -> list[tuple[str, bool]]:
+        return [(question_text(q.question), q.in_code) for q in find_questions(body, in_code=True)]
+
+    def test_a_question_mark_both_readings_pass_over_is_still_vetted(self) -> None:
+        # @scenario inquisitor: A question mark both readings pass over is still vetted
+        # A `_` after the `?` keeps either reading from ending a sentence there, so the hiding
+        # reading alone finds nothing. qtext's backstop then makes the question, which
+        # in_code=True returns marked as the plain reading's alone (in_code True), though the
+        # line holds no code.
+        self.assertEqual(find_questions("Ship _v2?_now\n"), [])
+        self.assertEqual(self.found("Ship _v2?_now\n"), [("Ship _v2?", True)])
+
+    def test_a_question_mark_character_reference_reduces_to_a_question_mark(self) -> None:
+        # @scenario inquisitor: Each kind of inline markup reduces to its text
+        self.assertEqual(texts(find_questions("Ship it&#63;\n")), ["Ship it?"])
+
+    def test_a_plain_reading_sentence_inside_a_section_item_is_that_items(self) -> None:
+        # @scenario inquisitor: A plain-reading sentence inside a section item is that item's
+        self.assertEqual(self.found("## Open questions\n- Ship it? Or wait?\n"),
+                         [("Ship it? Or wait?", False)])
 
 
 if __name__ == "__main__":

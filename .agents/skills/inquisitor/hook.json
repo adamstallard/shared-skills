@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "default": "enabled",
+  "hooks": [
+    {
+      "summary": "Blocks a picker question whose latest verdict, from the last 2 hours, is not ask (Claude Code only).",
+      "command": "scripts/check-ask.sh",
+      "events": {
+        "claude": {
+          "event": "PreToolUse",
+          "matcher": "^AskUserQuestion$"
+        }
+      }
+    },
+    {
+      "summary": "Blocks a GitHub, Discord or Linear post holding a question the inquisitor's two calls did not pass, a question in a title or Linear summary text, or a post it cannot read (Claude Code only).",
+      "command": "scripts/check-post.sh",
+      "events": {
+        "claude": {
+          "event": "PreToolUse",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*|mcp__claude_ai_GitHub__.*|mcp__linear__.*|mcp__plugin_.*_linear__.*|mcp__claude_ai_Linear__.*)$"
+        }
+      }
+    }
+  ]
+}
