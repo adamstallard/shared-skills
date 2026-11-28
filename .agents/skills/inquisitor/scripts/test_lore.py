@@ -97,7 +97,7 @@ class Command(unittest.TestCase):
         self.commits: dict[str, str] = {}
         self.writes: list[list[str]] = []
         self.failing: set[str] = set()
-        self.open_pulls: list[dict[str, str]] = []
+        self.pulls: list[dict[str, str | None]] = []
         self.gh: list[list[str]] = []
         self.cfg = config.Config(login="alice", lore=(
             config.LoreRepo(path=str(self.tmp / "lore"), owners=("o",), repository="o/lore"),))
@@ -150,7 +150,8 @@ class Command(unittest.TestCase):
             wanted = path.removeprefix("repos/o/lore/contents/").split("?")[0]
             return (0, "{}", "") if wanted in self.on_main else (1, "", "gh: Not Found (HTTP 404)")
         if path.startswith("repos/o/lore/pulls?"):
-            return 0, json.dumps(self.open_pulls), ""
+            self.pulls_asked = path
+            return 0, json.dumps(self.pulls), ""
         if path.startswith("repos/o/lore/git/refs/heads/") and method == "PATCH":
             self.reset = sent
             return 0, "{}", ""
@@ -254,10 +255,38 @@ class Command(unittest.TestCase):
             lore.run(lore.LoreArgs(input=self.input()))
         self.failing.clear()
         self.assertEqual(self.propose()["url"], "https://github.com/o/lore/pull/9")
-        self.open_pulls = [{"html_url": "https://github.com/o/lore/pull/9"}]
+        self.pulls = [{"html_url": "https://github.com/o/lore/pull/9", "state": "open",
+                       "merged_at": None}]
         with self.assertRaises(Refused) as caught:
             lore.run(lore.LoreArgs(input=self.input()))
-        self.assertIn("pull/9", str(caught.exception))
+        self.assertIn("already proposed: https://github.com/o/lore/pull/9", str(caught.exception))
+
+    def test_a_leftover_branch_is_reused_only_after_a_deferral(self) -> None:
+        # @scenario inquisitor: A general answer becomes a lore pull request
+        # A leftover branch is reused for a deferred entry, never for an accepted one.
+        self.refs.add("refs/heads/inquisitor/lore-retry-backoff")
+        self.pulls = [{"html_url": "https://github.com/o/lore/pull/3", "state": "closed",
+                       "merged_at": None}]
+        self.assertEqual(self.propose()["url"], "https://github.com/o/lore/pull/9")
+        self.assertIn("state=all", self.pulls_asked)
+        self.assertIn("head=o:inquisitor/lore-retry-backoff", self.pulls_asked)
+        self.assertEqual(self.reset, {"sha": "b" * 40, "force": True})
+        self.writes.clear()
+        self.pulls.append({"html_url": "https://github.com/o/lore/pull/5", "state": "closed",
+                           "merged_at": "2026-11-01T00:00:00Z"})
+        with self.assertRaises(Refused) as caught:
+            lore.run(lore.LoreArgs(input=self.input()))
+        self.assertIn("accepted in https://github.com/o/lore/pull/5", str(caught.exception))
+        # Only the attempt to create the branch was sent: nothing reset, committed or opened.
+        self.assertEqual([w[3] for w in self.writes], ["repos/o/lore/git/refs"])
+        # When the pull requests cannot be read, nothing is reset either.
+        self.writes.clear()
+        self.failing.add("GET repos/o/lore/pulls?head=o:inquisitor/lore-retry-backoff&state=all"
+                         "&per_page=100")
+        with self.assertRaises(Refused) as caught:
+            lore.run(lore.LoreArgs(input=self.input()))
+        self.assertIn("cannot read o/lore's pull requests", str(caught.exception))
+        self.assertEqual([w[3] for w in self.writes], ["repos/o/lore/git/refs"])
 
     def test_body_line_ends_are_lf(self) -> None:
         # @scenario inquisitor: A proposed entry goes in entries/
