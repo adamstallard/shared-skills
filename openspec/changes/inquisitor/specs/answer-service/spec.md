@@ -408,9 +408,8 @@ writes no miss it cannot place privately*, or with no login configured.
 ### Requirement: The answer service finds questions by the hiding reading alone
 
 The answer service SHALL find a message's questions, open-questions
-items included, only by the inquisitor's hiding reading, the one that
-finds no question in code or in what HTML hides (inquisitor spec:
-*Questions in a post are found by two readings*).
+items included, only by the inquisitor's hiding reading (inquisitor
+spec: *Questions in a post are found by two readings*).
 
 #### Scenario: A question in a code block is not shown
 
@@ -1160,7 +1159,7 @@ relay post usually mentions no one.
 A **mention** SHALL be of a user, as `@login` on GitHub, on Linear by the
 user id of a mention in the comment's `bodyData`, and on Discord by the
 user id it mentions, outside code spans, code blocks, quoted lines,
-link text and what HTML hides, such as an HTML comment; a team mention
+link text and HTML comments; a team mention
 counts as none.
 
 #### Scenario: A team mention or a mention in code is no mention

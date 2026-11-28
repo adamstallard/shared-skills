@@ -1938,7 +1938,7 @@ only what *Some questions are recorded by hash only* allows.
   did not take
 - **THEN** the second call refuses, records nothing, and keeps the token
 
-### Requirement: Only a question found in code or HTML may be not asked
+### Requirement: Only a question the hiding reading misses may be not asked
 
 The second call SHALL accept `not asked` only for a question with no
 category that the first call found in a post by the plain reading alone
@@ -2065,27 +2065,22 @@ SHA-256 of that text as UTF-8, in lowercase hex.
 
 Where this spec reduces **inline markup** to text, a code span, emphasis,
 strong emphasis or `~~` strikethrough SHALL become its inner text; a link or
-image its link text or alt text; an autolink its URL; a backslash escape
-the escaped character; and an HTML tag nothing, the text between tags
-staying. Nothing else SHALL change: Discord's `<@id>`, `<#id>`,
-`<:name:id>`, `<a:name:id>` and `<t:…>` forms are no HTML tags.
+image its link text or alt text; an autolink its URL; and a backslash escape
+the escaped character. Nothing else SHALL change:
+an HTML tag stays as written, and so do Discord's `<@id>`, `<#id>`,
+`<:name:id>`, `<a:name:id>` and `<t:…>` forms.
 
 #### Scenario: Each kind of inline markup reduces to its text
 
 - **WHEN** a question reads ``Use `retry()` in ~~v1~~ *v2*, see
   <https://example.com> and \*this\* <b>now</b>?``
 - **THEN** its text is `Use retry() in v1 v2, see https://example.com and
-  *this* now?`
+  *this* <b>now</b>?`
 
 #### Scenario: Discord's angle-bracket forms and a single tilde stay as written
 
 - **WHEN** a question reads `<@123> should ~this~ wait until <t:1700000000>?`
 - **THEN** its text is the same, character for character
-- **AND** apart from an autolink and those forms, an HTML tag is a
-  CommonMark open or closing tag on one line naming an element on the
-  allow-list of html-pipeline's `SanitizationFilter`, the filter GitHub
-  sanitizes markdown with, and the one list used on every surface, so
-  `<b>` is a tag and `<foo>` and `<b` are text
 
 ### Requirement: A sentence and a question's terms are defined
 
@@ -2301,30 +2296,29 @@ and run to the next heading or bold label. No question SHALL be found in
 ### Requirement: Questions in a post are found by two readings
 
 The first call and the post hook SHALL take every question either of
-two readings finds: the **hiding reading**, which finds none in code or
-in what HTML hides, such as a comment, and the **plain reading**, which
-reads code and HTML as text. A question only the plain reading finds
-SHALL be marked so in the first call's output.
+two readings finds, a question both find counting once by its hash: the
+**hiding reading**, which finds none in a closed fenced code block, an indented
+code block or an HTML comment that occupies whole lines, and the
+**plain reading**, which hides none of them. Neither reading finds a
+question in `>` lines or prose's footer. A question only the plain
+reading finds SHALL be marked so in the first call's output.
 
 #### Scenario: A question in code is found by the plain reading alone
 
-- **WHEN** a post's only question marks are in a fenced code block, an
-  inline code span, and an HTML comment
+- **WHEN** a post's only question marks are in a closed fenced code
+  block, an indented code block, and an HTML comment whose `<!--` starts
+  a line and whose `-->` ends a line, the same or a later one
 - **THEN** the first call takes each of those questions, marked as found
   by the plain reading alone, and the post hook vets each
+- **AND** a question in an inline code span, or in an HTML comment
+  sharing a line with other text, is found by both readings
 
 ### Requirement: The markdown reading errs toward finding a question
 
 The first call and the post hook SHALL reduce a question's text with one
-function, need not match CommonMark exactly, and SHALL read as a
-question any text that markup it cannot parse exactly might make one, reading HTML tags as *Inline markup is
-reduced to its text one way* defines them.
-
-#### Scenario: Only a tag-like `<` starts a tag
-
-- **WHEN** a post's open-questions section lists `Is a < b here?` and
-  `Should we <b>ship</b> it?`
-- **THEN** the questions are `Is a < b here?` and `Should we ship it?`
+function, which need not match CommonMark exactly, and SHALL read as
+text any markup they cannot parse exactly, so a question it might hold
+is found.
 
 #### Scenario: A list item of dashes is a thematic break
 
@@ -2335,9 +2329,9 @@ reduced to its text one way* defines them.
 #### Scenario: Only a closed fence makes a code block
 
 - **WHEN** a post holds a line of three backticks with no closing fence
-  after it, and a closed fence inside an HTML block
-- **THEN** the hiding reading reads each of them as text, so a question
-  in either is found by both readings
+  after it
+- **THEN** the hiding reading reads it and the lines after it as text,
+  so a question there is found by both readings
 - **AND** a closed fence indented less than 4 columns into its context
   makes a code block; a fence line indented 4 columns or more opens no
   fence, and its lines are an indented code block, which is a code block
@@ -2384,14 +2378,6 @@ leading whitespace dropped.
 - **WHEN** the post hook's input is not JSON
 - **THEN** it lets the call through
 
-#### Scenario: A question in a post's title passes unvetted
-
-- **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
-  --body-file body.md`, where `body.md` exists and holds no question,
-  and no second call recorded `Retry with backoff?`
-- **THEN** the post hook lets the command through, since the shared post
-  reader returns no title
-
 #### Scenario: A GitHub MCP post is checked
 
 - **WHEN** an agent calls a GitHub MCP tool whose `body` asks an unvetted
@@ -2415,6 +2401,29 @@ leading whitespace dropped.
 - **WHEN** an agent runs `gh issue comment 7 --body "**User says:** yes"`,
   or with the body `" User says: yes"`
 - **THEN** the post hook blocks it
+
+### Requirement: A title holding a question is refused
+
+The post hook SHALL find questions in each title the shared post reader
+returns by the plain reading, and SHALL block a call any of whose titles
+holds one, telling the agent to ask the question in a post's body
+instead, or, for a Linear call, in an issue's description or a comment,
+because only a post is vetted, and read by the answer service. It SHALL
+let any other title through.
+
+#### Scenario: A question in a title is refused on every surface
+
+- **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
+  --body-file body.md`, where `body.md` holds no question, calls
+  `mcp__linear__save_project` with `name` `Retries?` or with `summary`
+  `Should retries back off?`, or runs discord-bot `thread` with `--name
+  'Ship it?'`
+- **THEN** the post hook blocks each call and tells the agent to ask the
+  question in a post's body, or for the Linear calls in an issue's
+  description or a comment, even when the inquisitor's second call
+  recorded the question as `ask`
+- **AND** it lets `gh pr create --title 'Retry with backoff' --body-file
+  body.md` through
 
 ### Requirement: The post hook vets a Discord or Linear message as a post
 

@@ -33,18 +33,24 @@ does if the fact does not hold.
   instead, and *The question reaches igor's command on standard input*
   changes to that way. Either way, a call that fails leaves filter 1 in an
   Igor's run searching no lore and saying so.
+
 ### Decisions for the repository's owner
 
-- **Does a title or name block a Linear write?** As specified, a call
-  of a Linear write tool other than `save_comment` and `save_issue` is
-  unreadable, so blocked, when its input holds a string under `title`,
-  `name` or `summary` (gh-post spec: *Another Linear write tool sends no
-  post only when it holds no text*). On the other surfaces the reader
-  returns no title, so a question in `save_issue`'s title, in a title
-  given to the gh issue edit verb, or in a Discord thread's name passes
-  unvetted. For titles and names to count the same everywhere, either
-  `title`, `name` and `summary` join the no-text list, or the reader
-  returns every title and name as a post.
+- **Does prose run its pass on a Linear project's or milestone's
+  description?**
+  The reader returns a Linear write call's `summary` and `description`
+  as titles (gh-post spec: *A Linear write tool's titles and descriptions
+  are read*), and prose's posting hook skips titles, so such text,
+  often a long markdown document, goes out with no prose pass. Either
+  that stands, or prose's hook reads those two keys as bodies.
+- **Which reading finds a question in a Linear description?** The post
+  hook refuses a title holding a question by the plain reading, which
+  counts a `?` even in code (inquisitor spec: *A title holding a question
+  is refused*; *Questions in a post are found by two readings*), and no
+  verdict of the inquisitor's second call passes it. In a long `summary`
+  or `description`, any such `?`, even a ternary in a code block, then
+  blocks the call. Either that stands, or those two keys are read by the
+  hiding reading, which skips code blocks.
 
 ### Facts the answer service relies on
 
