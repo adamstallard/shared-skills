@@ -6,7 +6,7 @@ import type { EngineInterface, ModelCompleteResult, Timer } from 'claude-code'
 import type { Answer, Declining, Filter, PlacedRow } from '../types'
 import { ask } from './service-core'
 import { pollNow } from './service'
-import type { PostResponse, PreviewRequest, PreviewResponse } from './core-protocol'
+import type { PostResponse, PreviewRequest, PreviewResponse, Revision } from './core-protocol'
 import {
   CLOSED,
   FILTERS,
@@ -39,7 +39,8 @@ const pickingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'picking' } as 
 const placesAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'places' } as const, INITIAL.places)
 const postingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'posting' } as const, INITIAL.posting)
 const previewedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'previewed' } as const, INITIAL.previewed)
-const displacedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'displaced' } as const, INITIAL.displaced)
+const confirmAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'confirm' } as const, INITIAL.confirm)
+const arrivedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'arrived' } as const, INITIAL.arrived)
 const promptAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'prompt' } as const, INITIAL.prompt)
 const questionsAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'questions' } as const, INITIAL.questions)
 const rephrasedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'rephrased' } as const, INITIAL.rephrased)
@@ -48,7 +49,10 @@ const seenAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'seen' } as const,
 const serviceAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'service' } as const, INITIAL.service)
 const talkingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'talking' } as const, INITIAL.talking)
 const talksAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'talks' } as const, INITIAL.talks)
+const replyTurnsAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'replyTurns' } as const, INITIAL.replyTurns)
 const thinkingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'thinking' } as const, INITIAL.thinking)
+const judgingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judging' } as const, INITIAL.judging)
+const turnAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'turn' } as const, INITIAL.turn)
 const viewingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'viewing' } as const, INITIAL.viewing)
 
 /** The commands that sit at the key row's right end on every screen. */
@@ -209,6 +213,7 @@ export function commands(c: Ctx): Command[] {
     return [
       ...(stage === 'place' ? [talk] : []),
       ...(stage === 'post' ? [{ key: 'p', what: '(p)ost it', posts: true as const }] : []),
+      ...(stage === 'post' && c.declining.filter === 3 ? [{ key: 'u', what: "(u)nasked: the agent shouldn't have asked", posts: true as const }] : []),
       { key: 'b', what: 'go (b)ack' },
       close,
     ]
@@ -230,6 +235,7 @@ export function commands(c: Ctx): Command[] {
         ? [
             talk,
             ...(q.record ? [{ key: 'a', what: '(a)gree', posts: true as const }] : []),
+            ...(q.suggested && isAgents(q) ? [{ key: 'g', what: `a(g)ree with Claude: filter ${q.suggested.filter}` }] : []),
             { key: 'w', what: "(w)on't answer" },
             { key: 'l', what: '(l)ater' },
           ]
@@ -271,6 +277,8 @@ export async function runCommand($: EngineInterface, c: Ctx, key: string): Promi
         return d.stage === 'place' ? openTalk($, q) : ''
       case 'p':
         return d.stage === 'post' ? answerForInquisitor($, c, q, d, '') : ''
+      case 'u':
+        return d.stage === 'post' && d.filter === 3 ? answerForInquisitor($, c, q, d, '', true) : ''
     }
     return ''
   }
@@ -284,12 +292,14 @@ export async function runCommand($: EngineInterface, c: Ctx, key: string): Promi
       return viewAll($, q)
     case 's':
       return startPicking($)
+    case 'g':
+      return q.suggested && isAgents(q) && c.open ? agreeSuggested($, q, q.suggested.filter) : ''
     case 'w':
       return startDecline($, q)
     case 'r':
       return reopen($, q)
     case 'l':
-      return settle($, q, { kind: 'defer', text: '' }, `Later: ${q.asker.name}'s question comes back after the unanswered ones`)
+      return setAside($, q)
     case 'e':
       return startEdit($, q, c.answer)
     case 'k':
@@ -334,6 +344,9 @@ export function intent(c: Ctx, draft: string, places: string[] = []): Intent {
     }
     return isRepo(text) ? { kind: 'pick', place: text } : { kind: 'refused', why: 'Choose a place by number, or type a repository as owner/name.' }
   }
+  // A pasted image reaches the box only as a placeholder such as [Image #1]; nothing posts an image to a thread.
+  const imageOnly = !text.replace(/\[Image #\d+\]/g, '').trim()
+  if (imageOnly && (c.composing || !c.talking)) return { kind: 'refused', why: 'An image cannot be posted: type the words instead.' }
   if (c.composing) return { kind: 'ask', text }
   if (c.talking) {
     if (/^[1-9]$/.test(text)) return { kind: 'refused', why: c.declining ? 'Go (b)ack, then ⏎ on where it is recorded.' : 'To answer, go (b)ack to the question and choose there.' }
@@ -403,6 +416,7 @@ export function enterHint(c: Ctx, it: Intent): string | undefined {
     case 'command':
       if (it.command.key === 'a' && q?.record) return q.branch ? '⏎ log the recorded answer on the questions branch; nothing posts' : `⏎ post the recorded answer on ${surface}`
       if (it.command.key === 'p' && c.declining?.stage === 'post') return `⏎ post on ${surface} for the inquisitor, with no note`
+      if (it.command.key === 'u' && c.declining?.stage === 'post') return '⏎ post nothing; log a filter 3 miss: the agent should not have asked'
       if (it.command.key === 'w') return "⏎ choose why you won't answer"
       return it.command.key === 'l' ? '⏎ ask me later, after the unanswered ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
     case 'say':
@@ -433,12 +447,10 @@ export type ToModel = { kind: 'say'; text: string }
 export const isToModel = (it: Intent): it is ToModel => it.kind === 'say'
 
 /** Does what Enter does on the screen `c` describes, and says what it did. */
-export async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, ToModel>): Promise<string> {
+export async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, ToModel | { kind: 'none' }>): Promise<string> {
   const q = c.q
   const d = c.declining
   switch (it.kind) {
-    case 'none':
-      return d?.stage === 'place' ? "Type or paste where the answer is recorded: without it, it can't post as filter 1." : 'Nothing to send.'
     case 'refused':
       return it.why
     case 'command':
@@ -466,20 +478,48 @@ export async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, ToMo
 // ── the prompt box ──────────────────────────────────────────────────────
 //
 // After Enter, the engine puts the dropped prompt back in the box (a
-// prompt.change with origin `engine`). What the box should hold instead
-// waits here until that put-back arrives, or PUT_BACK_MS passes.
+// prompt.change with origin `engine`), with each long paste in it shown
+// collapsed. What the box should hold instead waits here and goes in as
+// the put-back lands.
 let afterDrop: { dropped: string; text: string } | undefined
-export const PUT_BACK_MS = 500
 
 export function dropped(text: string): void {
   afterDrop = { dropped: text, text: '' }
 }
-export const isPutBack = (text: string) => afterDrop !== undefined && text === afterDrop.dropped
+
+/** The waiting drop when this box write is its put-back: from the engine, holding what Enter sent, with any long paste collapsed; undefined otherwise. */
+export const putBackOf = (origin: string, text: string) => (afterDrop && origin === 'engine' && (text === afterDrop.dropped || collapsed(text, afterDrop.dropped)) ? afterDrop : undefined)
+
+/** Whether `back` is `sent` with its long pastes collapsed: the text around each `[Pasted text #n …]` marker matches, and a paste stands in each marker's place. */
+function collapsed(back: string, sent: string): boolean {
+  const parts = back.split(/\[Pasted text #\d+[^\]]*\]/)
+  if (parts.length < 2) return false
+  const last = parts[parts.length - 1]!
+  if (!sent.startsWith(parts[0]!) || !sent.endsWith(last)) return false
+  // Each paste is at least one character; the earliest place of each literal part between them is the one to take.
+  let at = parts[0]!.length
+  for (const part of parts.slice(1, -1)) {
+    const found = sent.indexOf(part, at + 1)
+    if (found < 0) return false
+    at = found + part.length
+  }
+  return sent.length - last.length >= at + 1
+}
+
+/** The person wrote in the box before the put-back landed: what they wrote stays, and nothing goes in over it. */
+export function leaveBox(): void {
+  afterDrop = undefined
+}
 
 /** What was typed stays in the box after a drop, for a second Enter. */
 function keepTyped(): void {
   if (afterDrop) afterDrop.text = afterDrop.dropped
   stoppedWith = afterDrop?.dropped.trim()
+}
+
+/** The question on screen now, by id; '' on the summary. */
+async function onScreen($: EngineInterface): Promise<string> {
+  return (await read($, orderAtom))[await read($, cursorAtom)] ?? ''
 }
 
 /** Puts `text` in the prompt box, after any put-back still due. */
@@ -491,7 +531,10 @@ export async function putInBox($: EngineInterface, text: string): Promise<void> 
   await $.prompt.fill({ text, mode: 'replace' })
   // The mod's own fill raises no prompt.change for this mod, so promptAtom's copy of the box is set here.
   await update($, promptAtom, () => text)
-  await boxChanged($, text)
+  if (stoppedWith !== undefined && text.trim() && text.trim() !== stoppedWith) {
+    stoppedWith = undefined
+    await update($, flashAtom, f => (f?.startsWith(NOT_POSTED) ? null : f))
+  }
   schedulePreview($)
 }
 
@@ -513,22 +556,22 @@ async function previewNow($: EngineInterface): Promise<void> {
   await previewOf($, a)
 }
 
-/** Applies what the box should hold after a drop; `putBack` when the engine just put the prompt back. */
-export async function settleBox($: EngineInterface, putBack: boolean): Promise<void> {
-  const due = afterDrop
-  if (!due) return
+/** The engine has put the dropped prompt back: puts in the box what it should hold instead. */
+export async function settleBox($: EngineInterface, due: { text: string }): Promise<void> {
   afterDrop = undefined
-  if (!putBack && !due.text) return
   await $.prompt.fill({ text: due.text, mode: 'replace' })
   await update($, promptAtom, () => due.text)
+  await boxChanged($, due.text)
+  schedulePreview($)
 }
 
 /** What the box held when a post was stopped; once it holds something else, the stop's notice goes. */
 let stoppedWith: string | undefined
 
-/** The box changed to `text`: a stop's notice goes once it holds something else. */
+/** The box changed to `text`: a stop's notice goes once the box holds something else. */
 export async function boxChanged($: EngineInterface, text: string): Promise<void> {
-  if (stoppedWith === undefined || !text.trim() || text.trim() === stoppedWith) return
+  // While a put-back is due, no write is the person's: the notice stays.
+  if (afterDrop || stoppedWith === undefined || !text.trim() || text.trim() === stoppedWith) return
   stoppedWith = undefined
   await update($, flashAtom, f => (f?.startsWith(NOT_POSTED) ? null : f))
 }
@@ -560,19 +603,21 @@ export async function go($: EngineInterface, i: number, note: string): Promise<s
   await update($, viewingAtom, () => null)
   await update($, pickingAtom, () => false)
   await update($, previewedAtom, () => null)
+  const was = (await read($, orderAtom))[await read($, cursorAtom)]
   await update($, cursorAtom, () => i)
   await update($, flashAtom, () => null)
-  await arrive($, i)
+  await arrive($, i, (await read($, orderAtom))[i] !== was)
   return note
 }
 
 /**
  * Question `i` came on screen: its replies count as seen, its mark in the
- * bar goes, and the core keeps it as the question on screen.
+ * bar goes, and the core keeps it as the question on screen. When the
+ * screen `moved` to it from another question, the next Enter only shows it.
  */
-export async function arrive($: EngineInterface, i: number): Promise<void> {
+export async function arrive($: EngineInterface, i: number, moved = true): Promise<void> {
   const one = (await queueOf($))[i]
-  await update($, displacedAtom, () => null)
+  if (moved) await update($, arrivedAtom, () => one?.id ?? null)
   if (one && (await read($, markedAtom))[one.id]) await update($, markedAtom, m => without(m, one.id))
   if (one) await update($, seenAtom, s => ({ ...s, [one.id]: { shown: one.replies.length } }))
   const service = await read($, serviceAtom)
@@ -648,20 +693,16 @@ async function morePages($: EngineInterface): Promise<string> {
 
 // ── the core's preview, then the post ───────────────────────────────────
 //
-// Every act goes to the core as a preview, which says exactly what will
+// Each act the core previews goes to it as a preview, which says exactly what will
 // post and where the answer will be recorded, then as a post of that
 // preview. The band asks for the preview while the person types, so it
-// shows the core's words. Enter stops, and the next Enter posts, when the
-// preview carries a warning the band has not drawn, or when a poll took
-// the question being answered from under the cursor.
+// shows the core's words. Enter asks for the preview again; an act that
+// posts goes only when that preview is the one the last Enter showed.
 
 /** An act as the core's preview takes it, less the session. */
 export type Act = Omit<PreviewRequest, 'command' | 'session_id'>
 
 export const actKey = (a: Act) => JSON.stringify(a)
-
-/** Whether a preview carries anything the person must see before it posts. */
-export const mustSee = (pv: PreviewResponse) => pv.warnings.length > 0 || !!pv.record.more_visible_than || !!pv.reaches_run
 
 /** The act Enter would do on screen `c` with intent `it`; undefined for one the core does not preview. */
 export function actOf(c: Ctx, it: Intent): Act | undefined {
@@ -684,6 +725,7 @@ export function actOf(c: Ctx, it: Intent): Act | undefined {
     case 'command':
       if (it.command.key === 'a' && q.record && c.open) return { question: q.id, action: 'agree', ...place }
       if (it.command.key === 'p' && d?.stage === 'post') return declineAct(q, d, '')
+      if (it.command.key === 'u' && d?.stage === 'post' && d.filter === 3) return declineAct(q, d, '', true)
       return undefined
     case 'none':
       return d?.stage === 'post' ? declineAct(q, d, '') : undefined
@@ -691,7 +733,8 @@ export function actOf(c: Ctx, it: Intent): Act | undefined {
   return undefined
 }
 
-function declineAct(q: Question, d: Extract<Declining, { stage: 'post' }>, note: string): Act {
+/** A decline for the inquisitor; `unasked`, with filter 3 only: the agent should not have asked, so nothing posts. */
+function declineAct(q: Question, d: Extract<Declining, { stage: 'post' }>, note: string, unasked = false): Act {
   return {
     question: q.id,
     action: 'decline',
@@ -699,12 +742,13 @@ function declineAct(q: Question, d: Extract<Declining, { stage: 'post' }>, note:
     filter: d.filter,
     ...(d.filter === 1 && d.place ? { recorded_in: d.place } : {}),
     ...(note.trim() ? { note: note.trim() } : {}),
+    ...(unasked && d.filter === 3 ? { unasked: true } : {}),
   }
 }
 
 /** The core's preview of `a`, kept for the band to draw; an error's words otherwise. */
 export async function previewOf($: EngineInterface, a: Act): Promise<PreviewResponse | string> {
-  const res = await ask($, { command: 'preview', session_id: await $.session.id(), ...a })
+  const res = await ask($, { command: 'preview', session_id: await $.session.id(), ...a, ...(a.action === 'answer' ? await revisionOf($, a.question) : {}) })
   if (!res.ok) return res.error
   await update($, previewedAtom, () => ({ key: actKey(a), res }))
   return res
@@ -714,31 +758,66 @@ export async function previewOf($: EngineInterface, a: Act): Promise<PreviewResp
 type Done = (post: PostResponse & { status: 'posted' | 'pending' }, pv: PreviewResponse) => Promise<string>
 
 /**
- * Previews `a` (or takes the preview the band already drew of it) and posts
- * it. Stops, keeping what was typed for a second Enter, when the preview
- * has a warning the person has not seen, asks for rewording, or when the
- * core holds the post because the thread has a reply the person has not
- * seen. Nothing posts without this, and this runs only on the person's Enter.
+ * Whether act `a`, previewed as `pv`, needs no confirming: an agree, or a
+ * decline with no note, that posts nothing, records nowhere more visible,
+ * reaches no run and carries no warning. Everything else is shown first.
+ */
+const quiet = (a: Act, pv: PreviewResponse) =>
+  pv.post === null && !pv.warnings.length && !pv.record.more_visible_than && !pv.reaches_run && (a.action === 'agree' || (a.action === 'decline' && !a.note))
+
+/** The stop for an Enter that would act on a question that has just come on screen. */
+const JUST_ON_SCREEN = `${NOT_POSTED}this question has just come on screen: check it, then ⏎ again.`
+
+// The first Enter after a question comes on screen (by a move, a poll or
+// opening) only shows it: nothing acts on it until the next Enter.
+
+/** Whether question `id` came on screen with no Enter on it since, so this Enter only shows it; it clears that mark. */
+async function firstLook($: EngineInterface, id: string): Promise<boolean> {
+  if ((await read($, arrivedAtom)) !== id) return false
+  await update($, arrivedAtom, () => null)
+  return true
+}
+
+/** An Enter on screen `c` was handled: its question has had its look. */
+export async function looked($: EngineInterface, c: Ctx): Promise<void> {
+  if (c.q && (await read($, arrivedAtom)) === c.q.id) await update($, arrivedAtom, () => null)
+}
+
+/** A preview as the person reads it: everything but the core's id for it. */
+const shownAs = (pv: PreviewResponse) => JSON.stringify({ ...pv, id: undefined })
+
+/**
+ * Enter on act `a`: asks the core for its preview now. A `quiet` act goes
+ * ahead at once, unless its question just came on screen. Any other goes ahead only when the preview the last
+ * Enter showed is this same one: the same act, on the same question
+ * showing the same words, with the same post and record.
+ * Otherwise it shows this preview, naming where it posts, and stops,
+ * keeping what was typed for a second Enter. Also stops when the preview
+ * asks for rewording, or the core holds the post because the thread has a
+ * reply the person has not seen. This runs only on the person's Enter.
  */
 async function send($: EngineInterface, one: Question, a: Act, verb: PlacedRow['verb'], done: Done): Promise<string> {
   const key = actKey(a)
-  const cached = await read($, previewedAtom)
-  const seen = cached?.key === key ? cached.res : undefined
-  const got = seen ?? (await previewOf($, a))
+  const look = await firstLook($, one.id)
+  // A preview confirmed before this question came on screen never posts.
+  if (look) await update($, confirmAtom, () => null)
+  const got = await previewOf($, a)
   if (typeof got === 'string') return stop($, `${NOT_POSTED}${got}`)
+  if (got.reword) return stop($, `${NOT_POSTED}${got.reword}`)
   const pv = got
-  if (pv.reword) return stop($, `${NOT_POSTED}${pv.reword}`)
-  // A poll took the question being answered from under the cursor: what
-  // was typed for it must not post unseen to the question now on screen.
-  // A preview the band drew since, for that question, does not count as
-  // seen: the band previews on its own timer, while the person may still
-  // be typing.
-  const moved = (await read($, displacedAtom)) !== null
-  if (moved) await update($, displacedAtom, () => null)
-  if (moved || (!seen && mustSee(pv))) return stop($, `${NOT_POSTED}check the preview first, then ⏎ again.`)
+  // The question as it reads on screen now, rephrased or as asked.
+  const asked = JSON.stringify([(await snapshot($)).q?.text, (await read($, rephrasedAtom))[one.id] ?? null, !!(await read($, originalAtom))[one.id]])
+  const confirmed = await read($, confirmAtom)
+  if (look && quiet(a, pv)) return stop($, JUST_ON_SCREEN)
+  if (!quiet(a, pv) && (look || !(confirmed?.key === key && confirmed.asked === asked && shownAs(confirmed.res) === shownAs(pv)))) {
+    await update($, confirmAtom, () => ({ key, res: pv, asked }))
+    return stop($, `${NOT_POSTED}check the preview first: it answers ${one.asker.name} in ${one.where}. ⏎ again to post.`)
+  }
   const rowId = pv.post !== null ? await placeRow($, one, verb, pv.post, true) : undefined
   const res = await ask($, { command: 'post', session_id: await $.session.id(), preview: pv.id })
   await update($, previewedAtom, () => null)
+  // A post the core holds for a reply keeps its preview, so the next Enter posts it.
+  if (!res.ok || res.status !== 'held') await update($, confirmAtom, () => null)
   if (!res.ok || res.status === 'held' || res.status === 'failed') {
     if (rowId) await dropRow($, rowId)
     if (!res.ok) return stop($, `${NOT_POSTED}${res.error}`)
@@ -869,7 +948,17 @@ export async function proposeReply($: EngineInterface, draft: string): Promise<{
     return { ok: false, text: 'Refused: a draft starting with / would run as a command in the prompt box. Write it without the leading /.' }
   }
   if ((await read($, serviceAtom)).status !== 'open') return { ok: false, text: 'The answer service is not open, so nothing was drafted.' }
+  // A judging turn quotes a thread's message, which may be written to steer the model.
+  if (await read($, judgingAtom)) return { ok: false, text: 'Refused: a judging turn drafts nothing. Judge the message with record_verdict only.' }
   const c = await snapshot($)
+  // The draft is for the question its discussion turn is about. When that is
+  // not the question on screen, as after a poll took it away, the draft is
+  // dropped: it never lands on another question.
+  const turn = await read($, turnAtom)
+  const about = turn ? (await read($, replyTurnsAtom))[turn] : undefined
+  if (about !== undefined && about !== c.q?.id) {
+    return { ok: false, text: 'The person is no longer on the question this discussion was about, so the draft was dropped and nothing was put in the prompt box.' }
+  }
   if (c.declining?.stage === 'place' && c.q) {
     const place = draft.replace(new RegExp(`^\\s*${RECORDED.trim()}\\s*`, 'i'), '').replace(/^see the record below\.\s*/i, '').replace(/^Recorded in:\s*/i, '').trim()
     if (!place) return { ok: false, text: 'The place was empty, so nothing was put in the prompt box.' }
@@ -948,6 +1037,13 @@ async function decline($: EngineInterface, _c: Ctx, one: Question): Promise<stri
   )
 }
 
+/** Agreeing to the model's suggested verdict: a decline under the second reason with that filter, its reply shown before it posts. */
+async function agreeSuggested($: EngineInterface, one: Question, n: 2 | 3 | 4): Promise<string> {
+  await update($, decliningAtom, () => ({ id: one.id, stage: 'post' as const, filter: n }))
+  await update($, flashAtom, () => null)
+  return `Filter ${n}, ${FILTERS[n].name}, as Claude suggests: check the reply, then ⏎ posts it`
+}
+
 async function startFilter($: EngineInterface, one: Question): Promise<string> {
   await update($, decliningAtom, () => ({ id: one.id, stage: 'filter' as const }))
   await update($, flashAtom, () => null)
@@ -971,9 +1067,9 @@ async function setPlace($: EngineInterface, one: Question, place: string): Promi
 }
 
 /** Posts the chosen filter's reply for the inquisitor, and closes the question; `note` becomes what the logged miss says. */
-async function answerForInquisitor($: EngineInterface, _c: Ctx, one: Question, d: Extract<Declining, { stage: 'post' }>, note: string): Promise<string> {
+async function answerForInquisitor($: EngineInterface, _c: Ctx, one: Question, d: Extract<Declining, { stage: 'post' }>, note: string, unasked = false): Promise<string> {
   if (d.filter === 1 && !d.place) return "There is no place for the recorded answer: without it, it can't post as filter 1."
-  return send($, one, declineAct(one, d, note), 'inquisitor', (res, pv) =>
+  return send($, one, declineAct(one, d, note, unasked), 'inquisitor', (res, pv) =>
     settle(
       $,
       one,
@@ -990,6 +1086,7 @@ async function answerForInquisitor($: EngineInterface, _c: Ctx, one: Question, d
 async function reopen($: EngineInterface, one: Question): Promise<string> {
   const was = (await read($, answersAtom))[one.id]
   if (was?.kind !== 'wont' || one.branch) return ''
+  if (await firstLook($, one.id)) return stop($, JUST_ON_SCREEN)
   const res = await ask($, { command: 'reopen', session_id: await $.session.id(), question: one.id })
   if (!res.ok) return stop($, `Not reopened: ${res.error}`)
   await update($, answersAtom, a => without(a, one.id))
@@ -1026,9 +1123,9 @@ export async function addTurn($: EngineInterface, id: string, turn: { who: 'you'
   await update($, talksAtom, t => ({ ...t, [id]: [...(t[id] ?? []), turn] }))
 }
 
-async function openTalk($: EngineInterface, _one: Question): Promise<string> {
+async function openTalk($: EngineInterface, one: Question): Promise<string> {
   await update($, flashAtom, () => null)
-  await update($, talkingAtom, () => _one.id)
+  await update($, talkingAtom, () => one.id)
   return 'Talking to Claude'
 }
 
@@ -1061,14 +1158,38 @@ export async function contextOf($: EngineInterface, id: string): Promise<string 
 }
 
 /**
- * The person's message, kept with the question in the band and in the
- * core's discussion record, as it goes to the session's model.
+ * The person's message, kept with the question in the band as it goes to
+ * the session's model. turn.start finds its text in `awaiting` and binds
+ * that turn to the question.
  */
 export async function recordSay($: EngineInterface, one: Question, text: string): Promise<void> {
   await addTurn($, one.id, { who: 'you', text })
   await think($, one.id, 'reply')
   await update($, awaitingAtom, w => [...w, { id: one.id, text: text.trim() }])
+}
+
+/** The person's message entered the conversation: the core's discussion record keeps it. */
+export async function sayEntered($: EngineInterface, one: Question, text: string): Promise<void> {
   void ask($, { command: 'discussion.append', session_id: await $.session.id(), question: one.id, role: 'person', text })
+}
+
+/**
+ * The person's message was dropped by a hook beneath this mod or by the
+ * engine, and started no turn: what recordSay kept goes, the question
+ * stops waiting on a reply unless a turn is bound to it, and the
+ * discussion says why.
+ */
+export async function unsay($: EngineInterface, one: Question, text: string, why: string): Promise<void> {
+  await update($, awaitingAtom, w => {
+    const i = w.findIndex(x => x.id === one.id && x.text === text.trim())
+    return i < 0 ? w : w.filter((_, j) => j !== i)
+  })
+  await update($, talksAtom, t => {
+    const turns = t[one.id] ?? []
+    const i = turns.map(x => x.who === 'you' && x.text === text).lastIndexOf(true)
+    return { ...t, [one.id]: [...(i < 0 ? turns : turns.filter((_, j) => j !== i)), { who: 'error' as const, text: `Not sent: ${why}` }] }
+  })
+  if (!Object.values(await read($, replyTurnsAtom)).includes(one.id)) await think($, one.id, undefined)
 }
 
 /** The discussion so far, as the one user message a completion takes. */
@@ -1114,6 +1235,23 @@ export function parseRevision(text: string, hasOptions: boolean): { text: string
   }
 }
 
+/** Sets a question aside for later; the core keeps that, and later polls give it as the question's state. */
+async function setAside($: EngineInterface, one: Question): Promise<string> {
+  if (await firstLook($, one.id)) return stop($, JUST_ON_SCREEN)
+  void ask($, { command: 'set-aside', session_id: await $.session.id(), question: one.id })
+  return settle($, one, { kind: 'defer', text: '' }, `Later: ${one.asker.name}'s question comes back after the unanswered ones`)
+}
+
+/**
+ * The rephrasing question `id` shows, for an answer's preview to carry:
+ * the core keeps it only once the person posts that preview.
+ */
+async function revisionOf($: EngineInterface, id: string): Promise<{ revision?: Revision }> {
+  const r = (await read($, rephrasedAtom))[id]
+  if (!r || (await read($, originalAtom))[id]) return {}
+  return { revision: { text: r.text, summary: r.summary, ...(r.options ? { options: r.options } : {}) } }
+}
+
 /** The question rewritten in light of the discussion, then asked again. */
 async function rephrase($: EngineInterface, one: Question): Promise<string> {
   void (async () => {
@@ -1134,6 +1272,7 @@ async function rephrase($: EngineInterface, one: Question): Promise<string> {
       await addTurn($, one.id, { who: 'error', text: !r.ok ? `Could not rephrase: ${r.error}. r and Enter try again.` : 'The rephrasing came back unreadable. r and Enter try again.' })
       return
     }
+    // The core keeps it only with the answer that carries it (revisionOf).
     await update($, rephrasedAtom, x => ({ ...x, [one.id]: revision }))
     await update($, originalAtom, o => without(o, one.id))
     await update($, talkingAtom, () => null)
@@ -1159,7 +1298,8 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
       await addTurn($, one.id, { who: 'error', text: `Could not draft a question: ${r.error}. Write your own in the prompt box.` })
       return
     }
-    const still = (await read($, askingAtom))[one.id]
+    // Only while its question is still on screen: the draft is for that question alone.
+    const still = (await read($, askingAtom))[one.id] && (await onScreen($)) === one.id
     const draft = r.text.replace(/^["“]|["”]$/g, '').trim()
     if (still && !draft.startsWith('/') && !(await $.prompt.read()).text.trim()) await putInBox($, draft)
   })()

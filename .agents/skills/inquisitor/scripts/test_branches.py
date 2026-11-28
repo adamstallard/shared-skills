@@ -1,16 +1,25 @@
-"""Tests for branches: reading and pushing a questions branch with git's
-plumbing, against a local bare repository standing in for GitHub."""
+"""Tests for branches: reading and pushing a questions branch through
+GitHub's API, against FakeGitHub, which answers gh's calls from an
+in-memory repository in the shapes GitHub gives (measured 2026-11-27 with
+read-only calls: the GraphQL head, history and blob shapes, a missing
+repository's NOT_FOUND error, a missing ref's 404; the write refusals are
+GitHub's documented messages)."""
 
+import base64
+import datetime
+import hashlib
+import io
+import json
 import os
-import stat
-import subprocess
 import tempfile
 import unittest
-from dataclasses import replace
+from contextlib import redirect_stdout
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, cast
 from unittest import mock
 
+import branch_search
 import branches
 from formats import CitationFile, HashOnlyMiss, LogFile, render
 
@@ -19,236 +28,412 @@ QUESTION = LogFile(name="2026-10-20-should-retries-back-off-3f9a1c.md", asked="2
 PATH = "questions/" + QUESTION.name
 MISS_PATH = "misses/" + "a" * 64 + ".md"
 CITATION = CitationFile(name="2026-10-20-3f9a1c", entry="retry-backoff", date="2026-10-20")
+OTHER = replace(QUESTION, name="2026-10-20-other-000001.md")
+
+NOT_FOUND = '{"message":"Not Found","documentation_url":"https://docs.github.com/rest","status":"404"}'
+NOT_FAST_FORWARD = ('{"message":"Update is not a fast forward","documentation_url":'
+                    '"https://docs.github.com/rest/git/refs#update-a-reference","status":"422"}')
 
 
-def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
-                          text=True).stdout
+@dataclass
+class Commit:
+    tree: dict[str, str]
+    parents: list[str]
+    message: str
+    author: dict[str, str]
+    committer: dict[str, str]
 
 
-class BranchSetup(unittest.TestCase):
-    """A local bare repository standing in for GitHub, and a clone."""
+@dataclass
+class FakeGitHub:
+    """One repository per name: blobs, flat trees (path to blob id),
+    commits and branch heads. calls records every gh call; fail maps a
+    REST method and endpoint prefix to the error gh prints; before_ref runs
+    once before the next ref change, standing in for another pusher."""
 
+    page: int = 100
+    blobs: dict[str, bytes] = field(default_factory=lambda: {})
+    trees: dict[str, dict[str, str]] = field(default_factory=lambda: {})
+    commits: dict[str, Commit] = field(default_factory=lambda: {})
+    heads: dict[tuple[str, str], str] = field(default_factory=lambda: {})
+    repos: set[str] = field(default_factory=lambda: {"o/api", "o/lore"})
+    empty: set[str] = field(default_factory=lambda: set())
+    calls: list[list[str]] = field(default_factory=lambda: [])
+    fail: dict[str, str] = field(default_factory=lambda: {})
+    before_ref: Callable[[], object] | None = None
+
+    # -- the in-memory repository
+
+    def _id(self, kind: str, data: str) -> str:
+        return hashlib.sha1(f"{kind}\0{data}".encode()).hexdigest()
+
+    def blob(self, content: bytes) -> str:
+        sha = self._id("blob", content.decode("latin-1"))
+        self.blobs[sha] = content
+        return sha
+
+    def tree(self, files: dict[str, str]) -> str:
+        sha = self._id("tree", json.dumps(files, sort_keys=True))
+        self.trees[sha] = dict(files)
+        return sha
+
+    def commit(self, tree: dict[str, str], parents: list[str], message: str = "m",
+               author: dict[str, str] | None = None, committer: dict[str, str] | None = None) -> str:
+        who = {"name": "Alice", "email": "alice@example.com", "date": "2026-10-20T12:34:56Z"}
+        c = Commit(dict(tree), parents, message, author or who, committer or author or who)
+        sha = self._id("commit", json.dumps([c.tree, c.parents, c.message, c.author, len(self.commits)]))
+        self.commits[sha] = c
+        self.tree(tree)
+        return sha
+
+    def add(self, repository: str, path: str, content: str | bytes | None) -> str:
+        """Commit straight onto the questions branch, as another pusher:
+        content None deletes path."""
+        head = self.heads.get((repository, "questions"))
+        files = dict(self.commits[head].tree) if head else {}
+        if content is None:
+            files.pop(path)
+        else:
+            files[path] = self.blob(content if isinstance(content, bytes) else content.encode())
+        sha = self.commit(files, [head] if head else [], f"add {path}")
+        self.heads[(repository, "questions")] = sha
+        return sha
+
+    def history(self, head: str, path: str | None) -> list[str]:
+        """Commits from head, newest first; with path, only those that
+        touched it."""
+        out: list[str] = []
+        sha: str | None = head
+        while sha:
+            c = self.commits[sha]
+            parent = self.commits[c.parents[0]].tree if c.parents else {}
+            if path is None or c.tree.get(path) != parent.get(path):
+                out.append(sha)
+            sha = c.parents[0] if c.parents else None
+        return out
+
+    def files_of(self, repository: str) -> dict[str, bytes]:
+        head = self.heads[(repository, "questions")]
+        return {p: self.blobs[b] for p, b in self.commits[head].tree.items()}
+
+    def last(self, repository: str) -> Commit:
+        return self.commits[self.heads[(repository, "questions")]]
+
+    # -- gh
+
+    def run_gh(self, args: list[str], stdin: str | None = None) -> tuple[int, str, str]:
+        self.calls.append(args)
+        assert args[0] == "api", args
+        if args[1] == "graphql":
+            assert args[2:] == ["--input", "-"] and stdin is not None
+            sent = json.loads(stdin)
+            return self.graphql(sent["query"], sent["variables"])
+        method, rest = ("GET", args[1:]) if args[1] != "-X" else (args[2], args[3:])
+        endpoint = rest[0]
+        body = cast(dict[str, Any], json.loads(stdin)) if stdin else {}
+        for key, err in self.fail.items():
+            if f"{method} {endpoint}".startswith(key):
+                return 1, NOT_FOUND, err
+        return self.rest(method, endpoint, body)
+
+    def _page(self, oids: list[str], first: int, after: str | None) -> dict[str, Any]:
+        start = int(after.split(" ")[1]) + 1 if after else 0
+        shown = oids[start:start + min(first, self.page)]
+        end = start + len(shown) - 1
+        return {"totalCount": len(oids),
+                "pageInfo": {"hasNextPage": start + len(shown) < len(oids),
+                             "endCursor": f"{oids[0] if oids else ''} {end}" if shown else None},
+                "nodes": [{"oid": o} for o in shown]}
+
+    def graphql(self, query: str, v: dict[str, str]) -> tuple[int, str, str]:
+        repository = f"{v['owner']}/{v['name']}"
+        if repository not in self.repos:
+            msg = f"Could not resolve to a Repository with the name '{repository}'."
+            return 1, json.dumps({"data": {"repository": None}, "errors": [
+                {"type": "NOT_FOUND", "path": ["repository"], "message": msg}]}), f"gh: {msg}\n"
+        repo: dict[str, Any]
+        if "ref(qualifiedName" in query:
+            head = self.heads.get((repository, v["ref"].removeprefix("refs/heads/")))
+            if head is None:
+                repo = {"isEmpty": repository in self.empty, "ref": None}
+            else:
+                h = self.history(head, None)
+                tree = self.tree(self.commits[head].tree)
+                repo = {"ref": {"target": {"oid": head, "tree": {"oid": tree},
+                                           "history": self._page(h, 100, None)}}}
+        elif "$path" in query:
+            repo = {"object": {"history": self._page(self.history(v["head"], v["path"]), 100,
+                                                     v["after"])}}
+        elif "$after" in query:
+            repo = {"object": {"history": self._page(self.history(v["head"], None), 100,
+                                                     v["after"])}}
+        else:
+            repo = {"object": {}}
+            i = 0
+            while f"p{i}" in v:
+                repo["object"][f"h{i}"] = self._page(self.history(v["head"], v[f"p{i}"]), 100, None)
+                data = self.blobs[v[f"b{i}"]]
+                try:
+                    repo[f"b{i}"] = {"text": data.decode("utf-8"), "isTruncated": False}
+                except UnicodeDecodeError:
+                    repo[f"b{i}"] = {"text": None, "isTruncated": False}
+                i += 1
+        return 0, json.dumps({"data": {"repository": repo}}), ""
+
+    def rest(self, method: str, endpoint: str, body: dict[str, Any]) -> tuple[int, str, str]:
+        parts = endpoint.split("?")[0].split("/")
+        repository = "/".join(parts[1:3])
+        if repository not in self.repos:
+            return 1, NOT_FOUND, "gh: Not Found (HTTP 404)\n"
+        what = "/".join(parts[3:])
+        if method == "GET" and what.startswith("git/trees/"):
+            files = self.trees[parts[5]]
+            entries = [{"path": p, "mode": "100644", "type": "blob", "sha": b} for p, b in files.items()]
+            dirs = sorted({p.rsplit("/", 1)[0] for p in files if "/" in p})
+            entries += [{"path": d, "mode": "040000", "type": "tree", "sha": "0" * 40} for d in dirs]
+            return 0, json.dumps({"sha": parts[5], "tree": entries, "truncated": False}), ""
+        if method == "GET" and what.startswith("git/blobs/"):
+            data = self.blobs[parts[5]]
+            return 0, json.dumps({"content": base64.b64encode(data).decode(), "encoding": "base64"}), ""
+        if repository in self.empty and method == "POST":
+            return 1, '{"message":"Git Repository is empty.","status":"409"}', \
+                "gh: Git Repository is empty. (HTTP 409)\n"
+        if method == "POST" and what == "git/trees":
+            files = dict(self.trees[body["base_tree"]]) if "base_tree" in body else {}
+            for e in body["tree"]:
+                files[e["path"]] = self.blob(e["content"].encode())
+            return 0, json.dumps({"sha": self.tree(files)}), ""
+        if method == "POST" and what == "git/commits":
+            sha = self.commit(self.trees[body["tree"]], body["parents"], body["message"],
+                              body.get("author"), body.get("committer"))
+            return 0, json.dumps({"sha": sha}), ""
+        if what.startswith("git/refs"):
+            if self.before_ref is not None:
+                hook, self.before_ref = self.before_ref, None
+                hook()
+            if method == "POST":
+                name = body["ref"].removeprefix("refs/heads/")
+                if (repository, name) in self.heads:
+                    return 1, '{"message":"Reference already exists"}', \
+                        "gh: Reference already exists (HTTP 422)\n"
+                self.heads[(repository, name)] = body["sha"]
+                return 0, json.dumps({"ref": body["ref"]}), ""
+            name = what.removeprefix("git/refs/heads/")
+            old = self.heads.get((repository, name))
+            if old is None:
+                return 1, '{"message":"Reference does not exist"}', \
+                    "gh: Reference does not exist (HTTP 422)\n"
+            if not body["force"] and old not in self.history(body["sha"], None):
+                return 1, NOT_FAST_FORWARD, "gh: Update is not a fast forward (HTTP 422)\n"
+            self.heads[(repository, name)] = body["sha"]
+            return 0, json.dumps({"ref": f"refs/heads/{name}"}), ""
+        raise AssertionError(f"unexpected call {method} {endpoint}")
+
+
+class Fake(unittest.TestCase):
     def setUp(self) -> None:
-        self.root = Path(tempfile.mkdtemp())
-        self.remote = self.root / "remote.git"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.remote)], check=True)
-        self.clone = self.root / "clone"
-        subprocess.run(["git", "init", "-q", "-b", "work", str(self.clone)], check=True)
-        for c in (self.clone,):
-            git(c, "config", "user.name", "Alice")
-            git(c, "config", "user.email", "alice@example.com")
-            git(c, "config", "commit.gpgsign", "false")
-        (self.clone / "README.md").write_text("hi\n")
-        git(self.clone, "add", "README.md")
-        git(self.clone, "commit", "-qm", "init")
-        git(self.clone, "remote", "add", "origin", str(self.remote))
-        git(self.clone, "push", "-q", "origin", "work:main")
-        self.env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.root / "state")})
-        self.env.start()
-        self.url = mock.patch.object(branches, "remote_url", self.at(self.remote))
-        self.url.start()
+        self.gh = FakeGitHub()
+        self.state = Path(tempfile.mkdtemp())
+        for p in (mock.patch.object(branches, "run_gh", self.gh.run_gh),
+                  mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.state)})):
+            p.start()
+            self.addCleanup(p.stop)
 
-    @staticmethod
-    def at(remote: Path) -> Callable[[Path, str], str]:
-        return lambda clone, repository: str(remote)
-
-    def tearDown(self) -> None:
-        self.url.stop()
-        self.env.stop()
-        subprocess.run(["rm", "-rf", str(self.root)], check=True)
-
-    def remote_files(self) -> list[str]:
-        return git(self.remote, "ls-tree", "-r", "--name-only", "questions").split()
+    def push(self, path: str, content: str, as_inquisitor: bool = False,
+             service: bool = False, repository: str = "o/api") -> branches.PushResult:
+        return branches.push_file(repository, path, content, as_inquisitor, service)
 
 
-
-class Branch(BranchSetup):
+class Push(Fake):
     def test_first_question_creates_orphan_branch(self) -> None:
         # @scenario inquisitor: The first question creates the questions branch
         # @scenario inquisitor: A questions-branch commit moves no HEAD
-        head = git(self.clone, "rev-parse", "HEAD")
-        reflog = git(self.clone, "reflog")
-        (self.clone / "dirty.txt").write_text("x")
-        result = branches.push_file(self.clone, "o/api", PATH, render(QUESTION),
-                                    f"inquisitor: log {PATH}", False, False)
-        self.assertEqual(result, branches.PushResult(pushed=True))
-        self.assertEqual(self.remote_files(), [PATH])
-        self.assertEqual(git(self.remote, "rev-list", "--count", "questions").strip(), "1")
-        self.assertEqual(git(self.remote, "ls-tree", "-r", "--name-only", "main").split(), ["README.md"])
-        self.assertEqual(git(self.clone, "rev-parse", "HEAD"), head)
-        self.assertEqual(git(self.clone, "reflog"), reflog)
-        self.assertEqual(git(self.clone, "status", "--porcelain"), "?? dirty.txt\n")
-        self.assertEqual(git(self.clone, "branch", "--list"), "* work\n")
+        # (nothing but gh's API is called, so no checkout, HEAD or hook is involved)
+        self.gh.heads[("o/api", "main")] = self.gh.commit({"README.md": self.gh.blob(b"hi\n")}, [])
+        main = self.gh.heads[("o/api", "main")]
+        self.assertEqual(self.push(PATH, render(QUESTION)), branches.PushResult(pushed=True))
+        self.assertEqual(self.gh.files_of("o/api"), {PATH: render(QUESTION).encode()})
+        self.assertEqual(self.gh.last("o/api").parents, [])
+        self.assertEqual(self.gh.heads[("o/api", "main")], main)
+        self.assertTrue(all(c[0] == "api" for c in self.gh.calls))
 
     def test_commit_message_has_no_trailer(self) -> None:
         # @scenario inquisitor: A log or miss file's commit carries no trailer
-        branches.push_file(self.clone, "o/api", PATH, render(QUESTION), f"inquisitor: log {PATH}",
-                           False, False)
-        self.assertEqual(git(self.remote, "log", "-1", "--format=%B", "questions").strip(),
-                         f"inquisitor: log {PATH}")
-        self.assertEqual(git(self.remote, "log", "-1", "--format=%an", "questions").strip(), "Alice")
+        self.push(PATH, render(QUESTION))
+        miss = render(HashOnlyMiss(hash="a" * 64))
+        self.push(MISS_PATH, miss, as_inquisitor=True, service=True)
+        commits = [self.gh.commits[c] for c in self.gh.history(self.gh.heads[("o/api", "questions")], None)]
+        self.assertEqual([c.message for c in commits], [f"inquisitor: log {MISS_PATH}",
+                                                        f"inquisitor: log {PATH}"])
+        self.assertEqual(commits[1].author["name"], "Alice")  # no author sent: GitHub records gh's login, the fake Alice
 
     def test_citation_commit_names_no_person(self) -> None:
         # @scenario inquisitor: A citation's commit names no person
         path = "citations/" + CITATION.name
-        result = branches.push_file(self.clone, "o/lore", path, render(CITATION),
-                                    f"inquisitor: log {path}", True, False)
-        self.assertTrue(result.pushed)
-        out = git(self.remote, "log", "-1", "--format=%an|%ae|%cn|%ce|%B|%at|%ct", "questions")
-        an, ae, cn, ce, body, at, ct = out.split("|")
-        self.assertEqual((an, ae, cn, ce), ("inquisitor", "noreply", "inquisitor", "noreply"))
-        self.assertEqual(body.strip(), f"inquisitor: log {path}")
-        self.assertEqual(int(at) % 86400, 0)
-        self.assertEqual(at, ct.strip())
+        self.assertTrue(self.push(path, render(CITATION), as_inquisitor=True,
+                                  repository="o/lore").pushed)
+        c = self.gh.last("o/lore")
+        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+        who = {"name": "inquisitor", "email": "noreply", "date": f"{today}T00:00:00Z"}
+        self.assertEqual((c.author, c.committer, c.message), (who, who, f"inquisitor: log {path}"))
 
     def test_hash_only_miss_commit(self) -> None:
         # @scenario inquisitor: A hash-only miss file holds nothing
         # (its commit's identity; test_formats checks its empty body)
-        result = branches.push_file(self.clone, "o/api", MISS_PATH, render(HashOnlyMiss(hash="a" * 64)),
-                                    f"inquisitor: log {MISS_PATH}", True, True)
-        self.assertTrue(result.pushed)
-        self.assertEqual(git(self.remote, "log", "-1", "--format=%an %ce", "questions").strip(),
-                         "inquisitor noreply")
+        self.assertTrue(self.push(MISS_PATH, render(HashOnlyMiss(hash="a" * 64)),
+                                  as_inquisitor=True, service=True).pushed)
+        self.assertEqual(self.gh.last("o/api").author["name"], "inquisitor")
+        self.assertEqual(self.gh.last("o/api").committer["email"], "noreply")
 
-    def test_taken_miss_pushes_nothing(self) -> None:
+    def test_taken_path_adds_nothing(self) -> None:
+        # @scenario inquisitor: A retried push of a miss already on the branch pushes nothing
+        # @scenario inquisitor: A file whose name the branch holds is not added
+        self.gh.add("o/api", PATH, "first")
+        before = self.gh.heads[("o/api", "questions")]
+        self.assertEqual(self.push(PATH, render(QUESTION)),
+                         branches.PushResult(pushed=False, taken=True))
+        content = render(HashOnlyMiss(hash="a" * 64))
+        self.push(MISS_PATH, content, as_inquisitor=True, service=True)
+        middle = self.gh.heads[("o/api", "questions")]
+        self.assertEqual(self.push(MISS_PATH, content, as_inquisitor=True, service=True),
+                         branches.PushResult(pushed=False, taken=True))
+        self.assertEqual(self.gh.heads[("o/api", "questions")], middle)
+        self.assertEqual(self.gh.commits[middle].parents, [before])
+        self.assertEqual(self.gh.files_of("o/api")[PATH], b"first")
+        self.assertFalse(branches.pending_dir("o/api").exists())
+
+    def test_taken_miss_pushes_nothing_even_with_pending(self) -> None:
         # @scenario inquisitor: A retried push of a miss already on the branch pushes nothing
         content = render(HashOnlyMiss(hash="a" * 64))
-        branches.push_file(self.clone, "o/api", MISS_PATH, content, "inquisitor: log x", True, True)
-        before = git(self.remote, "rev-parse", "questions")
-        result = branches.push_file(self.clone, "o/api", MISS_PATH, content, "inquisitor: log x",
-                                    True, True)
-        self.assertEqual(result, branches.PushResult(pushed=False, taken=True))
-        self.assertEqual(git(self.remote, "rev-parse", "questions"), before)
+        self.push(MISS_PATH, content, as_inquisitor=True, service=True)
+        branches._keep_pending("o/api", PATH, render(QUESTION))  # pyright: ignore[reportPrivateUsage]
+        before = self.gh.heads[("o/api", "questions")]
+        self.assertEqual(self.push(MISS_PATH, content, as_inquisitor=True),
+                         branches.PushResult(pushed=False, taken=True))
+        self.assertEqual(self.gh.heads[("o/api", "questions")], before)
 
     def test_moved_branch_is_retried(self) -> None:
         # @scenario inquisitor: A rejected push to the questions branch is retried
-        other = replace(QUESTION, name="2026-10-20-other-000001.md")
-        branches.push_file(self.clone, "o/api", "questions/" + other.name, render(other), "m", False, False)
-        real_fetch = branches._fetch_tip  # pyright: ignore[reportPrivateUsage]
-        calls: list[int] = []
+        self.push("questions/" + OTHER.name, render(OTHER))
+        self.gh.before_ref = lambda: self.gh.add("o/api", "questions/2026-10-20-third-000002.md", "x")
+        self.assertEqual(self.push(PATH, render(QUESTION)), branches.PushResult(pushed=True))
+        self.assertEqual(sorted(self.gh.files_of("o/api")),
+                         sorted(["questions/" + OTHER.name, "questions/2026-10-20-third-000002.md", PATH]))
+        self.assertEqual(self.gh.last("o/api").message, f"inquisitor: log {PATH}")
 
-        def stale_once(clone: Path, repository: str) -> "tuple[branches._Tip, str | None]":  # pyright: ignore[reportPrivateUsage]
-            calls.append(1)
-            if len(calls) == 1:
-                # The first fetch reports the branch missing, as if another
-                # writer created it just after; the orphan push is then
-                # rejected, since the branch exists, and the retry fetches
-                # the real tip.
-                return "missing", None
-            return real_fetch(clone, repository)
+    def test_branch_created_meanwhile_is_retried(self) -> None:
+        # @scenario inquisitor: A rejected push to the questions branch is retried
+        self.gh.before_ref = lambda: self.gh.add("o/api", "questions/" + OTHER.name, render(OTHER))
+        self.assertTrue(self.push(PATH, render(QUESTION)).pushed)
+        self.assertEqual(sorted(self.gh.files_of("o/api")), ["questions/" + OTHER.name, PATH])
 
-        with mock.patch.object(branches, "_fetch_tip", stale_once):
-            result = branches.push_file(self.clone, "o/api", PATH, render(QUESTION), "m", False, False)
-        self.assertTrue(result.pushed)
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(sorted(self.remote_files()), sorted(["questions/" + other.name, PATH]))
+    def test_deleted_branch_is_created_again_as_an_orphan(self) -> None:
+        # @scenario inquisitor: A rejected push to the questions branch is retried
+        self.push("questions/" + OTHER.name, render(OTHER))
+        self.gh.before_ref = lambda: self.gh.heads.pop(("o/api", "questions"))
+        self.assertEqual(self.push(PATH, render(QUESTION)), branches.PushResult(pushed=True))
+        self.assertEqual(sorted(self.gh.files_of("o/api")), [PATH])
+        self.assertEqual(self.gh.last("o/api").parents, [])
+
+    def test_repository_with_no_commits_keeps_the_file_pending(self) -> None:
+        # @scenario inquisitor: A repository with no commits keeps the file pending
+        # (an agent's push, without the service option; the next test is the service's)
+        self.gh.repos.add("o/new")
+        self.gh.empty.add("o/new")
+        why = "o/new has no commits: it needs a first commit before its questions can be logged"
+        self.assertEqual(self.push(PATH, render(QUESTION), repository="o/new"),
+                         branches.PushResult(pushed=False, pending=True, why=why))
+        self.assertTrue((branches.pending_dir("o/new") / PATH).exists())
+        self.assertEqual(branches.list_files("o/new"), [])
+
+    def test_service_push_to_a_repository_with_no_commits_keeps_nothing(self) -> None:
+        # @scenario inquisitor: A file the answer service cannot push leaves no pending copy
+        self.gh.repos.add("o/new")
+        self.gh.empty.add("o/new")
+        why = "o/new has no commits: it needs a first commit before its questions can be logged"
+        self.assertEqual(self.push(PATH, render(QUESTION), repository="o/new", service=True),
+                         branches.PushResult(pushed=False, why=why))
+        self.assertFalse(branches.pending_dir("o/new").exists())
+
+    def test_same_path_pushed_meanwhile_is_taken(self) -> None:
+        # @scenario inquisitor: A file whose name the branch holds is not added
+        self.push("questions/" + OTHER.name, render(OTHER))
+        self.gh.before_ref = lambda: self.gh.add("o/api", PATH, "theirs")
+        self.assertEqual(self.push(PATH, render(QUESTION)),
+                         branches.PushResult(pushed=False, taken=True))
+        self.assertEqual(self.gh.files_of("o/api")[PATH], b"theirs")
+
+    def test_branch_that_keeps_moving_fails(self) -> None:
+        # @scenario inquisitor: A rejected push to the questions branch is retried
+        self.push("questions/" + OTHER.name, render(OTHER))
+        n = [0]
+
+        def move() -> None:
+            n[0] += 1
+            self.gh.add("o/api", f"questions/2026-10-20-x-{n[0]:06d}.md", "x")
+            self.gh.before_ref = move
+
+        self.gh.before_ref = move
+        result = self.push(PATH, render(QUESTION), service=True)
+        self.assertFalse(result.pushed)
+        self.assertIn("not a fast forward", result.why or "")
+        self.assertEqual(n[0], branches.ATTEMPTS)
 
     def test_unpushable_file_kept_pending_then_pushed(self) -> None:
         # @scenario inquisitor: A file an agent cannot push is kept pending and reported
-        with mock.patch.object(branches, "remote_url", self.at(self.root / "absent.git")):
-            result = branches.push_file(self.clone, "o/api", PATH, render(QUESTION), "m", False, False)
-        self.assertFalse(result.pushed)
-        self.assertTrue(result.pending)
-        self.assertTrue(result.why)
-        kept = self.root / "state" / "inquisitor" / "pending" / "o" / "api" / PATH
+        self.gh.fail["POST repos/o/api/git/trees"] = "gh: Not Found (HTTP 404)\n"
+        result = self.push(PATH, render(QUESTION))
+        self.assertEqual(result, branches.PushResult(pushed=False, pending=True,
+                                                     why="gh: Not Found (HTTP 404)"))
+        kept = branches.pending_dir("o/api") / PATH
         self.assertEqual(kept.read_text(), render(QUESTION))
-        self.assertEqual(stat.S_IMODE(kept.stat().st_mode), 0o600)
-
-        other = replace(QUESTION, name="2026-10-21-other-000002.md")
-        result = branches.push_file(self.clone, "o/api", "questions/" + other.name, render(other),
-                                    "inquisitor: log questions/" + other.name, False, False)
-        self.assertTrue(result.pushed)
-        self.assertEqual(sorted(self.remote_files()), sorted([PATH, "questions/" + other.name]))
-        self.assertEqual(git(self.remote, "log", "--reverse", "--format=%s", "questions").splitlines(),
-                         [f"inquisitor: log {PATH}", "inquisitor: log questions/" + other.name])
+        self.assertEqual(kept.stat().st_mode & 0o777, 0o600)
+        self.gh.fail.clear()
+        self.assertTrue(self.push("questions/" + OTHER.name, render(OTHER)).pushed)
+        commits = [self.gh.commits[c].message
+                   for c in self.gh.history(self.gh.heads[("o/api", "questions")], None)]
+        self.assertEqual(commits, [f"inquisitor: log questions/{OTHER.name}", f"inquisitor: log {PATH}"])
         self.assertFalse(kept.exists())
+
+    def test_pending_citation_commits_as_inquisitor(self) -> None:
+        # @scenario inquisitor: A citation's commit names no person
+        cpath = "citations/" + CITATION.name
+        self.gh.fail["POST repos/o/api/git/trees"] = "gh: Not Found (HTTP 404)\n"
+        self.assertTrue(self.push(cpath, render(CITATION), as_inquisitor=True).pending)
+        self.gh.fail.clear()
+        self.assertTrue(self.push(PATH, render(QUESTION)).pushed)
+        first = self.gh.commits[self.gh.last("o/api").parents[0]]
+        self.assertEqual((first.message, first.author["name"]), (f"inquisitor: log {cpath}", "inquisitor"))
+        self.assertEqual(self.gh.last("o/api").author["name"], "Alice")
+
+    def test_unpushable_miss_kept_pending_unless_known_taken(self) -> None:
+        # @scenario inquisitor: A file an agent cannot push is kept pending and reported
+        content = render(HashOnlyMiss(hash="a" * 64))
+        self.gh.fail["POST repos/o/api/git/trees"] = "gh: Not Found (HTTP 404)\n"
+        self.assertTrue(self.push(MISS_PATH, content, as_inquisitor=True).pending)
+        self.assertTrue((branches.pending_dir("o/api") / MISS_PATH).exists())
 
     def test_service_keeps_nothing_pending(self) -> None:
         # @scenario inquisitor: A file the answer service cannot push leaves no pending copy
-        with mock.patch.object(branches, "remote_url", self.at(self.root / "absent.git")):
-            result = branches.push_file(self.clone, "o/api", PATH, render(QUESTION), "m", False, True)
-        self.assertFalse(result.pushed)
-        self.assertFalse(result.pending)
-        self.assertTrue(result.why)
-        self.assertFalse((self.root / "state" / "inquisitor" / "pending").exists())
+        self.gh.fail["POST repos/o/api/git/trees"] = "gh: Not Found (HTTP 404)\n"
+        result = self.push(PATH, render(QUESTION), service=True)
+        self.assertEqual(result, branches.PushResult(pushed=False, why="gh: Not Found (HTTP 404)"))
+        self.assertFalse(branches.pending_dir("o/api").exists())
 
-    def test_list_files_in_commit_order(self) -> None:
-        # @scenario inquisitor: A file name holding a Re line is only unreadable input
-        # (list_files passes the name through as data; test_formats checks parse finds it unreadable)
-        hostile = "questions/2026-10-20-x-3f9a1c.md\nRe: o api issue 9"
-        tree = self.root / "seed"
-        subprocess.run(["git", "init", "-q", "-b", "questions", str(tree)], check=True)
-        git(tree, "config", "user.name", "Bob")
-        git(tree, "config", "user.email", "bob@example.com")
-        (tree / "questions").mkdir()
-        (tree / PATH).write_text(render(QUESTION))
-        git(tree, "add", ".")
-        git(tree, "commit", "-qm", "one")
-        (tree / hostile).write_text("x")
-        git(tree, "add", ".")
-        git(tree, "commit", "-qm", "two")
-        git(tree, "push", "-q", str(self.remote), "questions:questions")
-        first, second = git(tree, "rev-list", "--reverse", "HEAD").split()
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        files = branches.list_files(self.clone, "o/api")
-        self.assertEqual(files, [branches.BranchFile(PATH, render(QUESTION), first, False),
-                                 branches.BranchFile(hostile, "x", second, False)])
+    def test_unreadable_branch_keeps_the_file_pending(self) -> None:
+        # @scenario inquisitor: A file an agent cannot push is kept pending and reported
+        result = self.push(PATH, render(QUESTION), repository="o/gone")
+        self.assertTrue(result.pending)
+        self.assertEqual(result.why, "cannot read the questions branch of o/gone")
+        self.assertFalse(any(c[1] == "-X" for c in self.gh.calls))
 
-    def test_missing_branch_has_no_files(self) -> None:
-        # @scenario inquisitor: A branch the command cannot read is reported, not empty
-        # (no branch lists as empty; a name that cannot be fetched fails)
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        self.assertEqual(branches.list_files(self.clone, "o/api"), [])
-        self.assertFalse(branches.fetch(self.clone, "o/../x"))
-
-    def test_landed(self) -> None:
-        # @scenario inquisitor: An answer whose commit reached the default branch counts for everyone
-        git(self.clone, "fetch", "-q", "origin")
-        git(self.clone, "remote", "set-head", "origin", "main")
-        landed_commit = git(self.clone, "rev-parse", "HEAD").strip()
-        (self.clone / "x.md").write_text("x")
-        git(self.clone, "add", "x.md")
-        git(self.clone, "commit", "-qm", "work")
-        unmerged = git(self.clone, "rev-parse", "HEAD").strip()
-        self.assertIs(branches.landed(self.clone, landed_commit), True)
-        self.assertIs(branches.landed(self.clone, unmerged), False)
-        self.assertIsNone(branches.landed(self.clone, "f" * 40))
-
-
-class Hostile(BranchSetup):
-    def seed(self, commits: list[tuple[str, str]], sign: bool = False) -> list[str]:
-        tree = self.root / "seed"
-        subprocess.run(["git", "init", "-q", "-b", "questions", str(tree)], check=True)
-        git(tree, "config", "user.name", "Bob")
-        git(tree, "config", "user.email", "bob@example.com")
-        if sign:
-            key = self.root / "key"
-            subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
-            git(tree, "config", "gpg.format", "ssh")
-            git(tree, "config", "user.signingkey", str(key))
-        (tree / "questions").mkdir()
-        for path, content in commits:
-            (tree / path).write_text(content)
-            git(tree, "add", ".")
-            git(tree, "commit", "-qm", path, *(["-S"] if sign else []))
-        git(tree, "push", "-q", str(self.remote), "questions:questions")
-        return git(tree, "rev-list", "--reverse", "HEAD").split()
-
-    def test_root_commit_listed_whatever_the_log_config(self) -> None:
-        # @scenario inquisitor: The repository's questions branch is searched
-        # (every file, the root commit's included, whatever the person's git config)
-        ids = self.seed([("questions/a.md", "a"), ("questions/b.md", "b"), ("questions/c.md", "c")],
-                        sign=True)
-        cfg = self.root / "gitconfig"
-        cfg.write_text("[log]\n\tshowRoot = false\n\tshowSignature = true\n")
-        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(cfg)}):
-            self.assertTrue(branches.fetch(self.clone, "o/api"))
-            files = branches.list_files(self.clone, "o/api")
-        assert files is not None
-        self.assertEqual([(f.path, f.added_by) for f in files],
-                         [("questions/a.md", ids[0]), ("questions/b.md", ids[1]),
-                          ("questions/c.md", ids[2])])
+    def test_refuses_bad_input(self) -> None:
+        # @scenario inquisitor: A malformed repository key is never sent to GitHub
+        # (nothing is pushed or kept for a malformed repository or an unreadable file)
+        self.assertFalse(self.push(PATH, render(QUESTION), repository="o/../x").pushed)
+        self.assertFalse(self.push(PATH, "not a log file").pushed)
+        self.assertEqual(self.gh.calls, [])
+        self.assertFalse(branches.pending_dir("o/api").exists())
 
     def test_pending_ignores_a_vanishing_temp_file(self) -> None:
         # @scenario inquisitor: A file an agent cannot push is kept pending and reported
@@ -256,8 +441,7 @@ class Hostile(BranchSetup):
         root.mkdir(parents=True)
         (root / "2026-10-20-q-000001.md").write_text("x")
         real_stat = Path.stat
-        tmp = root / ".tmp-gone"
-        tmp.write_text("y")
+        (root / ".tmp-gone").write_text("y")
 
         def stat(p: Path, *a: object, **k: object) -> os.stat_result:
             if p.name.startswith(".tmp-"):
@@ -268,201 +452,173 @@ class Hostile(BranchSetup):
             found = branches._pending("o/api")  # pyright: ignore[reportPrivateUsage]
         self.assertEqual(found, [("questions/2026-10-20-q-000001.md", "x")])
 
-    def test_taken_miss_pushes_nothing_even_with_pending(self) -> None:
-        # @scenario inquisitor: A retried push of a miss already on the branch pushes nothing
-        content = render(HashOnlyMiss(hash="a" * 64))
-        branches.push_file(self.clone, "o/api", MISS_PATH, content, "m", True, True)
-        branches._keep_pending("o/api", PATH, render(QUESTION))  # pyright: ignore[reportPrivateUsage]
-        before = git(self.remote, "rev-parse", "questions")
-        result = branches.push_file(self.clone, "o/api", MISS_PATH, content, "m", True, False)
-        self.assertEqual(result, branches.PushResult(pushed=False, taken=True))
-        self.assertEqual(git(self.remote, "rev-parse", "questions"), before)
+
+class Read(Fake):
+    def test_list_files_in_commit_order(self) -> None:
+        # @scenario inquisitor: A file name holding a Re line is only unreadable input
+        # (list_files passes the name through as data; test_formats checks parse finds it unreadable)
+        hostile = "questions/2026-10-20-x-3f9a1c.md\nRe: o api issue 9"
+        first = self.gh.add("o/api", "questions/z.md", render(QUESTION))
+        second = self.gh.add("o/api", hostile, "x")
+        third = self.gh.add("o/api", "questions/a.md", "a")
+        self.assertEqual(branches.list_files("o/api"),
+                         [branches.BranchFile("questions/z.md", render(QUESTION), first, False),
+                          branches.BranchFile(hostile, "x", second, False),
+                          branches.BranchFile("questions/a.md", "a", third, False)])
+
+    def test_missing_branch_has_no_files(self) -> None:
+        # @scenario inquisitor: A branch the command cannot read is reported, not empty
+        # (no branch lists as empty; an unreadable repository or a malformed name fails)
+        self.assertEqual(branches.list_files("o/api"), [])
+        self.assertIsNone(branches.list_files("o/gone"))
+        self.assertIsNone(branches.list_files("o/../x"))
+
+    def test_empty_branch_has_no_files(self) -> None:
+        # @scenario inquisitor: A branch the command cannot read is reported, not empty
+        self.gh.heads[("o/api", "questions")] = self.gh.commit({}, [])
+        self.assertEqual(branches.list_files("o/api"), [])
+
+    def test_failed_call_lists_none(self) -> None:
+        # @scenario inquisitor: A branch the command cannot read is reported, not empty
+        self.gh.add("o/api", PATH, render(QUESTION))
+        self.gh.fail["GET repos/o/api/git/trees"] = "gh: Server Error (HTTP 502)\n"
+        self.assertIsNone(branches.list_files("o/api"))
+        real = self.gh.graphql
+
+        def broken(query: str, v: dict[str, str]) -> tuple[int, str, str]:
+            return (1, "", "gh: timeout\n") if "$p0" in query else real(query, v)
+
+        self.gh.fail.clear()
+        with mock.patch.object(self.gh, "graphql", broken):
+            self.assertIsNone(branches.list_files("o/api"))
+
+    def test_truncated_tree_lists_none(self) -> None:
+        # @scenario inquisitor: A branch the command cannot read is reported, not empty
+        self.gh.add("o/api", PATH, render(QUESTION))
+        real = self.gh.rest
+
+        def truncated(method: str, endpoint: str, body: dict[str, Any]) -> tuple[int, str, str]:
+            code, out, err = real(method, endpoint, body)
+            if "git/trees/" in endpoint:
+                out = json.dumps({**json.loads(out), "truncated": True})
+            return code, out, err
+
+        with mock.patch.object(self.gh, "rest", truncated):
+            self.assertIsNone(branches.list_files("o/api"))
 
     def test_changed_file_is_marked(self) -> None:
         # @scenario inquisitor: A questions-branch decision changed after it was added is input
-        ids = self.seed([("questions/a.md", "a"), ("questions/b.md", "b"),
-                         ("questions/a.md", "a2"), ("questions/c.md", "c")])
-        tree = self.root / "seed"
-        git(tree, "rm", "-q", "questions/c.md")
-        git(tree, "commit", "-qm", "drop c")
-        (tree / "questions" / "c.md").write_text("c")
-        git(tree, "add", ".")
-        git(tree, "commit", "-qm", "c again")
-        git(tree, "push", "-q", str(self.remote), "questions:questions")
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        files = branches.list_files(self.clone, "o/api")
+        # (list_files marks the change; test_branch_search checks the label)
+        a = self.gh.add("o/api", "questions/a.md", "a")
+        b = self.gh.add("o/api", "questions/b.md", "b")
+        self.gh.add("o/api", "questions/a.md", "a2")
+        c = self.gh.add("o/api", "questions/c.md", "c")
+        self.gh.add("o/api", "questions/c.md", None)
+        self.gh.add("o/api", "questions/c.md", "c")
+        files = branches.list_files("o/api")
         assert files is not None
         self.assertEqual([(f.path, f.content, f.added_by, f.changed) for f in files],
-                         [("questions/a.md", "a2", ids[0], True),
-                          ("questions/b.md", "b", ids[1], False),
-                          ("questions/c.md", "c", ids[3], True)])
+                         [("questions/a.md", "a2", a, True), ("questions/b.md", "b", b, False),
+                          ("questions/c.md", "c", c, True)])
 
-    def test_fetch_creates_the_cache(self) -> None:
+    def test_paging_and_batches(self) -> None:
         # @scenario inquisitor: The repository's questions branch is searched
-        # (from no checkout, through the cache fetch creates)
-        self.seed([("questions/a.md", "a")])
-        cache = branches.cache_dir("o/api")
-        self.assertEqual(cache, self.root / "state" / "inquisitor" / "branches" / "o" / "api")
-        self.assertTrue(branches.fetch(cache, "o/api"))
-        self.assertEqual(git(cache, "rev-parse", "--is-bare-repository").strip(), "true")
-        files = branches.list_files(cache, "o/api")
+        # (a long branch reads every commit and file, in a bounded number of calls)
+        self.gh.page = 3
+        added = [self.gh.add("o/api", f"questions/{i:03d}.md", str(i)) for i in range(branches.BATCH + 5)]
+        for n in range(4):
+            self.gh.add("o/api", "questions/000.md", f"again {n}")
+        files = branches.list_files("o/api")
         assert files is not None
-        self.assertEqual([f.path for f in files], ["questions/a.md"])
-        self.assertTrue(branches.fetch(cache, "o/api"))
+        self.assertEqual([f.added_by for f in files], added)
+        self.assertTrue(files[0].changed)
+        self.assertEqual(files[0].content, "again 3")
+        self.assertFalse(any(f.changed for f in files[1:]))
+        graphql = [c for c in self.gh.calls if c[1] == "graphql"]
+        commits = branches.BATCH + 9
+        # head + further history pages + two file batches + path pages for the changed file
+        self.assertEqual(len(graphql), 1 + (commits - 1) // 3 + 2 + 1)
+        self.assertEqual(sum(c[1].startswith("repos/") for c in self.gh.calls), 1)
 
-    def test_remote_url_follows_origin(self) -> None:
+    def test_long_branch_keeps_commit_order(self) -> None:
         # @scenario inquisitor: The repository's questions branch is searched
-        # (each fetch reaches the repository by SSH or HTTPS, as the clone's origin does)
-        self.url.stop()
-        try:
-            for origin, want in (("git@github.com:o/x.git", "git@github.com:o/api.git"),
-                                 ("ssh://git@github.com/o/x.git", "git@github.com:o/api.git"),
-                                 ("https://github.com/o/x.git", "https://github.com/o/api.git")):
-                git(self.clone, "remote", "set-url", "origin", origin)
-                self.assertEqual(branches.remote_url(self.clone, "o/api"), want)
-        finally:
-            self.url.start()
+        # (files added out of path order on a branch longer than one history page keep commit order)
+        self.gh.page = 2
+        added = [self.gh.add("o/api", f"questions/{i:03d}.md", str(i)) for i in range(6, -1, -1)]
+        files = branches.list_files("o/api")
+        assert files is not None
+        self.assertEqual([f.added_by for f in files], added)
 
-    def test_unreadable_log_lists_none(self) -> None:
+    def test_failed_blob_fallback_lists_none(self) -> None:
         # @scenario inquisitor: A branch the command cannot read is reported, not empty
-        # (a log git cannot read gives None, not an empty listing)
-        self.seed([("questions/a.md", "a")])
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        real = branches._git  # pyright: ignore[reportPrivateUsage]
+        self.gh.add("o/api", PATH, b"---\n\xff\n")
+        self.gh.fail["GET repos/o/api/git/blobs"] = "gh: API rate limit exceeded (HTTP 403)\n"
+        self.assertIsNone(branches.list_files("o/api"))
 
-        def failing(cwd: Path, *args: str) -> "subprocess.CompletedProcess[bytes]":
-            if args[0] == "log":
-                return subprocess.CompletedProcess(args, 128, b"", b"bad")
-            return real(cwd, *args)
-
-        with mock.patch.object(branches, "_git", failing):
-            self.assertIsNone(branches.list_files(self.clone, "o/api"))
-
-    def test_pending_citation_commits_as_inquisitor(self) -> None:
-        # @scenario inquisitor: A citation's commit names no person
-        cpath = "citations/" + CITATION.name
-        with mock.patch.object(branches, "remote_url", self.at(self.root / "absent.git")):
-            kept = branches.push_file(self.clone, "o/api", cpath, render(CITATION), "m", True, False)
-        self.assertTrue(kept.pending)
-        result = branches.push_file(self.clone, "o/api", PATH, render(QUESTION), "m", False, False)
-        self.assertTrue(result.pushed)
-        authors = [line.split() for line in git(
-            self.remote, "log", "--reverse", "--format=%an %ad", "--date=raw", "questions").splitlines()]
-        self.assertEqual(authors[0][0], "inquisitor")
-        self.assertEqual(int(authors[0][1]) % 86400, 0)
-        self.assertEqual(authors[1][0], "Alice")
-
-    def test_unpushable_miss_kept_pending_unless_known_taken(self) -> None:
-        # @scenario inquisitor: A file an agent cannot push is kept pending and reported
-        content = render(HashOnlyMiss(hash="a" * 64))
-        with mock.patch.object(branches, "remote_url", self.at(self.root / "absent.git")):
-            kept = branches.push_file(self.clone, "o/api", MISS_PATH, content, "m", True, False)
-        self.assertTrue(kept.pending)
-        (branches.pending_dir("o/api") / MISS_PATH).unlink()
-        branches.push_file(self.clone, "o/api", MISS_PATH, content, "m", True, True)
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        with mock.patch.object(branches, "remote_url", self.at(self.root / "absent.git")):
-            again = branches.push_file(self.clone, "o/api", MISS_PATH, content, "m", True, False)
-        self.assertFalse(again.pending)
-        self.assertFalse((branches.pending_dir("o/api") / MISS_PATH).exists())
-
-    def test_landed_needs_a_commit_id(self) -> None:
-        # @scenario inquisitor: An answer whose commit reached the default branch counts for everyone
-        git(self.clone, "fetch", "-q", "origin")
-        git(self.clone, "remote", "set-head", "origin", "main")
-        self.assertIsNone(branches.landed(self.clone, "HEAD"))
-        self.assertIsNone(branches.landed(self.clone, "main~0"))
-
-    def test_deleted_branch_lists_nothing(self) -> None:
+    def test_malformed_answers_list_none(self) -> None:
         # @scenario inquisitor: A branch the command cannot read is reported, not empty
-        # (a branch deleted on GitHub lists as empty, not as the old files)
-        self.seed([("questions/a.md", "a")])
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        git(self.remote, "update-ref", "-d", "refs/heads/questions")
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        self.assertEqual(branches.list_files(self.clone, "o/api"), [])
+        # (an answer missing a field the read needs fails the read, never a partial listing)
+        self.gh.add("o/api", PATH, b"---\n\xff\n")
+        self.gh.add("o/api", "questions/" + OTHER.name, render(OTHER))
+        real_graphql, real_rest = self.gh.graphql, self.gh.rest
 
-    def test_odd_paths_do_not_mislead_the_listing(self) -> None:
-        # @scenario inquisitor: A questions-branch decision is taken at its word
-        # (an odd path a pusher adds cannot mark an unchanged decision changed)
-        mark = "\x01inquisitor-commit:" + "0" * 40
-        ids = self.seed([("nl.md", "y")])
-        tree = self.root / "seed"
-        # git puts a newline before the first name after a commit's mark,
-        # so each odd path comes after another path in its commit, in git's
-        # byte order: only there would the parser see the path's own
-        # leading character.
-        for names, msg in ((["\tz", "\nnl.md"], "newline"),
-                           (["\tz", "\nnl.md"], "edit newline"),
-                           (["\x01a", mark, "zz.md"], "mark")):
-            for n in names:
-                (tree / n).write_text(msg)
-            git(tree, "add", ".")
-            git(tree, "commit", "-qm", msg)
-        ids = git(tree, "rev-list", "--reverse", "HEAD").split()
-        git(tree, "push", "-q", str(self.remote), "questions:questions")
-        cfg = self.root / "gitconfig"
-        cfg.write_text("[diff]\n\trelative = true\n")
-        (self.clone / "sub").mkdir()
-        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(cfg)}):
-            self.assertTrue(branches.fetch(self.clone, "o/api"))
-            files = branches.list_files(self.clone / "sub", "o/api")
+        def drop(path: list[str]) -> Callable[[str, dict[str, str]], tuple[int, str, str]]:
+            def answer(query: str, v: dict[str, str]) -> tuple[int, str, str]:
+                code, out, err = real_graphql(query, v)
+                data = json.loads(out)
+                node: Any = data["data"]["repository"]
+                try:  # only the query whose answer holds the key path is changed
+                    for k in path[:-1]:
+                        node = node[k]
+                    if isinstance(node, list):
+                        node = cast(list[Any], node)[0]
+                    del node[path[-1]]
+                except (KeyError, TypeError, IndexError):
+                    pass
+                return code, json.dumps(data), err
+            return answer
+
+        for path in (["ref", "target", "tree"], ["ref", "target", "history", "nodes", "oid"],
+                     ["object", "h0", "totalCount"]):
+            with mock.patch.object(self.gh, "graphql", drop(path)):
+                self.assertIsNone(branches.list_files("o/api"), path)
+
+        def no_content(method: str, endpoint: str, body: dict[str, Any]) -> tuple[int, str, str]:
+            code, out, err = real_rest(method, endpoint, body)
+            return (0, json.dumps({"encoding": "base64"}), "") if "git/blobs/" in endpoint else (code, out, err)
+
+        with mock.patch.object(self.gh, "rest", no_content):
+            self.assertIsNone(branches.list_files("o/api"))
+
+    def test_non_utf8_content_is_read_through_rest(self) -> None:
+        # @scenario inquisitor: A file name holding a Re line is only unreadable input
+        # (content that is not UTF-8 reads as replacement characters, so parse() reads the file as
+        # unreadable input, as it does a name holding a Re line)
+        self.gh.add("o/api", PATH, b"---\n\xff\n")
+        files = branches.list_files("o/api")
         assert files is not None
-        got = {f.path: (f.added_by, f.changed) for f in files}
-        self.assertEqual(got["nl.md"], (ids[0], False))
-        self.assertEqual(got["\nnl.md"], (ids[1], True))
-        self.assertEqual(got["zz.md"], (ids[3], False))
-        self.assertEqual(got[mark], (ids[3], False))
+        self.assertEqual(files[0].content, "---\n�\n")
 
-    def test_cache_is_sha1_whatever_the_config(self) -> None:
+    def test_branch_search_reads_through_the_api_outside_a_checkout(self) -> None:
+        # @scenario inquisitor: A branch search reads the branch through the API
         # @scenario inquisitor: The repository's questions branch is searched
-        # (through a cache, whatever the person's init config)
-        self.seed([("questions/a.md", "a")])
-        cfg = self.root / "gitconfig"
-        cfg.write_text("[init]\n\tdefaultObjectFormat = sha256\n")
-        cache = branches.cache_dir("o/api")
-        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(cfg)}):
-            self.assertTrue(branches.fetch(cache, "o/api"))
-            files = branches.list_files(cache, "o/api")
-        assert files is not None
-        self.assertEqual([f.path for f in files], ["questions/a.md"])
-
-    def test_listing_ignores_log_encoding(self) -> None:
-        # @scenario inquisitor: A questions-branch decision changed after it was added is input
-        ids = self.seed([("questions/a.md", "a"), ("questions/a.md", "a2"), ("questions/b.md", "b")])
-        self.assertTrue(branches.fetch(self.clone, "o/api"))
-        for enc in ("UTF-16LE", "UTF-7"):
-            with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1",
-                                              "GIT_CONFIG_KEY_0": "i18n.logOutputEncoding",
-                                              "GIT_CONFIG_VALUE_0": enc}):
-                files = branches.list_files(self.clone, "o/api")
-            assert files is not None
-            self.assertEqual([(f.path, f.added_by, f.changed) for f in files],
-                             [("questions/a.md", ids[0], True), ("questions/b.md", ids[2], False)])
-
-    def test_cache_works_under_hardened_and_inherited_git(self) -> None:
-        # @scenario inquisitor: The repository's questions branch is searched
-        # (through a cache, under safe.bareRepository=explicit and an inherited GIT_DIR)
-        self.seed([("questions/a.md", "a")])
-        cache = branches.cache_dir("o/api")
-        other = self.root / "other"
-        subprocess.run(["git", "init", "-q", str(other)], check=True)
-        hardened = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "safe.bareRepository",
-                    "GIT_CONFIG_VALUE_0": "explicit"}
-        with mock.patch.dict(os.environ, hardened):
-            self.assertTrue(branches.fetch(cache, "o/api"))
-            files = branches.list_files(cache, "o/api")
-        assert files is not None
-        self.assertEqual([f.path for f in files], ["questions/a.md"])
-        with mock.patch.dict(os.environ, {**hardened, "GIT_DIR": str(other / ".git")}):
-            self.assertTrue(branches.fetch(cache, "o/api"))
-            files = branches.list_files(cache, "o/api")
-            self.assertTrue(branches.fetch(self.clone, "o/api"))
-            in_clone = branches.list_files(self.clone, "o/api")
-        assert files is not None and in_clone is not None
-        self.assertEqual([f.path for f in files], ["questions/a.md"])
-        self.assertEqual([f.path for f in in_clone], ["questions/a.md"])
-        self.assertEqual(git(other, "for-each-ref").strip(), "")
+        self.gh.add("o/api", PATH, render(QUESTION))
+        here = Path(tempfile.mkdtemp())
+        cwd = os.getcwd()
+        os.chdir(here)
+        self.addCleanup(os.chdir, cwd)
+        out = io.StringIO()
+        with mock.patch.object(branch_search, "gh_json", return_value=None), \
+                mock.patch.object(branch_search, "_configured_lore", return_value=set()), \
+                mock.patch("sys.stdin", io.StringIO("Should retries back off?")), \
+                redirect_stdout(out):
+            self.assertEqual(branch_search.run_branch_search(
+                branch_search.BranchSearchArgs(repository="o/api")), 0)
+        hits = cast(list[dict[str, Any]], json.loads(out.getvalue())["hits"])
+        self.assertEqual([h["path"] for h in hits], [PATH])
+        self.assertEqual(list(here.iterdir()), [])
+        self.assertEqual(list(self.state.iterdir()), [])
+        self.assertTrue(all(c[0] == "api" for c in self.gh.calls))
 
 
 if __name__ == "__main__":

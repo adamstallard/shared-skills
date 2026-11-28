@@ -230,6 +230,19 @@ moved by the person to the queue's end on this machine.
   then reaches the queue
 - **THEN** the queue orders the new question before the one set aside
 
+### Requirement: A question stays set aside until answered or declined
+
+A question set aside for later SHALL stay set aside until the person
+confirms an answer to it or a decline of it; nothing else, a reopen
+included, returns it to its place by asked time.
+
+#### Scenario: A question set aside stays at the queue's end
+
+- **WHEN** the person sets a question aside, and then the answer service
+  is closed and opened again and new questions arrive
+- **THEN** the question stays after every question not set aside until
+  the person answers or declines it
+
 ### Requirement: A question is asked when its message was posted or a poll first found it
 
 The answer service SHALL take as a question's **asked time** the time
@@ -392,6 +405,18 @@ writes no miss it cannot place privately*, or with no login configured.
   questions-branch files whose `repository` keys differ, which gets no
   miss file
 
+### Requirement: The answer service finds questions by the hiding reading alone
+
+The answer service SHALL find a message's questions, open-questions
+items included, only by the inquisitor's hiding reading (inquisitor
+spec: *Questions in a post are found by two readings*).
+
+#### Scenario: A question in a code block is not shown
+
+- **WHEN** an agent's comment tagging the person holds a question only
+  in a fenced code block
+- **THEN** the answer service shows no question from it
+
 ### Requirement: Each item of an open-questions section is its own question
 
 The answer service SHALL treat each item of an open-questions section in
@@ -433,6 +458,22 @@ Any other message SHALL be one question, whose relay posts name no item.
 - **THEN** the answer service shows them as questions 1 and 2, each
   question's hash leaving its tag line out, so that its file holds it,
   and a relay post answering the second holds `question 2: `
+
+### Requirement: A numbered relay post settles its item only while the items are unchanged
+
+A relay post holding `question <n>: ` SHALL settle its item only as the
+inquisitor spec's *A numbered reply stands only while its message's items
+are unchanged* lets a numbered `Inquisitor: ` reply stand; otherwise the
+item it answered, and any item now at its number, SHALL be shown again
+as unanswered.
+
+#### Scenario: A renumbered item is shown again
+
+- **WHEN** after the relay posted `User says: question 2: Use X`, the
+  agent edits its comment to add an item before the second
+- **THEN** the item now numbered 3, which the person answered, and the
+  item now numbered 2, which the person never saw, are both shown again
+  as unanswered
 
 ### Requirement: A deferred item is numbered but not shown
 
@@ -610,7 +651,7 @@ and unrun checks.
 
 Setup's **posting check** SHALL pass on GitHub when the repository is
 among the relay App installation's repositories and the installation may
-write issues and pull requests, both read with the App's own token; on
+write issues and pull requests; on
 Linear when the relay's token has the `write` scope and its app user can
 see the team; and on Discord when discord-bot's `check --channel` reports
 `viewChannel`, `readMessageHistory`, `sendMessages` and
@@ -1117,13 +1158,14 @@ relay post usually mentions no one.
 
 A **mention** SHALL be of a user, as `@login` on GitHub, on Linear by the
 user id of a mention in the comment's `bodyData`, and on Discord by the
-user id it mentions, outside code spans, code blocks, quoted lines and
-links; a team mention counts as none.
+user id it mentions, outside code spans, code blocks, quoted lines,
+link text and HTML comments; a team mention
+counts as none.
 
 #### Scenario: A team mention or a mention in code is no mention
 
 - **WHEN** a comment mentions the team `@o/devs`, and `@maya` only in a
-  code span, code block, quoted line or link
+  code span, code block, quoted line, link or HTML comment
 - **THEN** it mentions no one
 - **AND** a Linear comment that mentions Maya still mentions her, by the
   user id in its `bodyData`, after she changes her display name
@@ -1170,7 +1212,8 @@ them, and never shows them again, even once the newest is answered.
 
 - **WHEN** an issue assigned to the person holds an Igor's handback no
   relay post names, and the Igor posts a newer handback on it
-- **THEN** every answer service shows only the newer handback, never shows
+- **THEN** every answer service that reads the issue shows only the newer
+  handback, never shows
   the older one's log file again, and an answer to the newer names only
   the newer one's log file
 
@@ -1525,6 +1568,38 @@ on, showing the person its warnings after each post and edit.
   `@maya` matched no single member
 - **THEN** `@maya` stays plain text and pings no one, and the person is
   shown that warning after the post or edit
+
+### Requirement: A post goes out only from a preview of the question on screen
+
+Of the posts the person confirms, the answer service SHALL post only
+what a preview made for the question on screen showed, unchanged.
+Another question taking the screen, or an edit to the one shown, SHALL
+void that preview, so nothing is
+posted until a new preview is made for the question then shown. An
+automatic post needs no preview.
+
+#### Scenario: A preview for another question posts nothing
+
+- **WHEN** the person previews an answer to one question, then another
+  question takes the screen before they confirm
+- **THEN** their confirmation posts nothing, and the answer service makes
+  a new preview for the question now on screen
+
+### Requirement: The first confirmation after a question takes the screen posts nothing
+
+After a question takes the screen, the person's first confirmation SHALL
+post nothing: it shows that question, with any rephrasing, and the
+preview of the typed text as an answer to it. Only a later confirmation
+posts.
+
+#### Scenario: A confirmation as a question arrives posts nothing
+
+- **WHEN** a question takes the screen while the person is typing an
+  answer to the one before, and the person confirms
+- **THEN** the answer service posts nothing and shows the new question,
+  with any rephrasing, and the preview of the typed text as an answer to
+  the new question
+- **AND** the person's next confirmation posts that preview
 
 ### Requirement: A GitHub or Linear relay post names its question in a Re line
 
@@ -2297,6 +2372,27 @@ from choosing what the code does beyond a closed set.
   question with a category, posts nothing by itself, and shows it to the
   person as unclear
 
+### Requirement: A message awaits judgement until its turn ends
+
+The answer service's core SHALL list each message awaiting judgement,
+with the turn it awaits, turn 2 included, in every poll's result until
+that turn ends, because a prompt dropped or lost on its way to the
+model starts no turn and would otherwise leave the message unjudged.
+The answer mod SHALL keep no list of its own, putting the first listed
+message before the model once every judging prompt it sent has ended
+its turn or was dropped or lost.
+
+#### Scenario: A judging prompt that never reaches the model is put before it again
+
+- **WHEN** the prompt for a message's turn 1 is dropped before it reaches
+  the model, as when a hook in Claude Code's settings refuses it, or the turn 2 that
+  follows turn 1 never starts
+- **THEN** every later poll lists that message with the same turn until
+  that turn ends, and the mod puts it before the model once it heads the
+  list and every other judging prompt has ended its turn or was dropped
+- **AND** once the turn ends, no poll lists the message for that turn,
+  and the core refuses a second `judge.turn-end` for it
+
 ### Requirement: The service's model has no shell, no writing tool and no web fetch
 
 In a session the `answer` launcher starts, the model SHALL have only its
@@ -2382,7 +2478,8 @@ Discussion: <the discussion in one sentence>
 with its `Re: ` line where *A GitHub or Linear relay post names its
 question in a Re line* requires one. The service SHALL post the
 `Rephrased question: ` and `Discussion: ` lines as one line each, with
-every line break made a space.
+every line break made a space. It SHALL keep a rephrasing anywhere only
+once the person confirms a post carrying it, even a post kept pending.
 
 #### Scenario: A Discussion line is posted as one line
 
@@ -2396,6 +2493,14 @@ every line break made a space.
 
 - **WHEN** the model has drafted a rephrasing the person has not confirmed
 - **THEN** the answer service posts nothing
+
+#### Scenario: A rephrasing is kept only with the post that carried it
+
+- **WHEN** the person previews an answer carrying a rephrasing, does not
+  confirm that preview, and later answers the question without the
+  rephrasing
+- **THEN** the later post holds no `Rephrased question: ` or
+  `Discussion: ` line, and no record of the question holds the rephrasing
 
 ### Requirement: An answer is recorded by a new log file
 
@@ -2469,9 +2574,9 @@ item has no question text to hash or search.
 
 #### Scenario: An answer to a review request is recorded only on the item
 
-- **WHEN** the person answers, or declines for the inquisitor, a pull
-  request requesting their review that no handback is on
-- **THEN** filter 1 does not run on it, the relay posts the confirmed
+- **WHEN** the person answers, or declines, a pull request requesting
+  their review that no handback is on
+- **THEN** filter 1 does not run on it, the relay posts any confirmed
   comment on the pull request, and no log file or miss is pushed for it
 - **AND** the answer's preview says that comment is the only record
 
@@ -2981,14 +3086,13 @@ that is only input stops nothing.
 
 ### Requirement: The answer service's filter 1 reads only subscribed and lore repositories
 
-The service SHALL fetch a subscribed repository's default
-branch just before filter 1 checks a question placed in it, and at no
-other time. A question placed
+The service SHALL fetch a subscribed repository's default branch only
+just before filter 1 checks a question placed in it. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A
-question with **no place** (*A channel's repositories place its
-questions*), which names no repository whose rules could go unread,
-SHALL be searched in `global` lore alone.
+`global` lore entry shown as an answer may contradict an unread
+repository's rules. A question with no place for another reason (*A Linear or Discord question is placed by
+what it concerns*), which names no repository whose rules could go
+unread, SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 
@@ -3000,8 +3104,8 @@ SHALL be searched in `global` lore alone.
 - **AND** a question about subscribed `o/web` has its clone's default
   branch fetched then, not at each poll, and the decision documents there,
   its questions branch and its issues searched
-- **AND** a question about the organization has the decision documents
-  in the clone of the organization's configured lore repository searched
+- **AND** a question about the organization has its configured lore
+  repository's entries, questions branch and decision records searched
 - **AND** a Linear question for a collective whose lore repository the
   model cannot tell, which so has no place, has only `global` lore
   searched

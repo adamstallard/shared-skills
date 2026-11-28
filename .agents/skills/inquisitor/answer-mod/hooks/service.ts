@@ -3,25 +3,27 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ToolInfo } from 'claude-code'
 
+import type { Answer } from '../types'
 import { arrive } from './actions'
 import type { JudgeRequest, Notice, QuestionView, VerdictFields } from './core-protocol'
 import { PROPOSE_TOOL, SURFACE_NAME, VERDICT_TOOL, ageOf, cut, sourceOf, whereOf } from './questions'
 import { ask, holdsLock, lost, stopTimers, timers } from './service-core'
 import { INITIAL } from './state'
 
-const displacedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'displaced' } as const, INITIAL.displaced)
 const answersAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'answers' } as const, INITIAL.answers)
 const awaitingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'awaiting' } as const, INITIAL.awaiting)
 const cursorAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'cursor' } as const, INITIAL.cursor)
 const flashAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'flash' } as const, INITIAL.flash)
-const judgeQueueAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judgeQueue' } as const, INITIAL.judgeQueue)
 const judgingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judging' } as const, INITIAL.judging)
+const judgedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judged' } as const, INITIAL.judged)
 const knownPlacesAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'knownPlaces' } as const, INITIAL.knownPlaces)
 const markedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'marked' } as const, INITIAL.marked)
 const markerAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'marker' } as const, INITIAL.marker)
 const orderAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'order' } as const, INITIAL.order)
+const arrivedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'arrived' } as const, INITIAL.arrived)
 const pendingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'pending' } as const, INITIAL.pending)
 const questionsAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'questions' } as const, INITIAL.questions)
+const rephrasedAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'rephrased' } as const, INITIAL.rephrased)
 const rateLimitAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'rateLimitedUntil' } as const, INITIAL.rateLimitedUntil)
 const relaysAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'relays' } as const, INITIAL.relays)
 const serviceAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'service' } as const, INITIAL.service)
@@ -74,6 +76,31 @@ export async function hasMarker($: EngineInterface): Promise<boolean> {
 }
 
 /**
+ * The session started. A first start opens the answer service. A hot
+ * reload, which stops the module's timers and raises session.start again
+ * while the service's state survives, restarts what that state needs: an
+ * open service's lock refresh and polls, the lock refresh of setup asked
+ * for over the open service, and a judging prompt not yet submitted. No
+ * status changes: a service the person closed stays closed, and setup
+ * stays in setup.
+ */
+export async function startService($: EngineInterface): Promise<void> {
+  if (!(await read($, markerAtom))) return
+  const now = await read($, serviceAtom)
+  if (now.status === 'open' || now.status === 'closed' || now.status === 'setup') {
+    stopTimers()
+    // A judging prompt not yet submitted is submitted by this copy; the old copy's timer, if it still fires, holds a stale token.
+    const token = newToken()
+    const again = await update($, judgingAtom, j => (j && !j.turnId && j.submitted === undefined ? { ...j, token } : j))
+    if (again?.token === token) submitLater($, token)
+    if (holdsLock(now)) timers.refresh = $.clock.every(REFRESH_MS, () => void refresh($))
+    if (now.status === 'open') await pollNow($, false)
+    return
+  }
+  await openService($, false)
+}
+
+/**
  * Opens the answer service: only in a session holding the marker, only
  * beside its own tools, and only while no other session holds the lock.
  */
@@ -107,6 +134,8 @@ export async function openService($: EngineInterface, takeover: boolean): Promis
   stopTimers()
   timers.refresh = $.clock.every(REFRESH_MS, () => void refresh($))
   void loadRelays($)
+  // Pending answers first: the poll's questions kept pending show their text and why.
+  await loadPending($)
   await pollNow($, true)
   // Reopening shows the question last on screen.
   if (res.screen) {
@@ -114,7 +143,6 @@ export async function openService($: EngineInterface, takeover: boolean): Promis
     if (i >= 0) await update($, cursorAtom, () => i)
   }
   await arrive($, await read($, cursorAtom))
-  await loadPending($)
 }
 
 /** Setup, in place of the queue; `back` when it was asked for over the open service, whose lock this session holds. */
@@ -169,16 +197,17 @@ export async function pollNow($: EngineInterface, first: boolean): Promise<void>
   timers.poll?.cancel()
   delete timers.poll
   if ((await read($, serviceAtom)).status !== 'open') return
+  const ends = (await update($, judgedAtom, v => v)).ends
   const res = await ask($, { command: 'poll', session_id: await $.session.id() })
   if ((await read($, serviceAtom)).status !== 'open') return
   if (res.ok) {
     await merge($, res.questions, first)
-    if (res.judge.length) await update($, judgeQueueAtom, q => [...q, ...res.judge.filter(j => !q.some(x => x.message === j.message && x.turn === j.turn))])
     await update($, knownPlacesAtom, k => [...new Set([...k, ...res.judge.flatMap(j => j.places)])])
+    // The core tells the person of a rate limit once, in a notice on the first poll of the wait.
     await update($, rateLimitAtom, () => res.rate_limited_until)
-    if (res.rate_limited_until) await update($, flashAtom, () => `Notice: GitHub refused a poll for its rate limit, and is not polled until ${res.rate_limited_until}.`)
     await showNotices($, res.notices)
-    await pumpJudge($)
+    // A list the core made before it took a turn-end may still hold that turn: the next poll's list is used instead.
+    if ((await update($, judgedAtom, v => v)).ends === ends) await pumpJudge($, res.judge[0])
   } else {
     await update($, flashAtom, () => `Notice: the poll failed: ${res.error}`)
   }
@@ -191,8 +220,8 @@ export async function pollNow($: EngineInterface, first: boolean): Promise<void>
  * The questions a poll shows replace those the band holds, oldest asked
  * first; one the poll does not show stays only if the person acted on it
  * here. The cursor stays on its question. When the poll took that question
- * away, the cursor stays at its place, on the next question, and
- * `displaced` makes the next Enter stop for the person to see it.
+ * away, the cursor stays at its place, on the next question, where
+ * nothing posts before an Enter shows its own preview (send in actions.ts).
  */
 async function merge($: EngineInterface, views: readonly QuestionView[], first: boolean): Promise<void> {
   const before = await read($, questionsAtom)
@@ -206,10 +235,29 @@ async function merge($: EngineInterface, views: readonly QuestionView[], first: 
   const ids = Object.keys(next).sort((a, b) => Date.parse(next[a]!.asked_at) - Date.parse(next[b]!.asked_at) || a.localeCompare(b))
   await update($, questionsAtom, () => next)
   await update($, orderAtom, () => ids)
+  // What the core keeps of each question across sessions: set aside, answered
+  // but not yet posted, or the rephrasing its confirmed answer carried.
+  const pending = await read($, pendingAtom)
+  const kept = views.flatMap((v): [string, Answer][] => {
+    if (answers[v.id]) return []
+    if (v.state === 'set-aside') return [[v.id, { kind: 'defer', text: '' }]]
+    if (v.state !== 'pending') return []
+    const p = pending.find(x => x.question === v.id)
+    return [[v.id, { kind: 'answer', text: p?.text ?? '', pending: p?.why ?? 'not posted yet' }]]
+  })
+  if (kept.length) await update($, answersAtom, a => ({ ...a, ...Object.fromEntries(kept) }))
+  const revised = views.filter(v => v.revision)
+  if (revised.length) {
+    await update($, rephrasedAtom, r => ({
+      ...Object.fromEntries(revised.map(v => [v.id, { text: v.revision!.text, context: '', summary: v.revision!.summary, ...(v.revision!.options ? { options: v.revision!.options } : {}) }])),
+      ...r,
+    }))
+  }
   const keep = onSummary ? ids.length : atId ? ids.indexOf(atId) : 0
-  await update($, cursorAtom, () => (keep < 0 ? Math.min(order.indexOf(atId ?? ''), ids.length) : keep))
-  // The question on screen is now another one, which the person has not seen.
-  if (keep < 0 && atId) await update($, displacedAtom, () => atId)
+  const at = keep < 0 ? Math.min(order.indexOf(atId ?? ''), ids.length) : keep
+  await update($, cursorAtom, () => at)
+  // Another question on screen: the next Enter only shows it.
+  if (ids[at] !== atId) await update($, arrivedAtom, () => ids[at] ?? null)
   const arrived = views.filter(v => !before[v.id])
   if (!first && arrived.length) await alert($, arrived)
 }
@@ -318,53 +366,113 @@ export function judgePrompt(req: JudgeRequest): string {
   return lines.join('\n')
 }
 
-/** Puts the next message to judge before the model, when nothing else is waiting on it. */
-export async function pumpJudge($: EngineInterface): Promise<void> {
-  if ((await read($, serviceAtom)).status !== 'open' || (await read($, judgingAtom))) return
-  if ((await read($, awaitingAtom)).length || Object.values(await read($, thinkingAtom)).includes('reply')) return
-  const queue = await read($, judgeQueueAtom)
-  const req = queue[0]
-  if (!req) return
-  await update($, judgeQueueAtom, q => q.slice(1))
-  const text = judgePrompt(req)
-  await update($, judgingAtom, () => ({ req, text }))
-  // A prompt the engine drops, such as one a settings hook refuses, starts
-  // no turn, so nothing else would clear `judging`.
-  const clear = async (why: string) => {
-    await update($, judgingAtom, j => (j && j.req.message === req.message && j.req.turn === req.turn ? null : j))
-    await update($, flashAtom, () => `Notice: a message to judge did not reach Claude: ${why}`)
+/** A prompt submitted whose turn has not started after this long, with no turn running, frees the model: the engine's drop result for it is taken to have gone with a copy of this module that a hot reload unloaded. */
+const JUDGE_START_MS = 10 * 60_000
+let tokens = 0
+const newToken = () => `${++tokens}-${Math.random().toString(36).slice(2)}`
+const sameTurn = (a: { message: string; turn: number } | null | undefined, b: { message: string; turn: number }) => !!a && a.message === b.message && a.turn === b.turn
+
+// Every read of one event sees the moment of its first read; a no-op
+// `update($, atom, v => v)`, whose compare-and-set reads what stands, is a
+// read of now. It is written out at each site: with a helper taking the
+// atom, the hooks module fails to load, because its scan needs a literal
+// atom in each update.
+
+/** Whether a discussion message waits on the model; a discussion goes before judging. */
+async function talking($: EngineInterface): Promise<boolean> {
+  return (await update($, awaitingAtom, v => v)).length > 0 || Object.values(await update($, thinkingAtom, v => v)).includes('reply')
+}
+
+/**
+ * Puts `req`, the first message the core lists for judging, before the
+ * model when nothing else holds it. The core keeps the list: a request
+ * stays in every poll's list until its turn ends, so one passed over
+ * here, or whose prompt is dropped or lost, comes back at a poll.
+ */
+export async function pumpJudge($: EngineInterface, req: JudgeRequest | undefined): Promise<void> {
+  if (!req || (await update($, serviceAtom, v => v)).status !== 'open' || (await talking($))) return
+  if (sameTurn((await update($, judgedAtom, v => v)).last, req)) return
+  // A prompt waits in the engine's queue while any turn runs; only one that waits with nothing running is lost.
+  if (!(await update($, turnAtom, v => v))) {
+    const now = await $.clock.now()
+    await update($, judgingAtom, j => (j?.submitted !== undefined && !j.turnId && now - j.submitted > JUDGE_START_MS ? null : j))
   }
-  void $.prompt.submit({ text }).then(
-    r => ('drop' in r && r.drop !== undefined ? clear(r.drop) : undefined),
-    () => clear('the prompt failed'),
-  )
+  const token = newToken()
+  const held = await update($, judgingAtom, j => j ?? { req, text: judgePrompt(req), token })
+  if (held?.token === token) submitLater($, token)
+}
+
+/**
+ * Submits the judging prompt that `token` holds once the event at hand is
+ * over: the engine refuses a prompt submitted from a prompt.submit hook,
+ * and an Enter can poll from one. The timer is an event of its own, so it
+ * reads what stands. It frees the model instead when the service closed,
+ * a discussion message came first, or the core already took this turn.
+ */
+function submitLater($: EngineInterface, token: string): void {
+  $.clock.after(0, async () => {
+    const j = await update($, judgingAtom, v => v)
+    if (!j || j.token !== token || j.submitted !== undefined) return
+    const release = () => update($, judgingAtom, x => (x?.token === token && !x.turnId ? null : x))
+    if ((await update($, serviceAtom, v => v)).status !== 'open' || (await talking($)) || sameTurn((await update($, judgedAtom, v => v)).last, j.req)) {
+      await release()
+      return
+    }
+    const at = await $.clock.now()
+    const won = await update($, judgingAtom, x => (x?.token === token && x.submitted === undefined ? { ...x, submitted: at } : x))
+    if (won?.token !== token || won.submitted !== at) return
+    // A prompt the engine drops, such as one a settings hook refuses, starts no turn, so nothing else would free the model.
+    const clear = async (why: string) => {
+      await release()
+      await update($, flashAtom, () => `Notice: a message to judge did not reach Claude: ${why}`)
+    }
+    void $.prompt.submit({ text: j.text }).then(
+      r => (r.drop !== undefined ? clear(r.drop) : undefined),
+      () => clear('the prompt failed'),
+    )
+  })
 }
 
 /** A main-conversation turn started: a judging turn is bound to its message. */
 export async function judgeTurnStarted($: EngineInterface, turnId: string, text: string): Promise<boolean> {
-  const judging = await read($, judgingAtom)
+  const judging = await update($, judgingAtom, v => v)
   if (!judging || judging.turnId || !text.includes(judgeTag(judging.req))) return false
-  await update($, judgingAtom, j => (j ? { ...j, turnId } : j))
-  return true
+  const bound = await update($, judgingAtom, j => (j?.token === judging.token && !j.turnId ? { ...j, turnId } : j))
+  return bound?.turnId === turnId
 }
 
-/** A judging turn ended: the core acts on its fields, and the next turn or message follows. */
+/**
+ * A judging turn ended: the core acts on its fields. The model stays held
+ * until the core has taken the turn-end, so a poll it answered before then,
+ * still listing this turn, puts nothing before the model. Then the hold
+ * passes straight to turn 2's prompt when there is one; any other message
+ * comes at a poll.
+ */
 export async function judgeTurnEnded($: EngineInterface, turnId: string): Promise<void> {
-  const judging = await read($, judgingAtom)
+  const judging = await update($, judgingAtom, v => v)
   if (judging?.turnId !== turnId) return
-  await update($, judgingAtom, () => null)
   const res = await ask($, { command: 'judge.turn-end', session_id: await $.session.id(), message: judging.req.message, turn: judging.req.turn })
+  // The turn is kept only once the core took it: a turn-end it refused leaves the message listed, to be judged again.
+  // `ends` counts every reply from the core, refused ones too: pollNow ignores the judge list of a poll made across one.
+  await update($, judgedAtom, d => ({ last: res.ok ? { message: judging.req.message, turn: judging.req.turn } : null, ends: d.ends + 1 }))
+  const next = res.ok ? res.next : null
+  const token = newToken()
+  const handed = await update($, judgingAtom, j => (j?.turnId === turnId ? (next ? { req: next, text: judgePrompt(next), token } : null) : j))
+  if (handed?.token === token) submitLater($, token)
   if (res.ok) {
-    if (res.next) await update($, judgeQueueAtom, q => [res.next!, ...q])
     if (res.posted.length) {
-      await update($, answersAtom, a => ({ ...a, ...Object.fromEntries(res.posted.map(id => [id, { kind: 'recorded' as const, text: '', auto: true as const }])) }))
+      await update($, answersAtom, a => ({
+        ...a,
+        ...Object.fromEntries(
+          res.posted.map((p): [string, Answer] => [p.question, { kind: p.kind === 'inquisitor' ? 'handled' : 'recorded', text: '', auto: true, post: p.text, url: p.url }]),
+        ),
+      }))
       await update($, flashAtom, () => `${res.posted.length} answered for you: see the summary`)
     }
     await showNotices($, res.notices)
   } else {
     await update($, flashAtom, () => `Notice: the judgement was not taken: ${res.error}`)
   }
-  await pumpJudge($)
 }
 
 /** The fields of a record_verdict call, as the model sent them: only the closed list's keys, each of its type. */

@@ -39,6 +39,10 @@ export type Question = {
   /** The repository an agent's concerns line names. */
   concerns?: string
   replies: Reply[]
+  /** The bot account that posts the person's answers here; absent for a questions-branch file. */
+  relay?: string
+  /** The model's judgement of an agent's question: the filter, 2 to 4, that should have stopped it, and why. */
+  suggested?: { filter: 2 | 3 | 4; why: string }
 }
 
 /** The tool the session's model calls to put a drafted reply in the prompt box. */
@@ -230,6 +234,8 @@ export function questionOf(v: QuestionView, now: number): Question {
     ...(branch ? { branch } : {}),
     ...(v.concerns ? { concerns: v.concerns } : {}),
     replies: v.replies.map(reply),
+    ...(v.relay ? { relay: v.relay } : {}),
+    ...(v.suggested ? { suggested: v.suggested } : {}),
   }
 }
 

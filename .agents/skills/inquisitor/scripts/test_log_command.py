@@ -19,6 +19,9 @@ import log_command
 from common import Refused
 from formats import (HashOnlyMiss, LogFile, MissFile, Unreadable, miss_hash, parse, render)
 from log_command import LogArgs, MissesArgs
+from test_branches import FakeGitHub
+
+PUSH_FILE = branches.push_file
 
 Q1 = "2026-10-20-should-retries-back-off-3f9a1c.md"
 Q2 = "2026-10-20-should-retries-back-off-4b0b0b.md"
@@ -60,7 +63,6 @@ class Fakes(unittest.TestCase):
         self.vis = dict(VIS)
         self.unreadable: set[str] = set()
         patches = [
-            mock.patch.object(branches, "fetch", self.fetch),
             mock.patch.object(branches, "list_files", self.list_files),
             mock.patch.object(branches, "push_file", self.push_file),
             mock.patch.object(github, "visibility", self.visibility),
@@ -83,9 +85,6 @@ class Fakes(unittest.TestCase):
 
     # -- fakes
 
-    def fetch(self, clone: Path, repository: str) -> bool:
-        return repository not in self.unreadable
-
     def session_login(self, configured: str | None) -> str | None:
         return configured if configured == "alice" else None
 
@@ -104,13 +103,15 @@ class Fakes(unittest.TestCase):
     def random_hex(self) -> str:
         return "a1b2c3"
 
-    def list_files(self, clone: Path, repository: str | None = None) -> list[branches.BranchFile]:
-        return list(self.branch.get(repository or "", []))
+    def list_files(self, repository: str) -> list[branches.BranchFile] | None:
+        if repository in self.unreadable:
+            return None
+        return list(self.branch.get(repository, []))
 
-    def push_file(self, clone: Path, repository: str, path: str, content: str, message: str,
+    def push_file(self, repository: str, path: str, content: str,
                   as_inquisitor: bool, service: bool) -> branches.PushResult:
         self.pushed.append({"repository": repository, "path": path, "content": content,
-                            "message": message, "as_inquisitor": as_inquisitor,
+                            "message": f"inquisitor: log {path}", "as_inquisitor": as_inquisitor,
                             "service": service})
         return self.push_result
 
@@ -522,6 +523,18 @@ class Service(Fakes):
         result = self.log(question())
         self.assertEqual((result["status"], result["why"]), ("pending", "no write access"))
         self.assertFalse(self.pushed[0]["service"])
+
+
+    def test_repository_with_no_commits_keeps_the_file_pending(self) -> None:
+        # @scenario inquisitor: A repository with no commits keeps the file pending
+        gh = FakeGitHub(repos={"o/api"}, empty={"o/api"})
+        with mock.patch.object(branches, "push_file", PUSH_FILE), \
+                mock.patch.object(branches, "run_gh", gh.run_gh):
+            result = self.log(question())
+        self.assertEqual((result["status"], result["why"]),
+                         ("pending", "o/api has no commits: it needs a first commit before its "
+                                     "questions can be logged"))
+        self.assertTrue((branches.pending_dir("o/api") / str(result["path"])).exists())
 
 
 class Misses(Fakes):

@@ -1,6 +1,6 @@
 ## Open Questions
 
-In both lists below, the task each bullet names measures its fact before
+In the two lists of facts below, the task each bullet names measures its fact before
 anything resting on it is built, and the bullet says what the software
 does if the fact does not hold.
 
@@ -24,20 +24,15 @@ does if the fact does not hold.
   describes the weakness there, only on the word of the advisory's
   publisher. If the fork merges only at publication, the agent does so
   without that word.
-- **Can the Igor run `branch-search` and read a collaborator's
-  permission?** (task 0.29) Without the first, the call fails and the
-  worker's search names each questions branch as not searched; without
-  the second, every hit is `input`.
+- **Does an Igor's host have Python and this skill for the Igor's own
+  process?** (task 0.29) If not, the Igor's `branch-search` call for its
+  worker fails, and the worker's search names the questions branches it
+  would have read as not searched.
 - **Can an Igor worker pass the question to `igor lore-search` on that
   command's standard input?** (task 0.40) If not, the worker's inquisitor script passes the question the way igor PR #216 gives
   instead, and *The question reaches igor's command on standard input*
   changes to that way. Either way, a call that fails leaves filter 1 in an
   Igor's run searching no lore and saying so.
-- **Can a caller with write, not admin, access read a collaborator's
-  permission?** (task 0.42) If not, such a caller is treated as one GitHub
-  refuses for lack of push access: in that repository, every answer in a
-  post and every issue's decision block counts as input, and a post's question tags
-  none of its candidates.
 
 ### Facts the answer service relies on
 

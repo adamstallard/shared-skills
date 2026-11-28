@@ -1,27 +1,34 @@
-"""Reading and writing a repository's `questions` branch with git's plumbing,
-never a checkout, so no HEAD moves; and keeping pending the files the script
-could not push (inquisitor spec: *A question is pushed to the questions
-branch of what it concerns*; *A file the script cannot push stays
+"""Reading and writing a repository's `questions` branch through GitHub's
+API with gh's authentication, keeping no clone or copy of it; and keeping
+pending the files the inquisitor's commands could not push (inquisitor spec: *A questions
+branch is read through GitHub's API*; *A question is pushed to the
+questions branch of what it concerns*; *A file the script cannot push stays
 pending*).
 
-Owned by P2. Standard library only.
+A read takes one GraphQL call for the branch's head and its commits, one
+REST call for its tree, and one GraphQL call per 50 files for their
+contents and each file's commits. It takes more calls only for a branch
+of over 100 commits (one per further 100), a file touched by over 100
+commits, or a blob GraphQL gives no text (one REST call each).
+
+Owned by build part P2 of the implementation plan. Standard library only.
 """
 
+import base64
 import datetime
-import os
-import re
+import json
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from common import state_home
-from config import origin_repository
 from formats import Unreadable, is_repository, parse
 from private_files import write_private
 
 BRANCH = "questions"
+BATCH = 50
+ATTEMPTS = 5
 
 
 @dataclass(frozen=True)
@@ -39,9 +46,9 @@ class BranchFile:
 @dataclass(frozen=True)
 class PushResult:
     """pushed: the commit landed. pending: kept to push with the next file
-    for that branch; never set when the service option was given. taken: a miss file's
-    name was on the branch, so nothing was pushed. why: the failure, when
-    neither pushed nor taken."""
+    for that branch; never set when the service option was given. taken: the
+    file's path was on the branch, so nothing was pushed. why: the failure,
+    when neither pushed nor taken."""
 
     pushed: bool
     pending: bool = False
@@ -49,179 +56,234 @@ class PushResult:
     why: str | None = None
 
 
-_REPOSITORY_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
-                    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE")
+# -- gh ------------------------------------------------------------------------
 
-
-def _clean_env() -> dict[str, str]:
-    """The environment without the variables that point git at a
-    repository. git sets them while it runs a hook or a `rebase -x`
-    command; a script started from one would otherwise act on the
-    repository git is running in, not on the clone it was given."""
-    return {k: v for k, v in os.environ.items() if k not in _REPOSITORY_VARS}
-
-
-def _git(clone: Path, *args: str, env: dict[str, str] | None = None,
-         stdin: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
-    """Run git in clone, with no pager or prompt, and none of the
-    caller's repository variables. When clone is a bare repository (no
-    .git, but objects/ and HEAD), as the cache is, GIT_DIR names it: a
-    person's safe.bareRepository=explicit refuses `git -C` into one."""
-    full_env = {**_clean_env(), "GIT_TERMINAL_PROMPT": "0", "GIT_PAGER": "cat", **(env or {})}
-    if not (clone / ".git").exists() and (clone / "objects").is_dir() and (clone / "HEAD").is_file():
-        full_env["GIT_DIR"] = str(clone)
+def run_gh(args: list[str], stdin: str | None = None) -> tuple[int, str, str]:
+    """Run `gh` with args and stdin; its exit code, stdout and stderr. A gh
+    that cannot start, or runs over 60 seconds, gives exit 127. Tests replace this function."""
     try:
-        return subprocess.run(["git", "-C", str(clone), *args], input=stdin, capture_output=True,
-                              env=full_env, timeout=120)
+        done = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True,
+                              timeout=60)
     except (OSError, subprocess.SubprocessError) as e:
-        return subprocess.CompletedProcess(["git", *args], 127, b"", str(e).encode())
+        return 127, "", str(e)
+    return done.returncode, done.stdout, done.stderr
 
 
-def _ref(repository: str) -> str:
-    """Where the clone keeps the fetched questions branch of repository: a
-    ref of the script's own, so no branch, HEAD or working tree moves."""
-    return f"refs/inquisitor/{repository}/{BRANCH}"
+def _api(args: list[str], payload: dict[str, Any] | None = None) -> tuple[Any, str]:
+    """`gh api <args>`, sending payload as the JSON body: the parsed answer
+    and "", or None and gh's error. A GraphQL answer holding `errors` fails
+    through gh's exit code, which gh sets non-zero for it; the body is not
+    checked."""
+    if payload is not None:
+        args = [*args, "--input", "-"]
+    code, out, err = run_gh(["api", *args], json.dumps(payload) if payload is not None else None)
+    if code != 0:
+        return None, err.strip() or f"gh exited {code}"
+    try:
+        return json.loads(out), ""
+    except json.JSONDecodeError:
+        return None, "gh's answer is not JSON"
 
 
-def remote_url(clone: Path, repository: str) -> str:
-    """The URL to reach repository by: SSH when the clone's origin is SSH,
-    else HTTPS, so the person's existing git credentials serve."""
-    origin = _git(clone, "remote", "get-url", "origin").stdout.decode(errors="replace").strip()
-    if origin.startswith("git@github.com:") or origin.startswith("ssh://git@github.com/"):
-        return f"git@github.com:{repository}.git"
-    return f"https://github.com/{repository}.git"
+def _get(obj: Any, *keys: str) -> Any:
+    """obj[keys[0]][keys[1]]..., or None where a level is not an object."""
+    for key in keys:
+        if not isinstance(obj, dict):
+            return None
+        obj = cast(dict[str, Any], obj).get(key)
+    return obj
 
 
-_Tip = Literal["ok", "missing", "failed"]
+def _graphql(repository: str, query: str, variables: dict[str, str]) -> Any:
+    """The `repository` object in the answer to a GraphQL query about
+    repository, or None when the query fails or the repository cannot be
+    read."""
+    owner, name = repository.split("/")
+    data, _ = _api(["graphql"], {"query": query,
+                                 "variables": {"owner": owner, "name": name, **variables}})
+    return _get(data, "data", "repository")
 
 
-def _fetch_tip(clone: Path, repository: str) -> tuple[_Tip, str | None]:
-    """Fetch the questions branch into _ref(repository): ("ok", its
-    commit), ("missing", None) when the repository has no such branch (the
-    local ref is then removed), or ("failed", None)."""
-    if not is_repository(repository):
+# -- reading ---------------------------------------------------------------------
+
+_HISTORY = "history(first: 100{after}) {{ pageInfo {{ hasNextPage endCursor }} nodes {{ oid }} }}"
+
+_HEAD_QUERY = ("query($owner: String!, $name: String!, $ref: String!) {"
+               " repository(owner: $owner, name: $name) { isEmpty ref(qualifiedName: $ref) {"
+               " target { ... on Commit { oid tree { oid } "
+               + _HISTORY.format(after="") + " } } } } }")
+
+_MORE_QUERY = ("query($owner: String!, $name: String!, $head: GitObjectID!, $after: String!) {"
+               " repository(owner: $owner, name: $name) { object(oid: $head) { ... on Commit { "
+               + _HISTORY.format(after=", after: $after") + " } } } }")
+
+
+@dataclass(frozen=True)
+class _Head:
+    """The branch's head commit, its tree, and its commits, newest first."""
+
+    commit: str
+    tree: str
+    commits: list[str]
+
+
+_State = Literal["ok", "missing", "empty", "failed"]
+
+
+def _nodes(history: Any) -> list[str] | None:
+    nodes = _get(history, "nodes")
+    if not isinstance(nodes, list):
+        return None
+    oids = [_get(n, "oid") for n in cast(list[Any], nodes)]
+    return [o for o in oids if isinstance(o, str)] if all(isinstance(o, str) for o in oids) else None
+
+
+def _head(repository: str, all_commits: bool) -> tuple[_State, _Head | None]:
+    """The questions branch's head, as a state and the head:
+    - ("ok", head) when the branch exists;
+    - ("missing", None) when the repository has no questions branch;
+    - ("empty", None) when the repository has no commit at all, so GitHub
+      lets no branch be created in it;
+    - ("failed", None) when GitHub's answer cannot be read or lacks a field.
+    all_commits: read every commit, not only the newest 100."""
+    found = _graphql(repository, _HEAD_QUERY, {"ref": f"refs/heads/{BRANCH}"})
+    if not isinstance(found, dict):
         return "failed", None
-    url = remote_url(clone, repository)
-    listed = _git(clone, "ls-remote", "--heads", url, f"refs/heads/{BRANCH}")
-    if listed.returncode != 0:
+    ref = _get(found, "ref")
+    if ref is None:
+        return ("empty" if _get(found, "isEmpty") is True else "missing"), None
+    target = _get(ref, "target")
+    commit, tree = _get(target, "oid"), _get(target, "tree", "oid")
+    history = _get(target, "history")
+    commits = _nodes(history)
+    if not isinstance(commit, str) or not isinstance(tree, str) or commits is None:
         return "failed", None
-    line = listed.stdout.decode(errors="replace").split("\n")[0].split("\t")
-    if len(line) < 2 or not re.fullmatch(r"[0-9a-f]{40}", line[0]):
-        _git(clone, "update-ref", "-d", _ref(repository))
-        return "missing", None
-    done = _git(clone, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", url,
-                f"+refs/heads/{BRANCH}:{_ref(repository)}")
-    if done.returncode != 0:
-        return "failed", None
-    return "ok", _git(clone, "rev-parse", _ref(repository)).stdout.decode().strip()
+    while all_commits and _get(history, "pageInfo", "hasNextPage") is True:
+        after = _get(history, "pageInfo", "endCursor")
+        if not isinstance(after, str):
+            return "failed", None
+        more = _graphql(repository, _MORE_QUERY, {"head": commit, "after": after})
+        history = _get(more, "object", "history")
+        page = _nodes(history)
+        if page is None:
+            return "failed", None
+        commits += page
+    return "ok", _Head(commit, tree, commits)
 
 
-def cache_dir(repository: str) -> Path:
-    """The path of the bare repository that holds repository's questions
-    branch for a command run from no checkout of that repository:
-    state_home()/inquisitor/branches/<owner>/<repo>. fetch creates it."""
-    return state_home() / "inquisitor" / "branches" / repository
-
-
-def fetch(clone: Path, repository: str) -> bool:
-    """Fetch the repository's questions branch into clone, under a ref of
-    the script's own; False when it cannot. Where clone does not exist,
-    as for the path cache_dir gives, fetch first creates it as a bare
-    repository. When the repository has no questions branch, fetch
-    succeeds and list_files then finds no files."""
-    if not is_repository(repository):
-        return False
-    if not clone.exists():
-        clone.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        made = subprocess.run(["git", "init", "--quiet", "--bare", "--object-format=sha1",
-                               str(clone)],
-                              capture_output=True, check=False, env=_clean_env())
-        if made.returncode != 0:
-            return False
-    return _fetch_tip(clone, repository)[0] != "failed"
-
-
-def _tree(clone: Path, ref: str) -> dict[str, str] | None:
-    """Every file at ref, path to blob id; None when ref cannot be read."""
-    done = _git(clone, "ls-tree", "-r", "-z", "--full-tree", ref)
-    if done.returncode != 0:
+def _tree(repository: str, tree: str) -> dict[str, str] | None:
+    """Every file in tree, path to blob id; None when it cannot be read
+    whole."""
+    found, _ = _api([f"repos/{repository}/git/trees/{tree}?recursive=1"])
+    entries = _get(found, "tree")
+    if not isinstance(entries, list) or _get(found, "truncated") is not False:
         return None
     files: dict[str, str] = {}
-    for entry in done.stdout.split(b"\0"):
-        if not entry:
-            continue
-        meta, _, path = entry.partition(b"\t")
-        parts = meta.split(b" ")
-        if len(parts) == 3 and parts[1] == b"blob":
-            files[path.decode("utf-8", errors="surrogateescape")] = parts[2].decode()
+    for e in cast(list[Any], entries):
+        path, kind, sha = _get(e, "path"), _get(e, "type"), _get(e, "sha")
+        if kind == "blob" and isinstance(path, str) and isinstance(sha, str):
+            files[path] = sha
     return files
 
 
-def _blobs(clone: Path, ids: list[str]) -> list[bytes] | None:
-    """The contents of the blobs, in order, read with one cat-file."""
-    if not ids:
-        return []
-    done = _git(clone, "cat-file", "--batch", stdin=("\n".join(ids) + "\n").encode())
-    if done.returncode != 0:
-        return None
-    out, pos, found = done.stdout, 0, list[bytes]()
-    for _ in ids:
-        end = out.index(b"\n", pos)
-        header = out[pos:end].split(b" ")
-        if len(header) != 3:
+def _files_query(count: int) -> str:
+    params = "".join(f", $p{i}: String!, $b{i}: GitObjectID!" for i in range(count))
+    history = " ".join(f"h{i}: history(path: $p{i}, first: 100) {{ totalCount"
+                       f" pageInfo {{ hasNextPage endCursor }} nodes {{ oid }} }}"
+                       for i in range(count))
+    blobs = " ".join(f"b{i}: object(oid: $b{i}) {{ ... on Blob {{ text isTruncated }} }}"
+                     for i in range(count))
+    return (f"query($owner: String!, $name: String!, $head: GitObjectID!{params}) {{"
+            f" repository(owner: $owner, name: $name) {{"
+            f" object(oid: $head) {{ ... on Commit {{ {history} }} }} {blobs} }} }}")
+
+
+_PATH_QUERY = ("query($owner: String!, $name: String!, $head: GitObjectID!, $path: String!,"
+               " $after: String!) { repository(owner: $owner, name: $name) {"
+               " object(oid: $head) { ... on Commit { history(path: $path, first: 100,"
+               " after: $after) { pageInfo { hasNextPage endCursor } nodes { oid } } } } } }")
+
+
+def _first_commit(repository: str, head: str, path: str, history: Any) -> str | None:
+    """The oldest commit touching path. history is the first page of the
+    path's commits; later pages are read until the last. None when a page
+    cannot be read."""
+    oldest = None
+    while True:
+        page = _nodes(history)
+        if page is None:
             return None
-        size = int(header[2])
-        found.append(out[end + 1:end + 1 + size])
-        pos = end + 1 + size + 1
-    return found
+        if not page:
+            return oldest
+        oldest = page[-1]
+        if _get(history, "pageInfo", "hasNextPage") is not True:
+            return oldest
+        after = _get(history, "pageInfo", "endCursor")
+        if not isinstance(after, str):
+            return None
+        found = _graphql(repository, _PATH_QUERY, {"head": head, "path": path, "after": after})
+        history = _get(found, "object", "history")
 
 
-_MARK = "\x01inquisitor-commit:"
-
-
-def list_files(clone: Path, repository: str | None = None) -> list[BranchFile] | None:
-    """Every file on the fetched questions branch of repository (the
-    clone's origin when None), read from git's objects, in the order of the
-    commits that added them, or None when the branch cannot be read. A
-    repository with no questions branch has no files. Content that is not
-    UTF-8 is decoded with replacement characters; no questions-branch
-    format allows them, so parse() reads such a file as Unreadable."""
-    repository = repository or origin_repository(clone)
-    if repository is None or not is_repository(repository):
+def _blob(repository: str, sha: str) -> str | None:
+    """A blob's text read through REST, used when GraphQL gives the blob no
+    text because it is not UTF-8 or too large; None when the answer holds
+    no base64 content. Bytes that are not UTF-8 decode as replacement
+    characters, which no questions-branch format allows, so parse() reads
+    such a file as Unreadable."""
+    found, _ = _api([f"repos/{repository}/git/blobs/{sha}"])
+    content = _get(found, "content")
+    if not isinstance(content, str) or _get(found, "encoding") != "base64":
         return None
-    ref = _ref(repository)
-    if _git(clone, "rev-parse", "--verify", "--quiet", ref).returncode != 0:
-        return []
-    files = _tree(clone, ref)
-    log = _git(clone, "log", "--root", "--no-show-signature", "--reverse",
-               f"--format={_MARK}%H", "--name-status", "-z", "--no-renames",
-               "--no-relative", "--encoding=UTF-8", "--first-parent", ref)
-    if files is None or log.returncode != 0:
+    try:
+        return base64.b64decode(content).decode("utf-8", errors="replace")
+    except ValueError:
         return None
-    added: dict[str, str] = {}
-    changed: set[str] = set()
-    commit, status = "", None
-    for token in log.stdout.decode("utf-8", errors="surrogateescape").split("\0"):
-        if status is None:
-            # A status, or the next commit's mark; git puts a newline
-            # between a commit's mark and its first status.
-            token = token.removeprefix("\n")
-            if token.startswith(_MARK) and re.fullmatch(r"[0-9a-f]{40}", token[len(_MARK):]):
-                commit = token[len(_MARK):]
-            elif token:
-                status = token
-        else:
-            if token in added:
-                changed.add(token)
-            elif status == "A" and token in files:
-                added[token] = commit
-            status = None
-    contents = _blobs(clone, [files[p] for p in added])
-    if contents is None:
+
+
+def _read(repository: str, head: _Head, files: dict[str, str]) -> list[BranchFile] | None:
+    """Each file's text, the commit that added it and whether a later one
+    changed it, oldest first by the commit that added it and by path within
+    one commit; None when any call fails or an answer lacks a field."""
+    position = {c: i for i, c in enumerate(reversed(head.commits))}
+    paths = sorted(files)
+    out: list[tuple[int, str, BranchFile]] = []
+    for start in range(0, len(paths), BATCH):
+        batch = paths[start:start + BATCH]
+        variables = {"head": head.commit}
+        for i, p in enumerate(batch):
+            variables[f"p{i}"], variables[f"b{i}"] = p, files[p]
+        found = _graphql(repository, _files_query(len(batch)), variables)
+        if not isinstance(found, dict):
+            return None
+        for i, p in enumerate(batch):
+            history = _get(found, "object", f"h{i}")
+            commits, total = _nodes(history), _get(history, "totalCount")
+            if not commits or not isinstance(total, int):
+                return None
+            added = _first_commit(repository, head.commit, p, history)
+            text = _get(found, f"b{i}", "text")
+            if not isinstance(text, str) or _get(found, f"b{i}", "isTruncated") is not False:
+                text = _blob(repository, files[p])
+            if added is None or text is None:
+                return None
+            out.append((position.get(added, len(position)), p,
+                        BranchFile(path=p, content=text, added_by=added, changed=total > 1)))
+    return [f for _, _, f in sorted(out, key=lambda t: (t[0], t[1]))]
+
+
+def list_files(repository: str) -> list[BranchFile] | None:
+    """Every file on repository's questions branch, read through GitHub's
+    API, oldest first by the commit that added each (by path within one
+    commit), or None when the branch cannot be read. A repository with no
+    questions branch has no files."""
+    if not is_repository(repository):
         return None
-    return [BranchFile(path=p, content=c.decode("utf-8", errors="replace"), added_by=commit,
-                       changed=p in changed)
-            for (p, commit), c in zip(added.items(), contents)]
+    state, head = _head(repository, all_commits=True)
+    if state != "ok" or head is None:
+        return [] if state in ("missing", "empty") else None
+    files = _tree(repository, head.tree)
+    return None if files is None else _read(repository, head, files)
 
 
 # -- pending files ------------------------------------------------------------
@@ -260,142 +322,131 @@ def _drop_pending(repository: str, path: str) -> None:
 
 # -- pushing -------------------------------------------------------------------
 
-def _inquisitor_env(now: datetime.datetime) -> dict[str, str]:
-    midnight = datetime.datetime(now.year, now.month, now.day, tzinfo=datetime.timezone.utc)
-    stamp = f"{int(midnight.timestamp())} +0000"
-    return {"GIT_AUTHOR_NAME": "inquisitor", "GIT_AUTHOR_EMAIL": "noreply",
-            "GIT_COMMITTER_NAME": "inquisitor", "GIT_COMMITTER_EMAIL": "noreply",
-            "GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp}
-
-
-def _commit(clone: Path, parent: str | None, base: dict[str, str], path: str, content: str,
-            message: str, as_inquisitor: bool, index: Path) -> tuple[str, dict[str, str]] | None:
-    """One commit adding path on top of parent, built in a private index
-    file: its id and its tree's files, or None on failure."""
-    blob = _git(clone, "hash-object", "-w", "--stdin", stdin=content.encode("utf-8"))
-    if blob.returncode != 0:
-        return None
-    blob_id = blob.stdout.decode().strip()
-    env = {"GIT_INDEX_FILE": str(index)}
-    if parent is None:
-        reset = _git(clone, "read-tree", "--empty", env=env)
-    else:
-        reset = _git(clone, "read-tree", parent, env=env)
-    if reset.returncode != 0:
-        return None
-    entry = f"100644 {blob_id}\t{path}\0".encode("utf-8")
-    added = _git(clone, "update-index", "--add", "-z", "--index-info", env=env, stdin=entry)
-    tree = _git(clone, "write-tree", env=env)
-    if added.returncode != 0 or tree.returncode != 0:
-        return None
-    args = ["commit-tree", tree.stdout.decode().strip(), "-m", message]
-    if parent is not None:
-        args += ["-p", parent]
-    commit_env = dict(env)
-    if as_inquisitor:
-        args.append("--no-gpg-sign")
-        commit_env.update(_inquisitor_env(datetime.datetime.now(datetime.timezone.utc)))
-    made = _git(clone, *args, env=commit_env)
-    if made.returncode != 0:
-        return None
-    return made.stdout.decode().strip(), {**base, path: blob_id}
-
-
 def _as_inquisitor(path: str, content: str) -> bool:
     """Whether a pending file is committed as `inquisitor <noreply>`: a
     citation, or a hash-only miss file."""
     return path.startswith("citations/") or (path.startswith("misses/") and content == "---\n---\n")
 
 
-_REJECTED_MOVED = ("non-fast-forward", "fetch first", "[rejected]", "stale info")
-ATTEMPTS = 5
+def _commit(repository: str, parent: str | None, tree: str | None, path: str, content: str,
+            as_inquisitor: bool) -> tuple[str, str] | tuple[None, str]:
+    """One commit adding path on top of parent (whose tree is tree): its id
+    and its tree's id, or None and why it failed."""
+    entry = {"path": path, "mode": "100644", "type": "blob", "content": content}
+    made, err = _api(["-X", "POST", f"repos/{repository}/git/trees"],
+                     {"tree": [entry], **({"base_tree": tree} if tree else {})})
+    new_tree = _get(made, "sha")
+    if not isinstance(new_tree, str):
+        return None, err or "GitHub gave no tree"
+    body: dict[str, Any] = {"message": f"inquisitor: log {path}", "tree": new_tree,
+                            "parents": [parent] if parent else []}
+    if as_inquisitor:
+        midnight = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
+        body["author"] = body["committer"] = {"name": "inquisitor", "email": "noreply",
+                                              "date": midnight}
+    made, err = _api(["-X", "POST", f"repos/{repository}/git/commits"], body)
+    commit = _get(made, "sha")
+    if not isinstance(commit, str):
+        return None, err or "GitHub gave no commit"
+    return commit, new_tree
 
 
-def push_file(clone: Path, repository: str, path: str, content: str,
-              message: str, as_inquisitor: bool, service: bool) -> PushResult:
-    """Commit one file onto the branch with hash-object, a private index
-    and commit-tree, and push it by commit id, fetching and retrying when
-    the branch moved. as_inquisitor commits as `inquisitor <noreply>`
-    dated midnight UTC of the day it pushes, so the commit shows no time of
-    day (citations and hash-only miss files). A file that parse() reads
-    as unreadable is never pushed or kept. When the file's name is already
-    on the branch, nothing is pushed, not even pending files.
+# GitHub's refusals of a ref change because the branch moved: an update
+# that is no fast-forward, a create where the branch now exists, and an
+# update where it was deleted meanwhile.
+_MOVED = ("not a fast forward", "Reference already exists", "Reference does not exist")
 
-    Without service, files kept pending for that branch are committed
-    first, each with the message `inquisitor: log <path>`, and leave
-    pending once pushed. When the push fails, the new file is kept pending
-    beside them, unless it is a miss file whose name the last fetch saw on
-    the branch. With service, nothing is kept pending. No branch, HEAD,
-    index or working tree of the clone moves, and no hook runs."""
+
+def push_file(repository: str, path: str, content: str, as_inquisitor: bool,
+              service: bool) -> PushResult:
+    """Commit one file onto the repository's questions branch through
+    GitHub's Git database API, with the message `inquisitor: log <path>`.
+    It makes a tree on the branch's head and a commit of it, then moves the
+    branch to that commit without force. When the branch is missing, it
+    creates the branch as an orphan instead.
+
+    GitHub refuses that ref update when someone else changed the branch
+    first: committed to it, created it, or deleted it. Then push_file reads
+    the branch again and commits again on its new head, or as an orphan for
+    a deleted branch, up to ATTEMPTS times in all.
+
+    service is the answer service's option, under which nothing is ever
+    kept pending: the service retries its own failed pushes. Without it:
+    - the files already pending for this repository are committed first,
+      one commit each, oldest first, except one at this file's path, which
+      this file replaces, and any whose path the branch now holds;
+    - once the push lands, every pending file it covered leaves pending;
+    - when the push fails, this file is kept pending with the others.
+    A repository with no commits is such a failure: GitHub creates no
+    branch in it, and the PushResult's why says the repository needs a
+    first commit.
+
+    Nothing is pushed or kept pending in these cases:
+    - the file's path is already on the branch: taken is set. A path added
+      by someone else after the branch was read makes the ref update fail
+      as a moved branch, and the next attempt finds it, so no commit ever
+      adds a path the branch holds;
+    - the repository is malformed, or parse() reads the file as
+      unreadable.
+
+    as_inquisitor commits the file as `inquisitor <noreply>`, dated
+    midnight UTC of the day it pushes, so the commit shows no time of day.
+    Callers set it for citations and hash-only miss files (a miss file
+    holding only its hash; see formats.HashOnlyMiss), and a pending file
+    under `citations/`, or under `misses/` holding only empty frontmatter,
+    is committed the same way. Other commits are by gh's login."""
     if not is_repository(repository):
         return PushResult(pushed=False, why=f"{repository!r} is not in the form owner/repo")
     if isinstance(parse(path, content, True), Unreadable):
         return PushResult(pushed=False, why=f"{path!r} does not read as a questions-branch file")
-    queue = [] if service else [(p, c, f"inquisitor: log {p}", _as_inquisitor(p, c))
+    queue = [] if service else [(p, c, _as_inquisitor(p, c))
                                 for p, c in _pending(repository) if p != path]
-    queue.append((path, content, message, as_inquisitor))
+    queue.append((path, content, as_inquisitor))
     why = "the branch kept moving"
-    with tempfile.TemporaryDirectory() as tmp:
-        index = Path(tmp) / "index"
-        for _ in range(ATTEMPTS):
-            state, tip = _fetch_tip(clone, repository)
-            if state == "failed":
-                why = f"cannot fetch the {BRANCH} branch of {repository}"
-                break
-            base = _tree(clone, _ref(repository)) if tip else {}
-            if base is None:
-                why = f"cannot read the {BRANCH} branch of {repository}"
-                break
-            if path in base:
-                return PushResult(pushed=False, taken=True)
-            head, done_paths, failed = tip, list[str](), False
-            for p, c, msg, quiet in queue:
-                if p in base:
-                    done_paths.append(p)
-                    continue
-                made = _commit(clone, head, base, p, c, msg, quiet, index)
-                if made is None:
-                    failed = True
+    for _ in range(ATTEMPTS):
+        state, head = _head(repository, all_commits=False)
+        if state == "failed":
+            why = f"cannot read the {BRANCH} branch of {repository}"
+            break
+        if state == "empty":
+            why = (f"{repository} has no commits: it needs a first commit before its questions "
+                   "can be logged")
+            break
+        held = _tree(repository, head.tree) if head else {}
+        if held is None:
+            why = f"cannot read the {BRANCH} branch of {repository}"
+            break
+        seen = set(held)
+        if path in seen:
+            return PushResult(pushed=False, taken=True)
+        parent, tree = (head.commit, head.tree) if head else (None, None)
+        done: list[str] = []
+        failed: str | None = None
+        for p, c, quiet in queue:
+            if p not in seen:
+                commit, made = _commit(repository, parent, tree, p, c, quiet)
+                if commit is None:
+                    failed = made
                     break
-                head, base = made
-                done_paths.append(p)
-            if failed:
-                why = "git could not build the commit"
-                break
-            assert head is not None  # path was not in base, so it was committed
-            pushed = _git(clone, "push", "--quiet", "--no-verify", remote_url(clone, repository),
-                          f"{head}:refs/heads/{BRANCH}")
-            if pushed.returncode == 0:
-                for p in done_paths:
-                    _drop_pending(repository, p)
-                return PushResult(pushed=True)
-            err = pushed.stderr.decode(errors="replace")
-            if not any(sign in err for sign in _REJECTED_MOVED):
-                why = err.strip().splitlines()[-1] if err.strip() else "git push failed"
-                break
-    if not service and not (path.startswith("misses/") and _known_taken(clone, repository, path)):
+                parent, tree = commit, made
+            done.append(p)
+        if failed is not None:
+            why = failed
+            break
+        if head is None:
+            _, err = _api(["-X", "POST", f"repos/{repository}/git/refs"],
+                          {"ref": f"refs/heads/{BRANCH}", "sha": parent})
+        else:
+            _, err = _api(["-X", "PATCH", f"repos/{repository}/git/refs/heads/{BRANCH}"],
+                          {"sha": parent, "force": False})
+        if not err:
+            for p in done:
+                _drop_pending(repository, p)
+            return PushResult(pushed=True)
+        why = err
+        if not any(sign in err for sign in _MOVED):
+            break
+    if not service:
         _keep_pending(repository, path, content)
         return PushResult(pushed=False, pending=True, why=why)
     return PushResult(pushed=False, why=why)
-
-
-def _known_taken(clone: Path, repository: str, path: str) -> bool:
-    files = _tree(clone, _ref(repository))
-    return files is not None and path in files
-
-
-def landed(clone: Path, commit: str) -> bool | None:
-    """Whether commit is on the clone's remote-tracking default branch
-    (`origin/HEAD`), None when it cannot tell, as when the commit is not in
-    the clone or origin/HEAD is unset."""
-    head = _git(clone, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-    if head.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{4,40}", commit):
-        return None
-    if _git(clone, "cat-file", "-e", f"{commit}^{{commit}}").returncode != 0:
-        return None
-    done = _git(clone, "merge-base", "--is-ancestor", commit, head.stdout.decode().strip())
-    if done.returncode == 0:
-        return True
-    if done.returncode == 1:
-        return False
-    return None

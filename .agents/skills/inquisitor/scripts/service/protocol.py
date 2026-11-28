@@ -101,19 +101,22 @@ class QuestionView(TypedDict):
     """A question as the mod shows it. id is the core's own key for it,
     stable across polls. asker: "person" (including a relayed question),
     "agent", "item" (an Igor handback's item question) or
-    "questions-branch". text is null only for a question with a category,
-    whose text is never written to disk. item: its number in the Igor
-    handback's open-questions section. concerns: the place it concerns.
-    related: an earlier decision it names. recorded: filter 1's recorded
-    answer. replies: its thread's messages after it. new: found by the poll
-    that returned it. state: "open"; "set-aside", set aside for later by
-    the person and queued after the open ones in the mod's list; or "pending", answered,
-    the answer not yet posted in its thread; absent means "open".
-    suggested: filters 2 to 4's Suggestion, never on a person's question.
+    "questions-branch". text is null only for a question with a category
+    (has_category), whose text the core never stores and so cannot show.
+    item: its number in the Igor handback's open-questions section.
+    concerns: the repository or organization it concerns. related: an
+    earlier decision it names. recorded: the earlier answer that filter 1,
+    the search for one, found. replies: its thread's messages after it.
+    new: found by the poll that returned it. state: "open", or absent, for
+    an open question. "set-aside": the person set it aside for later, and
+    the mod lists it after the open ones. "pending": the person confirmed
+    an answer that is not yet posted in its thread. suggested: the model's
+    Suggestion of a filter 2 to 4 verdict, never on a person's question.
     relay: the bot account that posts the person's answers on the
     question's surface, such as `answers[bot]`; absent for a
     questions-branch question, since nothing is posted for one. revision:
-    the rephrasing the person last accepted (discussion.revise)."""
+    the rephrasing carried by the answer the person confirmed for this
+    question, whether posted or kept pending."""
 
     id: str
     surface: Surface
@@ -245,8 +248,13 @@ class VerdictRequest(TypedDict):
 
 
 class TurnEndRequest(TypedDict):
-    """The model's reply in a judging turn ended; the core acts on the
-    turn's accepted fields."""
+    """The mod sends this request when the model's reply in a judging turn
+    ends; the core then acts on the turn's accepted record_verdict fields
+    (records the verdict, searches, posts). It refuses a turn-end naming
+    no message awaiting that turn, such as one for a turn already ended,
+    so no turn is acted on twice. The mod sends no turn-end for a prompt that never
+    started a turn; the core keeps listing that JudgeRequest in each
+    poll."""
 
     command: Literal["judge.turn-end"]
     session_id: str
@@ -265,17 +273,17 @@ class DiscussionRequest(TypedDict):
     text: str
 
 
-class ReviseRequest(TypedDict):
-    """The core keeps the rephrasing the person accepted after a discussion,
-    in the question's discussion record, or in memory only for a question
-    with a category, since such a question has no discussion record. When
-    the question's next "answer" preview builds its post, that post
-    includes it."""
+class SetAsideRequest(TypedDict):
+    """The mod sends this request when the person sets a question aside for
+    later. The core keeps the question set aside in its state folder,
+    which state.py writes, and each later poll's QuestionView gives it the
+    state "set-aside", until a post request answering or declining it is
+    sent, whether the post goes out or is kept pending. Nothing else, a
+    reopen included, ends the set-aside."""
 
-    command: Literal["discussion.revise"]
+    command: Literal["set-aside"]
     session_id: str
     question: str
-    revision: Revision
 
 
 class ContextRequest(TypedDict):
@@ -294,20 +302,30 @@ class ScreenRequest(TypedDict):
 
 class PreviewRequest(TypedDict):
     """Build the exact post and the questions-branch record before anything
-    goes out. action: "answer" (a `User says: ` post), "ask" (a `User asks:
-    ` post), "decline" (reason 1, won't answer, or reason 2, the inquisitor
-    should have stopped the question, with the filter that should have
-    stopped it: answer-service spec, *The person can decline to answer*),
-    "agree" (a shown recorded answer), "edit" (a relay post's new text).
+    goes out. action is one of five:
+    - "answer": a `User says: ` post;
+    - "ask": a `User asks: ` post;
+    - "decline": the person declines to answer (answer-service spec, *The
+      person can decline to answer*). Reason 1 means they won't answer.
+      Reason 2 means the inquisitor's filters should have stopped the
+      question, and filter names the filter that should have;
+    - "agree": the person agrees with the recorded answer shown beside
+      the question;
+    - "edit": a relay post's new text.
     text: the answer, the question asked back or the edited post's text,
     for "answer", "ask" and "edit". place: the person's pick of a place
     other than the one the question concerns, for the question's record.
-    recorded_in: for a reason 2, filter 1 decline, the URL its post links
-    to. note: the person's note for the miss a reason 2 decline logs.
+    recorded_in: for a reason 2 decline by filter 1, the URL of the record
+    that the decline's post links to. note: the person's note for the miss a reason 2 decline logs.
     unasked: with reason 2 and filter 3 on an agent's question, filter 3's
     "the agent shouldn't have asked": the core posts nothing and logs a
     filter 3 miss against the asking agent; it refuses unasked with any
-    other reason or filter."""
+    other reason or filter. revision: the rephrasing the person accepted,
+    with action "answer" only; the core refuses it with any other action.
+    The post carries its `Rephrased question: ` and `Discussion: ` lines.
+    The core keeps the revision, with the answer, only once a post request
+    names this preview, whether the post goes out then or is kept pending.
+    The rephrasing reaches the core no other way."""
 
     command: Literal["preview"]
     session_id: str
@@ -320,6 +338,7 @@ class PreviewRequest(TypedDict):
     recorded_in: NotRequired[str]
     note: NotRequired[str]
     unasked: NotRequired[bool]
+    revision: NotRequired[Revision]
 
 
 class PostRequest(TypedDict):
@@ -339,7 +358,7 @@ class ReopenRequest(TypedDict):
 
 Request = (OpenRequest | SessionRequest | SetupSaveRequest | SetupGuessRequest
            | SetupCreateLoreRequest | VerdictRequest | TurnEndRequest | DiscussionRequest
-           | ReviseRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
+           | SetAsideRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
            | ReopenRequest)
 
 
@@ -375,10 +394,20 @@ class RefreshResponse(TypedDict):
 
 
 class PollResponse(TypedDict):
-    """rate_limited_until concerns GitHub alone: while GitHub refuses
-    requests for its rate limit, it holds the reset time GitHub gave (ISO
-    8601, UTC), else null. The core sends GitHub no request until then and
-    keeps polling Linear and Discord, and it adds a "rate-limit" notice to
+    """judge: every message awaiting judgement, oldest first, each with
+    the turn it awaits. It includes any turn 2 request that
+    TurnEndResponse.next has given. A request stays in every poll's list
+    until the mod sends a judge.turn-end for its message and turn, so one
+    whose prompt was dropped or lost comes back (answer-service spec: *A
+    message awaits judgement until its turn ends*). The mod keeps no
+    queue of its own: once every judging prompt it sent has ended its turn
+    or was dropped or lost, it puts the first listed request before the
+    model.
+
+    rate_limited_until concerns GitHub alone: while GitHub refuses
+    requests for its rate limit, the field holds the reset time GitHub gave
+    (ISO 8601, UTC), else null. The core sends GitHub no request until then
+    and keeps polling Linear and Discord, and the core adds a "rate-limit" notice to
     the first poll of each such wait only, so the person is told once per
     wait."""
 
@@ -456,8 +485,11 @@ class PostedItem(TypedDict):
 
 class TurnEndResponse(TypedDict):
     """next: after turn 1, the turn 2 request, or null when the message
-    needs no turn 2; after turn 2, null. posted: the automatic posts the
-    core made."""
+    needs no turn 2; after turn 2, null. next heads the poll's list once
+    turn 1 ends, since its message was the oldest listed, so the mod may
+    put it before the model at once instead of waiting for the next
+    poll. posted: the automatic posts the core made in acting on
+    this turn."""
 
     version: int
     ok: Literal[True]
@@ -507,8 +539,9 @@ class PendingResponse(TypedDict):
 
 
 class DoneResponse(TypedDict):
-    """The response to close, discussion.append, discussion.revise,
-    screen.set, reopen and setup.create-lore."""
+    """The response to the commands close (a SessionRequest),
+    discussion.append, set-aside, screen.set, reopen
+    and setup.create-lore."""
 
     version: int
     ok: Literal[True]

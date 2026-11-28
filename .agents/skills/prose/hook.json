@@ -17,12 +17,12 @@
       }
     },
     {
-      "summary": "Blocks a GitHub post whose body does not end with a valid prose footer.",
+      "summary": "Blocks a GitHub, Discord or Linear post whose body does not end with a valid prose footer.",
       "command": "scripts/check-post.sh",
       "events": {
         "claude": {
           "event": "PreToolUse",
-          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*|mcp__claude_ai_GitHub__.*|mcp__linear__.*|mcp__plugin_.*_linear__.*|mcp__claude_ai_Linear__.*)$"
         },
         "cursor": {
           "event": "beforeShellExecution"

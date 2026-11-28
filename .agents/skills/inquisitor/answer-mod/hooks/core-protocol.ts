@@ -51,11 +51,14 @@ export type Option = { label: string; effect: string }
 export type Revision = { text: string; summary: string; options?: Option[] }
 
 /**
- * state: absent means 'open'; 'set-aside', set aside for later by the
- * person, comes after the open ones in the mod's list; 'pending' is
- * answered, the answer not yet posted in the question's thread. relay: the
- * bot account that posts the person's answers on the question's surface;
- * absent for a questions-branch question, since nothing is posted for one.
+ * state: 'open', or absent, for an open question. 'set-aside': the person
+ * set it aside for later, and the mod lists it after the open ones.
+ * 'pending': the person confirmed an answer that is not yet posted in the
+ * question's thread. relay: the bot account that posts the person's
+ * answers on the question's surface; absent for a questions-branch
+ * question, since nothing is posted for one. revision: the rephrasing
+ * carried by the answer the person confirmed for this question, whether
+ * posted or kept pending.
  */
 export type QuestionView = {
   id: string
@@ -148,6 +151,7 @@ export type VerdictRequest = {
   fields: VerdictFields
   agent_id?: string
 }
+/** The mod sends this request when the model's reply in a judging turn ends; the core then acts on the turn's accepted record_verdict fields (records the verdict, searches, posts). It refuses a turn-end naming no message awaiting that turn, such as one for a turn already ended, so no turn is acted on twice. The mod sends no turn-end for a prompt that never started a turn; the core keeps listing that JudgeRequest in each poll. */
 export type TurnEndRequest = {
   command: 'judge.turn-end'
   session_id: string
@@ -161,8 +165,8 @@ export type DiscussionRequest = {
   role: 'person' | 'model'
   text: string
 }
-/** The core keeps the rephrasing the person accepted; when the question's next 'answer' preview builds its post, that post includes it. */
-export type ReviseRequest = { command: 'discussion.revise'; session_id: string; question: string; revision: Revision }
+/** The mod sends this request when the person sets a question aside for later. The core keeps the question set aside, and each later poll's QuestionView gives it the state 'set-aside', until a post request answering or declining it is sent, whether the post goes out or is kept pending. Nothing else, a reopen included, ends the set-aside. */
+export type SetAsideRequest = { command: 'set-aside'; session_id: string; question: string }
 export type ContextRequest = { command: 'context'; session_id: string; question: string }
 export type ScreenRequest = { command: 'screen.set'; session_id: string; question: string | null }
 export type PreviewRequest = {
@@ -178,6 +182,8 @@ export type PreviewRequest = {
   note?: string
   /** With reason 2 and filter 3: "the agent shouldn't have asked"; the core posts nothing and logs a filter 3 miss against the asking agent, and refuses it with any other reason or filter. */
   unasked?: boolean
+  /** The rephrasing the person accepted, with action 'answer' only; the core refuses it with any other action. The post carries its `Rephrased question: ` and `Discussion: ` lines. The core keeps the revision, with the answer, only once a post request names this preview, whether the post goes out then or is kept pending; the rephrasing reaches the core no other way. */
+  revision?: Revision
 }
 export type PostRequest = { command: 'post'; session_id: string; preview: string }
 export type ReopenRequest = { command: 'reopen'; session_id: string; question: string }
@@ -191,7 +197,7 @@ export type Request =
   | VerdictRequest
   | TurnEndRequest
   | DiscussionRequest
-  | ReviseRequest
+  | SetAsideRequest
   | ContextRequest
   | ScreenRequest
   | PreviewRequest
@@ -211,8 +217,16 @@ export type OpenResponse = Ok & {
 }
 export type RefreshResponse = Ok & { held: boolean }
 /**
+ * judge: every message awaiting judgement, oldest first, each with the turn
+ * it awaits. It includes any turn 2 request that TurnEndResponse.next has
+ * given. A request stays in every poll's list until the mod sends a
+ * judge.turn-end for its message and turn, so one whose prompt was dropped
+ * or lost comes back. The mod keeps no queue of its own: once every judging
+ * prompt it sent has ended its turn or was dropped or lost, it puts the
+ * first listed request before the model.
+ *
  * rate_limited_until concerns GitHub alone: while GitHub refuses requests
- * for its rate limit, it holds GitHub's reset time (ISO 8601, UTC), else
+ * for its rate limit, the field holds GitHub's reset time (ISO 8601, UTC), else
  * null. The core skips GitHub until then, keeps polling Linear and Discord,
  * and adds a 'rate-limit' notice to the first poll of each such wait only.
  */
@@ -243,6 +257,7 @@ export type GuessResponse = Ok & { repos: string[] }
 export type VerdictResponse = Ok & { accepted: boolean; why?: string }
 /** An automatic post the core made: `question` is the id of the question it answers; `url`, the post's URL; `text`, its exact text; `kind`, 'recorded' for a `Recorded answer: ` post or 'inquisitor' for an `Inquisitor: ` post. */
 export type PostedItem = { question: string; url: string; text: string; kind: 'recorded' | 'inquisitor' }
+/** next: after turn 1, the turn 2 request, or null when the message needs no turn 2; after turn 2, null. next heads the poll's list once turn 1 ends, since its message was the oldest listed, so the mod may put it before the model at once instead of waiting for the next poll. posted: the automatic posts the core made in acting on this turn. */
 export type TurnEndResponse = Ok & {
   next: JudgeRequest | null
   posted: PostedItem[]
@@ -280,7 +295,7 @@ export type ResponseFor = {
   'judge.verdict': VerdictResponse
   'judge.turn-end': TurnEndResponse
   'discussion.append': DoneResponse
-  'discussion.revise': DoneResponse
+  'set-aside': DoneResponse
   context: ContextResponse
   'screen.set': DoneResponse
   preview: PreviewResponse
