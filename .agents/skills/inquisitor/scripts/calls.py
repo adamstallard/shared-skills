@@ -597,15 +597,18 @@ def _record(question: _TokenQuestion, v: dict[str, Any], now: float) -> VerdictR
 
 
 def _keep_identities(records: list[VerdictRecord]) -> None:
-    """Copy the github-app identity recorded for each hash into the record
-    that replaces it. The `tag` command records that identity when it tags
-    a person in an App's post, and the post goes out only as that App
+    """For each new record whose verdict is `ask`, copy in the github-app
+    identity of the old record holding the same hash. The `tag` command
+    writes that identity when it adds a tag line to an App's post, and
+    while a record holds it, the post may go out only as that App
     (inquisitor spec: *A tag made for an App's post blocks a plain gh
-    post*); vetting the post again must not unbind it. Only a
-    new run of `tag` changes the identity. A new record with a category,
-    or of a `not asked` verdict, gets no identity, so re-vetting to one of
-    those drops it. When the old records cannot be read, this refuses, so
-    the second call records nothing and keeps its token."""
+    post*). Vetting the post again as `ask` keeps the tag line, so it keeps
+    the identity; only a new run of `tag` changes it. Any other verdict
+    puts no tag line in the post, and a question with a category is never
+    tagged, being recorded by hash only, so those new records get no
+    identity. When the old records cannot be read, this refuses; the
+    second call calls it before spending its token, so it records nothing
+    and the token stays usable."""
     hashes = {r["hash"] for r in records}
     old = read_records(hashes)
     if old is None:
@@ -614,7 +617,7 @@ def _keep_identities(records: list[VerdictRecord]) -> None:
     for record in records:
         previous = old.get(record["hash"])
         identity = previous.get("identity") if previous is not None else None
-        if identity is not None and "category" not in record and record["verdict"] != "not asked":
+        if identity is not None and "category" not in record and record["verdict"] == "ask":
             record["identity"] = identity
 
 

@@ -591,6 +591,20 @@ class KeepIdentity(Base):
         self.second(token, [{"question": 1, **self.ASK}])
         self.assertEqual(json.loads(path.read_text()).get("identity"), "bot")
 
+    def test_vetting_again_to_another_verdict_drops_the_identity(self) -> None:
+        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
+        # The other side of that scenario: a post vetted again as `deferred` holds no tag line
+        # (only an `ask` gets the one `tag` adds), so its record drops the identity, and nothing
+        # then blocks posting it with plain gh.
+        token, path = self.vet()
+        self.second(token, [{"question": 1, **self.ASK}])
+        record = json.loads(path.read_text())
+        path.write_text(json.dumps({**record, "identity": "bot"}))
+        token, _ = self.vet()
+        self.second(token, [{"question": 1, "verdict": "deferred", "field": {"where": "issue #9"}}])
+        record = json.loads(path.read_text())
+        self.assertEqual((record["verdict"], "identity" in record), ("deferred", False))
+
     def test_unreadable_records_refuse_and_keep_the_token(self) -> None:
         # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
         # That scenario's block rests on the identity in the record. A record that cannot be read
