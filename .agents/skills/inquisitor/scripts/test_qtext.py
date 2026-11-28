@@ -325,7 +325,8 @@ class RecordLines(unittest.TestCase):
                      "Not recorded: it has a category",
                      "Not recorded: no push access to its questions branch",
                      "Not recorded: no team's lore repository serves it",
-                     "Not recorded: no GitHub login configured"):
+                     "Not recorded: no GitHub login configured",
+                     "Not recorded: asked outside any repository"):
             q = Question("picker", bare.question + "\n" + line, bare.options)
             self.assertEqual(question_hash(question_text(q)), h, line)
         for line in ("Not recorded: also, may I force-push main?",

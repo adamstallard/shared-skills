@@ -499,12 +499,18 @@ class Edges(Base):
             "recommended": "Yes", "changes": "No: x."}}])
         return result["lines"][0]["record_line"]
 
-    def test_record_line_without_asked_from(self) -> None:
-        # @scenario inquisitor: The picker shows where the answer will be recorded
-        with mock.patch("calls._working_repository", return_value=None), \
-                mock.patch("github.visibility", side_effect={"o/api": "public"}.get):
-            self.assertEqual(self.line(picker("Retry?", ["Yes", "No"])),
-                             "Recorded: o/api questions branch (public)")
+    def test_record_line_outside_any_repository(self) -> None:
+        # @scenario inquisitor: Not recorded gives a listed reason
+        # Both questions concern o/api (picker's default concerns). _working_repository gives
+        # None, as in a folder no git repository holds, so the first call sets no asked_from
+        # and the first question is not recorded. The second names its asked_from in the
+        # questions input, which says where it was asked, so it is recorded (private: the
+        # visibility Base mocks).
+        q = picker("Retry?", ["Yes", "No"])
+        with mock.patch("calls._working_repository", return_value=None):
+            self.assertEqual(self.line(q), "Not recorded: asked outside any repository")
+            self.assertEqual(self.line({**q, "concerns": {"repository": "o/api", "asked_from": "o/api"}}),
+                             "Recorded: o/api questions branch (private)")
 
     def test_no_login_before_access_check(self) -> None:
         # @scenario inquisitor: Not recorded gives a listed reason

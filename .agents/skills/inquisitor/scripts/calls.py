@@ -562,6 +562,8 @@ def record_line(question: _TokenQuestion, cfg: config.Config) -> str:
         return NOT_RECORDED_PREFIX + "no team's lore repository serves it"
     if login is None:
         return NOT_RECORDED_PREFIX + "no GitHub login configured"
+    if not asked_from:
+        return NOT_RECORDED_PREFIX + "asked outside any repository"
     to = github.visibility(branch) or "public"
     line = f"{RECORDED_PREFIX}{branch} questions branch ({to})"
     if asked_from and asked_from != branch:
