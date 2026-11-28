@@ -9,6 +9,7 @@ import type { Request } from './core-protocol'
 import type { ServiceState } from '../types'
 import { INITIAL } from './state'
 
+const flashAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'flash' } as const, INITIAL.flash)
 const judgingAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'judging' } as const, INITIAL.judging)
 const serviceAtom = atom({ plugin: 'inquisitor-answer-mod', key: 'service' } as const, INITIAL.service)
 
@@ -43,6 +44,8 @@ export async function lost($: EngineInterface): Promise<void> {
   stopTimers()
   await update($, serviceAtom, () => ({ status: 'lost' as const }))
   await update($, judgingAtom, () => null)
+  // The band's notice from the queue, such as a stopped post's "Not posted" line, means nothing once the lock is lost.
+  await update($, flashAtom, () => null)
   $.ui.toast('Another session took over the answer service: this one has closed it.')
 }
 

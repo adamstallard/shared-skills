@@ -4,7 +4,8 @@ import { expect, test } from 'claude-code/testing'
 
 import { blocked, strip, stripListed, toolsMessage } from '../hooks/service'
 import { applySetup, channelsOf, setupIntent } from '../hooks/setup'
-import { BAND, OPENED, question, polled, session, shown } from './harness'
+import { EXAMPLES } from './core-examples'
+import { BAND, OPENED, question, polled, session, shown, typeInBox } from './harness'
 
 const OWN = ['mcp__inquisitor-answer-mod__propose_reply', 'mcp__inquisitor-answer-mod__record_verdict']
 const OTHER = { plugin: 'other', tier: 'user' } as const
@@ -147,6 +148,222 @@ test('a lock lost to another session closes this one: it refreshes and polls not
   expect(s.of('refresh').length).toBe(refreshes)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await shown(ui, /Another session took it over/)).toBeDefined()
+})
+
+test('the closed screen shows none of the queue\'s last line once the lock is lost', async ($, on) => {
+  // @scenario answer-service: Taking over stops the old session
+  let held = true
+  const s = session(on, { core: { refresh: () => ({ version: 1, ok: true, held }), poll: () => polled([question('q1', { text: 'First?' })]) } })
+  await s.start($)
+  // The question came on screen as the service opened, so the first Enter on it, l (later) here, only shows it and leaves a "just come on screen" notice.
+  await s.enter($, 'l')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /just come on screen/)).toBeDefined()
+  held = false
+  await s.clock.advance(30_000)
+  await (ui as unknown as { redraw(): Promise<unknown> }).redraw()
+  expect(await shown(ui, /Another session took it over/)).toBeDefined()
+  expect(await shown(ui, /just come on screen/)).toBeUndefined()
+})
+
+test('opening the service again with /answer drops the closed screen\'s line', async ($, on) => {
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  await s.enter($, 'x')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /opens the answer service again; q leaves/)).toBeDefined()
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  await (ui as unknown as { redraw(): Promise<unknown> }).redraw()
+  expect(await shown(ui, /opens the answer service again; q leaves/)).toBeUndefined()
+  expect(await shown(ui, /Answer service open/)).toBeDefined()
+})
+
+test('taking over from the lock shows the open service\'s line, not the lock screen\'s', async ($, on) => {
+  // @scenario answer-service: A second session is offered the choice
+  const s = session(on, {
+    core: {
+      open: req => (req['takeover'] === true ? OPENED : { version: 1, ok: true, status: 'locked', lock: { session_id: 'sess-0', session_name: 'Answers', started: 'x', refreshed: 'y' }, notices: [] }),
+    },
+  })
+  await s.start($)
+  await s.enter($, 'x')
+  await s.enter($, 't')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /\(t\)ake over, or \(q\)uit/)).toBeUndefined()
+  expect(await shown(ui, /Answer service open/)).toBeDefined()
+})
+
+test('saving setup opens the service with its own line, not setup\'s last note', async ($, on) => {
+  // @scenario answer-service: Setup opens in place of the queue on an incomplete configuration
+  let complete = false
+  const s = session(on, {
+    core: {
+      open: () => (complete ? OPENED : { version: 1, ok: true, status: 'setup', notices: [] }),
+      'setup.status': () => ({ version: 1, ok: true, complete: false, config: {}, checks: [] }),
+      'setup.save': req => {
+        complete = true
+        return { version: 1, ok: true, complete: true, config: req['config'], checks: [] }
+      },
+    },
+  })
+  await s.start($)
+  await s.enter($, 'relay github answers')
+  await s.enter($, 'add github o/api')
+  await s.enter($, 'login alice')
+  await s.enter($, 's')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /\(s\)ave keeps it/)).toBeUndefined()
+  expect(await shown(ui, /Answer service open/)).toBeDefined()
+})
+
+test('going back from setup over the open service drops setup\'s last note', async ($, on) => {
+  // @scenario answer-service: Setup runs again on request
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer', 'setup')
+  await s.clock.settle()
+  await s.enter($, 'login bob')
+  await s.enter($, 'b')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /\(s\)ave keeps it/)).toBeUndefined()
+  expect(await shown(ui, /Answer service open/)).toBeDefined()
+})
+
+test('closing with /answer shows the closed screen\'s own line, not the queue\'s', async ($, on) => {
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /Ctrl\+C twice to leave/)).toBeUndefined()
+  expect(await shown(ui, /Nothing polls while it is closed/)).toBeDefined()
+})
+
+test('a judging prompt lost before the lock went holds nothing once the service reopens', async ($, on) => {
+  // @scenario answer-service: Taking over stops the old session
+  let held = true
+  let polls = 0
+  const judge = { message: 'm1', turn: 1, text: 'Judge this.', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
+  const s = session(on, {
+    core: {
+      refresh: () => ({ version: 1, ok: true, held }),
+      poll: () => polled([question('q1', { asker: 'person', asked_by: 'maya' })], { judge: polls++ === 0 ? [judge] : [] }),
+      context: () => ({ version: 1, ok: true, context: 'c' }),
+    },
+  })
+  await s.start($)
+  // The judging prompt was submitted, and no turn starts for it, as when the engine loses it.
+  expect(s.sent[0]).toContain('Judge message m1, turn 1.')
+  held = false
+  await s.clock.advance(30_000)
+  held = true
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  // h opens a discussion of the question on screen, so the mod sends the next line to Claude instead of dropping it.
+  await s.enter($, 'h')
+  expect(await s.enter($, 'Is this about the API client?')).toBeUndefined()
+})
+
+test('an open the core refuses leaves the service closed, saying why', async ($, on) => {
+  const s = session(on, { core: { open: () => ({ version: 1, ok: false, error: 'the state folder is unreadable' }) } })
+  await s.start($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /THE ANSWER SERVICE IS CLOSED/)).toBeDefined()
+  expect(await shown(ui, /The answer service did not open: the state folder is unreadable/)).toBeDefined()
+})
+
+test('going back from setup over the open service keeps one lock refresh running', async ($, on) => {
+  // @scenario answer-service: An idle answer service keeps its lock fresh
+  const s = session(on)
+  await s.start($)
+  await s.slash($, 'answer', 'setup')
+  await s.clock.settle()
+  await s.enter($, 'b')
+  const before = s.of('refresh').length
+  await s.clock.advance(30_000)
+  expect(s.of('refresh').length).toBe(before + 1)
+})
+
+test('a question that names no relay shows the relay setup gives its surface', async ($, on) => {
+  const s = session(on, { core: { poll: () => polled([question('q1', { text: 'First?', relay: undefined })]) } })
+  await s.start($)
+  await s.enter($, 'h')
+  await s.enter($, 'b')
+  await typeInBox($, 'Yes, capped at a minute.')
+  await s.clock.advance(1_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /AS answers\b/)).toBeDefined()
+  expect(await shown(ui, /your relay/)).toBeUndefined()
+})
+
+test('a judging turn that ends while /answer reopens the service keeps its line', async ($, on) => {
+  const judge = { message: 'A', turn: 1, text: 'Should retries back off?', needs_place: false, needs_place_sure: false, places: [], defaults: [], person_question: false }
+  let opens = 0
+  let release: () => void = () => undefined
+  const gate = new Promise<void>(r => (release = r))
+  const s = session(on, {
+    core: {
+      poll: () => polled([], { judge: [judge] }),
+      // The second open, the reopen, is held until the test releases the gate, after the judging turn ends.
+      open: async () => {
+        if (opens++ === 1) await gate
+        return OPENED
+      },
+      'judge.turn-end': () => EXAMPLES['judge.turn-end.posted'].response,
+    },
+  })
+  await s.start($)
+  await $.turn.start({ text: s.sent.at(-1) ?? '', turnId: 'j1' })
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  const reopening = s.slash($, 'answer')
+  await s.clock.settle()
+  await $.turn.complete({ answer: 'judged.', durationMs: 1, isAborted: false, turnId: 'j1', reason: 'answer' })
+  await s.clock.settle()
+  release()
+  await reopening
+  await s.clock.settle()
+  expect(s.of('judge.turn-end')).toHaveLength(1)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /answered for you/)).toBeDefined()
+})
+
+test('a line typed while the service opens does not stay once it is open', async ($, on) => {
+  let opens = 0
+  let release: () => void = () => undefined
+  const gate = new Promise<void>(r => (release = r))
+  const s = session(on, {
+    core: {
+      open: async () => {
+        if (opens++ === 1) await gate
+        return OPENED
+      },
+    },
+  })
+  await s.start($)
+  await s.slash($, 'answer')
+  await s.clock.settle()
+  const reopening = s.slash($, 'answer')
+  await s.clock.settle()
+  expect(await s.enter($, 'x')).toBe('The answer service is opening: a moment.')
+  release()
+  await reopening
+  await s.clock.settle()
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await shown(ui, /is opening: a moment/)).toBeUndefined()
+  expect(await shown(ui, /Answer service open/)).toBeDefined()
+})
+
+test("a notice in the core's open reply shows over the open queue", async ($, on) => {
+  const s = session(on, { core: { open: () => ({ ...OPENED, notices: [{ kind: 'login', text: 'gh is not logged in' }] }) } })
+  await s.start($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(s.toasts).toContain('gh is not logged in')
+  expect(await shown(ui, /gh is not logged in/)).toBeDefined()
+  expect(await shown(ui, /Answer service open/)).toBeUndefined()
 })
 
 test('a core error saying the lock is lost closes the answer service too', async ($, on) => {

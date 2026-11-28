@@ -56,6 +56,9 @@ export function toolsMessage(names: readonly string[]): string {
     .join(' ')
 }
 
+/** The reply to a line typed while the service opens. openService clears this reply when the open call returns. */
+export const OPENING_LINE = 'The answer service is opening: a moment.'
+
 /** The polls run about this long after each one ends. */
 export const POLL_MS = 60_000
 /** The lock is refreshed at least this often; it goes stale after 2 minutes. */
@@ -114,7 +117,11 @@ export async function openService($: EngineInterface, takeover: boolean): Promis
     return
   }
   await update($, serviceAtom, () => ({ status: 'opening' as const }))
+  // Clears the band's notice from the screen the service opens from (closed, locked or setup), which would otherwise stay over the queue.
+  // It clears before the call, so a notice written during the call, such as a judging turn's, is kept; only the opening reply is cleared after it.
+  await update($, flashAtom, () => null)
   const res = await ask($, { command: 'open', session_id: await $.session.id(), session_name: 'Answers', takeover })
+  await update($, flashAtom, f => (f === OPENING_LINE ? null : f))
   if (!res.ok) {
     await update($, serviceAtom, () => ({ status: 'closed' as const }))
     await update($, flashAtom, () => `The answer service did not open: ${res.error}`)
