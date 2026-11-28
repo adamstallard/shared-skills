@@ -207,21 +207,57 @@ Linear already holds.
   `state`
 - **THEN** the reader reports that the call sends no post
 
-### Requirement: Every other Linear save, create, update or submit tool is unreadable
+### Requirement: Another Linear write tool sends no post only when it holds no text
 
-Any tool under a Linear MCP prefix whose name starts `save_`,
+For a tool under a Linear MCP prefix whose name starts `save_`,
 `create_`, `update_` or `submit_`, other than `save_comment` and
-`save_issue`, SHALL be unreadable, whatever its input holds. Any other
-Linear MCP tool SHALL send no post.
+`save_issue`, the reader SHALL report that the call sends no post when
+every string in its input sits under a key on the **no-text list**, and
+SHALL report it unreadable otherwise. A string sits under the nearest
+object key above it. The reader SHALL report a call of any other Linear
+MCP tool as sending no post, since those tools take no text Linear
+shows.
 
-#### Scenario: Another Linear tool that writes text is unreadable
+#### Scenario: The no-text list names keys that hold no text
 
-- **WHEN** a hook asks about `mcp__linear__save_document`,
-  `mcp__linear__save_status_update`, `mcp__linear__save_diff_comment`,
-  `mcp__linear__create_attachment`, `mcp__linear__update_diff` and
-  `mcp__linear__submit_diff_review`
-- **THEN** the reader reports each call as unreadable
+- **WHEN** the reader judges a Linear write call's strings
+- **THEN** it counts as text-free only a string under `id`, `issue`,
+  `project`, `initiative`, `cycle`, `team`, `teamId`, `parent`,
+  `parentId`, `lead`, `leadTeam`, `addTeams`, `removeTeams`, `setTeams`,
+  `addInitiatives`, `removeInitiatives`, `setInitiatives`, `labels`,
+  `pipeline`, `stage`, `releases`, `rangeFromRelease`, `rangeToRelease`,
+  `urlOrId`, `commentId`, `draftId`, `user`, `externalUserId`,
+  `githubTeamId`, `removedIssueLinks`, `commitSha`, `state`,
+  `health`, `type`, `decision`, `statusAction`, `groupType`,
+  `startDateResolution`, `targetDateResolution`, `startDate`,
+  `targetDate`, `startedAt`, `completedAt`, `createdAt` or `color`
+- **AND** each string in `addTeams` sits under `addTeams`, the string at
+  `addedIssueLinks[0].issue` under `issue`, and the string at
+  `patch[0].text` under `text`
+
+#### Scenario: A Linear write call holding no text sends no post
+
+- **WHEN** a hook asks about `mcp__linear__save_project` with `id`
+  `P-ENG-12`, `state` `completed` and `targetDate` `2026-12-01`, about
+  `mcp__linear__update_diff` with `urlOrId` `ENG-5`, `statusAction`
+  `markReadyForReview` and `addedReviewRequests` `[{"user": "alice"}]`,
+  and about `mcp__linear__submit_diff_review` with `urlOrId` `ENG-5`
+  and `decision` `approved`
+- **THEN** the reader reports that each call sends no post
 - **AND** it reports `mcp__linear__get_issue` as sending no post
+
+#### Scenario: A Linear write call holding text is unreadable
+
+- **WHEN** a hook asks about `mcp__linear__save_document` with
+  `content`, `mcp__linear__save_status_update` with `body`,
+  `mcp__linear__save_project` with `id` and `summary`,
+  `mcp__linear__update_diff` with `urlOrId` and `title`,
+  `mcp__linear__save_milestone` with `project` and `name`,
+  `mcp__linear__save_release_note` with `id` and `patch`
+  `[{"op": "append", "text": "Done?"}]`, and
+  `mcp__linear__create_attachment_from_upload` with `issue` and
+  `assetUrl`
+- **THEN** the reader reports each call as unreadable
 
 ### Requirement: The reader says whether a post goes through the github-app skill
 

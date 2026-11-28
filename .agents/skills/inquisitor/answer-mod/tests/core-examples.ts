@@ -142,6 +142,32 @@ export const EXAMPLES = {
       "rate_limited_until": "2026-10-20T10:20:00Z"
     }
   },
+  "poll.judge-resent": {
+    "request": {
+      "command": "poll",
+      "session_id": "sess-1"
+    },
+    "response": {
+      "version": 1,
+      "ok": true,
+      "questions": [],
+      "judge": [
+        {
+          "message": "gh:o/api:IC_kwDO1",
+          "turn": 2,
+          "text": "Should retries back off?",
+          "needs_place": false,
+          "needs_place_sure": false,
+          "places": [],
+          "defaults": [],
+          "hits": [],
+          "person_question": false
+        }
+      ],
+      "notices": [],
+      "rate_limited_until": null
+    }
+  },
   "pending.list": {
     "request": {
       "command": "pending.list",

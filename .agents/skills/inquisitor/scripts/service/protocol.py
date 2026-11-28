@@ -248,8 +248,13 @@ class VerdictRequest(TypedDict):
 
 
 class TurnEndRequest(TypedDict):
-    """The model's reply in a judging turn ended; the core acts on the
-    turn's accepted fields."""
+    """The mod sends this request when the model's reply in a judging turn
+    ends; the core then acts on the turn's accepted record_verdict fields
+    (records the verdict, searches, posts). It refuses a turn-end naming
+    no message awaiting that turn, such as one for a turn already ended,
+    so no turn is acted on twice. The mod sends no turn-end for a prompt that never
+    started a turn; the core keeps listing that JudgeRequest in each
+    poll."""
 
     command: Literal["judge.turn-end"]
     session_id: str
@@ -389,10 +394,20 @@ class RefreshResponse(TypedDict):
 
 
 class PollResponse(TypedDict):
-    """rate_limited_until concerns GitHub alone: while GitHub refuses
-    requests for its rate limit, it holds the reset time GitHub gave (ISO
-    8601, UTC), else null. The core sends GitHub no request until then and
-    keeps polling Linear and Discord, and it adds a "rate-limit" notice to
+    """judge: every message awaiting judgement, oldest first, each with
+    the turn it awaits. It includes any turn 2 request that
+    TurnEndResponse.next has given. A request stays in every poll's list
+    until the mod sends a judge.turn-end for its message and turn, so one
+    whose prompt was dropped or lost comes back (answer-service spec: *A
+    message awaits judgement until its turn ends*). The mod keeps no
+    queue of its own: once every judging prompt it sent has ended its turn
+    or was dropped or lost, it puts the first listed request before the
+    model.
+
+    rate_limited_until concerns GitHub alone: while GitHub refuses
+    requests for its rate limit, the field holds the reset time GitHub gave
+    (ISO 8601, UTC), else null. The core sends GitHub no request until then
+    and keeps polling Linear and Discord, and the core adds a "rate-limit" notice to
     the first poll of each such wait only, so the person is told once per
     wait."""
 
@@ -470,8 +485,11 @@ class PostedItem(TypedDict):
 
 class TurnEndResponse(TypedDict):
     """next: after turn 1, the turn 2 request, or null when the message
-    needs no turn 2; after turn 2, null. posted: the automatic posts the
-    core made."""
+    needs no turn 2; after turn 2, null. next heads the poll's list once
+    turn 1 ends, since its message was the oldest listed, so the mod may
+    put it before the model at once instead of waiting for the next
+    poll. posted: the automatic posts the core made in acting on
+    this turn."""
 
     version: int
     ok: Literal[True]
