@@ -1020,7 +1020,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       *propose_reply refuses a draft the prompt box would run* say, and filling the record's URL for a filter 1
       decline), `record_verdict` and the code's checks of each call
       (answer-service spec: *The model's judgements reach the service's
-      code only through record_verdict*), and the rephrased answer's
+      code only through record_verdict*), the core listing each message
+      awaiting judgement at every poll until its turn ends, with the mod
+      keeping no queue of its own (*A message awaits judgement until its
+      turn ends*), and the rephrased answer's
       post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary

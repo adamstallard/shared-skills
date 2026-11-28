@@ -2373,6 +2373,27 @@ from choosing what the code does beyond a closed set.
   question with a category, posts nothing by itself, and shows it to the
   person as unclear
 
+### Requirement: A message awaits judgement until its turn ends
+
+The answer service's core SHALL list each message awaiting judgement,
+with the turn it awaits, turn 2 included, in every poll's result until
+that turn ends, because a prompt dropped or lost on its way to the
+model starts no turn and would otherwise leave the message unjudged.
+The answer mod SHALL keep no list of its own, putting the first listed
+message before the model once every judging prompt it sent has ended
+its turn or was dropped or lost.
+
+#### Scenario: A judging prompt that never reaches the model is put before it again
+
+- **WHEN** the prompt for a message's turn 1 is dropped before it reaches
+  the model, as when a hook in Claude Code's settings refuses it, or the turn 2 that
+  follows turn 1 never starts
+- **THEN** every later poll lists that message with the same turn until
+  that turn ends, and the mod puts it before the model once it heads the
+  list and every other judging prompt has ended its turn or was dropped
+- **AND** once the turn ends, no poll lists the message for that turn,
+  and the core refuses a second `judge.turn-end` for it
+
 ### Requirement: The service's model has no shell, no writing tool and no web fetch
 
 In a session the `answer` launcher starts, the model SHALL have only its

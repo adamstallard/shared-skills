@@ -2,7 +2,10 @@
 Each example's request may hold only the fields its command's request
 type declares, and must hold every field that type requires. Each
 command a request type carries needs an example. Only PreviewRequest has
-a `revision` field, the person's rephrasing of a question. These tests
+a `revision` field, the person's rephrasing of a question. In
+examples.json, the turn 2 request of the example `judge.turn-end` is in
+the example `poll.judge-resent`'s list too, so the mod needs no queue of
+its own. These tests
 cover the protocol's shapes only; how the answer service's core keeps a
 rephrasing belongs in the tests of service/relay.py."""
 
@@ -56,6 +59,16 @@ class Examples(unittest.TestCase):
         revision = example["request"]["revision"]
         post = example["response"]["post"]
         self.assertIn(f"\n\nRephrased question: {revision['text']}\nDiscussion: {revision['summary']}\n", post)
+
+    def test_a_turn_2_request_comes_back_at_the_next_poll(self) -> None:
+        # @scenario answer-service: A judging prompt that never reaches the model is put before it again
+        # The protocol's part of that scenario: a later poll lists the
+        # turn 2 request that judge.turn-end gave as next, so the mod
+        # need keep no queue of its own.
+        examples = json.loads(EXAMPLES.read_text())
+        given = examples["judge.turn-end"]["response"]["next"]
+        self.assertEqual(given["turn"], 2)
+        self.assertIn(given, examples["poll.judge-resent"]["response"]["judge"])
 
 
 if __name__ == "__main__":
