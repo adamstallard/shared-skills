@@ -17,7 +17,7 @@ Evidence in the decision record of each capability it bears on; task
 about igor's host. In the same commit, write the requirements the result
 supports, and drop the task's Open Question unless the result leaves a
 choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
-0.32 and 0.36 have no task, so that the other tasks keep their numbers.
+0.32, 0.36 and 0.42 have no task, so that the other tasks keep their numbers.
 
 - [x] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens. Done 2026-11-26, Claude Code 2.1.332, in a throwaway
@@ -48,7 +48,8 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       a pull request on a private repository and pushed its commit; users
       read as `admin`, `read` or `none`. Not measured: a caller with
       write but not admin access, and an App's installation token as the
-      caller (task 0.29)
+      caller; *A permission that cannot be read is no write access* covers
+      both
 - [x] 0.5 The GitHub login of the last person to commit to a file can be
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
@@ -288,8 +289,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 - [ ] 0.29 Whether an Igor's host has Python and the inquisitor skill
       installed for the Igor's own process, not only for its workers, so
       the Igor can run `branch-search` (inquisitor spec: *The Igor reads
-      questions branches with the script*), and whether the Igor's App
-      token can read a collaborator's permission
+      questions branches with the script*)
 - [x] 0.30 That `INQUISITOR_ANSWER=1 CLAUDE_CODE_NO_FLICKER=1 claude --name Answers`,
       with `--tools Read,Grep,Glob --strict-mcp-config`, starts Claude Code
       named `Answers` in its fullscreen layout, and that the mod sees
@@ -428,23 +428,25 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
         the re-added tool, so a check reading that list sees it, and
         refuses in the second order too, though the model could not call
         the tool there
-- [ ] 0.42 Whether a caller with write access to a repository, but not
-      admin, can read a collaborator's permission there through
-      `gh api repos/<owner>/<repo>/collaborators/<login>/permission`, as an
-      admin can (task 0.4)
+- [x] 0.43 That GitHub's edit history, `userContentEdits`, holds every
+      revision of an edited issue, pull request or comment body, the
+      original included (inquisitor spec: *A numbered reply stands only
+      while its message's items are unchanged*). Done 2026-11-27 with
+      read-only calls on igor issue #211 and shared-skills pull request
+      #64: every revision, the original included, was there
 
 ## 1. Shared post reader
 
-- [ ] 1.1 Move prose's body reader, which finds a `gh` or GitHub MCP
+- [x] 1.1 Move prose's body reader, which finds a `gh` or GitHub MCP
       post's body, into `.agents/lib/gh-shell/`, beside the command
       splitter and gh flag tables already there, and build the `gh-post` rules on it. Each
       skill calls it from a thin script, and its behaviour changes only
       as task 1.3 lists
-- [ ] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the
+- [x] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the
       library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
-- [ ] 1.3 The library reads a post only in a canonical form and reports
+- [x] 1.3 The library reads a post only in a canonical form and reports
       every other call that could post as unreadable, giving the
       canonical forms for the hooks' block message (gh-post spec: *The
       reader reads a post only in a canonical form*; *The canonical gh pr
@@ -458,10 +460,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       piped input. Change each prose test that expects an off-list form to
       be read, such as `-b hi` or `--body=hi`, to expect it blocked; prose's hook ignores `gh api` today, so the
       `gh api` rules are new checks for it.
-- [ ] 1.4 discord-bot's `post` and `edit` take `--message-file <path>`,
+- [x] 1.4 discord-bot's `post` and `edit` take `--message-file <path>`,
       reading the text from that file, since a hook never sees standard
       input; its SKILL.md and README say to post with `--message-file`
-- [ ] 1.5 The library reads discord-bot's `post` and `edit` from
+- [x] 1.5 The library reads discord-bot's `post` and `edit` from
       `--message-file` alone and reports each as a Discord message
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
@@ -475,10 +477,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 
 ## 2. The script
 
-- [ ] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first
+- [x] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first
       call): `--questions`, and `--post` taking a post's body;
       prints the filters and filter 1's search results, and issues a token
-- [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
+- [x] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
       verdicts and their fields, an `ask`'s related earlier decision, the
       person-required line printed for an `ask` naming the skill that
       requires it (inquisitor spec: *A question another skill requires
@@ -489,7 +491,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       the session shows where its answer will be recorded*), the three
       categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
-- [ ] 2.3 Filter 1's search. Items marked igor's are applied by
+- [x] 2.3 Filter 1's search. Items marked igor's are applied by
       `igor lore-search`, which igor PR #216 builds.
       - It searches decision documents, issues through `gh`, the
         repository's `questions` branch, and configured lore clones'
@@ -524,7 +526,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
           repository other than the item's as input.
       - It reports each source it did not search, and when a fetch last
         updated each clone's remote-tracking default branch.
-- [ ] 2.3b `branch-search`, which searches one repository's `questions`
+- [x] 2.3b `branch-search`, which searches one repository's `questions`
       branch and prints its hits as JSON, each labelled by task 2.3's
       checks (inquisitor spec: *The script searches a questions branch and
       prints labelled hits as JSON*). The JSON is the contract with igor,
@@ -532,23 +534,23 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       output for a fixed branch with a stored copy, field for field, so a
       change to the format fails until the stored copy is changed, which
       waits for igor's agreement
-- [ ] 2.3c `miss-check`, which takes a repository, a surface and a reply's
+- [x] 2.3c `miss-check`, which takes a repository, a surface and a reply's
       id and says whether that repository's questions branch holds the
       miss file that backs that `Inquisitor: ` reply (inquisitor spec: *The
       script checks whether a miss file backs a reply*). Its JSON is part
       of the contract with igor, under task 2.3b's test
-- [ ] 2.3d `file-answer`, which takes a repository and a questions-branch
+- [x] 2.3d `file-answer`, which takes a repository and a questions-branch
       file name's date and 6-hex-digit suffix and prints only that file's answer, or `null` (inquisitor
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test
-- [ ] 2.3e `search`, which runs filter 1 alone for the answer service,
+- [x] 2.3e `search`, which runs filter 1 alone for the answer service,
       reading only the service's clones and their repositories' issues,
       and prints its results as JSON
       with no token or record (inquisitor spec: *The search command runs
       filter 1 alone for the answer service*; *The search command takes
       its question as the first call does*)
-- [ ] 2.4 The `log` command, writing one file per question or miss in the
+- [x] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
       - `authority` is `decision` or `input`. An agent's own choice
         under filter 3 or 4 gets no file.
@@ -633,7 +635,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       - It refuses, saying why, a question holding a line that is exactly
         `## Rephrased question`, `## Discussion` or `## Answer`.
       - `misses`, listing the misses by filter for a review.
-- [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
+- [x] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`), one for each stop or cite, to the
       `questions` branch of the lore repository holding the entry, when
       filter 1 stops a question with a lore entry, or when the person in
@@ -656,7 +658,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       and hash are built one way*; *Inline markup is reduced to its text
       one way*; *A question in a post is a listed item or a sentence
       ending in a question mark*)
-- [ ] 2.6 `tag`, choosing whom a post's question tags: the first candidate
+- [x] 2.6 `tag`, choosing whom a post's question tags: the first candidate
       with write access, starting with the approver of the related earlier
       decision the second call recorded; else the login configured for
       the person running the session, if it equals the account `gh` is
@@ -692,12 +694,15 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       visible lore repository only once confirmed*; *A person can confirm
       a generalized lore entry for a more visible lore repository*). During an
       Igor's run it opens nothing and writes the entry into the run's
-      report for the Igor to propose, as igor PR #216 is asked to
-- [ ] 2.8 A test pinned to an igor commit that checks the lore entry
+      report for the Igor to propose, as igor PR #216 is asked to. It
+      reuses a leftover `inquisitor/lore-<id>` branch only as *A leftover
+      lore branch is reused only after its pull requests closed unmerged*
+      allows. All of it is built but the Igor's-run part
+- [x] 2.8 A test pinned to an igor commit that checks the lore entry
       format `lore` copies: the `entries/<id>.md` path, the id pattern and
       the frontmatter fields igor's lore store requires (inquisitor spec:
       *A proposed lore entry's path, fields and id follow igor's rules*)
-- [ ] 2.9 The `log` command's input file, kept and refused as the two
+- [x] 2.9 The `log` command's input file, kept and refused as the two
       calls' files are (inquisitor spec: *The log command takes its input
       in a private file*)
 
@@ -830,7 +835,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 
 ## 6. The answer service
 
-- [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it.
+- [x] 6.0 Build on discord-bot as shared-skills PR #1 merged it.
       The Discord relay posts with no header option and with mention
       rewriting on, because discord-bot always posts that way. discord-bot's `read` drops each message's
       `author.bot` and reply reference, which the answer service needs to
@@ -838,7 +843,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       on 2026-11-19; this task changes `read` to return both, and whether
       a message is flagged `IS_CROSSPOST` (answer-service spec: *An
       agent's question comes from a bot account or a log file*)
-- [ ] 6.0b discord-bot's `read` drops each message with no text and no
+- [x] 6.0b discord-bot's `read` drops each message with no text and no
       attachments, the placeholder for a thread's first message included.
       Change it so that, meeting that placeholder inside a thread, it
       follows the placeholder's `message_reference` and returns the
@@ -850,7 +855,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       one question-hash and file-format code. The TypeScript answer mod
       does the UI, timers, tools, the answer marker and the tool
       stripping, calling the core through JSON commands
-- [ ] 6.1 The answer mod, built in the skill's `answer-mod/` folder from the tag
+- [x] 6.1 The answer mod, built in the skill's `answer-mod/` folder from the tag
       `answer-mod-approved-v0.2-9` on shared-skills (build v0.2-9,
       commit a16c60d), the only build the mod starts from. It descends
       from v0.1-33 (`answer-session-ui-approved-v0.1-33`, commit fc3c35f)
