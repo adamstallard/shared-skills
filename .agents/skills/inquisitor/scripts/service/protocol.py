@@ -270,14 +270,15 @@ class DiscussionRequest(TypedDict):
 
 class SetAsideRequest(TypedDict):
     """The mod sends this request when the person sets a question aside for
-    later (aside true) or takes it back into the open ones (aside false).
-    The core saves that choice in its state folder (state.py), and each
-    later poll's QuestionView for the question gives it as `state`."""
+    later. The core keeps the question set aside in its state folder,
+    which state.py writes, and each later poll's QuestionView gives it the
+    state "set-aside", until a post request answering or declining it is
+    sent, whether the post goes out or is kept pending. Nothing else, a
+    reopen included, ends the set-aside."""
 
     command: Literal["set-aside"]
     session_id: str
     question: str
-    aside: bool
 
 
 class ContextRequest(TypedDict):

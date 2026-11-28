@@ -164,8 +164,8 @@ export type DiscussionRequest = {
   role: 'person' | 'model'
   text: string
 }
-/** The mod sends this request when the person sets a question aside (`aside` true) or takes it back (`aside` false); the core saves that choice, and each later poll's QuestionView gives it as `state`. */
-export type SetAsideRequest = { command: 'set-aside'; session_id: string; question: string; aside: boolean }
+/** The mod sends this request when the person sets a question aside for later. The core keeps the question set aside, and each later poll's QuestionView gives it the state 'set-aside', until a post request answering or declining it is sent, whether the post goes out or is kept pending. Nothing else, a reopen included, ends the set-aside. */
+export type SetAsideRequest = { command: 'set-aside'; session_id: string; question: string }
 export type ContextRequest = { command: 'context'; session_id: string; question: string }
 export type ScreenRequest = { command: 'screen.set'; session_id: string; question: string | null }
 export type PreviewRequest = {

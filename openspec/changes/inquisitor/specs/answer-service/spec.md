@@ -230,6 +230,19 @@ moved by the person to the queue's end on this machine.
   then reaches the queue
 - **THEN** the queue orders the new question before the one set aside
 
+### Requirement: A question stays set aside until answered or declined
+
+A question set aside for later SHALL stay set aside until the person
+confirms an answer to it or a decline of it; nothing else, a reopen
+included, returns it to its place by asked time.
+
+#### Scenario: A question set aside stays at the queue's end
+
+- **WHEN** the person sets a question aside, and then the answer service
+  is closed and opened again and new questions arrive
+- **THEN** the question stays after every question not set aside until
+  the person answers or declines it
+
 ### Requirement: A question is asked when its message was posted or a poll first found it
 
 The answer service SHALL take as a question's **asked time** the time
@@ -391,6 +404,19 @@ writes no miss it cannot place privately*, or with no login configured.
 - **AND** the preview says the same for a settled question shown from two
   questions-branch files whose `repository` keys differ, which gets no
   miss file
+
+### Requirement: The answer service finds questions by the hiding reading alone
+
+The answer service SHALL find a message's questions, open-questions
+items included, only by the inquisitor's hiding reading, the one that
+finds no question in code or in what HTML hides (inquisitor spec:
+*Questions in a post are found by two readings*).
+
+#### Scenario: A question in a code block is not shown
+
+- **WHEN** an agent's comment tagging the person holds a question only
+  in a fenced code block
+- **THEN** the answer service shows no question from it
 
 ### Requirement: Each item of an open-questions section is its own question
 
@@ -1133,13 +1159,14 @@ relay post usually mentions no one.
 
 A **mention** SHALL be of a user, as `@login` on GitHub, on Linear by the
 user id of a mention in the comment's `bodyData`, and on Discord by the
-user id it mentions, outside code spans, code blocks, quoted lines and
-links; a team mention counts as none.
+user id it mentions, outside code spans, code blocks, quoted lines,
+link text and what HTML hides, such as an HTML comment; a team mention
+counts as none.
 
 #### Scenario: A team mention or a mention in code is no mention
 
 - **WHEN** a comment mentions the team `@o/devs`, and `@maya` only in a
-  code span, code block, quoted line or link
+  code span, code block, quoted line, link or HTML comment
 - **THEN** it mentions no one
 - **AND** a Linear comment that mentions Maya still mentions her, by the
   user id in its `bodyData`, after she changes her display name

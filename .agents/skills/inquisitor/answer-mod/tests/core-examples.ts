@@ -347,8 +347,7 @@ export const EXAMPLES = {
     "request": {
       "command": "set-aside",
       "session_id": "sess-1",
-      "question": "gh:o/web:IC_kwDO7",
-      "aside": true
+      "question": "gh:o/web:IC_kwDO7"
     },
     "response": {
       "version": 1,

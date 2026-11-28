@@ -468,12 +468,22 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
 - [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
-      `description` from the Linear MCP, and blocks a `save_issue` with
-      `patch`, or `template` and no `description` (gh-post spec: *The
-      reader reads a Linear MCP comment or issue description*)
+      `description` from the Linear MCP, and reports as unreadable a
+      `save_issue` holding `patch`, one holding `template` but no
+      `description`, and every other Linear save, create, update or
+      submit tool (gh-post spec: *The reader reads a
+      Linear MCP comment or issue description*; *Every other Linear save,
+      create, update or submit tool is unreadable*)
 - [ ] 1.7 The library reports whether each post goes through the
       github-app skill's script (gh-post spec: *The reader says whether a
       post goes through the github-app skill*)
+- [ ] 1.8 prose's and the inquisitor's `hook.json` post-hook matchers
+      include the Linear MCP prefixes the gh-post spec lists
+      (`mcp__linear__`, `mcp__plugin_<name>_linear__`,
+      `mcp__claude_ai_Linear__`) and `mcp__claude_ai_GitHub__`, so
+      each hook sees the calls the reader reads (gh-post spec: *The
+      reader reads a Linear MCP comment or issue description*; *The
+      reader reads a GitHub MCP tool's body and comment keys*)
 
 ## 2. The script
 
@@ -491,6 +501,12 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       the session shows where its answer will be recorded*), the three
       categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
+- [ ] 2.2b The `not asked` verdict, accepted only for a question the
+      plain reading found and the hiding reading did not, and the
+      first call's output marking each such question so the agent knows
+      `not asked` is open to it (inquisitor spec: *Only a question found
+      in code or HTML may be not asked*; *Questions in a post are found
+      by two readings*)
 - [x] 2.3 Filter 1's search. Items marked igor's are applied by
       `igor lore-search`, which igor PR #216 builds.
       - It searches decision documents, issues through `gh`, the
@@ -544,6 +560,11 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test
+- [ ] 2.3f The `permission unreadable` reason, in filter 1's labels and
+      `branch-search`'s JSON, for a file whose `answered_by`'s write
+      access to what its question concerns cannot be read (inquisitor spec: *A permission that
+      cannot be read is no write access*; *The JSON's reasons and landed
+      values are a closed list*)
 - [x] 2.3e `search`, which runs filter 1 alone for the answer service,
       reading only the service's clones and their repositories' issues,
       and prints its results as JSON
@@ -649,7 +670,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       service's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
 - [ ] 2.5 One markdown parser in `qtext` both builds a question's text
-      and finds a post's questions, for the two calls, the post hook and
+      and finds a post's questions, by each of the two readings, for the two calls, the post hook and
       the answer service alike: a line classifier (code fence, `>` line,
       list item, heading, bold label, colon label, record lines, prose's
       footer) and an inline reducer that reads each line once, left to
@@ -657,7 +678,8 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       questions or a deferral label (inquisitor spec: *A question's text
       and hash are built one way*; *Inline markup is reduced to its text
       one way*; *A question in a post is a listed item or a sentence
-      ending in a question mark*)
+      ending in a question mark*; *Questions in a post are found by two
+      readings*; *A sentence and a question's terms are defined*)
 - [x] 2.6 `tag`, choosing whom a post's question tags: the first candidate
       with write access, starting with the approver of the related earlier
       decision the second call recorded; else the login configured for
