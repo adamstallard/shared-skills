@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 import config
 import github
-from calls import read_records
+from calls import read_records, unreadable_records_refusal
 from common import VERSION, Refused, print_json, verdicts_dir
 from contracts import TagResult, VerdictRecord
 from formats import is_login, is_repository
@@ -146,7 +146,7 @@ def run(args: TagArgs) -> int:
         raise Refused("--identity must name a github-app identity")
     records = read_records({args.hash})
     if records is None:
-        raise Refused("cannot read the verdict records")
+        raise unreadable_records_refusal({args.hash})
     record = records.get(args.hash)
     if record is None or record["verdict"] != "ask":
         raise Refused("no `ask` verdict recorded for this hash in the last 2 hours; run the two "

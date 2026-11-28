@@ -13,13 +13,11 @@ holding its latest verdict, in common.verdicts_dir().
 tasks.md's tasks 2.1 and 2.2. Standard library only.
 """
 
-import inspect
 import json
 import os
 import re
 import secrets
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
@@ -261,7 +259,7 @@ def _read_post(path: str, repository: str | None,
     if repository is not None and lore is not None:
         raise Refused("give --repository or --lore, not both")
     body = read_private(path)
-    found = _find_questions(body)
+    found = find_questions(body, in_code=True)
     default: Concerns = ({"repository": repository} if repository else {"lore": lore} if lore
                          else {})
     if not default:
@@ -291,23 +289,17 @@ def _read_post(path: str, repository: str | None,
     return found, questions
 
 
-def _find_questions(body: str) -> list[FoundQuestion]:
-    """Every question either reading finds in body (inquisitor spec:
-    *Questions in a post are found by two readings*; _TokenQuestion's
-    docstring defines both). Called with in_code=True, find_questions
-    returns them all, setting FoundQuestion.in_code on each that only the
-    plain reading finds. qtext's find_questions takes in_code once the
-    shared parser's two-readings change, a separate commit, lands on this
-    branch; without it, find_questions returns the hiding reading's
-    questions alone, none of them open to `not asked`."""
-    if "in_code" in inspect.signature(find_questions).parameters:
-        return cast(Callable[..., list[FoundQuestion]], find_questions)(body, in_code=True)
-    return find_questions(body)
-
-
 def _plain_only(found: FoundQuestion | None) -> bool:
-    """Whether the plain reading alone found the question."""
-    return found is not None and getattr(found, "in_code", False) is True
+    """Whether `not asked` is open to the question: whether find_questions
+    set in_code on it. in_code marks a question only the plain reading
+    found, the reading that takes code and HTML as text (inquisitor spec:
+    *Questions in a post are found by two readings*). qtext's _backstop
+    also sets it on a question made from a `?` that ends no question of
+    either reading, and in_code holds no way to tell the two kinds apart,
+    so `not asked` is open to a backstop question too, though the spec
+    (*Only a question the hiding reading misses may be not asked*) opens it
+    only to the first kind."""
+    return found is not None and found.in_code
 
 
 def _first_option(label: str) -> str:
@@ -570,6 +562,8 @@ def record_line(question: _TokenQuestion, cfg: config.Config) -> str:
         return NOT_RECORDED_PREFIX + "no team's lore repository serves it"
     if login is None:
         return NOT_RECORDED_PREFIX + "no GitHub login configured"
+    if not asked_from:
+        return NOT_RECORDED_PREFIX + "asked outside any repository"
     to = github.visibility(branch) or "public"
     line = f"{RECORDED_PREFIX}{branch} questions branch ({to})"
     if asked_from and asked_from != branch:
@@ -605,24 +599,26 @@ def _record(question: _TokenQuestion, v: dict[str, Any], now: float) -> VerdictR
 
 
 def _keep_identities(records: list[VerdictRecord]) -> None:
-    """Copy the github-app identity recorded for each hash into the record
-    that replaces it. The `tag` command records that identity when it tags
-    a person in an App's post, and the post goes out only as that App
+    """For each new record whose verdict is `ask`, copy in the github-app
+    identity of the old record holding the same hash. The `tag` command
+    writes that identity when it adds a tag line to an App's post, and
+    while a record holds it, the post may go out only as that App
     (inquisitor spec: *A tag made for an App's post blocks a plain gh
-    post*); vetting the post again must not unbind it. Only a
-    new run of `tag` changes the identity. A new record with a category,
-    or of a `not asked` verdict, gets no identity, so re-vetting to one of
-    those drops it. When the old records cannot be read, this refuses, so
-    the second call records nothing and keeps its token."""
+    post*). Vetting the post again as `ask` keeps the tag line, so it keeps
+    the identity; only a new run of `tag` changes it. Any other verdict
+    puts no tag line in the post, and a question with a category is never
+    tagged, being recorded by hash only, so those new records get no
+    identity. When the old records cannot be read, this refuses; the
+    second call calls it before spending its token, so it records nothing
+    and the token stays usable."""
     hashes = {r["hash"] for r in records}
     old = read_records(hashes)
     if old is None:
-        raise Refused("cannot read the verdict records, so a tag's recorded identity could be "
-                      "lost; nothing is recorded")
+        raise unreadable_records_refusal(hashes)
     for record in records:
         previous = old.get(record["hash"])
         identity = previous.get("identity") if previous is not None else None
-        if identity is not None and "category" not in record and record["verdict"] != "not asked":
+        if identity is not None and "category" not in record and record["verdict"] == "ask":
             record["identity"] = identity
 
 
@@ -681,6 +677,35 @@ def _second_call(token: str, verdicts_path: str) -> int:
 
 # -- the records ---------------------------------------------------------------------
 
+def _load_record(path: Path) -> tuple[VerdictRecord, float] | None:
+    """A record file's data and its `time`, or None when it cannot be read,
+    is not JSON, or has no numeric `time`."""
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+        stamp: Any = cast(dict[str, Any], data)["time"] if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError, KeyError, UnicodeDecodeError):
+        return None
+    if not isinstance(stamp, (int, float)) or isinstance(stamp, bool):
+        return None
+    return cast(VerdictRecord, data), float(stamp)
+
+
+def unreadable_records_refusal(hashes: set[str]) -> Refused:
+    """The refusal for when read_records gives None. It names each record
+    file of a hash in hashes that _load_record cannot read, for whoever
+    reads the refusal to remove: read_records never deletes such a file,
+    since its age cannot be read, so every call asking for that hash
+    refuses until someone does. When read_records gave None for another
+    reason, the directory not listing or an old record not deleting, no
+    file is to blame, and the refusal names the directory."""
+    damaged = sorted(str(path) for h in hashes
+                     if (path := verdicts_dir() / f"{h}.json").exists() and _load_record(path) is None)
+    if damaged:
+        return Refused("cannot read the verdict record " + ", ".join(damaged)
+                       + "; remove it and run the call again")
+    return Refused(f"cannot read the verdict records in {verdicts_dir()}")
+
+
 def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
     """The latest record for each hash asked for, as {} when the records
     directory is missing. Any record over 2 hours old, the life of a
@@ -700,17 +725,12 @@ def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
     for path in entries:
         if not (path.suffix == ".json" and _HASH.fullmatch(path.stem)):
             continue
-        try:
-            data: Any = json.loads(path.read_text(encoding="utf-8"))
-            stamp: Any = cast(dict[str, Any], data)["time"] if isinstance(data, dict) else None
-        except (OSError, json.JSONDecodeError, KeyError, UnicodeDecodeError):
+        loaded = _load_record(path)
+        if loaded is None:
             if path.stem in hashes:
                 return None
             continue
-        if not isinstance(stamp, (int, float)) or isinstance(stamp, bool):
-            if path.stem in hashes:
-                return None
-            continue
+        data, stamp = loaded
         if now - stamp > LIFE:
             try:
                 path.unlink()
@@ -720,5 +740,5 @@ def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
                 return None
             continue
         if path.stem in hashes:
-            found[path.stem] = cast(VerdictRecord, data)
+            found[path.stem] = data
     return found

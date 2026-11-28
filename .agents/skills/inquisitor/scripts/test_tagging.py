@@ -213,6 +213,16 @@ class Tag(unittest.TestCase):
         with self.assertRaises(Refused):
             tagging.run(tagging.TagArgs(hash=HASH, identity="../bot"))
 
+    def test_damaged_record_is_named(self) -> None:
+        # The refusal names the record file that is not JSON, for whoever reads it to remove:
+        # read_records never deletes such a file, since its age cannot be read.
+        verdicts_dir().mkdir(parents=True, mode=0o700, exist_ok=True)
+        path = verdicts_dir() / f"{HASH}.json"
+        path.write_text("{trunc")
+        with self.assertRaises(Refused) as cm:
+            self.tag()
+        self.assertIn(str(path), str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
