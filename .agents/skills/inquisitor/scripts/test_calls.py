@@ -445,6 +445,53 @@ class ReadRecords(Base):
         self.assertIsNone(calls.read_records({"c" * 64}))
         self.assertEqual(calls.read_records({"d" * 64}), {})
 
+    def test_records_that_do_not_read_as_records(self) -> None:
+        # @scenario inquisitor: A post is blocked when the verdict records cannot be read
+        # Each of these files fails as a record, so read_records gives None for its hash. The
+        # refusal then names the file. It does not name the other hash asked for, "e" * 64,
+        # which has no file at all.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        for n, content in enumerate((b"\xff\xfe", b"[1]", b'{"verdict": "ask"}', b'{"time": true}')):
+            h = f"{n}" * 64
+            (d / f"{h}.json").write_bytes(content)
+            self.assertIsNone(calls.read_records({h}), content)
+            message = str(calls.unreadable_records_refusal({h, "e" * 64}))
+            self.assertIn(str(d / f"{h}.json"), message)
+            self.assertNotIn("e" * 64, message)
+            (d / f"{h}.json").unlink()
+
+    def test_only_records_asked_for_are_returned(self) -> None:
+        # @scenario inquisitor: An old record is deleted
+        # Its requirement deletes old records and nothing else (the deleting itself is
+        # test_old_records_deleted): an old `.json` file not named by a hash, and an old file
+        # named by a hash without `.json`, are no records and stay. Also, only the record asked
+        # for comes back, not b's fresh one.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        fresh = {"version": 1, "verdict": "ask", "time": time.time()}
+        stale = json.dumps({"version": 1, "verdict": "ask", "time": time.time() - 7300})
+        for h in ("a" * 64, "b" * 64):
+            (d / f"{h}.json").write_text(json.dumps({**fresh, "hash": h}))
+        (d / "notes.json").write_text(stale)
+        (d / ("c" * 64)).write_text(stale)
+        self.assertEqual(set(calls.read_records({"a" * 64}) or {}), {"a" * 64})
+        self.assertTrue((d / "notes.json").exists())
+        self.assertTrue((d / ("c" * 64)).exists())
+
+    def test_old_record_already_gone_is_no_failure(self) -> None:
+        # @scenario inquisitor: An old record is deleted
+        # Another call may delete the old record between this call's listing and its delete.
+        # The patched unlink raises FileNotFoundError, as that delete would, and read_records
+        # still returns its result, not None.
+        d = verdicts_dir()
+        d.mkdir(parents=True, mode=0o700)
+        old = "a" * 64
+        (d / f"{old}.json").write_text(json.dumps({"version": 1, "hash": old, "verdict": "ask",
+                                                   "time": time.time() - 7300}))
+        with mock.patch("pathlib.Path.unlink", side_effect=FileNotFoundError):
+            self.assertEqual(calls.read_records({"b" * 64}), {})
+
 
 class AllOrNone(Base):
     def test_failed_record_write_records_nothing(self) -> None:
@@ -619,8 +666,9 @@ class KeepIdentity(Base):
         token, path = self.vet()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("not json")
-        with self.assertRaises(Refused):
+        with self.assertRaises(Refused) as cm:
             self.second(token, [{"question": 1, **self.ASK}])
+        self.assertIn(str(path), str(cm.exception))
         self.assertEqual(path.read_text(), "not json")
         self.assertTrue((self.state / "inquisitor" / "tokens" / f"{token}.json").exists())
 

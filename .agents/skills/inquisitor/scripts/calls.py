@@ -614,8 +614,7 @@ def _keep_identities(records: list[VerdictRecord]) -> None:
     hashes = {r["hash"] for r in records}
     old = read_records(hashes)
     if old is None:
-        raise Refused("cannot read the verdict records, so a tag's recorded identity could be "
-                      "lost; nothing is recorded")
+        raise unreadable_records_refusal(hashes)
     for record in records:
         previous = old.get(record["hash"])
         identity = previous.get("identity") if previous is not None else None
@@ -678,6 +677,35 @@ def _second_call(token: str, verdicts_path: str) -> int:
 
 # -- the records ---------------------------------------------------------------------
 
+def _load_record(path: Path) -> tuple[VerdictRecord, float] | None:
+    """A record file's data and its `time`, or None when it cannot be read,
+    is not JSON, or has no numeric `time`."""
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+        stamp: Any = cast(dict[str, Any], data)["time"] if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError, KeyError, UnicodeDecodeError):
+        return None
+    if not isinstance(stamp, (int, float)) or isinstance(stamp, bool):
+        return None
+    return cast(VerdictRecord, data), float(stamp)
+
+
+def unreadable_records_refusal(hashes: set[str]) -> Refused:
+    """The refusal for when read_records gives None. It names each record
+    file of a hash in hashes that _load_record cannot read, for whoever
+    reads the refusal to remove: read_records never deletes such a file,
+    since its age cannot be read, so every call asking for that hash
+    refuses until someone does. When read_records gave None for another
+    reason, the directory not listing or an old record not deleting, no
+    file is to blame, and the refusal names the directory."""
+    damaged = sorted(str(path) for h in hashes
+                     if (path := verdicts_dir() / f"{h}.json").exists() and _load_record(path) is None)
+    if damaged:
+        return Refused("cannot read the verdict record " + ", ".join(damaged)
+                       + "; remove it and run the call again")
+    return Refused(f"cannot read the verdict records in {verdicts_dir()}")
+
+
 def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
     """The latest record for each hash asked for, as {} when the records
     directory is missing. Any record over 2 hours old, the life of a
@@ -697,17 +725,12 @@ def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
     for path in entries:
         if not (path.suffix == ".json" and _HASH.fullmatch(path.stem)):
             continue
-        try:
-            data: Any = json.loads(path.read_text(encoding="utf-8"))
-            stamp: Any = cast(dict[str, Any], data)["time"] if isinstance(data, dict) else None
-        except (OSError, json.JSONDecodeError, KeyError, UnicodeDecodeError):
+        loaded = _load_record(path)
+        if loaded is None:
             if path.stem in hashes:
                 return None
             continue
-        if not isinstance(stamp, (int, float)) or isinstance(stamp, bool):
-            if path.stem in hashes:
-                return None
-            continue
+        data, stamp = loaded
         if now - stamp > LIFE:
             try:
                 path.unlink()
@@ -717,5 +740,5 @@ def read_records(hashes: set[str]) -> dict[str, VerdictRecord] | None:
                 return None
             continue
         if path.stem in hashes:
-            found[path.stem] = cast(VerdictRecord, data)
+            found[path.stem] = data
     return found
