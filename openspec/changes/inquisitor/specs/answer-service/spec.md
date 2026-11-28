@@ -434,6 +434,22 @@ Any other message SHALL be one question, whose relay posts name no item.
   question's hash leaving its tag line out, so that its file holds it,
   and a relay post answering the second holds `question 2: `
 
+### Requirement: A numbered relay post settles its item only while the items are unchanged
+
+A relay post holding `question <n>: ` SHALL settle its item only as the
+inquisitor spec's *A numbered reply stands only while its message's items
+are unchanged* lets a numbered `Inquisitor: ` reply stand; otherwise the
+item it answered, and any item now at its number, SHALL be shown again
+as unanswered.
+
+#### Scenario: A renumbered item is shown again
+
+- **WHEN** after the relay posted `User says: question 2: Use X`, the
+  agent edits its comment to add an item before the second
+- **THEN** the item now numbered 3, which the person answered, and the
+  item now numbered 2, which the person never saw, are both shown again
+  as unanswered
+
 ### Requirement: A deferred item is numbered but not shown
 
 An item of an open-questions section begun by a deferral label, one of
@@ -610,7 +626,7 @@ and unrun checks.
 
 Setup's **posting check** SHALL pass on GitHub when the repository is
 among the relay App installation's repositories and the installation may
-write issues and pull requests, both read with the App's own token; on
+write issues and pull requests; on
 Linear when the relay's token has the `write` scope and its app user can
 see the team; and on Discord when discord-bot's `check --channel` reports
 `viewChannel`, `readMessageHistory`, `sendMessages` and
@@ -1170,7 +1186,8 @@ them, and never shows them again, even once the newest is answered.
 
 - **WHEN** an issue assigned to the person holds an Igor's handback no
   relay post names, and the Igor posts a newer handback on it
-- **THEN** every answer service shows only the newer handback, never shows
+- **THEN** every answer service that reads the issue shows only the newer
+  handback, never shows
   the older one's log file again, and an answer to the newer names only
   the newer one's log file
 
@@ -1525,6 +1542,22 @@ on, showing the person its warnings after each post and edit.
   `@maya` matched no single member
 - **THEN** `@maya` stays plain text and pings no one, and the person is
   shown that warning after the post or edit
+
+### Requirement: A post goes out only from a preview of the question on screen
+
+Of the posts the person confirms, the answer service SHALL post only
+what a preview made for the question on screen showed, unchanged.
+Another question taking the screen, or an edit to the one shown, SHALL
+void that preview, so nothing is
+posted until a new preview is made for the question then shown. An
+automatic post needs no preview.
+
+#### Scenario: A preview for another question posts nothing
+
+- **WHEN** the person previews an answer to one question, then another
+  question takes the screen before they confirm
+- **THEN** their confirmation posts nothing, and the answer service makes
+  a new preview for the question now on screen
 
 ### Requirement: A GitHub or Linear relay post names its question in a Re line
 
@@ -2469,9 +2502,9 @@ item has no question text to hash or search.
 
 #### Scenario: An answer to a review request is recorded only on the item
 
-- **WHEN** the person answers, or declines for the inquisitor, a pull
-  request requesting their review that no handback is on
-- **THEN** filter 1 does not run on it, the relay posts the confirmed
+- **WHEN** the person answers, or declines, a pull request requesting
+  their review that no handback is on
+- **THEN** filter 1 does not run on it, the relay posts any confirmed
   comment on the pull request, and no log file or miss is pushed for it
 - **AND** the answer's preview says that comment is the only record
 
@@ -2981,14 +3014,13 @@ that is only input stops nothing.
 
 ### Requirement: The answer service's filter 1 reads only subscribed and lore repositories
 
-The service SHALL fetch a subscribed repository's default
-branch just before filter 1 checks a question placed in it, and at no
-other time. A question placed
+The service SHALL fetch a subscribed repository's default branch only
+just before filter 1 checks a question placed in it. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A
-question with **no place** (*A channel's repositories place its
-questions*), which names no repository whose rules could go unread,
-SHALL be searched in `global` lore alone.
+`global` lore entry shown as an answer may contradict an unread
+repository's rules. A question with no place for another reason (*A Linear or Discord question is placed by
+what it concerns*), which names no repository whose rules could go
+unread, SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 
@@ -3000,8 +3032,8 @@ SHALL be searched in `global` lore alone.
 - **AND** a question about subscribed `o/web` has its clone's default
   branch fetched then, not at each poll, and the decision documents there,
   its questions branch and its issues searched
-- **AND** a question about the organization has the decision documents
-  in the clone of the organization's configured lore repository searched
+- **AND** a question about the organization has its configured lore
+  repository's entries, questions branch and decision records searched
 - **AND** a Linear question for a collective whose lore repository the
   model cannot tell, which so has no place, has only `global` lore
   searched

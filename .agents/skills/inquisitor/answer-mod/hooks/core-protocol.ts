@@ -161,8 +161,10 @@ export type DiscussionRequest = {
   role: 'person' | 'model'
   text: string
 }
-/** The core keeps the rephrasing the person accepted; when the question's next 'answer' preview builds its post, that post includes it. */
+/** The mod sends this request when the person accepts a rephrasing, never when the model's draft reaches the mod. The core keeps the revision until the question is answered, and each 'answer' preview then builds a post carrying its `Rephrased question: ` and `Discussion: ` lines beside the answer. */
 export type ReviseRequest = { command: 'discussion.revise'; session_id: string; question: string; revision: Revision }
+/** The mod sends this request when the person sets a question aside (`aside` true) or takes it back (`aside` false); the core saves that choice, and each later poll's QuestionView gives it as `state`. */
+export type SetAsideRequest = { command: 'set-aside'; session_id: string; question: string; aside: boolean }
 export type ContextRequest = { command: 'context'; session_id: string; question: string }
 export type ScreenRequest = { command: 'screen.set'; session_id: string; question: string | null }
 export type PreviewRequest = {
@@ -192,6 +194,7 @@ export type Request =
   | TurnEndRequest
   | DiscussionRequest
   | ReviseRequest
+  | SetAsideRequest
   | ContextRequest
   | ScreenRequest
   | PreviewRequest
@@ -281,6 +284,7 @@ export type ResponseFor = {
   'judge.turn-end': TurnEndResponse
   'discussion.append': DoneResponse
   'discussion.revise': DoneResponse
+  'set-aside': DoneResponse
   context: ContextResponse
   'screen.set': DoneResponse
   preview: PreviewResponse

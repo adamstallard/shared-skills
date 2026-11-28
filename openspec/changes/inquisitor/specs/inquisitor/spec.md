@@ -413,8 +413,7 @@ Visibility SHALL rank private, then internal, then public. Nothing about
 a repository SHALL go anywhere **more visible**, except words the
 person confirms, a handled file, and as these allow: *The answerer's confirmation can send a record somewhere more
 visible*; *A later run gets only the answer to its Igor's question on a
-more private repository*; *A lore entry that stops a question gets a
-citation file*; and answer-service's *A miss more visible than its thread
+more private repository*; *A lore entry that stops a question gets a citation file*; and answer-service's *A miss more visible than its thread
 is pushed as a hash-only file*.
 
 #### Scenario: A handled file may go to a more visible questions branch
@@ -700,8 +699,8 @@ its authority rules make answers before those they leave as input, and
 rank each group by how many terms a hit matches, a term found several
 times counting once, in any order among ties. It SHALL show at
 most 20 hits in all and say when it left some out. In an Igor's run,
-the lore hits of `igor lore-search` join under this order and cap; igor issue #247 asks that command, which caps
-lore first, to rank it the same way.
+the lore hits of `igor lore-search` join this one ranked list and count
+toward its cap.
 
 #### Scenario: Hits are ranked by terms matched and capped
 
@@ -902,7 +901,8 @@ the item's visibility hides.
 - **AND** `landed` is `true` when the file's pinned commit has landed, as
   *An answer recorded on a work branch counts for other work once it
   lands* defines, so the file counts for every reader,
-  `false` when it does not or the script cannot check, and `null` for a
+  `false` when it has not landed or the script cannot check, the two
+  counting alike, and `null` for a
   file whose `recorded_in` pins no commit
 
 #### Scenario: Given a run's item, the branch search applies the run's rules
@@ -1193,8 +1193,9 @@ since what it concerns cannot be told.
 
 #### Scenario: A file about a repository other than the one it was asked from needs write access to it
 
-- **WHEN** an agent reads a questions-branch `decision` file whose
-  `repository` is `o/api`, whose `asked_from` is `o/web`, and whose
+- **WHEN** an agent reads a `decision` file on the lore repository's
+  questions branch whose `repository` is `o/api`, whose `asked_from` is
+  `o/web`, and whose
   `answer_link` is its `answered_by`'s comment on a pull request of `o/api`
 - **THEN** the write access checked is
   `answered_by`'s to `o/api`, not to the lore repository
@@ -1270,6 +1271,22 @@ labelled as superseded.
   write access, and the second was added by a later commit
 - **THEN** filter 1 treats the second as the answer, and shows the first as
   input, labelled as superseded
+
+### Requirement: A file the run's item's visibility hides still supersedes
+
+A file the run's item's visibility hides SHALL still count and supersede
+as any other file does. The search SHALL show nothing of it, and a file
+it names SHALL count as answered with no answer shown. An older visible
+answer it supersedes SHALL be shown as input, labelled as superseded;
+that label shows only that a newer answer exists, never its words.
+
+#### Scenario: A hidden newer answer supersedes a visible older one
+
+- **WHEN** a branch search for the public item `o/web` finds two
+  `decision` files with the same question that would each count, the
+  older asked from `o/web` and the newer from the private `o/priv`
+- **THEN** it shows the older as input, labelled as superseded, and shows
+  nothing of the newer, nor gives its answer to any file it names
 
 ### Requirement: A file is as new as the commit that added it, and supersedes only if it would count
 
@@ -2004,7 +2021,7 @@ strong emphasis or `~~` strikethrough SHALL become its inner text; a link or
 image its link text or alt text; an autolink its URL; a backslash escape
 the escaped character; and an HTML tag nothing, the text between tags
 staying. Nothing else SHALL change: Discord's `<@id>`, `<#id>`,
-`<:name:id>` and `<t:…>` forms are no HTML tags.
+`<:name:id>`, `<a:name:id>` and `<t:…>` forms are no HTML tags.
 
 #### Scenario: Each kind of inline markup reduces to its text
 
@@ -2017,8 +2034,9 @@ staying. Nothing else SHALL change: Discord's `<@id>`, `<#id>`,
 
 - **WHEN** a question reads `<@123> should ~this~ wait until <t:1700000000>?`
 - **THEN** its text is the same, character for character
-- **AND** an HTML tag is `<`, an optional `/`, a name of letters and
-  digits, and then a space, `/` or `>`, so `<a:name:id>` is none either
+- **AND** apart from an autolink and those forms, an HTML tag is `<` or
+  `</` followed by a letter, up to the next `>` on the same line, and any
+  other `<` is text
 
 ### Requirement: A sentence and a question's terms are defined
 
@@ -2216,9 +2234,30 @@ code, `>` lines or prose's footer.
 #### Scenario: A question's text posted as a listed item is found with that text
 
 - **WHEN** any question's text holding no `*`, `_`, `` ` ``, `~`, `[`,
-  `<` or `\` is posted as the only item of an open-questions section
+  `<` or `\`, and not made only of `-` and spaces, is posted as the only
+  item of an open-questions section
 - **THEN** the post's one question is that item, with the same text and
   hash
+
+### Requirement: The markdown reading errs toward finding a question
+
+The first call and the post hook SHALL reduce a question's text with one
+function, need not match CommonMark exactly, and SHALL read as a
+question any text that markup it cannot parse exactly might make one, reading HTML tags as *Inline markup is
+reduced to its text one way* defines them.
+
+#### Scenario: Only a tag-like `<` starts a tag
+
+- **WHEN** a post's open-questions section lists `Is a < b here?` and
+  `Should we <b>ship</b> it?`
+- **THEN** the questions are `Is a < b here?` and `Should we ship it?`
+
+#### Scenario: A setext heading begins a section
+
+- **WHEN** a post has a line `Open questions` underlined by `===`,
+  followed by a list
+- **THEN** the line and its underline are a heading, which begins an
+  open-questions section, so each item of the list is a question
 
 ### Requirement: An item listed as deferred needs a deferred verdict
 
@@ -3024,8 +3063,8 @@ which of them the Igor pushes, and when.
 When an Igor worker's question concerns a repository more private than its
 item's, the Igor SHALL push the question file to that repository's
 questions branch at the run's handback, with no `asked_in`. The file SHALL
-tag the person a handback asking the question would mention for it, or
-the item's assignee when that handback would mention no one. The handback SHALL
+tag whom *A worker's question on a more private repository tags someone
+who can answer it* names. The handback SHALL
 say only that the work waits on a question recorded elsewhere. A failed
 push SHALL leave the question in the run's report.
 
@@ -3036,9 +3075,6 @@ push SHALL leave the question in the run's report.
 - **THEN** its handback comment says only that the work waits on a question
   recorded elsewhere, and its Igor pushes the question file, with no
   `asked_in`, to the questions branch of `o/api`
-- **AND** the file's question tags the person a handback asking the
-  question would mention for it, or the issue's assignee if that handback
-  would mention no one
 
 #### Scenario: A question the Igor cannot push stays in the report
 
@@ -3046,6 +3082,24 @@ push SHALL leave the question in the run's report.
 - **THEN** the handback comment says only that the work waits on a question
   recorded elsewhere, and the question stays in the run's report, pushed
   nowhere
+
+### Requirement: A worker's question on a more private repository tags someone who can answer it
+
+The question file a worker's question on a more private repository puts
+on that repository's questions branch SHALL tag the person whom a
+handback asking the question would have mentioned; or else the item's assignee;
+or, on an unassigned item, the person who started the Igor's run; or
+else the Igor's configured login.
+
+#### Scenario: The private question's file tags someone
+
+- **WHEN** an Igor worker on an issue of the public `o/web` has a question
+  about the private `o/api`
+- **THEN** the file's question tags the person a handback asking the
+  question would mention for it, or the issue's assignee if that handback
+  would mention no one
+- **AND** on an unassigned issue, it tags the person who started the
+  Igor's run, or the Igor's configured login when no person did
 
 ### Requirement: A later run gets only the answer to its Igor's question on a more private repository
 
@@ -3516,9 +3570,9 @@ gets the `secret` category.
 
 Each scan for the credential patterns SHALL read the raw markdown, link
 targets included, not the reduced text of *A question's text and hash are
-built one way*; the hash still uses the reduced text. Just before a post
-goes out, the post hook SHALL scan its questions again and block it on a
-match.
+built one way*; the hash still uses the reduced text. A post's scan
+SHALL also cover each `Related: ` and tag line in it. Just before a post
+goes out, the post hook SHALL scan it again and block it on a match.
 
 #### Scenario: A token added to a link target after vetting is blocked
 
@@ -3526,6 +3580,13 @@ match.
   then changed to `https://x/?token=ghp_…`, which leaves its reduced text
   and hash unchanged
 - **THEN** the post hook blocks the post
+
+#### Scenario: A Related or tag line after a line ending no question is scanned
+
+- **WHEN** a post's line that ends no question is followed by a
+  `Related: ` or tag line holding a token
+- **THEN** the scan reads that line too, and the first call or the post
+  hook refuses the post
 
 #### Scenario: A token in a link target is refused
 
@@ -4301,6 +4362,23 @@ it SHALL open nothing and say so.
 - **AND** when `o/lore`'s default branch already holds `entries/<id>.md`,
   it opens nothing and says the id is taken
 
+### Requirement: A leftover lore branch is reused only after its pull requests closed unmerged
+
+Before checking whether the id is taken, since a merged entry also
+takes it, the `lore` command SHALL reuse a leftover
+`inquisitor/lore-<id>` branch only when every pull request from it, if
+any, closed unmerged. When one is open, it SHALL open nothing and say
+the entry is already proposed; when one merged, open nothing and say the
+entry was accepted.
+
+#### Scenario: A leftover branch decides what lore does
+
+- **WHEN** the `lore` command proposes the entry `x` to `o/lore`, which
+  holds the branch `inquisitor/lore-x`
+- **THEN** it reuses the branch when every pull request from it closed
+  unmerged, says `already proposed` and opens nothing when one is open,
+  and says `accepted` and opens nothing when one merged
+
 ### Requirement: During an Igor's run, the Igor proposes the run's lore entries
 
 During an Igor's run, the agent SHALL open no lore pull request but put
@@ -4577,8 +4655,8 @@ about item `<n>`, counted from 1, among the open-questions items of the post,
 or Linear or Discord message, it replies to or names in its `Re: ` line
 (the line linking what it answers),
 or, one past the last item, about that message's sentences ending in `?`
-outside its open-questions section. A numbered reply SHALL be input when the message
-it is about was edited after the reply.
+outside its open-questions section, while *A numbered reply stands only
+while its message's items are unchanged*.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -4588,12 +4666,6 @@ it is about was edited after the reply.
 - **THEN** the agent acts on it for the second item only, and the first
   and third stand
 
-#### Scenario: A numbered reply to a post edited since is input
-
-- **WHEN** the agent's post was edited after a reply starting `Inquisitor:
-  question 2: filter 4` was posted
-- **THEN** the reply is input, since the number may point at another item
-
 #### Scenario: A reply one past the last item settles the sentences outside the list
 
 - **WHEN** an agent's post lists two questions in its open-questions
@@ -4601,6 +4673,36 @@ it is about was edited after the reply.
   reply starting `Inquisitor: question 3: filter 4` has its miss file
 - **THEN** the agent acts on it for that sentence only, and both items
   stand
+
+### Requirement: A numbered reply stands only while its message's items are unchanged
+
+A numbered `Inquisitor: ` reply SHALL stand only while the open-questions
+items of the message it is about, as *A question in a post is a listed
+item or a sentence ending in a question mark* finds them, are the same as
+in the revision the reply saw, the newest one older than the reply,
+read on GitHub from the edit history (`userContentEdits`). Otherwise, or
+when that revision cannot be read, as on a Linear or Discord message
+edited since the reply, it SHALL be input.
+
+#### Scenario: An edit outside the items keeps a numbered reply
+
+- **WHEN** the agent's post was edited, after a reply starting
+  `Inquisitor: question 2: filter 4`, only outside its open-questions
+  items, and its edit history holds the revision the reply saw
+- **THEN** the reply still settles the second item
+
+#### Scenario: An edit to an item makes a numbered reply input
+
+- **WHEN** the agent's post was edited after that reply, adding an item
+  before the second
+- **THEN** the reply is input, since the number may point at another item
+
+#### Scenario: A lost revision makes a numbered reply input
+
+- **WHEN** the agent's post was edited after that reply and no revision
+  in its edit history is the one the reply saw, or the post is a Linear
+  or Discord message edited after the reply
+- **THEN** the reply is input
 
 ### Requirement: An unnumbered Inquisitor reply covers its whole post
 

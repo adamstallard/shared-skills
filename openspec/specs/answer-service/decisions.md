@@ -3,16 +3,10 @@
 ## Constraints
 
 - **Constraint: The post hooks, prose's and the inquisitor's, guard against accidents, not against an agent set on forging a relayed answer: such an agent can read a relay's credentials where its skill keeps them and post with `curl`.**
-  Because: the hook stops an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
+  Because: the hooks stop an agent that uses the skills as their instructions say, and one that works around the skills has its person's own tools and the files where the skills keep keys.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
   Paths: .agents/skills/inquisitor/scripts/check-post.sh, .agents/skills/github-app/, .agents/skills/linear-app/
-
-- **Constraint: While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.**
-  Because: the inquisitor asks github-app (adamstallard/shared-skills#96) and linear-app (adamstallard/shared-skills#112) to hand the token to no such command, and ships without either; each change would close its skill's own commands, though not the keychain path the constraint above accepts.
-  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
-  Holds while: github-app or linear-app hands a relay identity's token to a command that can print it.
-  Paths: .agents/skills/github-app/, .agents/skills/linear-app/
 
 - **Constraint: GitHub's events API shows the pusher and push time of each hash-only miss file, one with no keys named by a hash, to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
   Because: the cost is accepted: anyone who matches a reply's id they already know against the file's name, a hash of the surface (GitHub, Linear or Discord) and that id, finds a reply only its thread's readers can see, so others learn only that the person judged some question then.
@@ -41,6 +35,10 @@
   Paths: .agents/skills/inquisitor/
 
 ## Rationale
+
+- **Rationale: The README warns that a relay's token can be printed.**
+  While github-app or linear-app hands a relay identity's token to a command that can print it, any agent on the person's machine can print that token and post `User says: ` with a plain HTTP call no post hook sees.
+  Evidence: github-app's `token` command prints a raw token for programs, [github-app's SKILL.md](../../../.agents/skills/github-app/SKILL.md); its `gh` command runs gh with the App's token in `GH_TOKEN`, [github_app.py](../../../.agents/skills/github-app/scripts/github_app.py); with `GH_TOKEN` set, gh 2.103.2 printed that token through `gh auth token` and through a shell alias running `echo "$GH_TOKEN"` (measured 2026-11-20), https://cli.github.com/manual/gh_auth_token; and linear-app's `token` command prints a raw token for programs, [linear-app's SKILL.md](../../../.agents/skills/linear-app/SKILL.md), as its `headers` command prints one inside an Authorization header, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
 
 - **Rationale: An automatic post is deleted when another relay post came first.**
   Only an earlier post by the person's own relay identities, the bots that post for them, makes the service delete its automatic post, so two people's services answering one message both post. Counting any bot's prefixed post would let anyone who registers a bot, as any GitHub or Discord user can, suppress an automatic answer with a fake one.
@@ -159,7 +157,7 @@
   Evidence: on 2026-11-26, in Claude Code 2.1.332, a tool a mod registered while a turn waited on another tool was offered within that turn and called; a mod calling `$.turn.abort` and then `$.command.run` of `exit` as the tool joined ended the session 32 ms later, before the tool was called, recorded in task 0.30, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: A posting check reads what each surface grants.**
-  discord-bot's `check --channel` works out the bot's permissions in a channel, and a thread falls under its parent channel's `sendMessagesInThreads`. linear-app's `check` reads no team, and Linear's app user posts without belonging to any team, so setup reads the teams the app user can see and its token's scopes itself; a private team is unmeasured. github-app's `check` lists the installation's repositories, every one when there are 100 or fewer, while its `repo_visible` step reads any one beyond that, and its permissions, which apply to the whole installation, and setup reads them with the App's own token, since the person's own `gh` login cannot list installations.
+  discord-bot's `check --channel` works out the bot's permissions in a channel, and a thread falls under its parent channel's `sendMessagesInThreads`. linear-app's `check` reads no team, and Linear's app user posts without belonging to any team, so setup reads the teams the app user can see and its token's scopes itself; a private team is unmeasured. github-app's `check` lists up to 100 of the installation's repositories, its `repo_visible` step reads one named repository beyond those, and it reports the installation's permissions, which apply to every repository; setup reads the repositories with the App's installation token and the permissions from github-app's mint of it, since the person's own `gh` login cannot list installations.
   Evidence: on 2026-11-27, reading each skill's `check` at 48370e0 and running discord-bot's and linear-app's: discord-bot's `check --channel` reported the five channel permissions as `true` on two channels; Linear's app user, which had commented on a test issue, had no team membership and saw two public teams; and `GET user/installations` with the person's `gh` login answered `403`, recorded in task 0.20, [tasks.md](../../changes/inquisitor/tasks.md)
 
 - **Rationale: A Discord thread is read with its first message.**

@@ -82,18 +82,11 @@ def checkout() -> Path | None:
     return Path(out.strip()) if out and out.strip() else None
 
 
-def read_branch(repository: str, clone: Path | None, fetch: bool) -> list[branches.BranchFile] | None:
-    """repository's questions-branch files, oldest first, or None when they
-    cannot be read. This is the one place this module and search.py read a
-    questions branch, so reading it through GitHub's API without a local
-    clone means replacing only this function. clone is the local git repository the branch is fetched
-    into and read from; with none, nothing is read. fetch: fetch the branch
-    before reading it."""
-    if clone is None or not is_repository(repository):
-        return None
-    if fetch and not branches.fetch(clone, repository):
-        return None
-    return branches.list_files(clone, repository)
+def read_branch(repository: str) -> list[branches.BranchFile] | None:
+    """repository's questions-branch files, read through GitHub's API,
+    oldest first by the commit that added each, or None when they cannot be
+    read."""
+    return branches.list_files(repository) if is_repository(repository) else None
 
 
 def is_lore_repository(repository: str, configured: set[str]) -> bool:
@@ -218,7 +211,7 @@ def _pinned(recorded_in: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m and not recorded_in.startswith("https://") else None
 
 
-def landed_check(clone: Path | None, repository: str, path: str, commit: str, checks: Checks) -> bool:
+def landed_check(repository: str, path: str, commit: str, checks: Checks) -> bool:
     """Whether a pinned commit has landed (inquisitor spec: *An answer
     recorded on a work branch counts for other work once it lands*): an
     ancestor of the default branch, or in a merged pull request, with the
@@ -226,10 +219,6 @@ def landed_check(clone: Path | None, repository: str, path: str, commit: str, ch
     cannot tell."""
     if checks.offline:
         return False
-    if clone is not None and _origin(clone) == repository and branches.landed(clone, commit) is True:
-        return True
-    # Otherwise ask GitHub: a clone that has not fetched the default branch's
-    # tip cannot show that the commit is in it.
     meta = gh_json(["api", f"repos/{repository}"])
     default = cast(dict[str, Any], meta).get("default_branch") if isinstance(meta, dict) else None
     if isinstance(default, str):
@@ -244,26 +233,23 @@ def landed_check(clone: Path | None, repository: str, path: str, commit: str, ch
     return merged and gh_json(["api", f"repos/{repository}/contents/{path}"]) is not None
 
 
-def _origin(clone: Path) -> str | None:
-    out = _run(["git", "-C", str(clone), "remote", "get-url", "origin"])
-    m = re.search(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$", out.strip()) if out else None
-    return m.group(1) if m else None
-
-
 def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch: bool,
-                 checks: Checks, item: str | None = None, item_private: bool = False,
-                 clone: Path | None = None) -> list[Labelled]:
-    """Every file of a questions branch that filter 1 (search.py's search
-    for an earlier answer) may show, labelled by the inquisitor spec's
-    authority rules, in branch order. Citation, handled and hash-only miss
-    files are never shown: the loop at the end skips them.
+                 checks: Checks, item: str | None = None,
+                 item_private: bool = False) -> list[Labelled]:
+    """The hits filter 1 (search.py's search for an earlier answer) may
+    show from a questions branch's files, in branch order, each labelled by
+    the inquisitor spec's authority rules. The returned list leaves out
+    three kinds of file: citation files, handled files and hash-only miss
+    files.
 
-    item is the repository of an Igor run's work item. Given it, a file
-    about another repository is input, and a file more private than the
-    item is hidden: it is never shown, and a file it names in `answers`
-    never takes its answer. A newer answer in a hidden file still
-    supersedes an older visible answer, and that older file shows as input
-    labelled superseded."""
+    item, when given, is the repository an Igor's run works on (an Igor is
+    igor's AI teammate). Then a log file about another repository never
+    counts as a decision, and a log, miss or unreadable file more private
+    than the item (item_private makes the item private without asking
+    GitHub) is hidden: left out, and never lending its answer to a file
+    its `answers` names. A hidden file's newer answer to the same question
+    still supersedes an older visible one, which is labelled superseded,
+    so the run never takes a replaced answer as current."""
     parsed = [parse(f.path, f.content, lore_branch) for f in files]
     hidden: set[int] = set()
     if item is not None:
@@ -371,7 +357,7 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
             hit["label"] = "decision"
         if pinned is not None:
             repo = concerned(f) or branch_repo
-            hit["landed"] = landed_check(clone, repo, pinned[0], pinned[1], checks)
+            hit["landed"] = landed_check(repo, pinned[0], pinned[1], checks)
         out.append(Labelled(hit, _match_text(f.question), i, pinned))
     return out
 
@@ -424,32 +410,29 @@ def _configured_lore() -> set[str]:
         return set()
 
 
-def _branch(repository: str) -> tuple[Path | None, list[branches.BranchFile]]:
-    """The current directory's git repository and repository's questions-branch
-    files, fetched into it. Raises Refused, which the command turns into
-    exit 1 with nothing printed, when repository is not owner/repo, the
-    current directory is in no git repository, or the fetch or listing
-    fails."""
+def _branch(repository: str) -> list[branches.BranchFile]:
+    """repository's questions-branch files. Raises Refused, which the
+    command turns into exit 1 with nothing printed, when repository is not
+    owner/repo or its branch cannot be read."""
     if not is_repository(repository):
         raise Refused(f"{repository!r} is not an owner/repo")
-    clone = checkout()
-    files = read_branch(repository, clone, True)
+    files = read_branch(repository)
     if files is None:
-        raise Refused(f"cannot fetch or read the questions branch of {repository}"
-                      + ("" if clone else ": the current directory is in no git repository"))
-    return clone, files
+        raise Refused(f"cannot read the questions branch of {repository}")
+    return files
 
 
 def run_branch_search(args: BranchSearchArgs) -> int:
-    """Print a contracts.BranchSearchResult; print nothing and exit 1 when
-    the branch cannot be fetched."""
+    """Print a contracts.BranchSearchResult. Raises Refused, which the
+    command turns into exit 1 with nothing printed, when --item or the
+    repository is not owner/repo or the branch cannot be read."""
     if args.item is not None and not is_repository(args.item):
         raise Refused(f"{args.item!r} is not an owner/repo")
     question = sys.stdin.read()
-    clone, files = _branch(args.repository)
+    files = _branch(args.repository)
     lore_branch = is_lore_repository(args.repository, _configured_lore())
     labelled = label_branch(files, args.repository, lore_branch, Checks(), item=args.item,
-                            item_private=args.linear, clone=clone)
+                            item_private=args.linear)
     wanted = question_terms(question_text(Question(kind="text", question=question)))
     result: BranchSearchResult = {"version": VERSION, "repository": args.repository,
                                   "hits": [h.hit for h, _ in rank(labelled, wanted)]}
@@ -461,7 +444,7 @@ def run_miss_check(args: MissCheckArgs) -> int:
     """Print a contracts.MissCheckResult without asking GitHub anyone's
     permission (github.write_access), since only someone with write access
     could have pushed a file to the branch."""
-    _, files = _branch(args.repository)
+    files = _branch(args.repository)
     path = f"misses/{miss_hash(args.surface, args.id)}.md"
     backed = False
     for f in files:
@@ -479,7 +462,7 @@ def run_file_answer(args: FileAnswerArgs) -> int:
     newest counting answer file naming it decides it, or null."""
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.date) or not re.fullmatch(r"[0-9a-f]{6}", args.suffix):
         raise Refused("the date must be yyyy-mm-dd and the suffix 6 lowercase hex digits")
-    clone, files = _branch(args.repository)
+    files = _branch(args.repository)
     pattern = re.compile(rf"questions/{re.escape(args.date)}-[a-z0-9-]+-{args.suffix}\.md")
     matching = [i for i, f in enumerate(files) if pattern.fullmatch(f.path)]
     if len(matching) != 1:
@@ -487,19 +470,19 @@ def run_file_answer(args: FileAnswerArgs) -> int:
                       f"have that date and suffix; exactly one must")
     target = files[matching[0]]
     lore_branch = is_lore_repository(args.repository, _configured_lore())
-    answer = named_answer_of(files, target.path, args.repository, lore_branch, Checks(), clone)
+    answer = named_answer_of(files, target.path, args.repository, lore_branch, Checks())
     result: FileAnswerResult = {"version": VERSION, "answer": answer}
     print_json(result)
     return 0
 
 
 def named_answer_of(files: list[branches.BranchFile], path: str, branch_repo: str,
-                    lore_branch: bool, checks: Checks, clone: Path | None = None) -> str | None:
+                    lore_branch: bool, checks: Checks) -> str | None:
     """The answer that the newest counting answer file naming the file at
     path gives it (inquisitor spec: *A named file's answer is the newest
     answer file naming it*). None when there is none, or when the file holds
     its own answer."""
-    labelled = label_branch(files, branch_repo, lore_branch, checks, clone=clone)
+    labelled = label_branch(files, branch_repo, lore_branch, checks)
     target = parse(path, next(f.content for f in files if f.path == path), lore_branch)
     if not isinstance(target, LogFile) or target.answer is not None:
         return None
