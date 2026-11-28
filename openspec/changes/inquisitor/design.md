@@ -1,6 +1,6 @@
 ## Open Questions
 
-In both lists below, the task each bullet names measures its fact before
+In the two lists of facts below, the task each bullet names measures its fact before
 anything resting on it is built, and the bullet says what the software
 does if the fact does not hold.
 
@@ -33,6 +33,18 @@ does if the fact does not hold.
   instead, and *The question reaches igor's command on standard input*
   changes to that way. Either way, a call that fails leaves filter 1 in an
   Igor's run searching no lore and saying so.
+### Decisions for the repository's owner
+
+- **May the post hooks, prose's and the inquisitor's, block every Linear
+  MCP tool that could write text?** The shared post reader reports each
+  `save_`, `create_`, `update_` and `submit_` Linear tool other than
+  `save_comment` and `save_issue` as unreadable (gh-post spec: *Every
+  other Linear save, create, update or submit tool is unreadable*), and
+  both hooks block what it reports unreadable, even a call holding no
+  text, such as a project's state change. If not, the reader would read
+  each such tool's text keys, and the hooks would block only a call
+  holding text.
+
 ### Facts the answer service relies on
 
 - **What form does igor's handback marker take?** (task 0.6) Until it is
