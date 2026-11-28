@@ -90,7 +90,10 @@ a key on the way to `answer_service.linear.relay` has the wrong type, or
 the keychain gives no client ID for the relay, every identity is treated
 as a relay identity; if the relay is no valid identity name, the commands
 `token`, `headers` and `wire` refuse for every identity. Refusals and
-warnings say what to fix: pass it on to the user.
+warnings say what to fix: pass that text on to the user. Never point
+`HOME` elsewhere to reach a relay identity's token: linear-app reads
+`inquisitor.json` only under `HOME`, so with no such file there it treats
+no identity as a relay identity, a known limit of these rules.
 
 ## Claiming work: delegate, never assign
 

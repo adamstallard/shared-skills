@@ -170,6 +170,10 @@ such as `a/b`, makes no identity a relay identity, but the commands
 linear-app cannot tell which one was meant. Either way each refusal, and
 every other command's warnings, say what is wrong and how to fix it.
 
+A known limit: linear-app reads `inquisitor.json` only under `HOME`, so a
+command run with `HOME` pointed at a folder without that file applies none
+of the relay rules above, even to the relay your own file names.
+
 ---
 
 ## When something goes wrong
