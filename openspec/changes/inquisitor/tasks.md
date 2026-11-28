@@ -381,13 +381,13 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       and every other character reached the model as a plain prompt; a filled
       `!echo … > <file>` reached the model as text, not as a shell
       command
-- [ ] 0.38 How the answer service tells, with the person's Linear key,
-      that a Linear app user is an Igor's, in a form no other app user can
-      take on, as the `igor-` slug tells an Igor's App on GitHub: for
-      example by the user id of the Linear identity an Igor is configured
-      with, or by a name igor requires of its Linear app. Task 0.16
-      measured that Linear marks an app user's comment, with `user.app`
-      `true`; which app user is an Igor's is not measured
+- [ ] 0.38 How the answer service tells that a GitHub App or a Linear
+      app user is an Igor's, in a form no other account can take on. A
+      slug proves nothing, since anyone can register a GitHub App or
+      Linear app with any free name, `igor-` ones included; the task
+      finds what igor records that names each Igor's identity, such as
+      the App ID or Linear user id in igor issue #160's configuration
+      entry, and whether the person's credentials can read it
 - [x] 0.39 Whether Claude Code puts an `agentId` on a subagent's or a
       forked conversation's call to a mod's tool (answer-service spec:
       *Claude's draft goes to the prompt box, never to a post*). Done
@@ -444,74 +444,35 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
-- [ ] 1.3 The library also handles the following, with tests for each in
-      prose's and the library's tests. prose's existing tests pass
-      unchanged, except any test expecting a case of the first item below
-      to be blocked: change it to expect the case let through. Only that
-      item lets through what prose's hook blocks today; prose's hook
-      ignores `gh api`, so the `gh api` items are new checks for it.
-      - It reads a call of github-app's script with the library's
-        `app_command`, `app_assignments` and `forget_scripts`, as the
-        `gh-post` spec's *The reader reads posts sent through the
-        github-app skill and gh api* says, and judges a line holding such a call exactly as the same
-        line with the command made directly; prose's reader blocks such
-        posts today.
-      - It counts a `gh api` call as mentioning a gh post verb only when
-        the call can write, as the `gh-post` spec's *A gh api call writes
-        by its method, fields, input or a mutation* says: `-X` or
-        `--method` in each form gh accepts and in any case, fields and
-        `--input` with and without `--method GET`, the
-        `X-HTTP-Method-Override` header, a GraphQL mutation, a query from
-        standard input or a file, and a method or endpoint the shell
-        builds, each with a test, and a read piped into `python3 -c`
-        passing. Check each case against `gh api --help` and gh's
-        behaviour, not only this list.
-      - It reads an unquoted `--body` or `-b` of one word holding no `$`,
-        backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
-        `-bhi` or `--body=hi`, as that word, as prose's reader does
-        today.
-      - It reads `gh api` comment bodies given by `-f body=`,
-        `--raw-field body=`, `-F body=` or `--field body=` (with or
-        without `@<file>`), or by `--input`, a review's
-        `comments[][body]` fields, and every `body` argument of the
-        GraphQL mutations that post text to an issue or pull request. A
-        field taken from a file, by `@<file>` or `--input`, is readable
-        only when that write is the whole command line. A write to an
-        endpoint other than an issue's or pull request's, or a mutation
-        off that list, is no post.
-      - It blocks as unreadable a `gh api` write to an endpoint or
-        mutation it reads whose body it can't read, a GraphQL query it
-        can't read or parse, and a review whose comments it can't read.
-      - It keeps prose's reader's block, as unreadable, on a command
-        other than a data command that names `gh` in its arguments, such
-        as `sh -c`, on a line that mentions a gh post verb (gh-post spec:
-        *A line whose simple commands send no text is no post*), and on
-        piped input as *Input to a no-post line reaches only data
-        commands* says.
+- [ ] 1.3 The library reads a post only in a canonical form and reports
+      every other call that could post as unreadable, giving the
+      canonical forms for the hooks' block message (gh-post spec: *The
+      reader reads a post only in a canonical form*; *The canonical gh pr
+      and gh issue posts are a closed list*; *The canonical gh api posts
+      are a closed list*; *A gh api call is a read only in a plain
+      form*). It reads a call of github-app's script with the library's
+      `app_command`, `app_assignments` and `forget_scripts` (*The reader
+      reads posts sent through the github-app skill*), a call prose's
+      reader blocks today. It keeps prose's reader's splitting, its block
+      on a command other than a data command naming `gh`, and its rule on
+      piped input. Change each prose test that expects an off-list form to
+      be read, such as `-b hi` or `--body=hi`, to expect it blocked; prose's hook ignores `gh api` today, so the
+      `gh api` rules are new checks for it.
 - [ ] 1.4 discord-bot's `post` and `edit` take `--message-file <path>`,
-      reading the text from that file, beside `--message -`, which reads
-      standard input, which a hook never sees; its SKILL.md and README
-      say to post with `--message-file` or `--message`
-- [ ] 1.5 The library reads discord-bot's `post` and `edit` and reports
-      each as a Discord message (gh-post spec: *The reader reads
-      discord-bot's post and edit as gh issue comment*), so prose's
-      posting hook reads them too
+      reading the text from that file, since a hook never sees standard
+      input; its SKILL.md and README say to post with `--message-file`
+- [ ] 1.5 The library reads discord-bot's `post` and `edit` from
+      `--message-file` alone and reports each as a Discord message
+      (gh-post spec: *The reader reads discord-bot's post and edit only
+      from a message file*), so prose's posting hook reads them too
 - [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
       `description` from the Linear MCP, and blocks a `save_issue` with
-      `patch`, or `template` and no `description` (gh-post spec: *The reader reads a Linear MCP
-      comment or issue description*)
+      `patch`, or `template` and no `description` (gh-post spec: *The
+      reader reads a Linear MCP comment or issue description*)
 - [ ] 1.7 The library reports whether each post goes through the
       github-app skill's script (gh-post spec: *The reader says whether a
       post goes through the github-app skill*)
 
-- [ ] 1.8 The library blocks a gh api post that gh changes before sending,
-      takes only exactly `graphql` as GraphQL, reads `repositories/<id>/`
-      endpoints, and lets piped input reach only a `gh pr` or `gh issue`
-      command sending no text or a `gh api` read (gh-post spec: *A gh api
-      post that gh changes before sending is unreadable*; *A gh api call
-      writes by its method, fields, input or a mutation*; *The reader
-      reads a gh api write to an issue or pull request*; *Input to a
-      no-post line reaches only data commands*)
 ## 2. The script
 
 - [ ] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first
@@ -532,9 +493,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       `igor lore-search`, which igor PR #216 builds.
       - It searches decision documents, issues through `gh`, the
         repository's `questions` branch, and configured lore clones'
-        entries and `questions` branch. It fetches each `questions`
-        branch before searching it, and reads every branch it searches
-        with `git show`, checking none out. Task 7.0 adds igor's scribe's
+        entries and `questions` branch. It reads each `questions`
+        branch through GitHub's API, and each lore clone's default
+        branch with `git show`, checking none out (inquisitor spec: *A
+        questions branch is read through GitHub's API*). Task 7.0 adds igor's scribe's
         decision records; until then the output names them as not
         searched.
       - It matches as plain text, lists answers before input and ranks
@@ -644,11 +606,13 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       - A file is pushed to the `questions` branch of the repository the
         question is about, or of the team's lore repository for a
         question about a collective. Every commit to a questions branch,
-        `cite`'s included, is written with git's plumbing (`hash-object`,
-        `mktree`, `commit-tree`) and pushed by its commit id, with no
-        checkout, so no HEAD moves (inquisitor spec: *A question is pushed
-        to the questions branch of what it concerns*). The command
-        fetches and pushes again when rejected because the branch moved,
+        `cite`'s included, is made through GitHub's Git database API (a
+        tree on the branch's head, a commit, then the branch moved
+        forward without force), with no clone or checkout, so no HEAD
+        moves, and adds no file whose path the branch holds (inquisitor
+        spec: *A question is pushed to the questions branch of what it
+        concerns*). The command commits again on the new head when
+        GitHub refuses the move because the branch moved,
         and keeps the file pending, pushing it with the next file for
         that branch, when it cannot push otherwise; called with its
         service option, which the answer service passes on every push, it
@@ -656,8 +620,16 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       - A picker question's file is pushed once answered, and a record
         more visible than its source only once the person answering
         confirmed the warning, then with no link into the source.
-      - The secret scan, over raw markdown with link targets included, and
-        the visibility refusal.
+      - The secret scan, over raw markdown with link targets included,
+        the visibility refusal, and the refusal of an empty answer
+        (inquisitor spec: *The log command refuses an empty answer*).
+      - Without its service option, in a folder no git repository
+        holds, it refuses a file whose `asked_from` would be the current
+        work's repository (inquisitor spec: *The log command refuses
+        outside a git repository*). Its confirmation option sends only an
+        answered log file or a miss file somewhere more visible (inquisitor
+        spec: *The answerer's confirmation can send a record somewhere more
+        visible*).
       - It refuses, saying why, a question holding a line that is exactly
         `## Rephrased question`, `## Discussion` or `## Answer`.
       - `misses`, listing the misses by filter for a review.
@@ -674,10 +646,16 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       which the answer service passes (inquisitor spec: *The answer
       service's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
-- [ ] 2.5 The question finder for posts, one function the post hook also
-      calls, finding questions in a post's body, with an
-      open-questions section begun only by a label that names questions
-      or a deferral label
+- [ ] 2.5 One markdown parser in `qtext` both builds a question's text
+      and finds a post's questions, for the two calls, the post hook and
+      the answer service alike: a line classifier (code fence, `>` line,
+      list item, heading, bold label, colon label, record lines, prose's
+      footer) and an inline reducer that reads each line once, left to
+      right. An open-questions section begins only at a label that names
+      questions or a deferral label (inquisitor spec: *A question's text
+      and hash are built one way*; *Inline markup is reduced to its text
+      one way*; *A question in a post is a listed item or a sentence
+      ending in a question mark*)
 - [ ] 2.6 `tag`, choosing whom a post's question tags: the first candidate
       with write access, starting with the approver of the related earlier
       decision the second call recorded; else the login configured for
@@ -705,7 +683,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 - [ ] 2.7 `lore`, opening a lore pull request of one of three kinds: a
       new entry, a promotion from the `questions` branch, or a lesson
       from misses, for which the agent gives it the miss files the lesson
-      draws on. It refuses an id outside igor's id rule. It refuses a lore
+      draws on. It makes the branch, the commit and the pull request
+      through GitHub's API, with no clone (inquisitor spec: *The lore
+      command opens its pull request through GitHub's API*). It refuses an id outside igor's id rule. It refuses a lore
       repository more visible than the entry's source unless given the
       confirmation option, which the agent passes only once the person
       confirms (inquisitor spec: *A lore pull request goes to a more
@@ -774,7 +754,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 ## 5. Docs and registration
 
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
-      privacy of what it concerns, posting no more publicly than that,
+      privacy of what it concerns, writing its answers as a numbered
+      `label: effect` list (answer-service spec: *An agent's question
+      offers the options its numbered list gives*), posting no more publicly than that,
       that the person is accountable for what is posted as their relay
       and where, since no hook checks where a relay post goes
       (answer-service spec: *The person answers for what their relay posts*), the
@@ -799,8 +781,8 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       a relay's token to a command that can print it, the warning that any
       agent can print it and post `User says: ` (answer-service spec:
       *The README warns that a relay's token can be printed*). While
-      task 0.6 is open, it says no comment counts as a handback; while
-      task 0.38 is open, that no Linear comment does; while task 0.16 is
+      task 0.6 or 0.38 is open, it says no comment counts as a
+      handback; while task 0.16 is
       not done, that Linear stays off; and while task 0.17 is not done,
       that Discord stays off.
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
@@ -957,8 +939,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       the person's GitHub login, without which it does not complete; the
       candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
-      off and checked again at each opening; the Linear key in the
-      keychain; each Linear or Discord channel's `repos`, guessed from its
+      off and checked again at each opening; the Linear key stored in
+      the keychain by a command the person runs, never through the prompt
+      (*The person's Linear key never passes through the prompt*); each Linear or Discord channel's `repos`, guessed from its
       history (answer-service spec: *Setup guesses the repositories a
       Linear or Discord channel concerns*); the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push,
@@ -969,13 +952,14 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       question asked of the person comes from one of four sources*), only
       while open, the catch-up on opening, 60 seconds, poll positions,
       `ETag`s and the wait after a rate-limit refusal (*The poll reads
-      every GitHub question source*), and fetching every subscribed
-      repository's questions branch and every configured lore
-      repository's questions and default branches at each poll, and a
-      subscribed repository's default branch when filter 1 is about to
-      check a question placed in it. The `search` command reads only
-      branches fetched so, and issues only
-      of these repositories (answer-service spec: *The answer service's
+      every GitHub question source*), reading every subscribed and lore
+      repository's questions branch through GitHub's API and fetching
+      every configured lore repository's default branch about every 60
+      seconds,
+      and a subscribed repository's default branch when filter 1 is
+      about to check a question placed in it. The `search` command reads
+      only these branches and clones, and issues only of their
+      repositories (answer-service spec: *The answer service's
       filter 1 reads only subscribed and lore repositories*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, or on Linear the service's own
@@ -1086,16 +1070,12 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
         concerns line names, named by a hash of the reply's surface and id
         and either naming a `said_by` or hash-only (inquisitor spec: *A
         hash-only miss file shows nothing but that it exists*).
-- [ ] 6.11 Decide at implementation, and when each choice is made, add
-      it to the spec as a requirement with a scenario or, if no test can
-      check it, to the answer-service decision record as an entry with
-      evidence: how a question's options, the choices it offers
-      with what each would change, are parsed from its thread; and how the
-      service handles an asker's reply that revises those options. Agreeing
-      to a shown recorded answer is already decided, as are agreeing to a
-      suggested verdict and citing a lore entry (answer-service spec:
-      *Filters 2 to 4 only suggest a verdict on other questions*; *A
-      person's cite of an active entry in scope pushes a citation file*)
+- [ ] 6.11 Decide at implementation, and add to the spec as a
+      requirement with a scenario or, if no test can check it, to the
+      answer-service decision record as an entry with evidence: how the
+      service handles an asker's reply that revises a question's options
+      (answer-service spec: *An agent's question offers the options its
+      numbered list gives*)
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's

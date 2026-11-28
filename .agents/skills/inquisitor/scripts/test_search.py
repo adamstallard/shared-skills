@@ -562,6 +562,13 @@ class Command(Base):
         self.assertEqual(r["clones"][0]["repository"], "o/web")
         self.assertEqual(self.fetched, [])
         self.assertEqual(set(self.home.rglob("*")), before)
+        f = LogFile(name="2026-10-01-should-retries-back-off-000001.md", asked="2026-10-01",
+                    question="Should retries back off?", repository="o/web", asked_from="o/web")
+        self.branch_files["o/web"] = [BF("questions/" + f.name, render(f), "1" * 40)]
+        self.assertIn("questions/" + f.name, self.where(search.filter1(q(repository="o/web"), True)))
+        self.branch_files["o/web"] = None
+        r = search.filter1(q(repository="o/web"), True)
+        self.assertTrue(any(s.startswith("questions branch of o/web") for s in r["not_searched"]))
         self.issues = [{"url": "u", "title": "Retries back off", "author": {"login": "a"},
                         "body": "", "comments": []}]
         r = search.filter1(q(repository="o/zzz"), True)

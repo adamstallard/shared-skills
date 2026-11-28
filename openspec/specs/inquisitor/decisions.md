@@ -4,7 +4,7 @@
 
 - **Constraint: An agent in the person's session can have the `log` command write, as the person's, files the person never asked for: a decision, by passing their login as `answered_by` with no `answer_link`; and, by passing the service option, which is meant only for the answer service and whose caller the command does not check, a handled file closing a question, a miss file named by a reply's id (which lets the asking agent act on an automatic `Inquisitor: ` reply as one a person backed), or a log file recording any GitHub comment, or a Linear or Discord message, as the person's answer.**
   Because: that agent already holds the person's push access, so it could as well push any of these files itself, or commit a decision document that filter 1 counts, and closing these paths would protect nothing.
-  Evidence: git pushes with the credentials its configured helper holds for the host, whichever program runs `git push`, https://git-scm.com/docs/gitcredentials, and `gh auth setup-git` makes gh that helper with the person's own login, https://cli.github.com/manual/gh_auth_setup-git
+  Evidence: `gh api` makes each request with the login `gh auth login` stored, whichever program runs it, https://cli.github.com/manual/gh_auth_login, and `gh auth setup-git` makes gh git's credential helper with that same login, https://cli.github.com/manual/gh_auth_setup-git
   Holds while: an agent in the person's session runs with the person's push access.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
@@ -18,7 +18,7 @@
 
 - **Rationale: A question is pushed to the questions branch of what it concerns.**
   Committed with the work, a question's file would be invisible to other work until that work merged, and lost if the work were abandoned; a general question would ride in an unrelated pull request; and an answer service could not write the answer, since it cannot commit to another agent's work branch. A branch of its own, pushed with no pull request, has none of these costs, and needs no review, since a question's authority comes from who answered it.
-  The script commits with git's plumbing and never moves HEAD, because prose's and bug-hunter's hooks report each commit that lands on HEAD without their trailers, and these machine records carry none.
+  The script commits through GitHub's API and never moves HEAD, because prose's and bug-hunter's hooks report each commit that lands on HEAD without their trailers, and these machine records carry none.
   Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
   Evidence: prose's and bug-hunter's hooks run their trailer checks after every Bash command, [prose's hook.json](../../../.agents/skills/prose/hook.json) and [bug-hunter's hook.json](../../../.agents/skills/bug-hunter/hook.json), and prose's check asks git whether HEAD moved, [check-commit-trailer.sh](../../../.agents/lib/commit-trailer/check-commit-trailer.sh)
 

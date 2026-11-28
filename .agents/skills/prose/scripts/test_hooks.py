@@ -726,6 +726,50 @@ class PostingHook(unittest.TestCase):
             with self.subTest(command):
                 self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
+    # @scenario gh-post: A post sent through the github-app skill is read
+    def test_a_post_through_github_app_s_script_is_read_as_gh_s(self):
+        (self.dir / "good.md").write_text(self.good)
+        (self.dir / "bad.md").write_text("Unsigned.\n")
+        for command, code in (
+            ("python3 /s/github_app.py gh pr comment 3 --body-file good.md", 0),
+            ("G=/s/github_app.py; python3 $G --identity bot gh pr comment 3 -F good.md", 0),
+            ("python3 /s/github_app.py gh pr comment 3 --body-file bad.md", 2),
+            ("python3 /tmp/other.py gh pr comment 3 --body-file good.md", 2),
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, code)
+
+    # @scenario gh-post: Each gh api body form is read
+    # @scenario gh-post: A gh api read piped into a script is no post
+    def test_gh_api_posts_are_checked(self):
+        (self.dir / "good.md").write_text(self.good)
+        comments = "gh api repos/o/r/issues/5/comments"
+        for command, code in (
+            (f"{comments} -f body='Unsigned.'", 2),
+            (f"{comments} -f body=" + shlex.quote(self.good), 0),
+            (f"{comments} -F body=@good.md", 0),
+            (f"cd x && {comments} -F body=@good.md", 2),
+            (f"{comments} -F body=@missing.md", 2),
+            ("gh api repos/o/r/pulls/5 | python3 -c 'import sys; print(sys.stdin.read())'", 0),
+            ("cd x && gh api -X DELETE repos/o/r/issues/comments/9", 0),
+            ("gh api graphql -f query='mutation { addComment(input: {subjectId: \"I\", "
+             "body: \"Unsigned.\"}) { clientMutationId } }'", 2),
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, code)
+
+    # @scenario gh-post: A Discord post or edit is read from its file
+    def test_a_discord_post_is_checked(self):
+        (self.dir / "good.md").write_text(self.good)
+        for command, code in (
+            ("python3 /s/discord_bot.py post --message 'Unsigned.'", 2),
+            ("python3 /s/discord_bot.py --identity relay edit --message-id 9 "
+             "--message-file good.md", 0),
+            ("python3 /s/discord_bot.py read --limit 5", 0),
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, code)
+
     def test_printf_and_test_may_run_a_subscript_so_their_text_is_not_data(self):
         # bash 4+ evaluates an array subscript in `printf -v` and `test -v`,
         # command substitution included, so the quoted text can run gh.

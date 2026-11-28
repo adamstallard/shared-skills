@@ -62,18 +62,7 @@ does if the fact does not hold.
 - **Can the person's Linear key read Linear's GitHub-integration links?**
   (task 0.35) If not, setup's guess for a Linear team names nothing, and
   setup asks the person.
-- **Which Linear app user is an Igor's?** (task 0.38) If no form tells an
-  Igor's app user from another, no Linear comment is a handback, and the
-  README says so.
-
-### Outside this change
-
-- **Proving an answer by a link to a message on another surface,** such as
-  Discord, would need that surface's API to vouch for the message's author,
-  and a map from the author to a GitHub login: igor issue #160's configuration
-  entry keyed by the Discord user id, or a file in the lore repository. A
-  later change would choose. Without it, an answer typed directly on such a
-  surface counts only through a decision document, such as the scribe's
-  record; one typed in the answer service and relayed there counts through its
-  answer file.
-
+- **Which GitHub App or Linear app user is an Igor's?** (task 0.38) If
+  nothing the person can read tells an Igor's identity from any other App
+  or app user, no
+  comment is a handback, and the README says so.

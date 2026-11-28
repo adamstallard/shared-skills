@@ -24,7 +24,7 @@ from typing import Any, Literal, cast
 
 import branches
 import github
-from common import VERSION, Refused, print_json, state_home
+from common import VERSION, Refused, print_json
 from contracts import BranchHit, BranchSearchResult, FileAnswerResult, MissCheckResult
 from formats import (HandledFile, HashOnlyMiss, LogFile, MissFile, Unreadable, is_login,
                      is_repository, miss_hash, parse)
@@ -76,16 +76,24 @@ def gh_json(args: list[str]) -> Any:
         return None
 
 
-def cache_clone(repository: str) -> Path:
-    """A bare repository under the state home holding repository's fetched
-    questions branch, created when missing."""
-    owner, name = repository.split("/")
-    clone = state_home() / "inquisitor" / "branches" / owner / name
-    if not (clone / "HEAD").exists():
-        clone.mkdir(parents=True, exist_ok=True)
-        if _run(["git", "init", "-q", "--bare", str(clone)]) is None:
-            raise Refused(f"cannot create a git repository at {clone}")
-    return clone
+def checkout() -> Path | None:
+    """The git working tree holding the current directory, or None."""
+    out = _run(["git", "rev-parse", "--show-toplevel"])
+    return Path(out.strip()) if out and out.strip() else None
+
+
+def read_branch(repository: str, clone: Path | None, fetch: bool) -> list[branches.BranchFile] | None:
+    """repository's questions-branch files, oldest first, or None when they
+    cannot be read. This is the one place this module and search.py read a
+    questions branch, so reading it through GitHub's API without a local
+    clone means replacing only this function. clone is the local git repository the branch is fetched
+    into and read from; with none, nothing is read. fetch: fetch the branch
+    before reading it."""
+    if clone is None or not is_repository(repository):
+        return None
+    if fetch and not branches.fetch(clone, repository):
+        return None
+    return branches.list_files(clone, repository)
 
 
 def is_lore_repository(repository: str, configured: set[str]) -> bool:
@@ -218,16 +226,18 @@ def landed_check(clone: Path | None, repository: str, path: str, commit: str, ch
     cannot tell."""
     if checks.offline:
         return False
-    if clone is not None and _origin(clone) == repository:
-        if branches.landed(clone, commit) is True:
+    if clone is not None and _origin(clone) == repository and branches.landed(clone, commit) is True:
+        return True
+    # Otherwise ask GitHub: a clone that has not fetched the default branch's
+    # tip cannot show that the commit is in it.
+    meta = gh_json(["api", f"repos/{repository}"])
+    default = cast(dict[str, Any], meta).get("default_branch") if isinstance(meta, dict) else None
+    if isinstance(default, str):
+        cmp = gh_json(["api", f"repos/{repository}/compare/{commit}...{default}"])
+        if isinstance(cmp, dict) and cast(dict[str, Any], cmp).get("status") in ("ahead", "identical"):
             return True
-    else:
-        meta = gh_json(["api", f"repos/{repository}"])
-        default = cast(dict[str, Any], meta).get("default_branch") if isinstance(meta, dict) else None
-        if isinstance(default, str):
-            cmp = gh_json(["api", f"repos/{repository}/compare/{commit}...{default}"])
-            if isinstance(cmp, dict) and cast(dict[str, Any], cmp).get("status") in ("ahead", "identical"):
-                return True
+    # A squash or rebase merge leaves the commit off the default branch, so
+    # a merged pull request counts too.
     pulls = gh_json(["api", f"repos/{repository}/commits/{commit}/pulls"])
     merged = isinstance(pulls, list) and any(
         isinstance(p, dict) and cast(dict[str, Any], p).get("merged_at") for p in cast(list[Any], pulls))
@@ -267,7 +277,7 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
         f = parsed[i]
         if not isinstance(f, LogFile) or f.answer is None or f.answer.authority != "decision":
             return False
-        if bool(getattr(files[i], "changed", False)):
+        if files[i].changed:
             return False
         if item is not None and f.repository is not None and f.repository != item:
             return False
@@ -411,17 +421,19 @@ def _configured_lore() -> set[str]:
         return set()
 
 
-def _branch(repository: str) -> tuple[Path, list[branches.BranchFile]]:
-    """Fetch repository's questions branch into its cache clone and list its
-    files, refusing (exit 1, nothing printed) when that fails."""
+def _branch(repository: str) -> tuple[Path | None, list[branches.BranchFile]]:
+    """The current directory's git repository and repository's questions-branch
+    files, fetched into it. Raises Refused, which the command turns into
+    exit 1 with nothing printed, when repository is not owner/repo, the
+    current directory is in no git repository, or the fetch or listing
+    fails."""
     if not is_repository(repository):
         raise Refused(f"{repository!r} is not an owner/repo")
-    clone = cache_clone(repository)
-    if not branches.fetch(clone, repository):
-        raise Refused(f"cannot fetch the questions branch of {repository}")
-    files = branches.list_files(clone, repository)
+    clone = checkout()
+    files = read_branch(repository, clone, True)
     if files is None:
-        raise Refused(f"cannot read the questions branch of {repository}")
+        raise Refused(f"cannot fetch or read the questions branch of {repository}"
+                      + ("" if clone else ": the current directory is in no git repository"))
     return clone, files
 
 
