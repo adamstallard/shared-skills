@@ -236,22 +236,27 @@ def landed_check(repository: str, path: str, commit: str, checks: Checks) -> boo
 def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch: bool,
                  checks: Checks, item: str | None = None,
                  item_private: bool = False) -> list[Labelled]:
-    """Every file of a questions branch that filter 1 may show, labelled as
-    the inquisitor spec's authority rules label it, in branch order.
-    Citation, handled and hash-only miss files are never shown. Given an
-    Igor run's item, a file about another repository is input and a file
-    more private than the item is left out."""
+    """The hits filter 1 (search.py's search for an earlier answer) may
+    show from a questions branch's files, in branch order, each labelled by
+    the inquisitor spec's authority rules. The returned list leaves out
+    three kinds of file: citation files, handled files and hash-only miss
+    files.
+
+    item, when given, is the repository an Igor's run works on (an Igor is
+    igor's AI teammate). Then a log file about another repository never
+    counts as a decision, and a log, miss or unreadable file more private
+    than the item (item_private makes the item private without asking
+    GitHub) is hidden: left out, and never lending its answer to a file
+    its `answers` names. A hidden file's newer answer to the same question
+    still supersedes an older visible one, which is labelled superseded,
+    so the run never takes a replaced answer as current."""
     parsed = [parse(f.path, f.content, lore_branch) for f in files]
+    hidden: set[int] = set()
     if item is not None:
-        # A file more private than the item is dropped before any rule
-        # reads it, so that it neither lends its answer to a file it names
-        # nor supersedes another file.
         item_vis = "private" if item_private else checks.visibility(item)
-        kept = [i for i, f in enumerate(parsed)
-                if not isinstance(f, (LogFile, MissFile, Unreadable))
-                or not github.more_visible(item_vis, file_visibility(f, branch_repo, checks))]
-        files = [files[i] for i in kept]
-        parsed = [parsed[i] for i in kept]
+        hidden = {i for i, f in enumerate(parsed)
+                  if isinstance(f, (LogFile, MissFile, Unreadable))
+                  and github.more_visible(item_vis, file_visibility(f, branch_repo, checks))}
 
     def concerned(f: LogFile) -> str | None:
         return f.repository or (branch_repo if lore_branch else None)
@@ -317,7 +322,8 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
     out: list[Labelled] = []
     for i, f in enumerate(parsed):
         path = files[i].path
-        if isinstance(f, (HandledFile, HashOnlyMiss)) or not isinstance(f, (LogFile, MissFile, Unreadable)):
+        if i in hidden or isinstance(f, (HandledFile, HashOnlyMiss)) \
+                or not isinstance(f, (LogFile, MissFile, Unreadable)):
             continue
         if isinstance(f, Unreadable):
             out.append(Labelled({"path": path, "question": "", "answer": None, "label": "input",
@@ -329,7 +335,7 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
                                  "filter": f.filter, "said": f.said}, _match_text(f.question), i))
             continue
         source = f.answer
-        if source is None and i in named_answer:
+        if source is None and i in named_answer and named_answer[i] not in hidden:
             answer_file = parsed[named_answer[i]]
             assert isinstance(answer_file, LogFile)
             source = answer_file.answer

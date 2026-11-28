@@ -551,12 +551,10 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             "clones": clones, "left_out": max(0, len(hits) - CAP)}
 
 
-def _worker_docs(work: Path | None, repo: str, wanted: set[str]) -> list[SearchHit]:
+def _worker_docs(work: Path, repo: str, wanted: set[str]) -> list[SearchHit]:
     """An Igor worker's decision documents: those in its working tree.
     Those its branch changed, those left uncommitted, and all of them when
     no merge base is found, are shown as input."""
-    if work is None:
-        return []
     files: dict[str, str] = {}
     for prefix in DOC_PREFIXES:
         for p in sorted((work / prefix).rglob("*.md")):

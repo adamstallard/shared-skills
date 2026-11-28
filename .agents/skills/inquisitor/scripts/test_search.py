@@ -239,6 +239,9 @@ class Lore(Base):
         hits = [(h["label"], h.get("reason")) for h in r["hits"] if h["source"] == "questions-branch"]
         self.assertEqual(hits, [("decision", None)])
         self.assertFalse(any(search.IGOR_NOTE in s for s in r["not_searched"]))
+        # o/lore is both the question's repository and a lore repository. Its questions branch is
+        # searched once, in the lore loop, so not_searched never names it.
+        self.assertFalse(any(s.startswith("questions branch of o/lore") for s in r["not_searched"]))
 
     def test_cap(self) -> None:
         # @scenario inquisitor: Hits are ranked by terms matched and capped
@@ -427,6 +430,35 @@ class Repository(Base):
             hit = next(h for h in search.filter1(q(repository="o/api"), False)["hits"]
                        if h["source"] == "questions-branch")
             self.assertEqual((hit["label"], hit.get("why")), ("input", "not yet merged"))
+
+    def test_unmerged_pin_supersedes_an_older_answer(self) -> None:
+        # @scenario inquisitor: An answer on an unmerged branch counts only in work that holds its commit
+        # @scenario inquisitor: The newest answer to a question counts
+        # A newer decision recorded at a commit (`path@sha`) not yet on the default branch still
+        # supersedes the older answer in work lacking that commit, so that work has no answer to
+        # act on and asks the question.
+        self.configure([])
+        clone = self.work({"README.md": "x\n"}, {"openspec/changes/retry/design.md": "Unrelated.\n"})
+        sha = git(clone, "rev-parse", "HEAD").strip()
+        git(clone, "checkout", "-q", "main")
+
+        def answer(n: int, recorded_in: str, text: str) -> BF:
+            f = LogFile(name=f"2026-10-0{n}-should-retries-back-off-00000{n}.md", asked=f"2026-10-0{n}",
+                        question="Should retries back off?", repository="o/api", asked_from="o/api",
+                        answer=Answer(answered_by="alice", authority="decision",
+                                      recorded_in=recorded_in, text=text))
+            return BF("questions/" + f.name, render(f), str(n) * 40)
+
+        older = answer(1, "questions/2026-10-01-should-retries-back-off-000001.md", "No.")
+        newer = answer(2, f"openspec/changes/retry/design.md@{sha}", "Yes.")
+        self.branch_files["o/api"] = [older, newer]
+        with mock.patch.object(branch_search, "landed_check", return_value=False):
+            hits = {h["where"]: h for h in search.filter1(q(repository="o/api"), False)["hits"]
+                    if h["source"] == "questions-branch"}
+        self.assertEqual((hits[newer.path]["label"], hits[newer.path].get("why")),
+                         ("input", "not yet merged"))
+        self.assertEqual((hits[older.path]["label"], hits[older.path].get("reason")),
+                         ("input", "superseded"))
 
 
 class Igor(Base):
