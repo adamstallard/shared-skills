@@ -49,10 +49,10 @@
 
 ## 3. prose
 
-- [ ] 3.1 prose's posting hook prefilter,
-      `.agents/skills/prose/scripts/check-post.sh`, passes a payload
-      naming `linear_app.py` on to the shared post reader, as it does one
-      naming `discord_bot.py`, so prose's check for a signed footer
+- [ ] 3.1 prose's posting hook,
+      `.agents/skills/prose/scripts/check-post.sh`, passes a tool call
+      whose command names `linear_app.py` on to the shared post reader, and a test
+      shows it, so prose's check for a signed footer
       applies to every linear-app `post` and `edit` an agent runs as a
       tool call; say so in prose's SKILL.md, since prose has no spec
 

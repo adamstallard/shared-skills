@@ -6,9 +6,9 @@ The reader SHALL find a call of linear-app's script, `linear_app.py`, in
 the same forms in which *The reader reads posts sent through the
 github-app skill* finds a call of github-app's script. Such a call's
 canonical form (*The reader reads a post only in a canonical form*) SHALL
-be `post` or `edit` with `--body-file <file>` given
-once, naming a regular file that exists whose text is the body; other
-options may stand anywhere in the call. It SHALL report the post as a
+be `post` or `edit` with `--body-file <file>` given once, its value the
+next word, naming an existing regular file holding the body; other
+options may stand anywhere. It SHALL report the post as a
 Linear message.
 
 #### Scenario: A Linear post or edit is read from its file
@@ -26,8 +26,11 @@ Linear message.
 #### Scenario: A Linear comment given any other way is unreadable
 
 - **WHEN** a hook asks about `python3 /abs/linear_app.py post --issue
-  ENG-5 --body c.md`, and about `printf 'User says: yes' | python3
-  /abs/linear_app.py post --issue ENG-5 --body-file /dev/stdin`
+  ENG-5 --body c.md`, about `python3 /abs/linear_app.py post --issue
+  ENG-5 --body-file=c.md`, about `printf 'User says: yes' | python3
+  /abs/linear_app.py post --issue ENG-5 --body-file /dev/stdin`, and
+  about `python3 -m linear_app post --issue ENG-5 --body-file c.md`,
+  whose `linear_app` is a module name, not a path to the script
 - **THEN** the reader reports each command as unreadable
 
 #### Scenario: A Linear delete or check is no post
@@ -38,8 +41,9 @@ Linear message.
 
 ### Requirement: A simple command holding a linear-app post word counts as naming gh
 
-A simple command holding a word ending in `linear_app.py` followed later
-by `post` or `edit` SHALL count as holding the word `gh`. Otherwise a
+A simple command holding a word, inside quotes or not, that is
+`linear_app` or ends in `linear_app.py`, followed later by `post` or `edit`, SHALL count as
+holding the word `gh`. Without this rule, a
 linear-app call in a form the reader does not find, such as inside `sh
 -c`, would name no `gh` and pass as sending no post; counted this way, it
 is unreadable and blocked.
@@ -63,8 +67,8 @@ passes input to a `gh` command (*Input to a no-post line reaches only
 data commands*). It mentions one when its text holds `gh`, then `pr` or
 `issue`, then a post verb listed for that word; `gh`, then `api`, unless
 the line is a read (*A gh api call is a read only in a plain form*); or
-a word that is `discord_bot` or ends in `discord_bot.py` or
-`linear_app.py`, then `post` or `edit`.
+a word that is `discord_bot` or `linear_app`, or ends in
+`discord_bot.py` or `linear_app.py`, then `post` or `edit`.
 
 #### Scenario: The gh post verbs are a closed list
 

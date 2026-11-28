@@ -311,10 +311,17 @@ def client_credentials(identity: str, config: Config, env: Env | None = None, re
 
 
 class Relay(NamedTuple):
-    """Whether an identity is a relay identity, and why, for refusals to name."""
+    """Whether an identity is a relay identity, and why, for refusals to name.
+
+    `warning` is a fault in inquisitor.json the person must fix; every
+    command adds it to its output. While it is set and `relay` is not, token,
+    headers and wire refuse, since linear-app cannot tell which identity was
+    meant as the relay.
+    """
 
     relay: bool
     why: str = ""
+    warning: str = ""
 
 
 NOT_RELAY = Relay(False)
@@ -324,26 +331,46 @@ def inquisitor_config_path() -> str:
     return os.path.join(os.path.expanduser("~"), ".config", "shared-skills", "inquisitor.json")
 
 
+def json_type(value: object) -> str:
+    """The JSON name of a parsed value's type, for messages."""
+    for kind, name in ((bool, "a boolean"), (int, "a number"), (float, "a number"), (str, "a string"),
+                       (list, "an array"), (dict, "an object")):
+        if isinstance(value, kind):
+            return name
+    return "null"
+
+
 def configured_relay(path: str | None = None) -> tuple[str | None, str | None]:
-    """(the identity inquisitor.json names as the Linear relay, or None;
-    why every identity counts as a relay identity, or None)."""
+    """(the Linear relay name inquisitor.json holds, valid or not, or None;
+    what is wrong with the file, how to fix it, and that every identity
+    counts as a relay identity until the file is fixed, or None)."""
     path = path or inquisitor_config_path()
-    everyone = ", so every identity counts as a relay identity"
+    until = "; until it is fixed, every identity counts as a relay identity"
     try:
         with open(path, encoding="utf-8") as f:
             data: object = json.load(f)
     except (FileNotFoundError, NotADirectoryError):
         return None, None
     except (OSError, ValueError) as e:
-        return None, f"{path} cannot be read as a JSON object ({e}){everyone}"
-    if not isinstance(data, dict):
-        return None, f"{path} holds no JSON object{everyone}"
-    linear = as_dict(as_dict(as_dict(data).get("answer_service")).get("linear"))
+        return None, f"{path} cannot be read as a JSON object ({e}); fix the file or remove it{until}"
+    node, key = data, ""
+    for name in ("answer_service", "linear"):
+        if not isinstance(node, dict):
+            return None, (f"{key or 'the top level'} in {path} must be a JSON object, not {json_type(node)}; "
+                          f"make it an object, or remove it{until}")
+        fields = as_dict(node)
+        if name not in fields:
+            return None, None
+        node, key = fields[name], f"{key}.{name}" if key else name
+    if not isinstance(node, dict):
+        return None, f"{key} in {path} must be a JSON object, not {json_type(node)}; make it an object, or remove it{until}"
+    linear = as_dict(node)
     if "relay" not in linear:
         return None, None
     relay: object = linear["relay"]
     if not isinstance(relay, str):
-        return None, f"answer_service.linear.relay in {path} is not a string{everyone}"
+        return None, (f"answer_service.linear.relay in {path} must be a string naming the relay identity, not "
+                      f"{json_type(relay)}; set it to that name, or remove it{until}")
     return relay, None
 
 
@@ -355,14 +382,18 @@ def relay_status(identity: str, config: Config, env: Env | None = None, read: Re
     read = read or read_keychain
     relay, everyone = configured_relay()
     if everyone:
-        return Relay(True, everyone)
+        return Relay(True, everyone, everyone)
     if relay is None:
         return NOT_RELAY
+    if not IDENTITY_RE.fullmatch(relay):
+        return Relay(False, warning=(
+            f"answer_service.linear.relay in {inquisitor_config_path()} is {relay!r}, which is no identity name: "
+            "a name uses only letters, digits, '_', '.' and '-'. Set it to the name of an identity given to "
+            f"store-credentials (`ls {xdg_dir('config', env)}` lists those with a config), or remove it; until "
+            "then token, headers and wire refuse for every identity, since linear-app cannot tell which identity was meant"))
     if identity == relay:
         return Relay(True, f"identity {identity!r} is the Linear relay that {inquisitor_config_path()} names")
     unreadable = f"so every identity counts as a relay identity while {inquisitor_config_path()} names a Linear relay"
-    if not IDENTITY_RE.match(relay):
-        return Relay(True, f"the Linear relay {relay!r} is not a valid identity name, {unreadable}")
     try:
         relay_config = load_config(relay, env)
     except Failure as e:
@@ -518,7 +549,10 @@ def fingerprint(client_id: str, secret: str, scopes: str) -> str:
 
 
 def usable(cached: dict[str, Any], credential: str, now: float) -> bool:
-    return bool(cached.get("token") and cached.get("credential") == credential and now < cached.get("renewAt", 0))
+    # a cache with no record of the scopes Linear granted is unusable, so current_token mints a new
+    # token, whose scopes check can report
+    return bool(cached.get("token") and cached.get("credential") == credential and now < cached.get("renewAt", 0)
+                and "grantedScopes" in cached)
 
 
 def current_token(identity: str, config: Config, env: Env | None = None, now: float | None = None,
@@ -651,8 +685,7 @@ def cmd_check(args: argparse.Namespace, config: Config) -> dict[str, Any]:
     if relay_of(args).relay:
         warnings += relay_helpers(args.identity)
     if result["grantedScopes"] is None:
-        warnings.append("the cached token was minted with no record of the scopes Linear granted, so "
-                        "grantedScopes is null until linear-app mints its next token")
+        warnings.append("Linear's token response named no scopes, so grantedScopes is null")
     if warnings:
         result["warnings"] = warnings
     return result
@@ -1018,10 +1051,14 @@ PRINTS_TOKEN = {"token", "headers"}
 
 def guard_relay(args: argparse.Namespace) -> None:
     """Before any command runs for a relay identity: delete its state-folder
-    token, and refuse every command but forget with no keychain tool, and
-    token and headers always. cmd_wire refuses wire itself."""
+    token; refuse token and headers; and, when the host has no keychain
+    tool, refuse every command but forget. wire is left to cmd_wire, which
+    refuses a relay identity. While inquisitor.json names an invalid relay,
+    refuse token, headers and wire for every identity."""
     relay = relay_of(args)
     if not relay.relay:
+        if relay.warning and args.command in PRINTS_TOKEN | {"wire"}:
+            raise Failure(relay.warning)
         return
     drop_file_cache(args.identity)
     if args.command == "forget":
@@ -1031,6 +1068,16 @@ def guard_relay(args: argparse.Namespace) -> None:
                       "its credentials and token live only in the keychain, so every command but forget is refused")
     if args.command in PRINTS_TOKEN:
         raise Failure(posts_only_through_commands(args.identity, relay))
+
+
+def with_relay_warning(args: argparse.Namespace, output: dict[str, Any]) -> dict[str, Any]:
+    """Add any fault in inquisitor.json the person must fix to output's warnings,
+    in place, unless the warnings or the error already hold it; return output."""
+    warning = relay_of(args).warning
+    warnings = [str(w) for w in as_list(output.get("warnings"))]
+    if warning and warning not in warnings and warning not in str(output.get("error", "")):
+        output["warnings"] = warnings + [warning]
+    return output
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1055,7 +1102,7 @@ def main(argv: list[str] | None = None) -> int:
                 failed["status"] = e.status
             if e.errors is not None:
                 failed["errors"] = e.errors
-            print(json.dumps(failed))
+            print(json.dumps(with_relay_warning(args, failed)))
         return 1
     except Exception as e:  # callers parse stdout, so even a bug answers predictably
         import traceback
@@ -1063,7 +1110,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command not in RAW_OUTPUT:
             print(json.dumps({"ok": False, "error": f"unexpected error: {e!r}"}))
         return 1
-    print(result if args.command in RAW_OUTPUT else json.dumps({"ok": True, **result}))
+    print(result if args.command in RAW_OUTPUT else json.dumps(with_relay_warning(args, {"ok": True, **result})))
     return 0
 
 

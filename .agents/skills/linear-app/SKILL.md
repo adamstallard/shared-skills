@@ -85,9 +85,12 @@ comments starting `User says: `. So is any identity holding the same client
 ID. For a relay identity, `token`, `headers` and `wire` refuse, since an
 agent holding its token could post such a comment: it posts only through
 `post`, `edit` and `delete`. Its credentials and cached token live only in the keychain, never
-in the environment or the state folder. If that file exists but cannot be read, or the
-relay's client ID cannot, every identity is treated as a relay identity, and
-the refusal says why.
+in the environment or the state folder. If `inquisitor.json` exists but cannot be read, or
+a key on the way to `answer_service.linear.relay` has the wrong type, or
+the keychain gives no client ID for the relay, every identity is treated
+as a relay identity; if the relay is no valid identity name, the commands
+`token`, `headers` and `wire` refuse for every identity. Refusals and
+warnings say what to fix: pass it on to the user.
 
 ## Claiming work: delegate, never assign
 

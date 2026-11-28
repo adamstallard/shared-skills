@@ -287,7 +287,7 @@ class Cache(Env):
         def read(p):
             calls.append(p)
             if len(calls) == 2:  # the re-read under the lock sees another process's token
-                return {"token": "theirs", "scopes": la.DEFAULT_SCOPES,
+                return {"token": "theirs", "scopes": la.DEFAULT_SCOPES, "grantedScopes": ["read"],
                         "credential": la.fingerprint("cid", "secret", la.DEFAULT_SCOPES),
                         "renewAt": 1000 + 15 * DAY, "expiresAt": 1000 + 30 * DAY}
             return real_read(p)
@@ -886,7 +886,46 @@ class RelayIdentities(RelayEnv):
 
     def test_a_relay_that_is_not_a_string_makes_every_identity_a_relay(self):
         self.write_inquisitor({"answer_service": {"linear": {"relay": 5}}})
-        self.assertIn("not a string", self.relay("worker").why)
+        relay = self.relay("worker")
+        self.assertTrue(relay.relay)
+        self.assertIn("must be a string naming the relay identity, not a number", relay.why)
+
+    def test_a_malformed_relay_setting_is_named_with_its_fix(self):
+        # @scenario linear-app: A malformed relay setting is named with its fix
+        for config, key in (({"answer_service": 5}, "answer_service"),
+                            ({"answer_service": {"linear": "x"}}, "answer_service.linear")):
+            with self.subTest(key):
+                self.write_inquisitor(config)
+                code, out, err = self.run_main(["--identity", "worker", "token"])
+                self.assertEqual((code, out), (1, ""))
+                self.assertIn(f"{key} in ", err)
+                self.assertIn("must be a JSON object", err)
+                self.assertIn("make it an object, or remove it", err)
+                code, out, _ = self.run_main(["--identity", "worker", "check"])
+                warnings = " ".join(json.loads(out).get("warnings", []))
+                self.assertIn(f"{key} in ", warnings)
+                self.assertIn("must be a JSON object", warnings)
+                self.assertIn("make it an object, or remove it", warnings)
+
+    def test_a_relay_named_a_b_refuses_token_commands_and_warns_elsewhere(self):
+        # @scenario linear-app: A relay named a/b refuses token commands and warns elsewhere
+        self.keychain[("linear-app", "a/b:client-id")] = "cid"
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
+        os.environ["LINEAR_APP_IDENTITY"] = "worker"
+        for command in ("token", "headers", "wire"):
+            with self.subTest(command):
+                code, out, err = self.run_main(["--identity", "worker", command])
+                text = err if command != "wire" else json.loads(out)["error"]
+                self.assertEqual(code, 1)
+                self.assertNotIn("tok1", out)
+                for part in ("'a/b'", "letters, digits, '_', '.' and '-'", "store-credentials"):
+                    self.assertIn(part, text)
+        self.assertEqual(self.linear.mints, 0)
+        code, out, _ = self.run_main(["--identity", "worker", "post", "--issue", "ENG-5", "--body-file", self.body])
+        result = json.loads(out)
+        self.assertEqual((code, result["id"]), (0, "c1"), out)
+        self.assertIn("'a/b'", " ".join(result["warnings"]))
+        self.assertEqual(self.linear.mints, 1)  # worker is no relay identity, so it mints from the environment
 
     def test_an_identity_holding_the_relays_client_id_is_a_relay_identity(self):
         # @scenario linear-app: Another identity with the relay's client ID is a relay identity
@@ -1145,10 +1184,15 @@ class RelayRegressions(RelayEnv):
 
     def test_a_relay_token_longer_than_128_characters_is_cached_on_macos(self):
         # Measured 2026-11-27: `security add-generic-password -w`, given the
-        # password at its prompt, stores only its first 128 characters.
+        # password at its prompt, stores only its first 128 characters. The
+        # cached value is the token's JSON record, longer than that, so the
+        # fake `run` truncates at 128 as `security` does.
+        # @scenario linear-app: A relay identity's token is on no command line
         store = {}
+        commands = []
 
         def run(cmd, input=None, capture_output=True, text=True, start_new_session=False):
+            commands.append(cmd)
             ok = lambda out="": types.SimpleNamespace(returncode=0, stdout=out, stderr="")
             if cmd[:2] == ["security", "-i"]:
                 words = input.split()
@@ -1170,6 +1214,8 @@ class RelayRegressions(RelayEnv):
                                       "--body-file", self.body])
         self.assertEqual(code, 0, out)
         self.assertEqual(json.loads(store[("linear-app", "answers-bot:token")])["token"], "tok1")
+        self.assertTrue(commands)
+        self.assertFalse([cmd for cmd in commands if any("tok1" in word for word in cmd)])
 
 
 class MutationSurvivors(RelayEnv):
@@ -1185,12 +1231,42 @@ class MutationSurvivors(RelayEnv):
         code, out, _ = self.run_main(["post", "--issue", "-", "--body-file", self.body])
         self.assertEqual((code, self.linear.comments["c1"]["issueId"]), (0, "-"), out)
 
-    def test_a_relay_name_that_is_no_identity_name_makes_every_identity_a_relay(self):
-        self.keychain[("linear-app", "a/b:client-id")] = "other-cid"
+    def test_a_relay_name_that_is_no_identity_name_makes_no_identity_a_relay(self):
         self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
         relay = self.relay("default")
-        self.assertTrue(relay.relay)
-        self.assertIn("not a valid identity name", relay.why)
+        self.assertFalse(relay.relay)
+        self.assertIn("no identity name", relay.warning)
+
+    def test_a_malformed_value_is_named_by_its_json_type(self):
+        for config, named in (({"answer_service": {"linear": {"relay": True}}}, "not a boolean"),
+                              ({"answer_service": None}, "not null")):
+            with self.subTest(named):
+                self.write_inquisitor(config)
+                self.assertIn(named, self.relay("worker").why)
+
+    def test_a_token_cached_with_no_granted_scopes_is_replaced(self):
+        # @scenario linear-app: A token cached before scopes were recorded is replaced
+        self.run_main(["check"])
+        path = la.cache_path("default")
+        cached = la.read_cache(path)
+        del cached["grantedScopes"]
+        la.write_cache(path, cached)
+        mints = self.linear.mints
+        code, out, _ = self.run_main(["check"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.linear.mints, mints + 1)
+        self.assertTrue({"read", "write"} <= set(json.loads(out)["grantedScopes"]))
+
+    def test_a_wire_refusal_does_not_repeat_its_error_as_a_warning(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "a/b"}}})
+        _, out, _ = self.run_main(["--identity", "worker", "wire"])
+        self.assertNotIn("warnings", json.loads(out))
+
+    def test_a_relay_name_ending_in_a_newline_is_no_identity_name(self):
+        self.write_inquisitor({"answer_service": {"linear": {"relay": "worker\n"}}})
+        relay = self.relay("worker")
+        self.assertFalse(relay.relay, relay.why)
+        self.assertIn("no identity name", relay.warning)
 
 
 if __name__ == "__main__":

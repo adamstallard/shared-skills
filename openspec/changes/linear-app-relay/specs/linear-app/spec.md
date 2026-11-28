@@ -10,11 +10,11 @@ show as the app user's, never a person's.
 
 linear-app SHALL treat the identity that `answer_service.linear.relay`
 names in `~/.config/shared-skills/inquisitor.json` as a relay identity.
-While that file exists but linear-app cannot read a JSON object from
-it, or while it holds an `answer_service.linear.relay` that is not a
-string, linear-app SHALL
-treat every identity as a relay identity under every rule of this spec,
-naming the file whenever it refuses a command for that reason.
+While that file exists but holds no JSON object, or a key on the way to
+`answer_service.linear.relay` of the wrong type, linear-app SHALL treat every identity as a relay
+identity under every rule of this spec, and its refusals and `check`'s
+warnings SHALL name the file and the key, what the key must hold, and how
+to fix it.
 
 #### Scenario: The identity the configuration names is a relay identity
 
@@ -38,15 +38,43 @@ naming the file whenever it refuses a command for that reason.
   it ignores credentials in the environment, and any token linear-app's
   state folder holds for it is deleted
 
+#### Scenario: A malformed relay setting is named with its fix
+
+- **WHEN** `inquisitor.json` holds `{"answer_service": 5}`, or
+  `{"answer_service": {"linear": "x"}}`, and `token`, then `check`, runs
+  for `worker`
+- **THEN** `token` refuses, and `check`'s warnings say, that
+  `answer_service` (or `answer_service.linear`) must be a JSON object, and
+  how to fix the file
+
+### Requirement: An invalid relay name refuses only token, headers and wire
+
+While `answer_service.linear.relay` is a string that is no identity name,
+made only of letters, digits, `_`, `.` and `-`, linear-app SHALL refuse
+`token`, `headers` and `wire` for every identity, since it cannot tell
+which identity was meant, giving the form a name takes and saying the
+relay must name an identity given to `store-credentials`. Every other
+command SHALL run, treating no identity as a relay identity, since none
+can hold that name, and print the same explanation as a warning.
+
+#### Scenario: A relay named a/b refuses token commands and warns elsewhere
+
+- **WHEN** `inquisitor.json` names `a/b` as the Linear relay, and `token`,
+  then `post`, runs for `worker`, whose credentials are in the environment
+- **THEN** `token` refuses, naming `a/b`, the form an identity name takes
+  and `store-credentials`, and prints no token
+- **AND** `post` posts with the environment's credentials, and its
+  warnings hold the same explanation
+
 ### Requirement: Every identity holding the relay's client ID is a relay identity
 
 linear-app SHALL also treat as a relay identity every identity whose
 client ID is the relay's. It reads an identity's client ID from its
 config's keychain entries; for the identity the environment's credentials
 belong to (`LINEAR_APP_IDENTITY`, else `default`), it reads
-`LINEAR_CLIENT_ID` first. It SHALL read the relay's own client ID from the
-keychain only, and when it cannot, SHALL treat every identity as a relay
-identity, saying why.
+`LINEAR_CLIENT_ID` first. It SHALL read a valid relay name's own client ID
+from the keychain only, and when it cannot, SHALL treat every identity as
+a relay identity, saying why.
 
 #### Scenario: Another identity with the relay's client ID is a relay identity
 
@@ -64,11 +92,11 @@ identity, saying why.
 
 For a relay identity, `token` and `headers` SHALL refuse, print nothing
 on standard output, and say on standard error that a relay identity
-posts only through `post`, `edit` and `delete`. They refuse because any
-agent on the machine can run them and, with the token, post a comment
-starting `User says: `, which the answer service reads as the person's own
-answer, unseen by the inquisitor's post hook. For any other identity they SHALL print the
-token as before.
+posts only through `post`, `edit` and `delete`, since any agent can run
+them and, with the token, post a comment starting `User says: `, which
+the answer service reads as the person's answer, unseen by the
+inquisitor's post hook. Other identities' tokens they SHALL print, except
+under *An invalid relay name refuses only token, headers and wire*.
 
 #### Scenario: token and headers refuse a relay identity
 
@@ -138,9 +166,9 @@ linear-app SHALL cache a relay identity's token in the keychain under
 the service `linear-app` and the account `<identity>:token`, whatever
 service the identity's config names for its credentials, reusing the
 token until it is halfway through its life. It SHALL never cache that
-token in linear-app's state folder, and SHALL delete any token that
-folder holds for the identity. `forget` SHALL also delete that cached
-token from the keychain.
+token in linear-app's state folder, nor put it in a command's arguments, and SHALL
+delete any token that folder holds for the identity. `forget` SHALL also delete that
+cached token from the keychain.
 
 #### Scenario: A relay identity's token is cached in the keychain
 
@@ -150,6 +178,13 @@ token from the keychain.
   the service `linear-app` and the account `<identity>:token`, the
   second command reuses it without minting, and no file in linear-app's
   state folder holds it
+
+#### Scenario: A relay identity's token is on no command line
+
+- **WHEN** linear-app caches a relay identity's token on macOS, where the
+  token is longer than the 128 characters `security`'s prompt keeps
+- **THEN** no command linear-app runs holds the token in its arguments,
+  and the keychain holds the whole token
 
 #### Scenario: A token cached before the identity became a relay identity is deleted
 
@@ -221,8 +256,8 @@ from Linear's responses, never from the config: `userId`, the app
 user's id; `grantedScopes`, the scopes Linear granted the token; and
 `visibleTeams`, the keys of the teams the app user can see. When it
 cannot read the teams, it SHALL say so in place of `visibleTeams` and
-still pass, so setup shows each subscribed Linear team's posting check
-as not checked.
+still pass. A cached token with no record of the scopes Linear granted
+SHALL be replaced before `check` reports them.
 
 #### Scenario: check prints the user id, scopes and teams
 
@@ -233,6 +268,13 @@ as not checked.
   `ENG`, and no token
 - **AND** when Linear refuses the teams read, `check` still passes and
   says it could not read the teams, with no `visibleTeams`
+
+#### Scenario: A token cached before scopes were recorded is replaced
+
+- **WHEN** linear-app's cache holds a token in the first half of its life
+  but no record of the scopes Linear granted it, and `check` runs
+- **THEN** linear-app mints a new token, and `grantedScopes` holds the
+  scopes Linear granted that token
 
 #### Scenario: Teams listed in the config are not visible teams
 

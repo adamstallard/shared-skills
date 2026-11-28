@@ -159,9 +159,16 @@ holding its client ID, is a **relay identity**:
 - `check` warns of any MCP server wired to it, since that server's
   headers helper runs `headers`, which now refuses.
 
-If `inquisitor.json` exists but cannot be read, or the relay's client ID cannot be read
-from the keychain, every identity counts as a relay identity until that is
-fixed, and each refusal says why.
+If `inquisitor.json` exists but cannot be read, or `answer_service`,
+`answer_service.linear` or `answer_service.linear.relay` has the wrong
+type, or the relay's client ID cannot be read from the keychain, every
+identity counts as a relay identity until that is fixed, since any of them
+might be the relay: none takes credentials from the environment, and
+`token`, `headers` and `wire` refuse. A relay name no identity can have,
+such as `a/b`, makes no identity a relay identity, but the commands
+`token`, `headers` and `wire` still refuse for every identity, since
+linear-app cannot tell which one was meant. Either way each refusal, and
+every other command's warnings, say what is wrong and how to fix it.
 
 ---
 

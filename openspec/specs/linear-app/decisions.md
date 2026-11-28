@@ -25,3 +25,7 @@
 - **Rationale: A relay identity's token is cached only in the keychain.**
   linear-app's state folder holds the token in a mode 0600 file, which keeps out other users but not the person's own agents, which run as the person and can `cat` it by accident. In the keychain the token reaches only an agent that sets out to read the keychain, the risk the answer-service record accepts.
   Evidence: `write_cache` writes the token as plain JSON in linear-app's state folder, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py); `read_keychain` reads an entry only by running `security find-generic-password` or `secret-tool lookup` named with its service and account, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
+
+- **Rationale: check reports the identity's user id, scopes and teams.**
+  Every field comes from Linear, not the config, so setup's posting check rests on what the token holds rather than on what the config asked for; `grantedScopes` is the `scope` field of Linear's token response, a field the measurement below shows Linear sends.
+  Evidence: on 2026-11-27, linear-app's own refresh of a client-credentials token for a workspace's agent identity, read through `check` at c73ca3f, recorded `grantedScopes` as `app:assignable`, `app:mentionable`, `read` and `write`, from a request for `read,write,app:assignable,app:mentionable`, [linear_app.py](../../../.agents/skills/linear-app/scripts/linear_app.py)
