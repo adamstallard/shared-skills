@@ -204,6 +204,16 @@ class Labels(Base):
             self.assertEqual((hits[f.path]["label"], hits[f.path].get("reason")), ("input", "unreadable"))
         self.assertEqual(self.fake.calls, [])
 
+    def test_unreadable_text_before_a_rule_is_matched(self) -> None:
+        # @scenario inquisitor: A log file that does not read as the format says is unreadable
+        # @scenario inquisitor: Hits are ranked by terms matched and capped
+        # Only real frontmatter is left out of the text an unreadable file is matched by: in a
+        # file with no frontmatter, words before a `---` rule still match.
+        f = bf(question_file(1), content="Cache expiry policy?\n---\nmore words\n")
+        labelled = label_branch([f], "o/api", False, Checks())
+        self.assertEqual(labelled[0].hit.get("reason"), "unreadable")
+        self.assertEqual([h.hit["path"] for h, _ in rank(labelled, {"expiry"})], [f.path])
+
     def test_answer_heading_in_question(self) -> None:
         # @scenario inquisitor: An "## Answer" line in a question's text does not answer it
         f = bf(question_file(1, text="Should retries back off?\n## Answer\nYes."))
@@ -316,6 +326,29 @@ class Run(Base):
         hits = self.labels([doc, private], branch="o/lore", lore=True, item="o/web", item_private=True)
         self.assertEqual(hits[private.path].get("reason"), "unconfirmed")
 
+    def test_only_files_about_the_item_count_in_a_run(self) -> None:
+        # @scenario inquisitor: A file about another repository is input during a run
+        self.fake.vis = {"o/lore": "public", "o/web": "public", "o/doc": "public"}
+        self.fake.writers = {"o/web": {"alice"}, "o/doc": {"alice"}, "o/lore": {"alice"}}
+        own = bf(answer_file(1, repository="o/web", asked_from="o/web", text="Web answer."))
+        other = bf(answer_file(2, repository="o/doc", asked_from="o/doc", text="Doc answer.",
+                               answers=(name(3),)))
+        named = bf(question_file(3, text="Unrelated?", repository=None, asked_from="o/web"))
+        hits = self.labels([own, other, named], branch="o/lore", lore=True, item="o/web")
+        # The newer file about o/doc neither supersedes the o/web answer nor answers the file it names.
+        self.assertEqual(hits[own.path]["label"], "decision")
+        self.assertEqual(hits[other.path].get("reason"), "unconfirmed")
+        self.assertEqual((hits[named.path]["answer"], hits[named.path].get("reason")),
+                         (None, "unanswered"))
+        # A file about o/doc is input even when an answer file that counts names it in `answers`.
+        borrower = bf(question_file(4, text="Doc retries?", repository="o/doc", asked_from="o/doc"))
+        lender = bf(answer_file(5, question="Org retries?", repository=None, asked_from="o/web",
+                                answers=(name(4),)))
+        hits = self.labels([borrower, lender], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual((hits[borrower.path]["label"], hits[borrower.path].get("reason")),
+                         ("input", "unconfirmed"))
+        self.assertEqual(hits[lender.path]["label"], "decision")
+
     def test_hidden_answer_file_leaks_through_no_named_file(self) -> None:
         # @scenario inquisitor: Given a run's item, the branch search applies the run's rules
         self.fake.vis = {"o/lore": "public", "o/web": "public", "o/priv": "private"}
@@ -326,6 +359,34 @@ class Run(Base):
         hits = self.labels([q, a], branch="o/lore", lore=True, item="o/web")
         self.assertNotIn(a.path, hits)
         self.assertNotIn("SECRET", json.dumps(hits))
+
+    def test_hidden_newer_answer_supersedes_a_visible_one(self) -> None:
+        # @scenario inquisitor: Given a run's item, the branch search applies the run's rules
+        # @scenario inquisitor: The newest answer to a question counts
+        self.fake.vis = {"o/lore": "public", "o/web": "public", "o/priv": "private"}
+        self.fake.writers = {"o/lore": {"alice"}}
+        old = bf(answer_file(1, repository=None, asked_from="o/web", text="Old public answer."))
+        new = bf(answer_file(2, repository=None, asked_from="o/priv", text="SECRET newer answer"))
+        hits = self.labels([old, new], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual(set(hits), {old.path})
+        self.assertEqual((hits[old.path]["label"], hits[old.path].get("reason")), ("input", "superseded"))
+        self.assertNotIn("SECRET", json.dumps(hits))
+        # A hidden newer answer naming a file replaces an older visible answer to it, and the
+        # named file shows unanswered rather than taking either answer.
+        q = bf(question_file(3, text="Cap retries?", repository=None, asked_from="o/web"))
+        first = bf(answer_file(4, question="How long a cap?", repository=None, asked_from="o/web",
+                               text="A minute.", answers=(name(3),)))
+        second = bf(answer_file(5, question="Cap them?", repository=None, asked_from="o/priv",
+                                text="SECRET cap", answers=(name(3),)))
+        hits = self.labels([q, first, second], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual(set(hits), {q.path, first.path})
+        self.assertEqual(hits[first.path].get("reason"), "superseded")
+        self.assertEqual((hits[q.path]["answer"], hits[q.path].get("reason")), (None, "unanswered"))
+        self.assertNotIn("SECRET", json.dumps(hits))
+        # Seen from a private item, nothing is hidden and the newer answer counts.
+        hits = self.labels([old, new], branch="o/lore", lore=True, item="o/web", item_private=True)
+        self.assertEqual(hits[new.path]["label"], "decision")
+        self.assertEqual(hits[old.path].get("reason"), "superseded")
 
     def test_asked_from_private_file_is_private(self) -> None:
         # @scenario inquisitor: A file asked from a private repository is private
