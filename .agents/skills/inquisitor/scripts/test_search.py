@@ -312,6 +312,21 @@ class Repository(Base):
         self.assertNotIn("NOTES.md", self.where(r))
         self.assertIn("o/api", self.read)
 
+    def test_checkout_origin_matches_ignoring_case(self) -> None:
+        # @scenario inquisitor: The current change's own decision answers within that change
+        # GitHub ignores case in repository names, so a checkout whose origin reads O/Api is
+        # o/api's: a question about o/api searches its decision documents, and its branch's own
+        # decision document is labelled this change's decision.
+        self.configure([], login="alice")
+        self.pr = {"author": {"login": "alice"}, "isCrossRepository": False}
+        self.work({"openspec/specs/retry/spec.md": "Retries back off exponentially.\n"},
+                  {"openspec/changes/retry/specs/r/spec.md": "Retries back off.\n"}, origin="O/Api")
+        labels = {h["where"]: (h["label"], h.get("why"))
+                  for h in search.filter1(q(repository="o/api"), False)["hits"]}
+        self.assertEqual(labels["openspec/specs/retry/spec.md"][0], "decision")
+        self.assertEqual(labels["openspec/changes/retry/specs/r/spec.md"],
+                         ("decision", "this change's, not yet merged"))
+
     def test_work_branch(self) -> None:
         # @scenario inquisitor: The current change's own decision answers within that change
         # @scenario inquisitor: A decision on the work's branch does not answer a question about another repository
@@ -549,6 +564,20 @@ class WorkerOtherRepository(Igor):
                 mock.patch("sys.stderr", io.StringIO()):
             r = search.filter1(q(repository="o/web"), False)
         self.assertEqual([h for h in r["hits"] if h["label"] == "decision"], [])
+
+    def test_worker_tree_matches_ignoring_case(self) -> None:
+        # @scenario inquisitor: An Igor worker's search reports sources beyond its working tree as unsearched
+        # A worker's working tree whose origin reads O/Api is o/api's, so a question about o/api
+        # searches it rather than reporting its decision documents as not searched.
+        self.configure([])
+        clone = clone_of(self.tmp, "work", "O/Api",
+                         {"openspec/specs/retry/spec.md": "Retries back off exponentially.\n"})
+        os.chdir(clone)
+        with mock.patch.dict(os.environ, {"IGOR_RUN": "worker"}), self.igor(None), \
+                mock.patch("sys.stderr", io.StringIO()):
+            r = search.filter1(q(repository="o/api"), False)
+        self.assertIn("openspec/specs/retry/spec.md", self.where(r))
+        self.assertFalse(any(s.startswith("decision documents of o/api") for s in r["not_searched"]))
 
 
 class WorkerChanges(Igor):
