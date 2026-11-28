@@ -207,7 +207,8 @@ An answer to one message can go out as a Discord reply to it. That doesn't
 ping the message's author unless the text mentions them.
 
 Every command prints one JSON object. To call it from another program, run it
-as a subprocess and read `ok`, then the fields you need. The exit status is 0
+as a subprocess and read `ok`, then the fields you need. `post` and `edit`
+take the text from `--message`, or from a file with `--message-file`. The exit status is 0
 on success, 1 on an error reported in the JSON, and 2 for a malformed command
 line.
 

@@ -6,8 +6,9 @@ and a pass token, signs nothing and exits 4. The second, with --pass <token>, si
 Both calls of `check` run the repository's pre-commit hook first, if it has one.
 
     prose.py start --goals <goals> | --goals-file <file>
-        Before writing. Prints the rules and opens the first-write gate (see
-        hook-gate below); issues no token.
+        Before writing. Prints the rules and opens the first-write gate, which
+        blocks a session's first file write or post until then; issues no
+        token.
     prose.py check -F <message file, or - for stdin>
             --goals <goals> | --message-goals-file <file> [--amend]
             [--goals-for <pattern> <goals>]... [--goals-file <file>]
@@ -52,18 +53,23 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         once its findings are answered; check refuses to sign a compaction
         without both the --verify and the --reviewed record. --abandon
         discards a compaction started on the file, so the commit gate
-        treats it as ordinary again. `compact <file>` with no flag and every
-        --verify take the files that might refer to the doc, after -- or
-        listed in --paths-from.
+        treats it as ordinary again. The files that might refer to the doc,
+        for `compact <file>` with no flag and for every --verify, follow --
+        or are listed in --paths-from.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
     prose.py hook-handback --host <platform>  the hook after each tool call: when the
-                                              call handed a pull request back, prints
-                                              the current-state pass, a reminder to
-                                              fix any doc, body or title that still
-                                              describes work as unfinished
+                                              call handed a pull request back (gh pr
+                                              create unless a draft without
+                                              reviewers, gh pr ready, gh pr edit
+                                              --add-reviewer), prints that the
+                                              current-state pass is due: fix any doc
+                                              or title that still describes work as
+                                              unfinished. When the call created one
+                                              whose body has no link line, says to
+                                              add link lines
     prose.py hook-gate                        the first-write gate
 
 Standard library only. Changing what is hashed into a trailer or footer (the
@@ -87,41 +93,22 @@ import time
 from typing import Callable, NamedTuple, Optional
 
 HERE = pathlib.Path(__file__).resolve().parent
-# How the hooks read a shell command and gh's flags: the reader shared with
-# spec-check's hand-back hook, in .agents/lib/gh-shell/ of the clone.
-# Only the posting hooks need it: without it, prose's other commands still
-# run, a command that may run gh is blocked with a message saying how to
-# restore the reader (use a full clone), and GitHub MCP posts are checked as
-# usual.
+# The shared post reader and command reader live in .agents/lib/gh-shell/
+# of the clone; the inquisitor's post hook and spec-check's hand-back hook
+# use them too. Only the posting hook (hook-post) and the first-call gate
+# (hook-gate) need them. Without them, prose's other commands still run, and
+# both hooks block every call that may post (see _may_post) with a message
+# saying how to reinstall shared-skills.
 GH_SHELL = HERE.parent.parent.parent / "lib" / "gh-shell"
 sys.path.insert(0, str(GH_SHELL))
 try:
-    from gh_shell import (  # noqa: E402
-        GITHUB_MCP,
-        BODY_FLAGS,
-        GH_VERBS,
-        SHORT_VALUES,
-        LONG_FLAGS,
-        COMMON_LONG,
-        BODY_SOURCES,
-        NO_SOURCES,
-        SOURCE,
-        NO_TEXT_VERBS,
-        _words,
-        DATA_COMMANDS,
-        GH_TEXT,
-        RESERVED,
-        CLOSERS,
-        _commands,
-        _gh_args,
-    )
     import gh_shell as READER  # noqa: E402
-    GH_SHELL_MISSING = False
+    import post_reader  # noqa: E402
+    from gh_shell import GITHUB_MCP  # noqa: E402
 except ImportError:
-    READER = None
-    GH_SHELL_MISSING = True
-    # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT, so MCP posts are still
-    # checked and a command naming gh is still caught. Change them with
+    READER = post_reader = None
+    # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT for _may_post, the only
+    # user of GH_TEXT, which runs only here. Keep them in step with
     # gh_shell.py's.
     GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
     GH_TEXT = re.compile(r"\bgh(?![\w-])")
@@ -1162,7 +1149,7 @@ def prose_in(root, parents, read: Callable[[str], str], verbatim=None, source=No
 # start of its `## ` heading. The rules section holds `### <n>. <title>`
 # subsections.
 RULE_SECTIONS = ("Scope", "The pass", "The rules", "How agents cheat")
-RULES_IN_FULL = 9
+RULES_IN_FULL = 10
 
 
 def _fenced_lines(lines):
@@ -1675,287 +1662,49 @@ def verify_post(text):
 # The posting hook
 # ---------------------------------------------------------------------------
 
-BODY_KEYS = {"body", "comment"}
+# Appended to each reason the shared reader gives for a post it cannot
+# read: how to post text the hook can check.
+SIGN_INTO_FILE = (
+    " To post longer text, sign it into a file and pass that: prose.py sign --goals "
+    "'...' prints the rules and a pass token; then prose.py sign --pass <token> < "
+    "draft.md > signed.md, and gh ... --body-file signed.md.")
+READER_MISSING = (
+    f"the shared command reader is missing (expected at {GH_SHELL}), so what this call "
+    "posts cannot be read. Fix the install first: reinstall shared-skills with "
+    "python3 ~/.claude/skills/manage-skills/scripts/skills.py doctor")
 
 
-class Unreadable:
-    """A body the hook cannot read from the command, and why."""
-
-    def __init__(self, why):
-        self.why = why
-
-
-ACCEPTED = (
-    "The hook reads a gh post only when gh is the whole command, with the body as "
-    "--body '<text>' (single quotes, or double quotes with no $, backtick or "
-    "backslash) or --body-file <a file that exists>. To post longer text, sign it "
-    "into a file and pass that: prose.py sign --goals '...' prints the rules and a "
-    "pass token; then prose.py sign --pass <token> < draft.md > signed.md, and "
-    "gh ... --body-file signed.md.")
-NOT_ALLOWED = Unreadable(
-    "this command is not one of the forms the hook reads, so what it posts cannot be "
-    "checked. " + ACCEPTED)
-FROM_STDIN = Unreadable("the text comes from stdin, so it cannot be checked. " + ACCEPTED)
-
-
-def body_fields(value, path=""):
-    """[(where, text)] for every body-like string in an MCP tool's input."""
-    found = []
-    if isinstance(value, dict):
-        for key, item in value.items():
-            where = f"{path}.{key}" if path else str(key)
-            if str(key).lower() in BODY_KEYS and isinstance(item, str) and item.strip():
-                found.append((where, item))
-            else:
-                found.extend(body_fields(item, where))
-    elif isinstance(value, list):
-        for index, item in enumerate(value):
-            found.extend(body_fields(item, f"{path}[{index}]"))
-    return found
-
-
-def _body_flag(args, i, flags, values="", sources=""):
-    """(flag, (text, kind) or None, index of the next arg) for args[i].
-
-    flag is None when args[i] is not a body flag, and SOURCE when it holds a
-    letter from sources, one that makes gh take the text from elsewhere.
-    Reads `--body x`, `--body=x`, and pflag's short forms: `-b x`, `-bx`,
-    `-b=x`, and a group such as `-db x`. values holds the verb's other short
-    letters that take a value. In a group, the first letter that takes a
-    value swallows the rest of the group as that value: in `-tb x`, `b` is
-    the title's text, not the body flag."""
-    arg, kind = args[i]
-    for name in flags:
-        if name.startswith("--"):
-            if arg == name:
-                return name, (args[i + 1] if i + 1 < len(args) else None), i + 2
-            if arg.startswith(name + "="):
-                return name, (arg[len(name) + 1:], kind), i + 1
-    if arg.startswith("-") and not arg.startswith("--") and len(arg) > 1:
-        shorts = {name[1] for name in flags if not name.startswith("--")}
-        for position in range(1, len(arg)):
-            letter, rest = arg[position], arg[position + 1:]
-            if letter == "=":
-                # pflag ends a group at `=`: `-d=t` is `--draft=t`.
-                return None, None, i + 1
-            if letter in shorts:
-                if rest:
-                    return f"-{letter}", (rest[1:] if rest.startswith("=") else rest, kind), i + 1
-                return f"-{letter}", (args[i + 1] if i + 1 < len(args) else None), i + 2
-            if letter in sources:
-                return SOURCE, None, i + 1
-            if letter in values:
-                return None, None, (i + 1 if rest else i + 2)
-    return None, None, i + 1
-
-
-# A command that mentions a gh post verb is read as a post unless
-# _posts_nothing shows that the shell runs no gh post in it. A false match only
-# blocks the command; a missed post lets text out unchecked.
-POST_WORDS = GH_TEXT if GH_SHELL_MISSING else re.compile(
-    r"\bgh\b[\s\S]*\b(?:pr|issue)\b[\s\S]*\b(?:"
-    + "|".join(sorted({verb for verbs in GH_VERBS.values() for verb in verbs})) + r")\b")
-
-
-def runs_only_prose(command):
-    """True when the command runs prose.py and nothing else, so text in its
-    arguments (goals that mention `gh pr create`) is not a post.
-
-    Operators and redirections are read outside quotes only, so goals may hold
-    `;`. A command substitution anywhere, a newline, or any operator but a
-    redirection makes it False: those could run another command.
-    """
-    if "`" in command or "$(" in command or "\n" in command:
-        return False
-    try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-        words = list(lexer)
-    except ValueError:
-        return False
-    if any(word in ("<", ">", ">>") for word in words):
-        words = [w for i, w in enumerate(words) if w not in ("<", ">", ">>")
-                 and (i == 0 or words[i - 1] not in ("<", ">", ">>"))]
-    if not words or any(word and set(word) <= set("();<>|&") for word in words):
-        return False
-    program = words[1] if words[0] in ("python3", "python") and len(words) > 1 else words[0]
-    return program == "prose.py" or program.endswith("/prose.py")
-
-
-
-
-
-
-
-
-def _fed_blocker(name):
-    """Why a command fed by a pipe or an input redirection blocks."""
-    return Unreadable(
-        f"`{name}` reads a pipe or an input redirection (<, <<, <<<), so what it "
-        "runs or posts cannot be checked. Only a data command (echo, cat, grep, "
-        "head, python3 …) or a gh subcommand that takes no body, such as gh pr "
-        "view, may read one. " + ACCEPTED)
-
-
-GROUPED = Unreadable(
-    "a pipe or an input redirection feeds a group, loop or subshell, so what it "
-    "runs or posts cannot be checked unless every command in it is a data "
-    "command (echo, cat, grep, head, python3 …). " + ACCEPTED)
-
-
-def _blocker(command, cwd):
-    """None when the shell provably runs no gh post in this command, else
-    the Unreadable that says why not.
-
-    That holds when each simple command is one of:
-    - a gh command given as plain words, gh first, that sends no text the
-      hook checks: a label edit, `gh pr ready`, a close without a comment.
-      A gh post with a body must be the whole command;
-    - a command from DATA_COMMANDS, which may name gh in its arguments,
-      quotes or heredoc, as data;
-    - any other command that names no gh.
-    Leading reserved words (RESERVED) are skipped first, and a command made
-    only of closers (CLOSERS) is no command, both matched on the source, so
-    a quoted 'if' is still the command.
-    A command fed by a pipe or an input redirection must also be from
-    DATA_COMMANDS, or a gh subcommand that takes no body (NO_TEXT_VERBS),
-    since any other may run or post what it reads. When that input may reach a group, every command
-    must be from DATA_COMMANDS, gh included (see _commands). Anything
-    _commands cannot read blocks.
-    """
-    read = _commands(command)
-    if read is None:
-        return NOT_ALLOWED
-    commands, grouped = read
-    for words, fed in commands:
-        while words and words[0][1] in RESERVED:
-            words = words[1:]
-        if all(source in CLOSERS for _, source in words):
-            continue
-        names = [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
-        source = " ".join(source for _, source in words)
-        if grouped and names[0] not in DATA_COMMANDS:
-            return GROUPED
-        if fed and names[0] not in DATA_COMMANDS:
-            plain = _words(source)
-            args = _gh_args(plain) if plain and plain[0] == ("gh", False) else []
-            if len(args) < 2 or args[1][0] not in NO_TEXT_VERBS.get(args[0][0], ()):
-                return _fed_blocker(names[0])
-        if GH_TEXT.search(source) and "gh" not in names:
-            if names[0] not in DATA_COMMANDS:
-                return NOT_ALLOWED
-        elif "gh" in names:
-            plain = _words(source)
-            if not plain or plain[0] != ("gh", False):
-                return NOT_ALLOWED
-            if POST_WORDS.search(" ".join(text for text, _ in plain)) and _read_gh(plain, cwd):
-                return NOT_ALLOWED
-    return None
-
-
-def _posts_nothing(command, cwd):
-    """True when the shell provably runs no gh post in this command (see
-    _blocker)."""
-    return _blocker(command, cwd) is None
-
-
-def gh_bodies(command, cwd):
-    """[(where, text or Unreadable)] for the post a Bash command makes.
-
-    Nothing when the command mentions no gh post verb, or runs no gh post
-    (see _posts_nothing). Otherwise the command must be one of the accepted
-    forms (see ACCEPTED), or the post is reported unreadable.
-    """
-    if not POST_WORDS.search(command) or runs_only_prose(command):
-        return []
-    if GH_SHELL_MISSING:
-        return [("gh", Unreadable(
-            f"the shared command reader is missing (expected at {GH_SHELL}), so no gh "
-            "command can be read. prose must be installed as a symlink into a full "
-            "shared-skills clone; run: python3 ~/.agents/skills/manage-skills/scripts/"
-            "skills.py doctor"))]
-    words = _words(command.strip())
-    if words and words[0] == ("gh", False):
-        return _read_gh(words, cwd)
-    blocker = _blocker(command, cwd)
-    return [] if blocker is None else [("gh", blocker)]
-
-
-def _read_gh(words, cwd):
-    """[(where, text or Unreadable)] for a gh command given as plain words,
-    words[0] being gh: the bodies it posts, or NOT_ALLOWED when its shape is
-    not one the hook reads."""
-    args = _gh_args(words)
-    if len(args) >= 2 and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ()):
-        return []
-    if len(args) < 2 or args[1][0] not in GH_VERBS.get(args[0][0], {}):
-        return [("gh", NOT_ALLOWED)]
-    noun, verb = args[0][0], args[1][0]
-    flags, values = GH_VERBS[noun][verb], SHORT_VALUES[noun][verb]
-    long_values = LONG_FLAGS[noun][verb][0] | COMMON_LONG[0]
-    long_bools = LONG_FLAGS[noun][verb][1] | COMMON_LONG[1]
-    long_sources, short_sources = BODY_SOURCES[noun].get(verb, NO_SOURCES)
-    where = f"gh {noun} {verb}"
-    found = []
-    i = 2
-    while i < len(args):
-        arg = args[i][0]
-        name = arg[2:].split("=", 1)[0]
-        if arg.startswith("--") and "--" + name not in flags:
-            if name in long_sources:
-                return [(where, NOT_ALLOWED)]
-            if name in long_values:
-                i += 1 if "=" in arg else 2
-                continue
-            if name in long_bools:
-                i += 1
-                continue
-            return [(where, NOT_ALLOWED)]
-        flag, value, i = _body_flag(args, i, flags, values, short_sources)
-        if flag == SOURCE:
-            return [(where, NOT_ALLOWED)]
-        if flag is None or value is None:
-            continue
-        text, _ = value
-        if flag in ("--body-file", "-F"):
-            if text == "-":
-                found.append((f"{where} {flag} -", FROM_STDIN))
-                continue
-            # No expanduser: bash leaves a quoted `~` as it is, and gh opens
-            # the path literally.
-            target = pathlib.Path(text)
-            if not target.is_absolute():
-                target = pathlib.Path(cwd or ".") / target
-            try:
-                found.append((f"{where} {flag} {text}", target.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError, ValueError):  # ValueError: a NUL byte
-                found.append((f"{where} {flag} {text}", Unreadable(
-                    f"{text} could not be read. " + ACCEPTED)))
-        else:
-            found.append((f"{where} {flag}", text))
-    return found
+def _may_post(payload, host):
+    """Whether a call may post, judged without the shared reader: a shell
+    command whose text names gh or discord-bot's script, a GitHub MCP tool,
+    or, on Cursor, any tool of an MCP server whose name holds "github"."""
+    if host == "cursor" and "command" in payload and "tool_name" not in payload:
+        command = payload.get("command")
+    else:
+        tool = payload.get("tool_name") or ""
+        server = payload.get("mcp_server_name") or ""
+        if GITHUB_MCP.match(tool) or (host == "cursor" and "github" in str(server).lower()):
+            return True
+        tool_input = payload.get("tool_input")
+        command = tool_input.get("command") if tool == "Bash" and isinstance(tool_input, dict) \
+            else None
+    return isinstance(command, str) and bool(
+        GH_TEXT.search(command) or "discord_bot.py" in command)
 
 
 def posts_in(payload, host):
-    """[(where, text or Unreadable)] this tool call would post."""
-    if host == "cursor":
-        if "command" in payload and "tool_name" not in payload:
-            return gh_bodies(payload.get("command") or "", payload.get("cwd"))
-        server = payload.get("mcp_server_name") or ""
-        tool_input = payload.get("tool_input")
-        if isinstance(tool_input, str):
-            try:
-                tool_input = json.loads(tool_input)
-            except ValueError:
-                tool_input = {}
-        return body_fields(tool_input) if "github" in server.lower() else []
-    tool = payload.get("tool_name") or ""
-    tool_input = payload.get("tool_input") or {}
-    if GITHUB_MCP.match(tool):
-        return body_fields(tool_input)
-    if tool == "Bash" and isinstance(tool_input, dict):
-        return gh_bodies(tool_input.get("command") or "", payload.get("cwd"))
-    return []
+    """([(where, text)], why or None): the bodies this tool call would post,
+    read by the shared post reader, and why the call cannot be read when it
+    may post text the reader cannot see. Without the reader, a call that may
+    post (_may_post) gets READER_MISSING as its why."""
+    if post_reader is not None:
+        found = post_reader.read_posts(payload, host)
+        if isinstance(found, post_reader.Unreadable):
+            return [], found.why + SIGN_INTO_FILE
+        if isinstance(found, post_reader.NoPost):
+            return [], None
+        return [(post.where, post.body) for post in found], None
+    return [], READER_MISSING if _may_post(payload, host) else None
 
 
 # gh, for reading a pull request's body before a hand-back.
@@ -1963,21 +1712,140 @@ GH = shutil.which("gh") or "gh"
 GH_TIMEOUT = 30
 PR_BODY_VERBS = {"create", "new", "edit"}
 PR_BODY_TOOLS = {"create_pull_request", "update_pull_request"}
-HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its body "
-                 "and title. It was handed back for review ({what}): flag and fix any that "
-                 "still describes work as unfinished or to come. Sign a body you change now "
-                 "with its cold read, since a person reads it.")
+HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its title. "
+                 "It was handed back for review ({what}): flag and fix any that still describes "
+                 "work as unfinished or to come.")
+# Appended to HANDBACK_PASS when the body has been written and no review was
+# requested from anyone but the author and bots.
+BODY_KEPT = (" Leave the body as it is: it has been written, and nobody new was asked to "
+             "review it. A reader who has read a body won't reread it, so an update is wasted.")
+# Appended to HANDBACK_PASS in BODY_KEPT's place when the hook could not read
+# the body.
+BODY_UNREAD = (" This hook could not read the body. If it holds only link lines and blocks a "
+               "tool writes between its own markers, write it now, whoever reviews it, the "
+               "person you work for included; otherwise leave it as it is.")
+# Appended to HANDBACK_PASS when the body has never been written
+# (BODY_DUE_FIRST), whoever reviews it; when a review was requested from
+# a person other than the author, bots aside (BODY_DUE_KNOWN); or when one
+# may have been, because the author is unknown (BODY_DUE_UNKNOWN). BODY_DUE
+# follows each.
+BODY_DUE_FIRST = (" Pull request body due: it holds only link lines and blocks a tool writes "
+                  "between its own markers, and the pull request now goes to its first "
+                  "reviewer, whoever that is, the person you work for included.")
+BODY_DUE_KNOWN = (" Pull request body due: a review was requested from {reviewers}, not the "
+                  "author ({author}).")
+BODY_DUE_UNKNOWN = (" Pull request body due if a review was requested from anyone but the "
+                    "author among {reviewers}: this hook could not tell the pull request's "
+                    "author.")
+BODY_DUE = (" Have a fresh agent write the body from durable sources (specs, decision records, "
+            "code and tasks.md), never from the current body, as an introduction for a "
+            "first-time reader that says what the pull request builds on. Replace the current "
+            "body rather than updating it, and sign it with its cold read. Keep its link lines "
+            "(`Closes #N`, `Part of #N`) and any block a tool writes between its own markers.")
+# Said after a call that creates a pull request, draft or not, whose body has
+# no link line.
+LINK_NOTE = ("The new pull request's body has no link line: add a line starting `Closes #N` for "
+             "each issue it closes and one starting `Part of #N` for each it partly implements. "
+             "A keyword mid-sentence makes no link line. If it has no issue, it needs no link "
+             "line.")
+# A link line, read as the sequencer skill's spec reads a pull request's
+# tie to an issue: a line that starts with `Part of`, or with one of
+# GitHub's closing keywords in any letter case, then one space and #N or
+# owner/repo#N. A `Part of` mid-sentence, as in "Implements the docs part
+# of #107", ties nothing, so it gets the reminder. Unlike the sequencer,
+# this also reads lines inside code fences, so a fenced `Closes #4` line
+# suppresses the reminder. Skipping fences needs a Markdown parser that
+# finds the fences GitHub renders, and each hand-written one missed cases,
+# such as a fence opened in a list item. A missed reminder costs one note.
+LINK_LINE = re.compile(
+    r"(?:(?i:close[sd]?|fix(?:es|ed)?|resolve[sd]?)|Part of) "
+    r"(?:[A-Za-z0-9-]+/[A-Za-z0-9._-]+)?#\d+(?!\w)")
+
+
+def has_link_line(body):
+    """Whether a pull request body holds a link line (LINK_LINE)."""
+    return any(LINK_LINE.match(line) for line in re.split(r"\r\n|\r|\n", body))
+
+
+# A line that opens or closes a block a tool writes into a pull request's
+# body, such as `<!-- sequencer:begin -->`; group 1 names the tool.
+TOOL_MARKER = re.compile(r"\s*<!--\s*([\w.-]+):(begin|end)\s*-->\s*")
+
+
+def unwritten_body(body):
+    """Whether a pull request's body has never been written: leaving out
+    its prose footer, each line is blank, a link line (LINK_LINE), or
+    inside a block from a `<!-- name:begin -->` line to its
+    `<!-- name:end -->` line. A begin with no matching end makes the lines after it count as written,
+    so a malformed block never asks for a body that may be there. A link
+    line counts whatever follows its #N, so `Fixes #12: <a sentence>`
+    alone is unwritten. Counting only a bare #N would call `Closes #12
+    (partly)` written, and the first reviewer would get no body."""
+    lines = re.split(r"\r\n|\r|\n", split_footer(body)[0])
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        opening = TOOL_MARKER.fullmatch(line)
+        if opening and opening.group(2) == "begin":
+            end = next((j for j in range(i + 1, len(lines))
+                        if (m := TOOL_MARKER.fullmatch(lines[j]))
+                        and m.group(1) == opening.group(1) and m.group(2) == "end"), None)
+            if end is None:
+                return False
+            i = end + 1
+            continue
+        if line.strip() and not LINK_LINE.match(line):
+            return False
+        i += 1
+    return True
+
+
+def created_bodies(payload, host):
+    """The body of each pull request the call creates, draft or not: by
+    `gh pr create` or `gh pr new` (not a dry run), or the GitHub MCP's
+    create_pull_request, whose missing body counts as empty and so gets the
+    reminder. A gh create's body is read as the posting hook reads it. A
+    create with no body flag, such as `--fill`, or with a body the hook
+    cannot read, is left out and gets no reminder, since its body is
+    unknown here."""
+    if handbacks is None:
+        return []
+    kind, tool, tool_input = handbacks.call_of(payload, host)
+    if kind == "mcp":
+        if tool != "create_pull_request":
+            return []
+        body = tool_input.get("body")
+        return [body if isinstance(body, str) else ""]
+    command = tool_input.get("command") if kind == "shell" else None
+    if post_reader is None or not isinstance(command, str):
+        return []
+    bodies = [text for where, text in posts_in(payload, host)[0]
+              if where.split()[1:3] in (["pr", "create"], ["pr", "new"])]
+    args = post_reader.gh_command(command) if bodies else None
+    if args:
+        flags, _ = handbacks.gh_flags(READER, args[1], args[2:])
+        if handbacks.switch(flags, "--dry-run"):
+            return []
+    return bodies
 
 
 def handbacks_of(payload, host):
     """[Handback] the call makes, read by the shared handbacks.py."""
+    return handbacks_and_sole(payload, host)[0]
+
+
+def handbacks_and_sole(payload, host):
+    """([Handback], sole): the hand-backs the call makes; and sole, that
+    hand-back when it is the only one and nothing else in the command, such
+    as a variable assignment like GH_TOKEN=, can change what gh does, else
+    None. handbacks.py's handbacks_in has the full rule."""
     if handbacks is None or not isinstance(payload, dict):
-        return []
+        return [], None
     try:
-        found, _, _ = handbacks.handbacks_in(READER, payload, host)
+        found, sole, _ = handbacks.handbacks_in(READER, payload, host)
     except Exception:  # noqa: BLE001 - a reader bug must not block a post
-        return []
-    return found
+        return [], None
+    return found, sole
 
 
 def pr_body_post(where, payload, host):
@@ -1992,30 +1860,147 @@ def pr_body_post(where, payload, host):
 
 
 def pr_body(handback, payload, host):
-    """The body of the pull request a hand-back names, from GitHub; None when
-    it cannot be found without guessing the directory gh runs in, or gh
-    cannot show it. A shell command that is the gh call alone runs gh in the
-    payload's directory, so a ready or edit by branch is found there too."""
+    """The body of the pull request a hand-back names, from GitHub. None for
+    a create, whose pull request does not exist yet; when findable says the
+    pull request cannot be looked up; or when gh fails."""
     if handback.kind == "create":
         return None  # the pull request does not exist yet
-    if not handback.named():
-        command = (payload.get("command") if host == "cursor" and "command" in payload
-                   else (payload.get("tool_input") or {}).get("command")
-                   if isinstance(payload.get("tool_input"), dict) else None)
-        words = _words(command.strip()) if isinstance(command, str) and not GH_SHELL_MISSING \
-            else None
-        if not words or words[0] != ("gh", False):
-            return None
+    if not findable(handback, payload, host):
+        return None
+    return pr_field(handback, payload, "body", ".body")
+
+
+def findable(handback, payload, host):
+    """Whether the pull request a hand-back names can be looked up.
+
+    A number or branch names a pull request only in the repository of the
+    directory gh ran in, which the hook cannot always know. It can when the
+    hand-back names a URL, or a repository with `-R` or GH_REPO
+    (handback.named()). It can also when the shell command is one gh call
+    and nothing else, since gh then ran in the directory the payload names
+    (handbacks.where). github-app's script, which runs gh as a GitHub App,
+    leaves that directory as it is, so handbacks.gh_alone counts a gh call
+    through it too. Cursor gives the command at the payload's top level,
+    other hosts under tool_input."""
+    if handback.named():
+        return True
+    command = (payload.get("command") if host == "cursor" and "command" in payload
+               else (payload.get("tool_input") or {}).get("command")
+               if isinstance(payload.get("tool_input"), dict) else None)
+    return handbacks.gh_alone(READER, command)
+
+
+def pr_field(handback, payload, field, jq):
+    """One field of the pull request a hand-back names, from `gh pr view`
+    with --json field --jq jq; None when gh cannot show it."""
     args = ["pr", "view", *([handback.selector] if handback.selector else []),
-            "--json", "body", "--jq", ".body"]
+            "--json", field, "--jq", jq]
     if handback.repo:
         args += ["-R", handback.repo]
+    return run_gh(args, payload)
+
+
+def run_gh(args, payload):
+    """gh's output for args, run in the payload's directory
+    (handbacks.where); None when it fails."""
     try:
         out = subprocess.run([GH, *args], cwd=handbacks.where(payload), capture_output=True,
                              text=True, timeout=GH_TIMEOUT, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     return out.stdout if out.returncode == 0 else None
+
+
+def pr_view(handback, payload, host):
+    """(author's login, body) of the existing pull request a hand-back
+    names, from one `gh pr view --json author,body`; either is None when
+    gh does not give it. None when findable says the pull request cannot
+    be looked up, or when gh fails."""
+    if not findable(handback, payload, host):
+        return None
+    args = ["pr", "view", *([handback.selector] if handback.selector else []),
+            "--json", "author,body"]
+    if handback.repo:
+        args += ["-R", handback.repo]
+    try:
+        data = json.loads(run_gh(args, payload) or "")
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    author, body = data.get("author"), data.get("body")
+    login = author.get("login") if isinstance(author, dict) else None
+    login = login.strip() if isinstance(login, str) else ""
+    return login or None, body if isinstance(body, str) else None
+
+
+def creator(handback, sole, payload):
+    """The login of the author of the pull request a create makes, or None
+    when it cannot be told without guessing. It is the account gh is
+    signed in as. The hook's own `gh api user` sees that same account only
+    when the create is the command's sole hand-back and nothing else in
+    the command, such as a `cd` or a GH_TOKEN= assignment, can change where
+    or as whom gh runs (handbacks_in's sole). The GitHub MCP server signs in on its own, so its create's author is
+    unknown."""
+    if handback is not sole or not handback.what.startswith("gh "):
+        return None
+    login = (run_gh(["api", "user", "--jq", ".login"], payload) or "").strip()
+    return login or None
+
+
+def is_bot(login):
+    """Whether a reviewer is a bot, by name alone: gh's `@copilot`, or an
+    app's login, which ends in `[bot]`. A bot reviews the diff whatever the
+    body says, so it is no reader to write a body for."""
+    login = login.casefold()
+    return login == "@copilot" or login.endswith("[bot]")
+
+
+def body_note(found, sole, payload, host):
+    """What the hand-back note says of the pull request's body.
+
+    It is due, whoever reviews, when the body has never been written
+    (unwritten_body). Otherwise it is due when a review is requested from
+    a person other than the author, and may be due when the author is
+    unknown. Otherwise it is left as it is, with BODY_UNREAD in place of
+    BODY_KEPT when a body could not be read.
+
+    When the call makes one create, that create's body is the one the call
+    gave, as created_bodies reads it, and reading it runs no gh. With
+    several creates in one call, their bodies count as unread. Any other hand-back's
+    body and author come from one gh call (pr_view). A create's author is
+    looked up (creator) only when its body has been written and it
+    requests a review from a person, never from bots alone."""
+    creates = [h for h in found if h.kind == "create"]
+    given = created_bodies(payload, host) if creates else []
+    joining, unknown, unread = [], [], False
+    for handback in found:
+        if handback.kind == "create":
+            view = None
+            body = given[0] if len(creates) == 1 and len(given) == 1 else None
+        else:
+            view = pr_view(handback, payload, host)
+            body = view[1] if view else None
+        if body is None:
+            unread = True
+        elif unwritten_body(body):
+            return BODY_DUE_FIRST + BODY_DUE
+        people = [r for r in handback.reviewers if not is_bot(r)]
+        if not people:
+            continue
+        author = creator(handback, sole, payload) if handback.kind == "create" \
+            else view[0] if view else None
+        if author is None:
+            unknown += people
+        else:
+            joining += [(r, author) for r in people if r.casefold() != author.casefold()]
+    if joining:
+        return BODY_DUE_KNOWN.format(
+            reviewers=", ".join(r for r, _ in joining),
+            author=", ".join(sorted({a for _, a in joining}))) + BODY_DUE
+    if unknown:
+        return BODY_DUE_UNKNOWN.format(reviewers=", ".join(unknown)) + BODY_DUE
+    return BODY_UNREAD if unread else BODY_KEPT
 
 
 def hook_post(raw, host):
@@ -2027,12 +2012,10 @@ def hook_post(raw, host):
         return allow
     if not isinstance(payload, dict):
         return allow
-    problems, posts = [], posts_in(payload, host)
+    posts, why = posts_in(payload, host)
+    problems = [why] if why else []
     found = handbacks_of(payload, host)
     for where, text in posts:
-        if isinstance(text, Unreadable):
-            problems.append(f"{where}: {text.why}")
-            continue
         ok, reason = verify_post(text)
         if not ok:
             problems.append(f"{where}: {reason}")
@@ -2092,18 +2075,26 @@ FAILED_EVENTS = {"PostToolUseFailure"}
 
 
 def hook_handback(raw, host):
-    """(exit code, stdout, stderr) for the hook after a tool call: the
-    current-state pass a hand-back starts, as context for the agent."""
+    """(exit code, stdout, stderr) for the hook after a tool call, as
+    context for the agent: the current-state pass a hand-back starts, and
+    whether the pull request's body is due; and, after a create whose body
+    has no link line, LINK_NOTE."""
     try:
         payload = json.loads(raw)
     except ValueError:
         return 0, "", ""
     if not isinstance(payload, dict) or payload.get("hook_event_name") in FAILED_EVENTS:
         return 0, "", ""
-    found = handbacks_of(payload, host)
-    if not found:
+    found, sole = handbacks_and_sole(payload, host)
+    notes = []
+    if found:
+        notes.append(HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+                     + body_note(found, sole, payload, host))
+    if not all(has_link_line(body) for body in created_bodies(payload, host)):
+        notes.append(LINK_NOTE)
+    if not notes:
         return 0, "", ""
-    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+    note = "prose: " + " ".join(notes)
     if host == "cursor":
         return 0, json.dumps({"additional_context": note}) + "\n", ""
     name = payload.get("hook_event_name")
@@ -2656,8 +2647,8 @@ def print_cold_read(token, items, next_command, stream=None, root=None, texts=No
 
 # What a report and a dispositions file must look like, for their refusals.
 REPORT_FORM = ("After its first line, a report holds only findings, each 'Finding <n>, item "
-               "<item>, <stopped, reread or guessed>: «<the exact words>» <what was guessed or "
-               "missing>', numbered from 1, with any more of it on indented lines below; "
+               "<item>, <stopped, reread, guessed or could not tell why>: «<the exact words>» "
+               "<what was guessed or missing>', numbered from 1, with any more of it on indented lines below; "
                "'Item <item>: read straight through.' lines; and 'Item <item>, understood: "
                "<what the item says>' lines. Every item gets findings or the straight-through "
                "line, never both, and exactly one understood line. Ask the cold reader for its "
@@ -2667,7 +2658,7 @@ DISPOSITIONS_FORM = ("After its first line, a dispositions file holds one line p
                      "person chose to keep it; and one line per item, answering its understood "
                      "line: 'Item <n>: matches', 'Item <n>: fixed', or 'Item <n>: kept (asked): "
                      "<the reason, on one line>' once a person chose to keep it.")
-FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed): "
+FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed|could not tell why): "
                      r"«([^«»]*)»(.*)")
 STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
 UNDERSTOOD = re.compile(r"Item ([0-9]+), understood: (.*\S.*)")
@@ -2703,6 +2694,24 @@ def item_changed(old, new, spans):
             if tag in ("replace", "delete") and start < last and end >= first:
                 return True
     return False
+
+
+def quote_removed(quote, old, new):
+    """Whether a finding's quoted words were in old, the item's file when
+    its brief was printed, and are gone from new, the file as it is
+    signed. The brief shows each
+    passage inside its section, so a reader can quote an unchanged line
+    beside the item's spans, and editing those words fixes the finding.
+    Runs of whitespace match any run, so a quote may cross a line break,
+    and a quote that starts or ends with a letter or digit matches only
+    whole words: «x» is not found in "text"."""
+    words = quote.split()
+    pattern = r"\s+".join(map(re.escape, words))
+    if re.match(r"\w", words[0]):
+        pattern = r"(?<!\w)" + pattern
+    if re.search(r"\w$", words[-1]):
+        pattern += r"(?!\w)"
+    return bool(re.search(pattern, old)) and not re.search(pattern, new)
 
 
 def _read_text(path, what):
@@ -2864,10 +2873,11 @@ def read_dispositions(path, token, findings, items):
 def check_cold_read(token, record, report, dispositions, current):
     """Refused unless the report answers the brief recorded for this token;
     every finding and every item's understood line has a disposition; each
-    one marked fixed is in an item that has changed since the brief; and
+    one marked fixed is in an item that has changed since the brief, or,
+    for a finding, its quoted words are gone from the item's file; and
     each one kept says a person was asked.
     current(path) gives a file's text as it is signed; a post's path is "",
-    and current gives the post's text. A ColdResult."""
+    and current gives the post's text. Returns a ColdResult."""
     brief = record.get("cold")
     if not brief:
         raise Refused(f"no cold-read brief was printed for pass token {token}, so there is no "
@@ -2883,17 +2893,25 @@ def check_cold_read(token, record, report, dispositions, current):
     answers, said = read_dispositions(dispositions, token, findings, understood)
     now = {}
 
-    def unchanged(item):
+    def current_text(item):
         path = paths[item - 1]
         if path not in now:
             now[path] = current(path)
-        return not item_changed(texts[path], now[path], spans[item - 1])
+        return texts[path], now[path]
+
+    def unchanged(item):
+        return not item_changed(*current_text(item), spans[item - 1])
+
+    def quote_kept(finding):
+        return not quote_removed(finding.quote, *current_text(finding.item))
 
     for finding in findings:
-        if answers[finding.number] is None and unchanged(finding.item):
+        if (answers[finding.number] is None and unchanged(finding.item)
+                and quote_kept(finding)):
             raise Refused(f"finding {finding.number} is marked fixed, but item {finding.item}, in "
                           f"{paths[finding.item - 1] or 'the post'}, has not changed since the "
-                          f"brief was printed. Fix it, or keep it with a reason. {KEPT}")
+                          f"brief was printed, and the words it quotes were not edited out of "
+                          f"that file. Fix it, or keep it with a reason. {KEPT}")
     for item, answer in sorted(said.items()):
         if answer == "fixed" and unchanged(item):
             raise Refused(f"the understood line of item {item} is marked fixed, but item {item}, "
@@ -3107,9 +3125,9 @@ def gated_call(payload):
         command = tool_input.get("command")
         if not isinstance(command, str):
             return None
-        return "this gh post" if gh_bodies(command, payload.get("cwd")) else None
+        return "this gh post" if any(posts_in(payload, "claude")) else None
     if GITHUB_MCP.match(tool):
-        return f"this post through {tool}" if body_fields(tool_input) else None
+        return f"this post through {tool}" if any(posts_in(payload, "claude")) else None
     if tool in FILE_TOOLS:
         path = tool_input.get(FILE_TOOLS[tool])
         return f"this {tool} of {path}" if isinstance(path, str) and path.strip() else f"this {tool}"
@@ -3136,7 +3154,9 @@ def hook_gate(raw):
             return 0, ""
     except Exception:
         return 0, ""
-    return 2, (
+    missing = f"{READER_MISSING}; until then a first call that names gh is blocked too.\n\n" \
+        if post_reader is None else ""
+    return 2, missing + (
         f"prose: blocked {what}, this session's first file write or post, because prose's "
         "first call has not run in this session. Run it now, with the reasons a reader opens "
         "the text you are writing, most probable first. It prints the rules to write by:\n\n"
@@ -3555,7 +3575,9 @@ def main(argv=None):
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
     p_handback = sub.add_parser("hook-handback", help="after a call: the current-state pass "
-                                                       "a hand-back starts; payload on stdin")
+                                                       "a hand-back starts, and the link lines "
+                                                       "a new pull request lacks; payload on "
+                                                       "stdin")
     p_handback.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
     # allow_abbrev=False: an abbreviation such as --paths would make the

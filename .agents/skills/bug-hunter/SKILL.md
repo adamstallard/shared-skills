@@ -502,13 +502,13 @@ surviving findings, the refuter verdicts and Step 5's fix-conflict notes
 ([reference.md](reference.md#step-6--fix)).
 
 **Read the codebase's specs and decision records for this code first, if it
-has them**: the OpenSpec spec of the capability that covers it, that
+has them**: the OpenSpec spec of the capability that covers it and that
 capability's decision record (`openspec/specs/<capability>/decisions.md`),
-and the *Decisions* section of the `design.md` of any open OpenSpec change
-that covers it — the same places Step 9
-[writes to](#write-down-what-was-rejected-before-you-commit). Never read a
+where Step 9 [records a rejected
+approach](#write-down-what-was-rejected-before-you-commit). Never read a
 free-form `DECISIONS.md` (upper case, outside `openspec/`) or an ADR: those
-are written for people, not agents. Check two
+are written for people, not agents. Nor an OpenSpec change's `proposal.md`
+or `design.md`, or a pull request body: nobody keeps them current. Check two
 things: whether this approach is already recorded as rejected, and — for any
 recorded lesson you are about to reuse, such as an earlier fix or rule —
 whether its recorded *scope* covers your case. A lesson applied outside its
@@ -923,11 +923,13 @@ never in a `DECISIONS.md` or an ADR, which agents don't read:
    that site**, in the codebase's own idiom: present tense, a warning rather
    than a history. That is where the next person tempted back to it will be
    standing.
-2. **A rejection about a capability goes in its decision record**,
-   `openspec/specs/<capability>/decisions.md`; while an open OpenSpec change
-   covers this code, in the *Decisions* section of that change's `design.md`
-   instead. A record holds only evidence a test can't express: the failure,
-   the measurement or the outside fact that rules the approach out.
+2. **A rejection about a capability is recorded only with evidence**: the
+   failure, the measurement or the outside fact that rules the approach
+   out. When a test could catch the approach, add a scenario it would fail
+   and put the evidence in that requirement's Rationale entry in
+   `openspec/specs/<capability>/decisions.md`; otherwise write a Rejected
+   entry there. Without evidence it is not recorded, though a rejection
+   about one site still gets its comment (point 1).
 3. **With no OpenSpec spec for this code**, the comment at the site carries
    it, and the commit message names it. Create no new decision file.
 

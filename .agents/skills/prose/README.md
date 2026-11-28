@@ -30,21 +30,25 @@ the rules were on the agent's screen before it signed. Nothing proves the agent
 followed them.
 
 **A cold read.** Before it signs a changed comment, doc passage, YAML string
-written in sentences, or post, the agent has a fresh agent, one that never saw
-the conversation, read it and report where it stopped, reread or guessed,
-quoting the words. For every item
-it also says in one line what it understood: who does each thing, whether it
-always happens, and whose doing it is. That line catches a confident
-misreading, which makes no reader stop. The agent then answers every finding
-and every understood line. A finding is fixed, which the script checks by its
-item having changed since the brief, or kept, which a person decides. An
-understood line matches what the agent meant, or else is fixed or kept in the
-same way. The signing call refuses without
-a report and those answers, both bound to that pass's token, and refuses a
-kept one unless the agent says a person was asked. An agent that cannot ask
-leaves the change unsigned, and hands each finding or understood line it would
-keep back to its caller.
-Nothing proves a fresh agent wrote the report, or that the person was asked.
+written in sentences, or post, the agent has a fresh agent read each of these
+texts. The fresh agent never saw the conversation in which the text was
+written. It quotes the words at every place it stopped, reread, guessed what a
+word points at, or could not tell why a claim holds, and every place where the
+words, read literally, say something other than what it took them to mean,
+since a reader who takes them literally leaves misinformed. For each text it
+also says in one line what it understood: who does each thing, whether it always happens,
+and whether the code does it or someone could make it happen. That line catches
+a confident misreading, which makes no reader stop. The agent then answers
+every finding and every understood line: fixed, or kept, which leaves the text
+as it is. prose's signing script checks a fixed finding by its text having
+changed since the fresh agent read it, or by the quoted words being gone from
+the file. It checks a fixed understood line only by its text having changed. A
+person decides each kept one. The signing call refuses without the report and
+those answers, both bound to that pass's token, and refuses a kept one unless
+the agent says a person was asked. An agent that cannot ask leaves the change
+unsigned, and hands each finding or understood line it would keep back to its
+caller. Nothing proves a fresh agent wrote the report, or that the person was
+asked.
 
 To install it, ask your agent to install the `prose` skill; the
 `manage-skills` skill does the rest, hooks included.
@@ -113,8 +117,8 @@ rule, but the declaration shows in the commit, and anyone can undo it.
 
 ## Docs agents read before working stay compact
 
-Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
-proposals before every task, so history, repetition and padding left in them
+Agents reread docs such as `SKILL.md` and `AGENTS.md` before every task,
+and an open OpenSpec change's `design.md` before each task on that change, so history, repetition and padding left in them
 cost tokens on every read. When a commit changes a doc agents read often,
 and the history, repetition and padding added since it was last compacted
 make up a tenth of the doc and at least 1,000 bytes, or the doc has grown by
@@ -160,7 +164,8 @@ it proposes the line, and once you confirm, the agent makes the edit.
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
 | A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and to each line saying what the reader understood. A pull request body posted between two hand-backs for review (`gh pr create`, `gh pr ready`, `gh pr edit --add-reviewer`) may defer its cold read to the next one |
-| A pull request handed back for review | Before the call, the posting hook blocks it while the body still defers its cold read; after it, a hook reminds the agent to do the current-state pass: rewrite any doc, body or title the pull request changes that still describes work as unfinished or to come |
+| A pull request handed back for review | Before the hand-back call, the posting hook blocks the hand-back while the body still defers its cold read. After the call, a second hook, the hand-back hook, reminds the agent to rewrite the pull request's title, or any doc the pull request changes, that still describes work as unfinished or to come. The reminder also says a new body is due in two cases: the body holds only link lines and blocks a tool writes between its own markers, whoever the reviewer is; or the call requests a review from at least one person other than the author, bots aside. The new body keeps those link lines and blocks |
+| A pull request created, draft or not | After any create, the hand-back hook reminds the agent to add link lines when the body has none: lines starting with a closing keyword, such as `Closes #N`, or with `Part of #N`. A create that is not a draft is a hand-back, so it gets the reminder in the row above too |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;

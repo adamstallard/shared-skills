@@ -11,16 +11,19 @@
       input options*)
 - [ ] 1.4 github-app's SKILL.md and README: which commands a relay
       identity can run (github-app spec: *No github-app command hands a
-      relay identity's token to a program*), and `api`'s options
+      relay identity's token to a program*), `api`'s options, and the
+      one form of an `api` post the post hooks read, `api <endpoint> -X
+      <method> --input <file>` (gh-post spec: *The reader reads the
+      github-app skill's api command as gh api*)
 
 ## 2. Inquisitor
 
 - [ ] 2.1 The shared post reader reads `api` calls (gh-post spec: *The
       reader reads the github-app skill's api command as gh api*)
 - [ ] 2.2 The answer service makes every GitHub request as the relay
-      through `api`: its relay posts, edits and deletes, each passing its
-      text on standard input, and its setup's read of the relay
-      installation's access to each subscribed repository
+      through `api`: its relay posts, edits and deletes, each passing its text on standard input from the service's own code,
+      which no post hook reads, and setup's read, through `api`, of which
+      subscribed repositories the relay installation can reach
       (`installation/repositories`)
 - [ ] 2.3 The inquisitor's README drops its GitHub warning
       (answer-service spec: *The README warns that a relay's token can be

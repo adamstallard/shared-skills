@@ -13,10 +13,9 @@ description: >-
 
 # Worktrees
 
-**A worktree keeps the human's checkout untouched, its lock says who is
-working in it, and it goes the moment its work has landed.** A worktree
-holding a branch stops anyone checking that branch out anywhere else, and the
-first person to try is usually the human, reviewing what you pushed.
+**A worktree keeps the human's checkout untouched, its detached HEAD
+leaves the branch free for anyone to check out, its lock says who is working
+in it, and it goes the moment its work has landed.**
 
 ## When to use one
 
@@ -29,21 +28,40 @@ you. A read-only question needs no worktree.
 ## Create it locked, on the branch you will work on, in one step
 
 ```bash
-# new branch
+git fetch origin
+# a branch on origin, such as a pull request's
 git worktree add --lock --reason "<agent or person> working: <task>" \
-  --no-track -b <name> .claude/worktrees/<name> origin/<branch-to-start-from>
-# existing branch
+  --detach .claude/worktrees/<name> origin/<branch>
+# a new branch
 git worktree add --lock --reason "<agent or person> working: <task>" \
-  .claude/worktrees/<name> <existing-branch>
+  --detach .claude/worktrees/<name> origin/<branch-to-start-from>
 ```
 
-`--no-track` stops a new branch tracking the branch it started from. A
-plain `git pull` pulls from the tracked branch, and with some `push.default`
-settings a plain `git push` goes to it. An IDE asked to check out the start
-branch, such as another pull request's branch to review it, can pick your
-branch instead, because yours already tracks it. The worktree holds your
-branch, so that checkout fails. Push the first time with
-`git push -u origin <name>`, so the branch tracks its own remote branch.
+**The worktree holds no branch, so anyone can check the branch out while
+you work.** git lets a branch be checked out in one place only. While a
+worktree holds a pull request's branch, `gh pr checkout`, an IDE's "check out
+pull request", the person's own `git checkout` and another agent's worktree
+for that branch all fail with `fatal: '<branch>' is already checked out at
+…`. Never create a local branch for the work.
+
+Commit on the detached HEAD, and push after every commit:
+
+```bash
+git push origin HEAD:refs/heads/<branch>
+```
+
+The first push of a new branch creates it on origin; open the pull request
+from it. Write the full `refs/heads/<branch>`: from a detached HEAD, git
+refuses a short name that doesn't exist on origin yet. To take in commits
+someone else pushed, run `git fetch origin` and
+`git merge --ff-only origin/<branch>`. If someone pushed while a commit of
+yours was still unpushed, `--ff-only` refuses: run `git merge origin/<branch>`
+instead, and push. Never force-push.
+
+**A commit on a detached HEAD is on no branch.** Only the worktree's own
+HEAD reflog holds it, and removing the worktree deletes that reflog. Pushing
+after every commit puts it on origin, and the removal steps below check that
+HEAD is there.
 
 `--reason` with `add` needs git 2.33 or later. On an older git, add the
 worktree with `--lock` alone and run
@@ -69,14 +87,15 @@ and tooling already cover it. Don't put it outside the repository.
 
 ## Remove it the moment its work has landed
 
-Its work has landed when a pull request is open for its branch, or when its
-commits are pushed to the default branch. Remove the worktree then, in the
-same turn, before you report done:
+Its work has landed when a pull request is open for the branch it pushes
+to, or when its commits are pushed to the default branch. Remove the worktree
+then, in the same turn, before you report done:
 
 1. Nothing is running in it, and your own shell is not inside it.
 2. It is safe to remove: every check in *Safe to remove* below passes.
-3. HEAD is pushed: `git -C <worktree> branch -r --contains HEAD` lists
-   `origin/<branch>`, or the default branch if you pushed straight to it.
+3. HEAD is pushed: after `git -C <worktree> fetch origin`,
+   `git -C <worktree> branch -r --contains HEAD` lists `origin/<branch>`, the
+   branch you pushed to.
 4. If you locked it: `git -C <main checkout> worktree unlock <worktree>`
 5. `git -C <main checkout> worktree remove <worktree>`
 
@@ -87,8 +106,8 @@ one:
 - "Review might want changes." Recreate it when they do.
 - "I might want to verify the result." `git show origin/<branch>:<path>`
   reads exactly what was pushed.
-- "Another agent can reuse it." While it holds the branch, nobody can check
-  that branch out to review it.
+- "Another agent can reuse it." Its lock names you, not that agent, and a
+  fresh worktree takes that agent seconds.
 
 ### Safe to remove
 
@@ -114,8 +133,8 @@ It prints "Safe to remove" and exits 0, or names what is wrong and exits 1
   only this worktree has (under `refs/worktree`, `refs/bisect` and
   `refs/rewritten`) is reachable from something removal keeps: a branch, tag or remote
   ref, any branch's reflog, or another worktree's or the main checkout's
-  HEAD and reflog. A commit amended or rebased on a branch is kept by that
-  branch's reflog; one left behind on a detached HEAD is not.
+  HEAD and reflog. A commit on a detached HEAD is kept only once it is
+  pushed, by the remote ref.
 - **No submodules:** `"$(git -C <worktree> rev-parse --absolute-git-dir)/modules"`
   does not exist, and no path that `git -C <worktree> ls-files -s` lists with
   mode `160000` holds a `.git`. `git worktree remove` refuses a tree with
@@ -133,17 +152,10 @@ same turn, before you report:
 2. It is safe to remove: every check in *Safe to remove* passes.
 3. If you locked it: `git -C <main checkout> worktree unlock <worktree>`
 4. `git -C <main checkout> worktree remove <worktree>`
-5. If you created its branch with `-b`, delete it once every commit its
-   tip and its reflog hold is on a remote. Deleting the branch deletes its
-   reflog, which can be the only thing holding a commit you reset away.
-   Check with
-   `git -C <main checkout> log -g --format=%H <branch> | git -C <main checkout> rev-list -1 --stdin <branch> --not --remotes`:
-   it must print nothing and exit 0, and `git log` must report no error.
-   Then run `git -C <main checkout> branch -D <branch>`.
 
-If step 2, or the check in step 5, fails, ask the user; never discard
-work. The hook never lists such a worktree for you: it looks the same as
-one an agent is about to use, so only you know it is finished.
+If step 2 fails, ask the user; never discard work. The hook never lists
+such a worktree for you: it looks the same as one an agent is about to use,
+so only you know it is finished.
 
 ## Sweep whenever you list them
 
@@ -164,8 +176,9 @@ four exceptions:
   hour.
 - Leave a worktree someone else made that has no commits of its own: one
   whose `git -C <worktree> reflog` shows no commit, merge, rebase,
-  cherry-pick or revert since its branch was checked out there,
-  fast-forwards aside. Its HEAD being on origin, for example on
+  cherry-pick or revert since its current HEAD was checked out there.
+  Fast-forwards don't count, nor do a rebase's entries that make no commit:
+  `start`, `finish`, `abort`, and `reset`, which `--rebase-merges` logs. Its HEAD being on origin, for example on
   `origin/main` because it was just created from there, doesn't mean work
   has landed: it may be a review checkout, or a tree an agent is about to
   work in. If one looks abandoned, tell the user.
@@ -175,9 +188,10 @@ Run `git worktree prune` for an entry whose directory no longer exists.
 ## Briefing other agents
 
 A brief that tells an agent to create a worktree tells it to create it
-locked, with a reason naming the agent and the task. It also tells the agent,
-as its last step after a successful push, to unlock that worktree and remove
-it. An agent not told this keeps it, and an agent that doesn't lock one can
+locked and detached, with a reason naming the agent and the task, and to
+push each commit with `git push origin HEAD:refs/heads/<branch>`. It also
+tells the agent, as its last step once the work has landed, to remove that
+worktree by the steps in *Remove it the moment its work has landed*. An agent not told this keeps it, and an agent that doesn't lock one can
 have it removed by another agent's sweep.
 
 ## The hook
@@ -191,9 +205,9 @@ to remove:
 - **When you stop:** every worktree in the repository, except locked ones and
   other worktrees used in the last hour.
 
-A listed worktree has a branch checked out, commits made in it, a HEAD that
-is on origin, no worktree inside it, and nothing running in it, and passes
-every check in *Safe to remove*.
+A listed worktree passes every check in *Safe to remove*. It also has
+commits made in it and a HEAD on origin, nothing is running in it, and no
+rebase, merge, cherry-pick, revert, bisect or notes merge is paused in it.
 Remove each one with the command it prints, or ask the user if one must stay.
 The hook never removes anything itself.
 

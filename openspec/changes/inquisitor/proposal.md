@@ -46,8 +46,8 @@ the AI teammates of igor, a separate project; igor #211 tracks the role.
 
 The specs hold each rule a test can check; each capability's decision
 record, `openspec/specs/<capability>/decisions.md`, holds the reasoning
-with evidence. design.md's *Decisions* holds the remaining design choices,
-and its *Open Questions* what is undecided or unmeasured. What this change
+with evidence. design.md holds only Open Questions, what is undecided or
+unmeasured. What this change
 needs from other changes is in their issue bodies: igor's in
 adamstallard/igor#247, github-app's in shared-skills #96, and linear-app's
 in shared-skills #112.
@@ -95,26 +95,13 @@ None.
   starts Claude Code with the answer service open.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter and gh flag tables already there, so the
-  inquisitor's post hook reads posts the same way. The reader, and so
-  prose's hook:
-  - reads posts sent through the github-app skill, its `gh api` calls
-    included, and comments posted with plain `gh api`.
-  - counts a `gh api` call as a possible post only when it can write, by its
-    method, fields, input or a GraphQL mutation; prose's hook ignores
-    `gh api` today.
-  - blocks a `gh api` write to an issue or pull request endpoint, or a
-    `gh api graphql` call, that takes a field from a file, unless it is the
-    whole command line, because an earlier command in the line could
-    rewrite the file.
-  - lets through unread a `gh api` write to any other endpoint, or a
-    GraphQL mutation that posts no issue or pull request text, as
-    `gh release` and `gh discussion` pass.
-  - keeps reading an unquoted `--body` or `-b` of one plain word, such as
-    `--body hi`.
-  - reads `gh pr` and `gh issue` posts as prose's hook does today, and lets
-    through unread, as today, a line that mentions no gh post verb, such as
-    a gh alias, release notes or code given to `python3 -c`: the hooks catch accidents in
-    common post forms, not an agent set on posting unread.
+  inquisitor's post hook reads posts the same way. The reader reads a
+  post only in a short closed list of canonical forms. Both hooks block
+  any other line that mentions a post verb, such as `gh pr comment`, a
+  `gh api` write or a discord-bot `post`, and their block message lists
+  the canonical forms. A line that mentions none, such as a gh alias,
+  release notes or code given to `python3 -c`, passes unread: the hooks catch accidents in common post forms, not an
+  agent set on posting unread.
 - The `questions` branch is an orphan branch, pushed with no pull request.
   A repository may also hold `.inquisitor/reviewers`, the logins a
   posted question may tag. The answer service's setup can create a lore

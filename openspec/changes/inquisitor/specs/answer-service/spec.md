@@ -171,7 +171,17 @@ as an Igor's worker. Unless it is a relayed question, the answer service
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
 message by a bot account (a GitHub App, Linear app user, or Discord bot or
-webhook). Every other question SHALL count as **a person's question**.
+webhook), except a Discord crosspost, flagged `IS_CROSSPOST`. Every other
+question SHALL count as **a person's question**.
+
+#### Scenario: A Discord crosspost is a person's question
+
+- **WHEN** a webhook's message flagged `IS_CROSSPOST`, copied from an
+  announcement channel the subscribed channel follows, asks a question
+  mentioning the person
+- **THEN** it counts as a person's question
+- **AND** a webhook's message without that flag counts as an agent's
+  question
 
 #### Scenario: A Linear app user's question is an agent's
 
@@ -496,6 +506,25 @@ keychain, and a save SHALL keep keys it does not write.
   API key, which the answer service reads Linear with, is only in the
   system keychain
 
+### Requirement: The person's Linear key reaches the service only from the keychain
+
+The answer service, setup included, SHALL take the person's Linear API
+key only from the system keychain, where a command the person runs in
+their own terminal stores it, never from the prompt box or the picker.
+
+#### Scenario: The person's Linear key never passes through the prompt
+
+- **WHEN** setup needs the person's Linear API key
+- **THEN** it shows a command the person runs in their own terminal,
+  which stores the key in the system keychain, such as `security
+  add-generic-password -s inquisitor-linear -a <github-login> -w` on macOS
+  or `secret-tool store --label inquisitor-linear service
+  inquisitor-linear account <github-login>` on Linux, `<github-login>`
+  being the configured `login`, and
+  reads the key from the keychain once the person says it is done
+- **AND** the key is never asked for in the prompt box or picker, and
+  appears in no prompt, model context or transcript
+
 ### Requirement: The person runs the service, and a relay identity posts for them
 
 **The person** SHALL be the one whose questions the answer service shows:
@@ -525,10 +554,9 @@ the person there, with a token that skill holds.
 
 Setup SHALL check, showing failures and fixes: each relay identity by
 its skill's check; on Discord, that `messageContent` is `true`; and
-posting in each subscribed channel. A channel is **on** while its
-identity and posting checks last passed, else **off**. A channel whose
-posting permission no check can read SHALL stay on, shown
-not checked, until a post there is refused for permission. An off
+posting in each subscribed channel. A channel is **on** while its identity and
+posting checks last passed, else **off**. As an exception, a channel whose posting check could not run SHALL
+stay on, shown not checked, until a post there is refused for permission. An off
 channel SHALL not be read or posted in; each opening SHALL rerun failed
 and unrun checks.
 
@@ -561,10 +589,10 @@ and unrun checks.
 - **AND** only `messageContent` as `true` passes, whatever `check`
   reports as `memberSearch`
 
-#### Scenario: A posting check no check can read is shown as not checked
+#### Scenario: A posting check that cannot be read is shown as not checked
 
-- **WHEN** no check can read whether the Linear relay may post in a
-  subscribed team, and the relay's own check passes
+- **WHEN** setup's read of the teams the Linear relay can see fails, and
+  the relay's own check passes
 - **THEN** setup shows the team's posting check as not checked, never as
   passed, and the team counts as on
 - **AND** once Linear refuses a relay post there for lack of permission,
@@ -577,6 +605,31 @@ and unrun checks.
 - **WHEN** a Discord channel is off because its posting check failed, and
   at the next opening that check passes
 - **THEN** the channel is on, and the answer service reads and posts in it
+
+### Requirement: A posting check reads what each surface grants
+
+Setup's **posting check** SHALL pass on GitHub when the repository is
+among the relay App installation's repositories and the installation may
+write issues and pull requests, both read with the App's own token; on
+Linear when the relay's token has the `write` scope and its app user can
+see the team; and on Discord when discord-bot's `check --channel` reports
+`viewChannel`, `readMessageHistory`, `sendMessages` and
+`sendMessagesInThreads` all `true` for the channel.
+
+#### Scenario: A repository outside the App's installation is off
+
+- **WHEN** a subscribed GitHub repository is not among the GitHub relay
+  App installation's repositories
+- **THEN** setup shows that the App must be installed on it, and that
+  repository stays off while the others are on
+
+#### Scenario: A team or channel the relay cannot post in is off
+
+- **WHEN** the Linear relay's app user cannot see a subscribed team, or
+  discord-bot's `check --channel` reports `sendMessages` `false` for a
+  subscribed channel
+- **THEN** setup shows the failure and its fix, and that team or channel
+  stays off
 
 ### Requirement: Setup opens on an incomplete configuration
 
@@ -763,12 +816,11 @@ Code session starts or resumes whose environment holds the marker the
 
 ### Requirement: The answer launcher starts a restricted session
 
-The `answer` launcher SHALL pass the person's arguments on to Claude
-Code, exiting with an error, before starting it, when they hold
-`--name`, `--tools` or `--strict-mcp-config`. It SHALL add on every run
-the session name `Answers`, the fullscreen layout, the answer marker
-(*Only a session with the answer marker opens the answer service*) and
-the tool restriction.
+The `answer` launcher SHALL pass on to Claude Code only the arguments
+*The answer launcher passes only its listed arguments* lists, and exit with an error, before starting it, on any
+other. It SHALL add on every run the session name `Answers`, the
+fullscreen layout, the answer marker (*Only a session with the answer
+marker opens the answer service*) and the tool restriction.
 
 #### Scenario: The answer launcher starts a restricted session
 
@@ -778,6 +830,31 @@ the tool restriction.
   by `--tools Read,Grep,Glob` and `--strict-mcp-config`, as *The
   service's model has no shell, no writing tool and no web fetch* says,
   and every enabled plugin still on
+
+#### Scenario: The answer launcher passes only its listed arguments
+
+- **WHEN** the person runs `answer` with any of `--resume <id>` or `-r
+  <id>`, `--resume` or `-r` alone, `--continue` or `-c`, `--model <name>`,
+  and `--debug` or `--debug=<filter>`
+- **THEN** it passes each on to Claude Code
+- **AND** a long option's value may also follow `=`, as in
+  `--resume=<id>` and `--model=<name>`
+- **AND** a group of short options, such as `-cr <id>`, is read as each
+  letter in turn, only the last taking a value, and a value written onto
+  its letter, such as `-r<id>`, is refused
+- **AND** `-c` and a bare `-r` may pick a session `answer` did not start,
+  and that session then opens with the tool restriction and the answer
+  marker like any other, since the launcher cannot tell which session
+  Claude Code will pick
+
+#### Scenario: The answer launcher refuses any other argument
+
+- **WHEN** the person runs `answer --name x`, `answer --tools Bash`,
+  `answer --mcp-config x.json`, `answer --agents '{}'`, `answer
+  --settings s.json`, `answer --plugin-dir d`, `answer -cn x`, or `answer
+  'a prompt'`
+- **THEN** it exits with an error naming the first argument off its list,
+  `-n` for `-cn x`, and starts no Claude Code session
 
 ### Requirement: The answer mod strips other tools from the answer session
 
@@ -1054,9 +1131,8 @@ links; a team mention counts as none.
 ### Requirement: A handback is an Igor's comment holding igor's marker
 
 The answer service SHALL count as a **handback** only a comment that an
-Igor wrote (on GitHub, an App whose slug starts with `igor-`; on Linear,
-an Igor's app user) and that holds igor's handback marker, which quoted
-text cannot produce.
+Igor wrote, as an Igor's GitHub App or Linear app user, and that holds
+igor's handback marker.
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -1075,8 +1151,8 @@ text cannot produce.
 
 #### Scenario: Another App's marked comment is not a handback
 
-- **WHEN** a GitHub App whose slug does not start with `igor-`, or a
-  Linear app user that is not an Igor's, comments on an issue assigned to
+- **WHEN** a GitHub App or a Linear app user that is not an Igor's,
+  even a GitHub App whose slug starts with `igor-`, comments on an issue assigned to
   the person, holding igor's handback marker, mentioning no one and
   replying to no relay post, either of which would reach the person by
   another rule
@@ -1182,12 +1258,12 @@ its own handback comment* says.
 
 ### Requirement: A log file with no followed link is judged on its own
 
-A log file that holds no thread copy of a message this machine's polls
+A log file that holds no thread copy (a term of this spec's Purpose) of a message this machine's polls
 have read SHALL be judged on its own, as a question of the fourth
 source, a questions-branch log file, save that an Igor's log file
 follows its handback comment as *An Igor's log file follows its own
 handback comment* says. The answer
-service SHALL NOT pair a file with a message by matching text.
+service SHALL NOT pair a file with a message by text similarity.
 
 #### Scenario: A log file linking a message this machine has not read is shown on its own
 
@@ -1287,8 +1363,6 @@ opening and about 60 seconds after each poll ends, for everything since
 its **poll position**, the time of the newest message its last poll
 read, or, with none saved, the last 14 days, saving each poll position
 in the state folder.
-Each poll SHALL fetch every subscribed repository's questions branch and
-every lore repository's questions and default branches.
 
 #### Scenario: Opening catches up
 
@@ -1308,17 +1382,24 @@ every lore repository's questions and default branches.
   first time
 - **THEN** it reads that repository's messages from the last 14 days
 
-#### Scenario: Each poll fetches the questions branches
-
-- **WHEN** the answer service polls its channels
-- **THEN** it fetches the questions branch of every subscribed repository
-  and every lore repository's questions and default branches
-
 #### Scenario: Nothing polls without an open answer service
 
 - **WHEN** Claude Code sessions with the skill are running, and none has
   its answer service open
 - **THEN** no channel or questions branch is polled
+
+### Requirement: The answer service reads the questions branches about every minute
+
+While open, at opening and about every 60 seconds, the answer service
+SHALL read every subscribed and lore repository's questions branch, and
+fetch every lore repository's default branch.
+
+#### Scenario: The questions branches are read about every minute
+
+- **WHEN** the answer service has been open for two minutes
+- **THEN** it has read the questions branch of every subscribed and lore
+  repository through GitHub's API about three times, and fetched every
+  lore repository's default branch into its configured clone as often
 
 ### Requirement: The poll reads every GitHub question source
 
@@ -1387,6 +1468,24 @@ and post, in the channels it has been added to.
 - **WHEN** a subscribed Discord channel is read
 - **THEN** it is read as the Discord relay identity, which also posts
   there
+
+### Requirement: A Discord thread is read with its first message
+
+When the answer service reads a Discord thread, it SHALL read the
+thread's first message by following the `message_reference` of the
+placeholder that stands for it inside the thread, since Discord keeps
+that message in the parent channel. Apart from that placeholder, it
+SHALL skip every message with no text and no attachments, such as one
+holding only an embed.
+
+#### Scenario: A thread's first message is read through its placeholder
+
+- **WHEN** the service reads a thread started on a message that asks the
+  person a question, and the thread also holds a message with only an
+  embed
+- **THEN** the thread's messages, as read, start with the question's
+  message, reached through the placeholder's `message_reference`
+- **AND** the embed-only message is skipped
 
 ### Requirement: An answer is relayed as the person's words
 
@@ -1566,11 +1665,11 @@ relay by hand.
 
 A pending answer SHALL return to the queue with its text kept, to be
 posted only once the person confirms it again: when setup's posting check
-passes, if its channel was off, as after a post refused for permission;
-when a later poll of its channel succeeds, if the fetch before its post
-failed. Where no check reads posting rights, the next opening
-SHALL return an answer whose channel was off, and turn the channel on, if
-the relay identity's own check passed when last run.
+passes, if a permission refusal turned its channel off; when a later poll
+of its channel succeeds, if the fetch before its post failed. Where the
+channel's posting check could not run, the next opening SHALL return it,
+and turn the channel on, if the relay identity's own check passed when
+last run.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
@@ -1893,8 +1992,8 @@ its miss file. If the fetch or the delete fails, both posts stay.
 
 The answer service SHALL keep its working state per machine in the state
 folder, as *The state folder holds all working state* lists, except a
-lore repository's branches, which it fetches into that repository's
-configured clone. A discussion
+lore repository's default branch, which it fetches into that
+repository's configured clone. A discussion
 record SHALL be deleted once its question is
 answered by the person, answered or handled for them, or closed; a pending answer
 outlives it.
@@ -1909,14 +2008,14 @@ outlives it.
 #### Scenario: The state folder holds all working state
 
 - **WHEN** the answer service saves its working state
-- **THEN** apart from a lore repository's branches, which it fetches into
-  that repository's configured clone, it writes only to the state
+- **THEN** apart from a lore repository's default branch, which it
+  fetches into that repository's configured clone, it writes only to the state
   folder: the questions set aside
   for later, the asked times set by polls, the closed questions, each open question's discussion
   record, each channel's poll position, each GitHub list's `ETag`, each setup check's last result, relay post ids, the question on screen unless it has a category, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
-  subscribed repository's questions and default branches, the input
+  subscribed repository's default branch, fetched only for filter 1, the input
   files it passes to a relay identity's skill or to the `log` or `search`
   command, and the lock
 
@@ -1983,6 +2082,12 @@ names another id.
 - **AND** it closes though both sessions are named `Answers`, as every
   session the `answer` command starts is
 
+#### Scenario: An idle answer service keeps its lock fresh
+
+- **WHEN** the answer service stays open and idle for 3 minutes
+- **THEN** it refreshes its lock at least every 30 seconds, so another
+  session opening the answer service finds the lock fresh
+
 #### Scenario: A crashed session's lock goes stale
 
 - **WHEN** the session holding the lock crashed, and the lock has gone 2
@@ -2037,6 +2142,29 @@ vetting. The discussion record SHALL keep both sides' messages.
   discussion of a question
 - **THEN** that question's discussion record holds both messages
 
+### Requirement: An agent's question offers the options its numbered list gives
+
+The answer service SHALL take an agent's question's **options**, the
+answers it offers with what each would change, only from its text: a
+list of two or more items numbered `1.` or `1)` upward with no gap, each
+`label: effect`, `label — effect` or a bare label. A question with no
+such list, or a person's question, SHALL show no options to pick from.
+
+#### Scenario: A numbered list gives the options
+
+- **WHEN** an agent's question holds the lines `1. Back off: retries wait
+  longer each time` and `2. Fixed delay — retries wait one second`
+- **THEN** its options are `Back off`, which would make retries wait
+  longer each time, and `Fixed delay`, which would make them wait one
+  second
+- **AND** the lines `1) Back off` and `2) Fixed delay` give the options
+  `Back off` and `Fixed delay`, each with no effect
+- **AND** a question whose list is numbered `1.` and then `3.`, and a
+  person's question holding the list in the WHEN line, show no options
+- **AND** every numbered line in a question's text counts toward one
+  list, `.` and `)` mixing freely, so a second list starting again at
+  `1.` leaves the question with no options
+
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
 The answer service SHALL give the model `propose_reply`, a tool putting
@@ -2067,9 +2195,7 @@ line.
 - **WHEN** a subagent of the service's model calls `propose_reply`, and
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
-- **AND** a call with no `agentId` is taken as the main conversation's. If
-  a subagent's call arrives without one, its draft still lands only in
-  the prompt box, where the person sees it before anything is sent
+- **AND** a call with no `agentId` is taken as the main conversation's
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
@@ -2859,7 +2985,10 @@ The service SHALL fetch a subscribed repository's default
 branch just before filter 1 checks a question placed in it, and at no
 other time. A question placed
 `other` SHALL go unsearched, and the service SHALL say so, because a
-`global` lore entry may contradict an unread repository's rules. A question that names no repository at all has no decision documents to search and no rules that go unread, so it SHALL be searched in `global` lore alone.
+`global` lore entry may contradict an unread repository's rules. A
+question with **no place** (*A channel's repositories place its
+questions*), which names no repository whose rules could go unread,
+SHALL be searched in `global` lore alone.
 
 #### Scenario: A question about an unsubscribed repository is not searched
 
@@ -3181,10 +3310,14 @@ with a miss file* bars it.
 
 ### Requirement: A question with a person-required line gets no filter 2 to 4 reply
 
-A question, whoever posted it, is **person-required** when a related-decision or person-required line directly after it starts, reduced as the inquisitor reduces a question's text, with the inquisitor's person-required line up to `(required by `. Such a question SHALL get no filter 2, 3 or
-4 reply, by itself, by a suggested verdict or by the person's decline,
-and no miss for those filters. Unless filter 1 answers it, it SHALL be
-shown to the person. The answer service SHALL trust any such line.
+A question is **person-required** when, among the related-decision,
+concerns, tag and person-required lines right after it, a line starts,
+markup reduced, with `Inquisitor: a person must decide this (required
+by `. The line SHALL count whoever posted it: a forged one only sends a
+question to the person. The
+question SHALL get no filter 2, 3 or 4 reply, by itself, by a suggested
+verdict or by a decline, and no miss for those filters, and
+unless filter 1 answers it SHALL be shown to the person.
 
 #### Scenario: A question spec-trace requires reaches the person
 
@@ -3210,6 +3343,13 @@ shown to the person. The answer service SHALL trust any such line.
 - **THEN** the first counts as a person-required line, its markup
   reduced away, and the second does not, so filters 2 to 4 judge that
   question as usual
+
+#### Scenario: A person-required line after a related-decision line counts
+
+- **WHEN** an agent's question is followed by
+  `Related: https://github.com/o/r/pull/3` and then by
+  `Inquisitor: a person must decide this (required by spec-trace).`
+- **THEN** the question is person-required
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 

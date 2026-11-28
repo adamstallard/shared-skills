@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "hits": [
+    {
+      "source": "decision-document",
+      "label": "decision",
+      "repository": "o/api",
+      "where": "docs/retries.md",
+      "quote": "Retries back off exponentially, capped at a minute.",
+      "terms": 3
+    },
+    {
+      "source": "questions-branch",
+      "label": "input",
+      "repository": "o/api",
+      "where": "questions/2026-10-24-should-retries-back-off-cc11dd.md",
+      "quote": "No.",
+      "terms": 3,
+      "why": "unconfirmed",
+      "path": "questions/2026-10-24-should-retries-back-off-cc11dd.md",
+      "question": "Should retries back off?",
+      "answer": "No.",
+      "reason": "unconfirmed",
+      "landed": null
+    },
+    {
+      "source": "lore-entry",
+      "label": "input",
+      "repository": "o/lore",
+      "where": "entries/retry-backoff.md",
+      "quote": "Back off on 503.",
+      "terms": 2,
+      "why": "not active"
+    }
+  ],
+  "not_searched": [
+    "issues of o/api: gh could not reach GitHub"
+  ],
+  "clones": [
+    {
+      "path": "/home/a/lore",
+      "repository": "o/lore",
+      "fetched": "2026-10-19T08:00:00Z"
+    },
+    {
+      "path": "/home/a/state/clones/o/api",
+      "repository": "o/api",
+      "fetched": null
+    }
+  ],
+  "left_out": 0
+}

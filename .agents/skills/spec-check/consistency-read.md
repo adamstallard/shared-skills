@@ -15,7 +15,8 @@ openspec/changes/keep-action-log/proposal.md>
 The decision records it must agree with:
 <one path per line, as `spec_check.py records <change>` prints them, or "none">
 
-Read each of these files whole, every line. With the Read tool, page
+Read each of these files whole, every line, except proposal.md (item 1
+of the reading order below). With the Read tool, page
 through a long file with offset and limit until you reach its end; from a
 ref, read `git show` in pieces with `sed -n` the same way. Do not skim, grep
 or sample them: a problem may sit anywhere in a long delta spec. Read each
@@ -23,9 +24,11 @@ decision record listed above whole too, from the same place.
 
 Read, in this order:
 
-1. Every file of the change, listed above, whole: proposal.md, design.md if
-   present, tasks.md, and each specs/<capability>/spec.md. Then each
-   decision record listed above. A change holds no record of its own: the
+1. Every file of the change, listed above, whole, except proposal.md:
+   tasks.md, each specs/<capability>/spec.md, and design.md if present,
+   which holds only open questions. proposal.md is a stub nobody keeps
+   current: take only its `Builds on:` lines (reading-order item 3). Then
+   each decision record listed above. A change holds no record of its own: the
    branch edits a record directly, so for a record the list says the
    branch edits, also read its diff, `git diff <base>...<ref> -- <record>`
    (`git diff <base> -- <record>` for the working tree). What that diff adds,
@@ -37,7 +40,8 @@ Read, in this order:
    `Builds on: <change> (<owner>/<repo>#<number>)`. Run
    `git fetch origin pull/<number>/head`, which works for an open or merged
    pull request, from a fork too, and read every file of the dependency's
-   change with `git show FETCH_HEAD:openspec/changes/<change>/<file>`. If the
+   change but its proposal.md and design.md with
+   `git show FETCH_HEAD:openspec/changes/<change>/<file>`. If the
    fetch fails, or the change is not there, report that as a finding and
    read on without it. Apply the dependencies to the base branch's specs in
    the order listed, each delta's RENAMED, REMOVED, MODIFIED and ADDED
@@ -61,12 +65,11 @@ Read, in this order:
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11, 12, 14, 16), quote both sides:
+against something else (items 1, 2, 3, 7, 9, 11, 14, 16), quote both sides:
 the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 17)
-quotes the change and says what is missing. Item 15 is either kind,
-depending on whether a record already holds what it flags.
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 12, 13, 15, 17)
+quotes the change and says what is missing.
 
 1. Contradiction inside the change: two of its rules that cannot both hold
    (a rule that the log keeps no file contents, beside a rule that keeps shell
@@ -84,7 +87,7 @@ depending on whether a record already holds what it flags.
    sentence, a plain reason for orientation that may stay even when a
    Rationale entry gives the evidence. Further reasoning with evidence
    moves to a Rationale entry in the capability's decision record, however
-   short; the rest belongs in design.md.
+   short; the rest is cut.
 7. A code citation (file:line) that does not point at what it claims on the
    base branch. Open each one: `git show <base>:<path>`.
 8. An unhandled hazard: credentials reachable by repository code; secrets
@@ -94,15 +97,33 @@ depending on whether a record already holds what it flags.
 9. An interaction with another workflow that silently voids the change (a
    check that flags every pull request of one kind and skips every push of
    another, so a label built on it carries no information).
-10. A fact the change depends on that nobody has measured (whether a stream
-    reports exit codes), stated as if known. It belongs in tasks.md as a task
-    to measure it and in design.md's Open Questions, and anything built on it
-    must degrade honestly when it turns out false.
+10. An unknown the change depends on, stated as if known, or a requirement
+    or scenario that mentions a task, a measurement or its outcome ("if
+    task 2.1 finds"). An unknown is one of two kinds:
+    - A fact about the platform (whether a stream reports exit codes).
+      Its fallback is what the software would do if the fact does not
+      hold. Say whether a quick experiment looks enough to settle the
+      fact, and whether its fallback is a redesign, a stop or a decision
+      for the owner. If either is so, the fix is to measure the fact now
+      and write the requirement from the result. Otherwise the fact
+      belongs in tasks.md as a task to measure it once before building,
+      and in design.md's Open Questions, naming that task and the
+      fallback, including how the software would tell its user what it
+      could not do. No requirement rests on the fact until the task is
+      done; the requirement is then written from the result.
+    - A condition that varies after launch, by repository, token,
+      installation or caller. A requirement states it as a condition the
+      software checks; when it does not hold, the software falls back and
+      says what it could not do rather than passing silently (checklist
+      item 11).
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
-12. Two decisions that contradict or repeat each other, in design.md's
-    Decisions or wherever the change states its decisions (one decision lets
-    a release delete files, another says a release never deletes).
+12. A cut candidate: a rule or scenario a reader would not miss, such as
+    one that repeats another within the change (item 3 covers a repeat
+    elsewhere), one covering a case nobody is shown to hit, or a rule no
+    builder would need that rests on no evidence. Its *Who decides* is the
+    author when nothing in the change or the decision records needs it,
+    and a person otherwise.
 13. A decision not needed to build the change: one that only records who
     asked what or when, or settles something no requirement, task or other
     decision rests on.
@@ -112,18 +133,8 @@ depending on whether a record already holds what it flags.
     calls, beside a record entry "Rejected: A retrieval tool the worker
     calls"). Quote the record entry as the other side. A change that means
     to reverse the entry edits or deletes it in the record, on its branch.
-15. Record material written in design.md, whether or not a decision record
-    also holds it: a constraint no test can check, an alternative turned
-    down, or a reason for a requirement, when it has evidence. Reasoning
-    without evidence is not record material and may stay. Record material
-    goes only in the record of each capability it concerns: later changes read
-    the record, and design.md is archived with the change and never read
-    again. If that record holds it, quote both sides, as for an item that
-    sets the change against something else, and say to delete the
-    design.md copy; if not, quote the design.md text and say to move it
-    into that record in this pull request, creating the record if the
-    capability has none. A turned-down alternative that a requirement
-    guards against moves as that requirement's Rationale entry (item 17).
+15. A record entry the change deletes whose rejection or constraint must
+    still hold, and that no requirement or other entry holds instead.
 16. A Constraint or Rejected entry, in a record listed above, whose rule a requirement or scenario already
     states (an entry "Constraint: Records are kept for thirty days" beside
     a requirement that keeps them thirty days, with a scenario testing it).
@@ -131,9 +142,8 @@ depending on whether a record already holds what it flags.
     entry. If it gives a reason with evidence, that reason goes in a
     Rationale entry naming the requirement, however short. A reason
     without evidence becomes the requirement's plain *because* sentence
-    when it has none yet, or goes to design.md.
-17. Reasoning in design.md, or an entry in a record listed above, that
-    does any of these:
+    when it has none yet, or is cut.
+17. An entry in a record listed above that does any of these:
     - names a person as its reason;
     - records who decided or amended a decision, or when ("(<name>,
       <date>)", "reversed by <name> on <date>", "<name> narrowed the
@@ -153,13 +163,17 @@ depending on whether a record already holds what it flags.
     rejection a requirement guards against into that requirement's
     Rationale, reopen the decision, or strike the entry.
 
+Report a finding that is not worth fixing too, under its own item's
+number; its *Why* line says why it is not worth fixing.
+
 Write each finding as:
 
   Finding <n> [<checklist number>] <change file>:<line>
     Change: «exact words»
     Conflicts with: «exact words» (<file>:<line> | PR #<n> | issue #<n>),
                     or "none" for a finding about the change alone
-    Why they cannot both hold, or what is missing: <one or two sentences>
+    Why: <why they cannot both hold, what is missing, or why no reader
+         would miss it, in one or two sentences>
     Who decides: author | a person (a question for design.md's Open Questions) |
                  another change or PR (report it; do not edit it)
 

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "miss",
+  "branch": {
+    "repository": "o/api"
+  },
+  "question": "Should retries back off?",
+  "repository": "o/api",
+  "asked": "2026-10-20",
+  "miss": {
+    "filter": "1",
+    "said": "Already decided in docs/retries.md.",
+    "said_by": "alice",
+    "asked_by": "web-bot[bot]",
+    "name": {
+      "kind": "file",
+      "value": "questions/2026-10-20-should-retries-back-off-3f9a1c.md"
+    }
+  }
+}

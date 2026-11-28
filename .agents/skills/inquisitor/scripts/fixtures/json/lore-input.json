@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "kind": "new",
+  "lore": "o/lore",
+  "id": "retry-backoff",
+  "frontmatter": {
+    "claim": "Retries back off exponentially, capped at a minute.",
+    "conditions": {
+      "prose": "A client retries a failed request."
+    },
+    "scope": "global",
+    "status": "provisional",
+    "provenance": [
+      {
+        "author": "alice",
+        "at": "2026-10-20"
+      }
+    ],
+    "supersedes": []
+  },
+  "body": "Back off on 503 and 429.",
+  "source": {
+    "repository": "o/api"
+  }
+}

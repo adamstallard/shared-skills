@@ -142,7 +142,7 @@ BASE: dict[str, str] = {
 
 
 def change(name: str, title: str, why: str, what: str, capability: str, delta: str,
-           design: str | None, tasks: str) -> dict[str, str]:
+           tasks: str) -> dict[str, str]:
     base = f"openspec/changes/{name}"
     files = {
         f"{base}/proposal.md": d(f"""
@@ -157,8 +157,6 @@ def change(name: str, title: str, why: str, what: str, capability: str, delta: s
         f"{base}/specs/{capability}/spec.md": d(delta),
         f"{base}/tasks.md": d(tasks),
     }
-    if design is not None:
-        files[f"{base}/design.md"] = d(design)
     return files
 
 
@@ -184,16 +182,6 @@ CASES["contradiction"] = change(
     #### Scenario: Audit entries go with the account
     - **WHEN** a user who deleted notes yesterday deletes their account
     - **THEN** no audit entry with that user's id remains
-    """,
-    """
-    ## Context
-    Deletion is support-only today.
-
-    ## Decisions
-    - Deletion asks for the password again, so an unattended signed-in browser cannot delete an account.
-
-    ## Open Questions
-    - None.
     """,
     """
     ## 1. Implementation
@@ -224,16 +212,6 @@ CASES["no-scenario"] = change(
     The service SHALL send no digest to a user more than one hour after that user turns the digest off.
     """,
     """
-    ## Context
-    The digest job runs hourly per time zone.
-
-    ## Decisions
-    - The opt-out is a per-user flag read by the digest job at send time, so no queued digest needs cancelling.
-
-    ## Open Questions
-    - None.
-    """,
-    """
     ## 1. Implementation
     - [ ] 1.1 Add the digest flag and settings toggle
     - [ ] 1.2 Skip opted-out users in the digest job
@@ -255,16 +233,6 @@ CASES["record-no-evidence"] = change(
     - **THEN** their session is stored in the EU Redis and in no other
     """,
     """
-    ## Context
-    Two regions, EU and US, each with its own Redis.
-
-    ## Decisions
-    - The region is encoded in the session id's first two characters, so any server can find the right Redis without a lookup.
-
-    ## Open Questions
-    - None.
-    """,
-    """
     ## 1. Implementation
     - [ ] 1.1 Prefix session ids with the region
     - [ ] 1.2 Route session reads by prefix
@@ -276,44 +244,7 @@ CASES["record-no-evidence"]["openspec/specs/session-store/decisions.md"] = BASE[
       Reading a session from the other region's Redis would make every request slower and would copy EU users' sessions to the US.
     """)
 
-# 4. design.md repeats the base notifications record's Rejected entry on
-#    hosted newsletter services, which belongs only in the record.
-CASES["design-duplicates-record"] = change(
-    "digest-send-hour", "Digest send hour",
-    "Users get the digest at midnight UTC, which is mid-afternoon for some of them and the middle of the night for others.",
-    "- `notifications`: the digest goes out at 07:00 in the user's own time zone.",
-    "notifications", """
-    ## MODIFIED Requirements
-    ### Requirement: Daily digest
-    The service SHALL send each user at most one digest email per day, listing notes shared with them that day, at 07:00 in the user's time zone.
-
-    #### Scenario: Several shares in one day
-    - **WHEN** three notes are shared with a user on one day
-    - **THEN** the user receives one digest email that lists all three
-
-    #### Scenario: Digest arrives in the morning
-    - **WHEN** a user's time zone is America/Chicago
-    - **THEN** their digest is sent at 07:00 Chicago time
-    """,
-    f"""
-    ## Context
-    The digest job runs once a day at midnight UTC.
-
-    ## Decisions
-    - The job runs hourly and sends to the users whose local time is 07:00 in that hour.
-    - Sending the digest through a hosted newsletter service was turned down: the providers reviewed all require uploading every recipient list, which the 2026-04 data-protection review refused ({ISSUES}/41).
-
-    ## Open Questions
-    - None.
-    """,
-    """
-    ## 1. Implementation
-    - [ ] 1.1 Store each user's time zone
-    - [ ] 1.2 Run the digest job hourly and select users by local hour
-    """,
-)
-
-# 5. A Rationale entry that names no requirement title exactly.
+# 4. A Rationale entry that names no requirement title exactly.
 CASES["rationale-title-mismatch"] = change(
     "concurrent-session-limit", "Concurrent session limit",
     "Shared accounts are spreading: some accounts have dozens of live sessions.",
@@ -328,16 +259,6 @@ CASES["rationale-title-mismatch"] = change(
     - **THEN** the new session is created and their oldest session ends
     """,
     """
-    ## Context
-    Sessions are already keyed by id in Redis.
-
-    ## Decisions
-    - Each user gets a sorted set of session ids by creation time, so the oldest is found without a scan.
-
-    ## Open Questions
-    - None.
-    """,
-    """
     ## 1. Implementation
     - [ ] 1.1 Keep a per-user sorted set of session ids
     - [ ] 1.2 End the oldest session on the sixth sign-in
@@ -350,7 +271,7 @@ CASES["rationale-title-mismatch"]["openspec/specs/session-store/decisions.md"] =
       Evidence: the 2026-05 account audit, {ISSUES}/60
     """)
 
-# 6. A clean change: nothing should be flagged.
+# 5. A clean change: nothing should be flagged.
 CASES["clean"] = change(
     "audit-export", "Audit export",
     "Administrators answer deletion disputes by asking support for a database query; they should be able to get the entries themselves.",
@@ -369,24 +290,15 @@ CASES["clean"] = change(
     - **THEN** the request is refused and no file is returned
     """,
     """
-    ## Context
-    Audit entries are in one Postgres table.
-
-    ## Decisions
-    - The export streams rows from the table as it writes the CSV, so a large export never sits in memory.
-
-    ## Open Questions
-    - None.
-    """,
-    """
     ## 1. Implementation
     - [ ] 1.1 Add the export endpoint, restricted to the admin role
     - [ ] 1.2 Stream rows into the CSV response
     """,
 )
 
-# 7. The Constraint entry in audit-log's record restates the base 90-day
-#    retention requirement (item 16 of consistency-read.md's checklist).
+# 6. audit-log's decision record, written whole here, holds a Constraint
+#    entry restating the base 90-day retention requirement, beside a
+#    Rationale entry for it (item 16 of consistency-read.md's checklist).
 CASES["record-restates-requirement"] = change(
     "deletion-reason", "Deletion reason",
     "Administrators answering a dispute cannot tell why a note was deleted.",
@@ -403,16 +315,6 @@ CASES["record-restates-requirement"] = change(
     #### Scenario: No reason given
     - **WHEN** a user deletes a note without typing a reason
     - **THEN** the audit entry's reason is `none`
-    """,
-    """
-    ## Context
-    The delete dialog has no reason field today.
-
-    ## Decisions
-    - The reason field is optional, so deleting stays one click for users who skip it.
-
-    ## Open Questions
-    - None.
     """,
     """
     ## 1. Implementation

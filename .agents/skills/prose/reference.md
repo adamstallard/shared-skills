@@ -51,8 +51,9 @@ The first call prints, in order:
   the pattern that matched, or its kind's default;
 - a warning for any pattern that matches no listed file, usually a typo;
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 9 in full, the rest as a checklist, and
-  how agents cheat on the pass;
+- rules.md: its steps for doing the pass; rules 1 to 10 in full and the
+  rest, each a line or two there, by title only; and its list of ways agents
+  fake the pass, as a warning;
 - the pass token, with the command to run next.
 
 Each `check` call first runs the repository's pre-commit hook, if any, so a
@@ -78,13 +79,15 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
 - a finding or understood line is unanswered, answered twice, or not in the
   report, or is kept without a reason or without `(asked)`;
 - a finding or understood line is marked `fixed`, but its item has not
-  changed since the brief;
+  changed since the brief and, for a finding, the words it quotes were not
+  edited out of the item's file;
 - a file the brief did not name now has a changed comment or doc passage:
   run the signing call without `--cold-read` for a new brief, and have that
   read cold.
 
 Each token takes one cold read. Fixes, including those a person chose, are
-not read cold again: the script checks `fixed` by the item having changed.
+not read cold again: the script checks `fixed` by the item having changed,
+or a finding's quoted words being gone.
 
 **A re-sign of the same tree reuses its cold read.** A signing call that
 checks a cold read and signs records the staged tree's hash with the read's

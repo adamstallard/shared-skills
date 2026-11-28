@@ -8,11 +8,11 @@ away from every program that could print it.
 
 ### Requirement: Every identity of the answer service's GitHub relay App is a relay identity
 
-github-app SHALL treat as a relay identity (answer-service spec: *The
-person runs the service, and a relay identity posts for them*) the
-identity that `answer_service.github.relay` names in
+github-app SHALL treat as a relay identity the identity that
+`answer_service.github.relay` names in
 `~/.config/shared-skills/inquisitor.json`, and every other identity with
-the same App ID. While that file exists but holds no JSON object
+the same App ID (answer-service spec: *The person runs the service, and a
+relay identity posts for them*). While that file exists but holds no JSON object
 github-app can read, github-app SHALL treat every identity as a relay
 identity, naming the file whenever it refuses a command for that reason.
 
@@ -28,7 +28,7 @@ identity, naming the file whenever it refuses a command for that reason.
   the identity `maya-relay-acme` holds the same App ID with another
   `owner`
 - **THEN** github-app treats `maya-relay-acme` as a relay identity as well
-- **AND** github-app also treats as one an identity whose credentials
+- **AND** github-app also treats as a relay identity an identity whose credentials
   come from the environment, with that App ID in `GITHUB_APP_ID`
 
 #### Scenario: Without a GitHub relay no identity is one
@@ -47,8 +47,10 @@ identity, naming the file whenever it refuses a command for that reason.
 
 For a relay identity, github-app SHALL refuse `token`, `gh`, `run`,
 `wire`, `env` and the credential helper's `get`, saying the identity is a
-relay identity that acts only through `api`, and print no token. Its
-other commands SHALL keep working.
+relay identity that acts only through `api`, and print no token;
+`wire` and `env` refuse because they set git up to call that helper. Its
+other commands, `api`, `check` and `unwire` among them, SHALL keep
+working.
 
 #### Scenario: Each token-handing command refuses a relay identity
 
@@ -86,7 +88,9 @@ response and exit non-zero.
 
 #### Scenario: A relay posts, edits and deletes a comment through api
 
-- **WHEN** the answer service runs, as the relay identity, `api
+- **WHEN** the answer service's own code, which no post hook reads
+  (answer-service spec: *A relay post is posted by a host command,
+  unvetted*), runs, as the relay identity, `api
   repos/o/r/issues/5/comments -F body=@-` with the post's text on standard
   input, then `api -X PATCH repos/o/r/issues/comments/9 -F body=@-`, then
   `api -X DELETE repos/o/r/issues/comments/9`
@@ -111,11 +115,11 @@ response and exit non-zero.
 
 `api` SHALL accept, of `gh api`'s options, only its method, field and
 input options, with gh's forms and meanings. It SHALL refuse a call
-whose endpoint names a host, or that holds a placeholder gh would fill
-(`{owner}`, `{repo}`, `{branch}`, `:owner`, `:repo`, `:branch`) in the
-endpoint or in a `-F` value typed in the command, not read with `@`.
-`api` fills no placeholder, so these refusals keep what it sends equal to
-what the post hook reads.
+whose endpoint names a host, or that holds, in the endpoint or in a `-F`
+value typed in the command and not read with `@`, a placeholder gh would
+fill (`{owner}`, `{repo}`, `{branch}`, `:owner`, `:repo`, `:branch`).
+`api` fills no placeholder, so these refusals keep each call meaning what
+it means to gh.
 
 #### Scenario: gh api's method, field and input options are accepted
 
