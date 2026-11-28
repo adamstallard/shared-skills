@@ -562,6 +562,42 @@ class OneTextOneRecord(Base):
         self.assertEqual(self.records(), [])
 
 
+class KeepIdentity(Base):
+    ASK = {"verdict": "ask", "field": {"recommended": "Yes.", "changes": "No: hammering."}}
+
+    def vet(self) -> tuple[str, Path]:
+        post = self.file("Should retries back off?\n@alice\n")
+        _, objs = self.run_vet(calls.VetArgs(post=post, repository="o/api"))
+        return objs[-1]["token"], verdicts_dir() / f"{objs[-1]['questions'][0]['hash']}.json"
+
+    def test_vetting_again_keeps_the_identity(self) -> None:
+        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
+        # That scenario's block rests on the identity `tag --identity bot` records; this test
+        # writes it into the record as that command would. Vetting the post again must keep it in
+        # the new record, or the block would lapse.
+        token, path = self.vet()
+        self.second(token, [{"question": 1, **self.ASK}])
+        record = json.loads(path.read_text())
+        self.assertNotIn("identity", record)
+        path.write_text(json.dumps({**record, "identity": "bot"}))
+        token, _ = self.vet()
+        self.second(token, [{"question": 1, **self.ASK}])
+        self.assertEqual(json.loads(path.read_text()).get("identity"), "bot")
+
+    def test_unreadable_records_refuse_and_keep_the_token(self) -> None:
+        # @scenario inquisitor: A tag made for an App's post blocks a plain gh post
+        # That scenario's block rests on the identity in the record. A record that cannot be read
+        # might hold one, so the second call refuses and leaves the file as it is, recording
+        # nothing and keeping the token.
+        token, path = self.vet()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("not json")
+        with self.assertRaises(Refused):
+            self.second(token, [{"question": 1, **self.ASK}])
+        self.assertEqual(path.read_text(), "not json")
+        self.assertTrue((self.state / "inquisitor" / "tokens" / f"{token}.json").exists())
+
+
 @dataclass(frozen=True)
 class _Found(FoundQuestion):
     """A FoundQuestion with the in_code field that the shared parser's

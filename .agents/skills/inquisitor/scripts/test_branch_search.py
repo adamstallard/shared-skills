@@ -136,9 +136,41 @@ class Labels(Base):
         unknown = bf(answer_file(2, repository="o/web", asked_from="o/web"))
         bot = bf(answer_file(3, by="relay[bot]"))
         hits = self.labels([lost, unknown, bot])
-        for f in (lost, unknown, bot):
-            self.assertEqual(hits[f.path].get("reason"), "unconfirmed")
+        for f in (lost, bot):
+            self.assertEqual((hits[f.path]["label"], hits[f.path].get("reason")), ("input", "unconfirmed"))
+        self.assertEqual((hits[unknown.path]["label"], hits[unknown.path].get("reason")),
+                         ("input", "permission unreadable"))
         self.assertNotIn(("o/api", "relay[bot]"), self.fake.calls)
+
+    def test_unreadable_permission_reason_only_when_it_decides(self) -> None:
+        # @scenario inquisitor: A permission that cannot be read is no write access
+        # A file that is input for another reason (here changed, or of authority input)
+        # keeps that reason, though its answerer's permission on o/web cannot be read: the
+        # fake reads a repository missing from its writers as unknown.
+        changed = bf(answer_file(1, repository="o/web", asked_from="o/web"), changed=True)
+        given = bf(answer_file(2, repository="o/web", asked_from="o/web", authority="input"))
+        hits = self.labels([changed, given])
+        self.assertEqual(hits[changed.path].get("reason"), "unconfirmed")
+        self.assertEqual(hits[given.path].get("reason"), "input")
+
+    def test_only_the_answer_file_names_an_unreadable_permission(self) -> None:
+        # @scenario inquisitor: A permission that cannot be read is no write access
+        # The fake reads o/web, missing from its writers, as unknown. The answer file whose
+        # answered_by's permission on o/web cannot be read is labelled so, and the file it names
+        # takes no answer from it and stays unanswered.
+        target = bf(question_file(1, repository="o/web", asked_from="o/web"))
+        a = bf(answer_file(2, repository="o/web", asked_from="o/web", answers=(name(1),)))
+        hits = self.labels([target, a])
+        self.assertEqual(hits[a.path].get("reason"), "permission unreadable")
+        self.assertEqual((hits[target.path].get("reason"), hits[target.path]["answer"]), ("unanswered", None))
+        # The named file also stays unanswered when its answer file is about o/api (the
+        # fixture's default), where the answerer can write, so the answer file counts: the named
+        # file tags no one, so lending it the answer needs write access to o/web, which cannot
+        # be read.
+        lender = bf(answer_file(3, answers=(name(1),)))
+        hits = self.labels([target, lender])
+        self.assertEqual(hits[lender.path]["label"], "decision")
+        self.assertEqual((hits[target.path].get("reason"), hits[target.path]["answer"]), ("unanswered", None))
 
     def test_write_access_is_to_the_repository_key(self) -> None:
         # @scenario inquisitor: A file about a repository other than the one it was asked from needs write access to it
@@ -228,7 +260,8 @@ class Offline(Base):
         f = bf(answer_file(1, recorded_in=f"openspec/changes/retry/design.md@{SHA}"))
         with mock.patch.object(branch_search, "gh_json", return_value=[{"merged_at": "x"}]):
             hits = {h.hit["path"]: h.hit for h in label_branch([f], "o/api", False, Checks(offline=True))}
-        self.assertEqual((hits[f.path].get("reason"), hits[f.path]["landed"]), ("unconfirmed", False))
+        self.assertEqual((hits[f.path].get("reason"), hits[f.path]["landed"]),
+                         ("permission unreadable", False))
         self.assertEqual(self.fake.calls, [])
 
 
@@ -455,7 +488,8 @@ class Landed(Base):
                 self.assertIs(self.labels([pinned])[pinned.path]["landed"], False)
         for hit in hits.values():
             self.assertIn(hit.get("reason", "input"),
-                          ("unconfirmed", "unanswered", "miss", "superseded", "unreadable", "input"))
+                          ("unconfirmed", "permission unreadable", "unanswered", "miss", "superseded",
+                           "unreadable", "input"))
 
 
 def run_command(fn: Any, args: Any, files: list[BF] | None, stdin: str = "") -> Any:
@@ -490,6 +524,15 @@ class Commands(Base):
         out = run_command(branch_search.run_branch_search, branch_search.BranchSearchArgs("o/api"),
                           files, stdin="Should retries back off?")
         self.assertEqual(out, json.loads((FIXTURES / "json/branch-search.json").read_text()))
+
+    def test_branch_search_names_an_unreadable_permission(self) -> None:
+        # @scenario inquisitor: A permission that cannot be read is no write access
+        self.fake.writers = {}
+        files = [bf(answer_file(1))]
+        out = run_command(branch_search.run_branch_search, branch_search.BranchSearchArgs("o/api"),
+                          files, stdin="Should retries back off?")
+        self.assertEqual([(h["label"], h.get("reason")) for h in out["hits"]],
+                         [("input", "permission unreadable")])
 
     def test_unfetchable_branch_prints_nothing(self) -> None:
         # @scenario inquisitor: A branch the command cannot read is reported, not empty

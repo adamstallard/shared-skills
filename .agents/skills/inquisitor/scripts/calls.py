@@ -604,6 +604,28 @@ def _record(question: _TokenQuestion, v: dict[str, Any], now: float) -> VerdictR
     return record
 
 
+def _keep_identities(records: list[VerdictRecord]) -> None:
+    """Copy the github-app identity recorded for each hash into the record
+    that replaces it. The `tag` command records that identity when it tags
+    a person in an App's post, and the post goes out only as that App
+    (inquisitor spec: *A tag made for an App's post blocks a plain gh
+    post*); vetting the post again must not unbind it. Only a
+    new run of `tag` changes the identity. A new record with a category,
+    or of a `not asked` verdict, gets no identity, so re-vetting to one of
+    those drops it. When the old records cannot be read, this refuses, so
+    the second call records nothing and keeps its token."""
+    hashes = {r["hash"] for r in records}
+    old = read_records(hashes)
+    if old is None:
+        raise Refused("cannot read the verdict records, so a tag's recorded identity could be "
+                      "lost; nothing is recorded")
+    for record in records:
+        previous = old.get(record["hash"])
+        identity = previous.get("identity") if previous is not None else None
+        if identity is not None and "category" not in record and record["verdict"] != "not asked":
+            record["identity"] = identity
+
+
 def _second_call(token: str, verdicts_path: str) -> int:
     path, loaded = _load_token(token)
     obj = _parse_json(read_private(verdicts_path), "the verdicts input")
@@ -611,6 +633,7 @@ def _second_call(token: str, verdicts_path: str) -> int:
     now = time.time()
     records = [(loaded["questions"][n - 1], v, _record(loaded["questions"][n - 1], v, now))
                for n, v in checked]
+    _keep_identities([record for _, _, record in records])
     cfg = config.load() if any(v["verdict"] == "ask" and q["kind"] == "picker"
                                for q, v, _ in records) else config.Config()
     lines: list[SecondCallLine] = []
