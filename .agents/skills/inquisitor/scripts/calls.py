@@ -13,14 +13,16 @@ holding its latest verdict, in common.verdicts_dir().
 tasks.md's tasks 2.1 and 2.2. Standard library only.
 """
 
+import inspect
 import json
 import os
 import re
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 import config
 import github
@@ -31,8 +33,9 @@ from contracts import (Category, Concerns, QuestionIn, SearchResult, SecondCallL
 from credentials import matches_credentials
 from formats import is_repository
 from private_files import read_private, write_private
-from qtext import (NOT_RECORDED_PREFIX, PERSON_REQUIRED_FORMAT, RECORDED_PREFIX, FoundQuestion,
-                   Question, find_questions, question_hash, question_text, reduce_markup)
+from qtext import (NOT_RECORDED_PREFIX, PERSON_REQUIRED_FORMAT, RECORDED_PREFIX, RELATED_PREFIX,
+                   FoundQuestion, Question, find_questions, question_hash, question_text,
+                   reduce_markup)
 
 # A verdict, and the token that leads to it, last 2 hours (inquisitor spec:
 # *The second call records all its verdicts or none*; *The two calls' files
@@ -40,7 +43,7 @@ from qtext import (NOT_RECORDED_PREFIX, PERSON_REQUIRED_FORMAT, RECORDED_PREFIX,
 LIFE = 2 * 60 * 60
 
 CATEGORIES: tuple[Category, ...] = ("vulnerability", "secret", "personal")
-VERDICTS: tuple[VerdictName, ...] = ("answered", "deferred", "decided", "ask")
+VERDICTS: tuple[VerdictName, ...] = ("answered", "deferred", "decided", "ask", "not asked")
 _KINDS = ("picker", "post", "text")
 _HASH = re.compile(r"[0-9a-f]{64}")
 _TOKEN = re.compile(r"[0-9a-f]{32}")
@@ -62,18 +65,26 @@ and `changes` (what each other answer would change), and optionally `related`, t
 earlier decision among its filter 1 hits, and `requires`, the skill that requires a person to
 decide it, which skips filters 2 and 4.
 A question another installed skill requires a person to decide skips filters 2 and 4.
+A question marked as found only by reading code and HTML as text may instead get the verdict
+`not asked`, with no field, when the post does not ask it: it is code, or text GitHub hides.
 Then run the second call, the verdicts in a private file or on standard input:
   inquisitor.py vet --pass <token> --verdicts <file|->
   {"version": 1, "verdicts": [{"question": 1, "verdict": "ask", "field": {...}}]}"""
 
 
 class _TokenQuestion(TypedDict):
+    """plain_only: true for a question in a post found only when code and
+    HTML are read as text (the plain reading), not when they are hidden as
+    GitHub hides them (the hiding reading). The second call accepts `not asked`
+    only for such a question, and only when it has no category."""
+
     hash: str
     kind: str
     concerns: Concerns
     files: list[str]
     category: str | None
     first_option: str | None
+    plain_only: NotRequired[bool]
 
 
 class _Token(TypedDict):
@@ -250,7 +261,7 @@ def _read_post(path: str, repository: str | None,
     if repository is not None and lore is not None:
         raise Refused("give --repository or --lore, not both")
     body = read_private(path)
-    found = find_questions(body)
+    found = _find_questions(body)
     default: Concerns = ({"repository": repository} if repository else {"lore": lore} if lore
                          else {})
     if not default:
@@ -267,7 +278,36 @@ def _read_post(path: str, repository: str | None,
         concerns = _concerns_line(f) or dict(default)
         questions.append({"kind": "post", "question": f.question.question,
                           "concerns": cast(Concerns, concerns)})
+    # Each line starting `Related:` or `@`, after any indent, is scanned,
+    # wherever it is (inquisitor spec: *The credential scan reads raw
+    # markdown*). One that follows a statement rather than a question
+    # belongs to no question, so the scan above misses it. The test is the
+    # line's start, not qtext.line_kind, which reads a line holding a
+    # credential as neither a Related nor a tag line.
+    for line in body.splitlines():
+        if line.strip().startswith((RELATED_PREFIX.strip(), "@")) and matches_credentials(line):
+            raise Refused("a Related or tag line of the post holds a string shaped like a "
+                          "credential; take it out of the post")
     return found, questions
+
+
+def _find_questions(body: str) -> list[FoundQuestion]:
+    """Every question either reading finds in body (inquisitor spec:
+    *Questions in a post are found by two readings*; _TokenQuestion's
+    docstring defines both). Called with in_code=True, find_questions
+    returns them all, setting FoundQuestion.in_code on each that only the
+    plain reading finds. qtext's find_questions takes in_code once the
+    shared parser's two-readings change, a separate commit, lands on this
+    branch; without it, find_questions returns the hiding reading's
+    questions alone, none of them open to `not asked`."""
+    if "in_code" in inspect.signature(find_questions).parameters:
+        return cast(Callable[..., list[FoundQuestion]], find_questions)(body, in_code=True)
+    return find_questions(body)
+
+
+def _plain_only(found: FoundQuestion | None) -> bool:
+    """Whether the plain reading alone found the question."""
+    return found is not None and getattr(found, "in_code", False) is True
 
 
 def _first_option(label: str) -> str:
@@ -284,6 +324,8 @@ def _describe(n: int, q: QuestionIn, digest: str, found: FoundQuestion | None) -
         head += f", item {found.item}"
         if found.deferred:
             head += ", listed as deferred: it needs a `deferred` verdict"
+    if _plain_only(found):
+        head += ", found only reading code and HTML as text: `not asked` is open to it"
     if "category" in q:
         return f"{head}, category {q['category']}): hash {digest}"
     text = question_text(Question(q["kind"], q["question"], tuple(q.get("options", []))))
@@ -336,11 +378,13 @@ def _first_call(questions: list[QuestionIn], found: list[FoundQuestion]) -> int:
         out.append("")
         kept.append({"hash": digest, "kind": q["kind"], "concerns": concerns,
                      "files": q.get("files", []), "category": q.get("category"),
-                     "first_option": _first_option(options[0]) if options else None})
+                     "first_option": _first_option(options[0]) if options else None,
+                     "plain_only": _plain_only(found_q)})
         entry: dict[str, Any] = {"question": n, "hash": digest, "kind": q["kind"], "search": result}
         if found_q is not None:
             entry["item"] = found_q.item
             entry["deferred"] = found_q.deferred
+            entry["plain_only"] = _plain_only(found_q)
         shown.append(entry)
     token = secrets.token_hex(16)
     _clean_tokens()
@@ -397,8 +441,17 @@ def _text(value: Any) -> str | None:
 
 _FIELDS: dict[str, tuple[str, ...]] = {
     "answered": ("citation",), "deferred": ("where",), "decided": ("where",),
-    "ask": ("recommended", "changes"),
+    "ask": ("recommended", "changes"), "not asked": (),
 }
+
+
+# The token's keys that _record copies into a verdict record, beside the
+# question's hash. Questions sharing a text share one record, so they must
+# agree on these. first_option stays out because a picker's first option
+# is never recorded (*The two calls' files and records stay private*).
+# plain_only stays out because it is never recorded either, and because
+# comparing it would refuse the same text in running text and in code.
+_RECORDED = ("kind", "concerns", "files", "category")
 
 
 def _check_verdicts(obj: dict[str, Any], token: _Token, from_file: bool) -> list[tuple[int, dict[str, Any]]]:
@@ -419,7 +472,17 @@ def _check_verdicts(obj: dict[str, Any], token: _Token, from_file: bool) -> list
             raise Refused(f"question {n} has two verdicts")
         verdict = v.get("verdict")
         if verdict not in VERDICTS:
-            raise Refused(f"question {n}: the verdict must be answered, deferred, decided or ask")
+            raise Refused(f"question {n}: the verdict must be answered, deferred, decided, ask or "
+                          "not asked")
+        question = token["questions"][n - 1]
+        if verdict == "not asked":
+            if not question.get("plain_only") or question["category"] is not None:
+                raise Refused(f"question {n}: only a question in a post that the first call found "
+                              "only by reading code and HTML as text may be `not asked`")
+            if set(v) - {"question", "verdict"}:
+                raise Refused(f"question {n}: `not asked` carries no field, related or requires")
+            seen[n] = v
+            continue
         field: Any = v.get("field")
         if not isinstance(field, dict):
             raise Refused(f"question {n}: the verdict {verdict} needs its field")
@@ -441,7 +504,6 @@ def _check_verdicts(obj: dict[str, Any], token: _Token, from_file: bool) -> list
         if any(matches_credentials(s) for s in [*map(str, f.values()), str(related or "")]):
             raise Refused(f"question {n}: the verdict holds a string shaped like a credential; "
                           "write the credential into no verdict field")
-        question = token["questions"][n - 1]
         if question["category"] is not None and from_file:
             raise Refused(f"question {n} has a category: give the verdicts on standard input "
                           "(--verdicts -), never in a file")
@@ -451,13 +513,13 @@ def _check_verdicts(obj: dict[str, Any], token: _Token, from_file: bool) -> list
                           "option; put that option first and run the first call again")
         seen[n] = v
     # A text keeps one record, so questions sharing a text must agree on
-    # everything recorded: the verdict, and the kind, concerns, files and
-    # category the token holds. first_option goes in no record.
+    # everything recorded: the whole verdict entry (verdict, field, related,
+    # requires), and the token's _RECORDED keys.
     by_hash: dict[str, dict[str, Any]] = {}
     for n, v in sorted(seen.items()):
         question = token["questions"][n - 1]
         same = {"verdict": {k: x for k, x in v.items() if k != "question"},
-                "question": {k: x for k, x in question.items() if k != "first_option"}}
+                "question": {k: question[k] for k in _RECORDED}}
         if by_hash.setdefault(question["hash"], same) != same:
             raise Refused(f"question {n} has the same text as an earlier question but another "
                           "verdict, concerns, files or category; one text keeps one record, so "
@@ -521,6 +583,8 @@ def _record(question: _TokenQuestion, v: dict[str, Any], now: float) -> VerdictR
     verdict = cast(VerdictName, v["verdict"])
     record: VerdictRecord = {"version": VERSION, "hash": question["hash"], "verdict": verdict,
                              "time": now}
+    if verdict == "not asked":
+        return record
     if question["category"] is not None:
         record["category"] = cast(Category, question["category"])
         return record
@@ -547,7 +611,7 @@ def _second_call(token: str, verdicts_path: str) -> int:
     now = time.time()
     records = [(loaded["questions"][n - 1], v, _record(loaded["questions"][n - 1], v, now))
                for n, v in checked]
-    cfg = config.load() if any(v["verdict"] == "ask" and q["kind"] in ("picker", "text")
+    cfg = config.load() if any(v["verdict"] == "ask" and q["kind"] == "picker"
                                for q, v, _ in records) else config.Config()
     lines: list[SecondCallLine] = []
     out: list[str] = []
@@ -556,7 +620,7 @@ def _second_call(token: str, verdicts_path: str) -> int:
         if v["verdict"] != "ask":
             continue
         line: SecondCallLine = {"question": n, "hash": question["hash"]}
-        if question["kind"] in ("picker", "text"):
+        if question["kind"] == "picker":
             line["record_line"] = record_line(question, cfg)
             out.append(f"  Put this line last in the question, exactly: {line['record_line']}")
         if "requires" in v:
