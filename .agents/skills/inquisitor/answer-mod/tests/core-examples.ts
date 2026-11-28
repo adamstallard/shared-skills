@@ -343,21 +343,6 @@ export const EXAMPLES = {
       "ok": true
     }
   },
-  "discussion.revise": {
-    "request": {
-      "command": "discussion.revise",
-      "session_id": "sess-1",
-      "question": "gh:o/api:IC_kwDO1",
-      "revision": {
-        "text": "Should retries back off exponentially, capped at a minute?",
-        "summary": "The discussion settled that the cap is what matters."
-      }
-    },
-    "response": {
-      "version": 1,
-      "ok": true
-    }
-  },
   "set-aside": {
     "request": {
       "command": "set-aside",
@@ -406,6 +391,30 @@ export const EXAMPLES = {
       "ok": true,
       "id": "pv-1",
       "post": "User says: Yes, capped at a minute.\n\nRe: https://github.com/o/api/pull/12#issuecomment-1001",
+      "record": {
+        "place": "o/api",
+        "visibility": "private"
+      },
+      "warnings": []
+    }
+  },
+  "preview.revised": {
+    "request": {
+      "command": "preview",
+      "session_id": "sess-1",
+      "question": "gh:o/api:IC_kwDO1",
+      "action": "answer",
+      "text": "Yes.",
+      "revision": {
+        "text": "Should retries back off exponentially, capped at a minute?",
+        "summary": "The discussion settled that the cap is what matters."
+      }
+    },
+    "response": {
+      "version": 1,
+      "ok": true,
+      "id": "pv-2",
+      "post": "User says: Yes.\n\nRephrased question: Should retries back off exponentially, capped at a minute?\nDiscussion: The discussion settled that the cap is what matters.\n\nRe: https://github.com/o/api/pull/12#issuecomment-1001",
       "record": {
         "place": "o/api",
         "visibility": "private"
