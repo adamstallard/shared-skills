@@ -1,8 +1,8 @@
 ## Open Questions
 
-In the two lists of facts below, the task each bullet names measures its fact before
+In the first two lists of facts below, the task each bullet names measures its fact before
 anything resting on it is built, and the bullet says what the software
-does if the fact does not hold.
+does if the measurement finds that the fact does not hold.
 
 ### Facts measured before building
 
@@ -36,12 +36,21 @@ does if the fact does not hold.
 
 ### Facts the answer service relies on
 
-- **What form does igor's handback marker take?** (task 0.6) Until it is
-  recorded, no comment counts as a handback, and the README says so.
 - **Can the answer service work on Linear?** (task 0.16) If any part of
   the task fails, Linear stays off and the README says so. An
   assignment is dated by when a poll first finds it; if the person's key
   can read when an issue was assigned, that time dates it instead.
+- **Can the Linear relay comment in a private team it can see?** (task
+  0.44) If not, setup's posting check passes for that team, but each
+  relay post there is refused for lack of permission, which turns the
+  team off until the next opening. The answer waits on the pending list,
+  goes back to the queue each time the check passes, and is refused again
+  whenever the person confirms it, until the person drops it.
+- **Can the answer mod tell a judging turn from the person's?** (task
+  0.45) If a prompt the person submits while a judging turn runs can join
+  that turn, the mod refuses every `record_verdict` call made after such a
+  prompt until the turn ends, and the message the refused call names
+  awaits judgement again.
 - **Can the answer service work on Discord?** (task 0.17) If any part of
   the task fails, Discord stays off and the README says so.
 - **Do the URL `gh pr comment` prints and an Igor's handback URL equal
@@ -61,3 +70,22 @@ does if the fact does not hold.
   nothing the person can read tells an Igor's identity from any other App
   or app user, no
   comment is a handback, and the README says so.
+
+### Values an igor change sets
+
+Each rule resting on one of these states what holds once igor's change
+lands, with no fallback before it, as each capability's decision record's
+Constraint on rules that depend on igor says. Its task records the value
+before the rule is built.
+
+- **What form does igor's handback marker take, and which igor change
+  defines it?** (task 0.6) igor issue #211 names the marker, but no igor
+  pull request, #216 included, defines it. This repository's owner
+  decides which igor change will. The answer service's *A handback is an
+  Igor's comment holding igor's marker* is built from the form that change
+  defines, and not before.
+- **At what path does igor's scribe write its decision records?** (task
+  7.0) igor PR #202 sets the path. Filter 1's search of the scribe's
+  records, in the repository a question concerns and in the lore
+  repository, is built for that path, and this change archives only once
+  it is set.

@@ -155,7 +155,7 @@ question is from; the name proves nothing about who asked.
   person, with a question that would clearly fail filter 4 were it an
   agent's
 - **THEN** it counts as a person's question, so filter 4 does not judge
-  it, nothing is posted by itself and no verdict is suggested
+  it, and no fixed filter 2 to 4 reply is posted or suggested
 
 #### Scenario: A relayed question is shown as from its relay bot's account
 
@@ -1108,9 +1108,9 @@ reach each person it mentions.
 In a bot account's message (*Whom a message reaches is set by its
 mentions*), an item of an open-questions section with a tag line (the
 inquisitor's *A tag line names the person a posted question tags*)
-SHALL reach only the person that line mentions, and the one more question
-its sentences outside the section make only the person the first tag line
-under those sentences mentions. An item, or that question, that tags no
+SHALL reach only the person that line mentions. The question sentences
+outside the section, together one more question, SHALL reach each person
+a tag line under them mentions. An item, or that question, that tags no
 one SHALL reach whom its message would reach if it mentioned no one.
 
 #### Scenario: Each item of a bot's post reaches the person its tag line names
@@ -1125,6 +1125,20 @@ one SHALL reach whom its message would reach if it mentioned no one.
 - **AND** an untagged third item reaches each subscriber with write
   access to what it concerns, or, in a handback, the assignee of the
   handed-back issue or pull request
+
+### Requirement: A bot's one-question message reaches each person its tag lines mention
+
+A bot account's message with no open-questions section, which is one
+question, and holds a tag line SHALL reach each person its tag lines mention, in place of only the
+first person it mentions, so no tagged person's question is lost.
+
+#### Scenario: Two tagged sentences in a message with no section reach both people
+
+- **WHEN** an agent's bot account posts, with no open-questions section,
+  two question sentences, one with the tag line `@maya` and one with the
+  tag line naming the person
+- **THEN** both the person's answer service and Maya's show it, as one
+  question, if she subscribes to that repository
 
 ### Requirement: A bot's message to a relay reaches the relay's person
 
@@ -1794,6 +1808,16 @@ this machine; a dropped answer is never posted.
   question takes its state from its thread again: unanswered unless a
   relay post there answers it or is an `Inquisitor: ` reply to it
 
+#### Scenario: An edited pending answer is posted as edited
+
+- **WHEN** Linear refused a pending answer as too long, and the person
+  shortens it and posts it while its channel is on and subscribed on
+  this machine
+- **THEN** the shortened text is posted once the person confirms its
+  preview, and the answer leaves the pending list
+- **AND** while its channel is off, the answer service offers no post,
+  and the person may relay the text by hand and then drop the answer
+
 ### Requirement: A questions-branch answer's file is pushed after its post
 
 When an answer gets an answer file and a fetch of its thread just before
@@ -2127,6 +2151,21 @@ pushed.
   question's or the answer's text, and the question returns unanswered,
   with no pending answer
 
+### Requirement: A relay post's file is deleted once its command returns
+
+The answer service SHALL delete the private file it passes a relay
+post's command once that command returns. Such a file SHALL be exempt
+from *A question with a category leaves no readable record on disk*'s ban
+on files holding the text, since it holds the text no longer than the
+post takes.
+
+#### Scenario: A relay post's file is gone once it is posted
+
+- **WHEN** the answer service relays an answer to a Discord message
+  holding a password, through discord-bot's `--message-file`
+- **THEN** the file is deleted once discord-bot returns, whether the post
+  went out or was refused
+
 ### Requirement: One answer service runs on each machine
 
 The answer service SHALL hold a lock, the state folder's file `lock`,
@@ -2289,14 +2328,15 @@ line.
 
 ### Requirement: propose_reply refuses a draft the prompt box would run
 
-`propose_reply` SHALL refuse a draft whose first character is `/`,
-since Claude Code's prompt box runs such a draft as a command when the
-word after the `/` names one.
+`propose_reply` SHALL refuse a draft that starts with `/` after any
+leading whitespace, since Claude Code's prompt box runs such a draft as a
+command when the word after the `/` names one.
 
 #### Scenario: A draft starting with a command prefix is refused
 
-- **WHEN** the model calls `propose_reply` with the draft `/compact`, or
-  any draft whose first character is `/`
+- **WHEN** the model calls `propose_reply` with the draft `/compact`,
+  ` /compact`, or any draft whose first character other than whitespace
+  is `/`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
 
 ### Requirement: The model's judgements reach the service's code only through record_verdict
@@ -2371,6 +2411,21 @@ from choosing what the code does beyond a closed set.
 - **THEN** the code searches for it on the machine only, as for a
   question with a category, posts nothing by itself, and shows it to the
   person as unclear
+
+### Requirement: The answer mod takes record_verdict only in a judging turn it started
+
+The answer mod SHALL refuse a `record_verdict` call unless the running
+turn is the judging turn it started for the message the call names,
+since in any other turn the person's or a thread's words, not the
+judging prompt, led to it.
+
+#### Scenario: A verdict call in the person's turn is refused
+
+- **WHEN** the person, discussing a question, sends a prompt, and in the
+  turn it starts the model calls `record_verdict` naming a message
+  awaiting judgement
+- **THEN** the answer mod refuses the call, and the message still awaits
+  judgement
 
 ### Requirement: A message awaits judgement until its turn ends
 

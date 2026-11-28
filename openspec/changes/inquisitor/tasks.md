@@ -58,7 +58,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       `author.login` and `author.type` on shared-skills, and on cli/cli
       gave `author` `null` for 2 of the file's 30 newest commits, which
       name no GitHub account, so the script skips them
-- [ ] 0.6 Record, once igor PR #216 gives it, the form of the fixed
+- [ ] 0.6 Record, once an igor change defines it, the form of the fixed
       marker on igor's handback comments on GitHub and on Linear, a marker that no text the
       Igor quotes from its item can produce, by which the answer service
       tells a handback from the Igor's other comments. On GitHub and on
@@ -434,6 +434,14 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       while its message's items are unchanged*). Done 2026-11-27 with
       read-only calls on igor issue #211 and shared-skills pull request
       #64: every revision, the original included, was there
+- [ ] 0.44 Whether a Linear app user that can see a private team, and is
+      not its member, can comment on that team's issues (answer-service
+      spec: *A posting check reads what each surface grants*)
+- [ ] 0.45 Whether the answer mod can tell which turn a `record_verdict`
+      call runs in, and whether a prompt the person submits while a
+      judging turn runs starts a turn of its own (answer-service spec:
+      *The answer mod takes record_verdict only in a judging turn it
+      started*)
 
 ## 1. Shared post reader
 
@@ -467,7 +475,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       `--message-file` alone and reports each as a Discord message
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
-- [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
+- [x] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
       `description` from the Linear MCP as messages, and every other
       Linear save, create, update or submit call's `summary` and
       `description` as Linear summary text; reports as unreadable a `save_issue` holding `patch`, one
@@ -479,27 +487,39 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       *The reader reads a Linear MCP comment or issue description*;
       *Another Linear write tool sends no post only when it holds no
       text*)
-- [ ] 1.6a The library returns each title a call sets, marked as a
+- [x] 1.6a The library returns each title a call sets, marked as a
       title: `--title` in a canonical gh pr or gh issue form, `title` in
       a canonical gh api post's JSON or a GitHub MCP tool's input,
       `save_issue`'s `title`; `title` and `name` in any other Linear
       save, create, update or submit call; and discord-bot
       `thread`'s `--name`. `--title`, and any single-dash option word
-      holding `t`, join the text options (the options that carry a
-      post's text), and a discord-bot `thread` call
+      containing the letter `t`, such as `-bt`, count as text options, so
+      a line holding one is never read as sending no post; a discord-bot `thread` call
       counts as mentioning a gh post verb. prose's posting hook skips
       titles (gh-post spec: *The reader returns each title apart from
       bodies*)
-- [ ] 1.7 The library reports whether each post goes through the
+- [x] 1.7 The library reports whether each post goes through the
       github-app skill's script (gh-post spec: *The reader says whether a
       post goes through the github-app skill*)
-- [ ] 1.8 prose's and the inquisitor's `hook.json` post-hook matchers
-      include the Linear MCP prefixes the gh-post spec lists
-      (`mcp__linear__`, `mcp__plugin_<name>_linear__`,
+- [x] 1.8 prose's and the inquisitor's `hook.json` post-hook matchers
+      include the Linear MCP prefixes (`mcp__linear__`, `mcp__plugin_<name>_linear__`,
       `mcp__claude_ai_Linear__`) and `mcp__claude_ai_GitHub__`, so
       each hook sees the calls the reader reads (gh-post spec: *The
-      reader reads a Linear MCP comment or issue description*; *The
-      reader reads a GitHub MCP tool's body and comment keys*)
+      reader reads a Linear MCP comment or issue description*); task 1.9
+      widens them to every server name the gh-post spec names
+- [ ] 1.9 The library and both `hook.json` post-hook matchers take a
+      GitHub or Linear MCP tool by its server name holding `github` or
+      `linear`, ignoring case, and report one holding both as unreadable;
+      a module form of `discord_bot` names discord-bot's script; a `thread`
+      call takes `--identity` only before `thread`; `--remove-milestone`
+      takes no value; and the first word after `gh pr` or `gh issue` that
+      is no option or `--repo` value and no no-text verb mentions a post
+      verb (gh-post spec: *An MCP tool's server name tells GitHub's
+      tools from Linear's*; *A word after gh pr or gh issue that may
+      become a post verb mentions one*; *A simple command holding a
+      discord-bot post word counts as naming gh*; *A discord-bot thread's name is
+      read as a title*; *The canonical gh pr and gh issue posts are a
+      closed list*)
 
 ## 2. The script
 
@@ -517,7 +537,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       the session shows where its answer will be recorded*), the three
       categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
-- [ ] 2.2b The `not asked` verdict, accepted only for a question the
+- [x] 2.2b The `not asked` verdict, accepted only for a question the
       plain reading found and the hiding reading did not, and the
       first call's output marking each such question so the agent knows
       `not asked` is open to it (inquisitor spec: *Only a question the
@@ -576,7 +596,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       spec: *The script prints one questions-branch file's answer*). Its
       JSON is part of the contract with
       igor, under task 2.3b's test
-- [ ] 2.3f The `permission unreadable` reason, in filter 1's labels and
+- [x] 2.3f The `permission unreadable` reason, in filter 1's labels and
       `branch-search`'s JSON, for a file whose `answered_by`'s write
       access to what its question concerns cannot be read (inquisitor spec: *A permission that
       cannot be read is no write access*; *The JSON's reasons and landed
@@ -685,7 +705,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       which the answer service passes (inquisitor spec: *The answer
       service's files are never kept pending*). During an Igor's run it pushes nothing; igor PR #216's
       *An Igor publishes the citations its worker reports* covers it
-- [ ] 2.5 One markdown parser in `qtext` both builds a question's text
+- [x] 2.5 One markdown parser in `qtext` both builds a question's text
       and finds a post's questions, by each of the two readings, for the two calls, the post hook and
       the answer service alike: a line classifier (code fence, `>` line,
       list item, heading, bold label, colon label, record lines, prose's
@@ -720,6 +740,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       question's hash leaves out (inquisitor spec: *A tag line names the
       person a posted question tags*; *A question's text and hash are
       built one way*)
+- [ ] 2.6b A later second call keeps a question's recorded github-app
+      identity only when it records `ask`, until `tag` runs again
+      (inquisitor spec: *Vetting a tagged question again keeps its
+      identity only for ask*)
 - [ ] 2.7 `lore`, opening a lore pull request of one of three kinds: a
       new entry, a promotion from the `questions` branch, or a lesson
       from misses, for which the agent gives it the miss files the lesson
@@ -828,7 +852,7 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       a relay's token to a command that can print it, the warning that any
       agent can print it and post `User says: ` (answer-service spec:
       *The README warns that a relay's token can be printed*). While
-      task 0.6 or 0.38 is open, it says no comment counts as a
+      task 0.38 is open, it says no comment counts as a
       handback; while task 0.16 is
       not done, that Linear stays off; and while task 0.17 is not done,
       that Discord stays off.
