@@ -22,7 +22,7 @@ from branch_search import (Checks, Labelled, checkout, count_terms, gh_json, lab
                            question_terms, rank)
 from common import VERSION, Refused, igor_run, print_json, service_state_dir
 from contracts import CloneFreshness, Concerns, QuestionIn, SearchHit, SearchInput, SearchResult
-from formats import is_login, is_repository
+from formats import is_repository
 from private_files import read_private
 from qtext import Question, question_text
 
@@ -140,10 +140,17 @@ def doc_hits(files: dict[str, str], wanted: set[str], repository: str | None, la
     return hits
 
 
-def work_branch_author_ok(top: Path, repository: str, checks: Checks, login: str | None) -> bool:
-    """*A work-branch decision answers only its own work*: the pull request
-    is not from a fork, and its author, or with no pull request the
-    session's login, has write access. Always False offline."""
+def work_branch_author_ok(top: Path, repository: str, checks: Checks,
+                          login: str | None) -> bool | None:
+    """Whether a decision on top's checked-out branch answers that branch's
+    own work (inquisitor spec: *A work-branch decision answers only its own
+    work*). True when the branch's pull request, as `gh pr view` finds it,
+    is not from a fork and its author has write access, or, with no pull
+    request, when the session's login has it. False otherwise, including a
+    pull request with no author login. None when that write access cannot
+    be read. Always False offline: a question with a category reads no
+    pull request, so whose work the branch is stays unknown, rather than
+    a permission being unreadable."""
     if checks.offline:
         return False
     pr = _gh_in(top, ["pr", "view", "--json", "author,isCrossRepository"])
@@ -153,9 +160,9 @@ def work_branch_author_ok(top: Path, repository: str, checks: Checks, login: str
             return False
         author = p.get("author")
         name = cast(dict[str, Any], author).get("login") if isinstance(author, dict) else None
-        return isinstance(name, str) and checks.can_write(repository, name)
+        return checks.access(repository, name) if isinstance(name, str) else False
     session = github.session_login(login)
-    return session is not None and checks.can_write(repository, session)
+    return checks.access(repository, session) if session is not None else False
 
 
 def _gh_in(directory: Path, args: list[str]) -> Any:
@@ -247,10 +254,12 @@ def issue_hits(repository: str, wanted: set[str], checks: Checks) -> tuple[list[
         n = count_terms(wanted, block)
         if n:
             author = _login(issue.get("author"))
-            ok = author is not None and is_login(author) and checks.can_write(repository, author)
+            ok = checks.access(repository, author) if author is not None else False
             hit: SearchHit = {"source": "issue", "label": "decision" if ok else "input",
                               "repository": repository, "where": url, "quote": quote(block), "terms": n}
-            if not ok:
+            if ok is None:
+                hit["why"] = "permission unreadable"
+            elif not ok:
                 hit["why"] = "decision block by an author without write access"
             hits.append(hit)
         rest = body.replace(block, "", 1) if block else body
@@ -525,6 +534,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                        and work_branch_author_ok(work, repo, checks, cfg.login))
                 hits += doc_hits(changed, wanted, work_repo, "decision" if own else "input",
                                  "this change's, not yet merged" if own
+                                 else "permission unreadable" if own is None
                                  else "on a work branch, which answers only its own work")
 
     # Lore.

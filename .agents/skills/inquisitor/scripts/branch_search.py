@@ -112,19 +112,25 @@ class Checks:
     counts as no write access."""
 
     offline: bool = False
-    _access: dict[tuple[str, str], bool] = field(default_factory=lambda: {})
+    _access: dict[tuple[str, str], bool | None] = field(default_factory=lambda: {})
     _vis: dict[str, github.Visibility | None] = field(default_factory=lambda: {})
 
-    def can_write(self, repository: str | None, login: str) -> bool:
-        """Write access. An unreadable permission, a malformed repository and
-        a login off GitHub's login syntax, such as an App's `<slug>[bot]`,
-        count as none (inquisitor spec: *A permission
-        that cannot be read is no write access*)."""
-        if self.offline or repository is None or not is_repository(repository) or not is_login(login):
+    def access(self, repository: str | None, login: str) -> bool | None:
+        """Whether login can push to repository, as GitHub reports it.
+        None when GitHub's answer cannot be read, and always offline.
+        False, with no call made, when repository is None or malformed, or
+        login is off GitHub's login syntax, such as an App's `<slug>[bot]`,
+        which GitHub always reads as `none`. Every caller counts None as no
+        write access; label_branch, issue_hits and filter1 also label the
+        hit `permission unreadable` (inquisitor spec: *A permission that
+        cannot be read is no write access*)."""
+        if repository is None or not is_repository(repository) or not is_login(login):
             return False
+        if self.offline:
+            return None
         key = (repository, login)
         if key not in self._access:
-            self._access[key] = github.write_access(repository, login) is True
+            self._access[key] = github.write_access(repository, login)
         return self._access[key]
 
     def visibility(self, repository: str) -> github.Visibility | None:
@@ -261,7 +267,10 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
     def concerned(f: LogFile) -> str | None:
         return f.repository or (branch_repo if lore_branch else None)
 
-    def would_count(i: int) -> bool:
+    def would_count(i: int) -> bool | None:
+        """Whether file i's answer counts on its own, before the hash
+        groups below drop all but the newest: True or False, or None when
+        only its answerer's unreadable write access stands in the way."""
         f = parsed[i]
         if not isinstance(f, LogFile) or f.answer is None or f.answer.authority != "decision":
             return False
@@ -269,9 +278,10 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
             return False
         if item is not None and f.repository is not None and f.repository != item:
             return False
-        return checks.can_write(concerned(f), f.answer.answered_by)
+        return checks.access(concerned(f), f.answer.answered_by)
 
-    counts = [would_count(i) for i in range(len(parsed))]
+    read = [would_count(i) for i in range(len(parsed))]
+    counts = [r is True for r in read]
     by_name = {f.name: i for i, f in enumerate(parsed) if isinstance(f, LogFile)}
 
     # A named file's answer is the newest counting answer file that names
@@ -290,7 +300,7 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
             assert isinstance(target, LogFile)
             tags = _tags(target.question)
             ok = (f.answer.answered_by in tags if tags is not None
-                  else checks.can_write(concerned(target), f.answer.answered_by))
+                  else checks.access(concerned(target), f.answer.answered_by) is True)
             if ok:
                 named_answer[t] = i  # later files overwrite: the newest wins
     replaced = {i for i, f in enumerate(parsed)
@@ -348,7 +358,7 @@ def label_branch(files: list[branches.BranchFile], branch_repo: str, lore_branch
         elif source.authority == "input":
             hit["reason"] = "input"
         elif f.answer is not None and not counts[i]:
-            hit["reason"] = "unconfirmed"
+            hit["reason"] = "permission unreadable" if read[i] is None else "unconfirmed"
         elif i in superseded or i in replaced:
             hit["reason"] = "superseded"
         elif item is not None and f.repository is not None and f.repository != item:
