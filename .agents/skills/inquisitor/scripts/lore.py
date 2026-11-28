@@ -311,14 +311,20 @@ def _open_pull_request(lore: str, entry_id: str, content: str, title: str, body:
                          {"ref": f"refs/heads/{branch}", "sha": sha})
     if made is None and "already exists" in err:
         # A branch left by a proposal that failed part-way or was closed
-        # unmerged (deferred): reuse it unless a pull request from it is
-        # still open.
+        # unmerged (deferred) is reused. One whose pull request is open is
+        # still proposed, and one whose pull request was merged was
+        # accepted, so neither is proposed again.
         owner = lore.split("/")[0]
-        pulls, err = _gh_json([f"repos/{lore}/pulls?head={owner}:{branch}&state=open"])
+        pulls, err = _gh_json([f"repos/{lore}/pulls?head={owner}:{branch}&state=all&per_page=100"])
         if not isinstance(pulls, list):
-            raise Refused(f"cannot read {lore}'s open pull requests: {err}")
-        if pulls:
-            raise Refused(f"the entry is already proposed: {_field(pulls[0], 'html_url')}")
+            raise Refused(f"cannot read {lore}'s pull requests from {branch}: {err}")
+        for pull in cast(list[Any], pulls):
+            if _field(pull, "state") == "open":
+                raise Refused(f"the entry is already proposed: {_field(pull, 'html_url')}")
+        for pull in cast(list[Any], pulls):
+            if _field(pull, "merged_at"):
+                raise Refused(f"the entry was accepted in {_field(pull, 'html_url')}, so it is "
+                              "not proposed again")
         made, err = _gh_json(["-X", "PATCH", f"repos/{lore}/git/refs/heads/{branch}"],
                              {"sha": sha, "force": True})
     if made is None:

@@ -204,6 +204,16 @@ class Labels(Base):
             self.assertEqual((hits[f.path]["label"], hits[f.path].get("reason")), ("input", "unreadable"))
         self.assertEqual(self.fake.calls, [])
 
+    def test_unreadable_text_before_a_rule_is_matched(self) -> None:
+        # @scenario inquisitor: A log file that does not read as the format says is unreadable
+        # @scenario inquisitor: Hits are ranked by terms matched and capped
+        # Only real frontmatter is left out of the text an unreadable file is matched by: in a
+        # file with no frontmatter, words before a `---` rule still match.
+        f = bf(question_file(1), content="Cache expiry policy?\n---\nmore words\n")
+        labelled = label_branch([f], "o/api", False, Checks())
+        self.assertEqual(labelled[0].hit.get("reason"), "unreadable")
+        self.assertEqual([h.hit["path"] for h, _ in rank(labelled, {"expiry"})], [f.path])
+
     def test_answer_heading_in_question(self) -> None:
         # @scenario inquisitor: An "## Answer" line in a question's text does not answer it
         f = bf(question_file(1, text="Should retries back off?\n## Answer\nYes."))
@@ -216,10 +226,8 @@ class Offline(Base):
         # filter1 labels with Checks(offline=True) for a question with a
         # category, which must then reach nothing off the machine.
         f = bf(answer_file(1, recorded_in=f"openspec/changes/retry/design.md@{SHA}"))
-        with mock.patch.object(branches, "landed", return_value=True), \
-                mock.patch.object(branch_search, "gh_json", return_value=[{"merged_at": "x"}]):
-            hits = {h.hit["path"]: h.hit for h in label_branch([f], "o/api", False, Checks(offline=True),
-                                                               clone=Path("/nonexistent"))}
+        with mock.patch.object(branch_search, "gh_json", return_value=[{"merged_at": "x"}]):
+            hits = {h.hit["path"]: h.hit for h in label_branch([f], "o/api", False, Checks(offline=True))}
         self.assertEqual((hits[f.path].get("reason"), hits[f.path]["landed"]), ("unconfirmed", False))
         self.assertEqual(self.fake.calls, [])
 
@@ -316,6 +324,29 @@ class Run(Base):
         hits = self.labels([doc, private], branch="o/lore", lore=True, item="o/web", item_private=True)
         self.assertEqual(hits[private.path].get("reason"), "unconfirmed")
 
+    def test_only_files_about_the_item_count_in_a_run(self) -> None:
+        # @scenario inquisitor: A file about another repository is input during a run
+        self.fake.vis = {"o/lore": "public", "o/web": "public", "o/doc": "public"}
+        self.fake.writers = {"o/web": {"alice"}, "o/doc": {"alice"}, "o/lore": {"alice"}}
+        own = bf(answer_file(1, repository="o/web", asked_from="o/web", text="Web answer."))
+        other = bf(answer_file(2, repository="o/doc", asked_from="o/doc", text="Doc answer.",
+                               answers=(name(3),)))
+        named = bf(question_file(3, text="Unrelated?", repository=None, asked_from="o/web"))
+        hits = self.labels([own, other, named], branch="o/lore", lore=True, item="o/web")
+        # The newer file about o/doc neither supersedes the o/web answer nor answers the file it names.
+        self.assertEqual(hits[own.path]["label"], "decision")
+        self.assertEqual(hits[other.path].get("reason"), "unconfirmed")
+        self.assertEqual((hits[named.path]["answer"], hits[named.path].get("reason")),
+                         (None, "unanswered"))
+        # A file about o/doc is input even when an answer file that counts names it in `answers`.
+        borrower = bf(question_file(4, text="Doc retries?", repository="o/doc", asked_from="o/doc"))
+        lender = bf(answer_file(5, question="Org retries?", repository=None, asked_from="o/web",
+                                answers=(name(4),)))
+        hits = self.labels([borrower, lender], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual((hits[borrower.path]["label"], hits[borrower.path].get("reason")),
+                         ("input", "unconfirmed"))
+        self.assertEqual(hits[lender.path]["label"], "decision")
+
     def test_hidden_answer_file_leaks_through_no_named_file(self) -> None:
         # @scenario inquisitor: Given a run's item, the branch search applies the run's rules
         self.fake.vis = {"o/lore": "public", "o/web": "public", "o/priv": "private"}
@@ -326,6 +357,34 @@ class Run(Base):
         hits = self.labels([q, a], branch="o/lore", lore=True, item="o/web")
         self.assertNotIn(a.path, hits)
         self.assertNotIn("SECRET", json.dumps(hits))
+
+    def test_hidden_newer_answer_supersedes_a_visible_one(self) -> None:
+        # @scenario inquisitor: Given a run's item, the branch search applies the run's rules
+        # @scenario inquisitor: The newest answer to a question counts
+        self.fake.vis = {"o/lore": "public", "o/web": "public", "o/priv": "private"}
+        self.fake.writers = {"o/lore": {"alice"}}
+        old = bf(answer_file(1, repository=None, asked_from="o/web", text="Old public answer."))
+        new = bf(answer_file(2, repository=None, asked_from="o/priv", text="SECRET newer answer"))
+        hits = self.labels([old, new], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual(set(hits), {old.path})
+        self.assertEqual((hits[old.path]["label"], hits[old.path].get("reason")), ("input", "superseded"))
+        self.assertNotIn("SECRET", json.dumps(hits))
+        # A hidden newer answer naming a file replaces an older visible answer to it, and the
+        # named file shows unanswered rather than taking either answer.
+        q = bf(question_file(3, text="Cap retries?", repository=None, asked_from="o/web"))
+        first = bf(answer_file(4, question="How long a cap?", repository=None, asked_from="o/web",
+                               text="A minute.", answers=(name(3),)))
+        second = bf(answer_file(5, question="Cap them?", repository=None, asked_from="o/priv",
+                                text="SECRET cap", answers=(name(3),)))
+        hits = self.labels([q, first, second], branch="o/lore", lore=True, item="o/web")
+        self.assertEqual(set(hits), {q.path, first.path})
+        self.assertEqual(hits[first.path].get("reason"), "superseded")
+        self.assertEqual((hits[q.path]["answer"], hits[q.path].get("reason")), (None, "unanswered"))
+        self.assertNotIn("SECRET", json.dumps(hits))
+        # Seen from a private item, nothing is hidden and the newer answer counts.
+        hits = self.labels([old, new], branch="o/lore", lore=True, item="o/web", item_private=True)
+        self.assertEqual(hits[new.path]["label"], "decision")
+        self.assertEqual(hits[old.path].get("reason"), "superseded")
 
     def test_asked_from_private_file_is_private(self) -> None:
         # @scenario inquisitor: A file asked from a private repository is private
@@ -374,16 +433,11 @@ class Landed(Base):
                 return {"path": "openspec/changes/retry/design.md"}
             return None
 
-        with mock.patch.object(branches, "landed", return_value=True), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            hits = self.labels([pinned, own], clone=Path("/nonexistent"))
+        with mock.patch.object(branch_search, "gh_json", side_effect=gh):
+            hits = self.labels([pinned, own])
         self.assertIs(hits[pinned.path]["landed"], True)
         self.assertIsNone(hits[own.path]["landed"])
-        with mock.patch.object(branch_search, "gh_json", side_effect=gh), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
-            self.assertIs(self.labels([pinned])[pinned.path]["landed"], True)
-        with mock.patch.object(branch_search, "gh_json", return_value=None), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
+        with mock.patch.object(branch_search, "gh_json", return_value=None):
             self.assertIs(self.labels([pinned])[pinned.path]["landed"], False)
         compare = {"repos/o/api": {"default_branch": "main"},
                    f"repos/o/api/compare/{SHA}...main": {"status": "identical"}}
@@ -391,24 +445,14 @@ class Landed(Base):
         def compared(args: list[str]) -> Any:
             return compare.get(args[1])
 
-        with mock.patch.object(branch_search, "gh_json", side_effect=compared), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
+        with mock.patch.object(branch_search, "gh_json", side_effect=compared):
             self.assertIs(self.labels([pinned])[pinned.path]["landed"], True)
         for pulls, contents in (([{"merged_at": "x"}], None), ([{"merged_at": None}], {"path": "p"})):
             def partial(args: list[str], pulls: Any = pulls, contents: Any = contents) -> Any:
                 joined = " ".join(args)
                 return pulls if joined.endswith("/pulls") else contents if "/contents/" in joined else None
-            with mock.patch.object(branch_search, "gh_json", side_effect=partial), \
-                    mock.patch.object(branch_search, "_origin", return_value=None):
+            with mock.patch.object(branch_search, "gh_json", side_effect=partial):
                 self.assertIs(self.labels([pinned])[pinned.path]["landed"], False)
-        with mock.patch.object(branches, "landed", return_value=False), \
-                mock.patch.object(branch_search, "gh_json", return_value=None), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], False)
-        with mock.patch.object(branches, "landed", return_value=None), \
-                mock.patch.object(branch_search, "gh_json", side_effect=compared), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], True)
         for hit in hits.values():
             self.assertIn(hit.get("reason", "input"),
                           ("unconfirmed", "unanswered", "miss", "superseded", "unreadable", "input"))
@@ -418,12 +462,9 @@ def run_command(fn: Any, args: Any, files: list[BF] | None, stdin: str = "") -> 
     """Run a command with the branch's files, returning its parsed JSON."""
     home = tempfile.mkdtemp()
     out = io.StringIO()
-    fetched = files is not None
     with mock.patch.dict(os.environ, {"HOME": home, "XDG_STATE_HOME": home}), \
-            mock.patch.object(branches, "fetch", return_value=fetched), \
             mock.patch.object(branches, "list_files", return_value=files), \
             mock.patch.object(branch_search, "is_lore_repository", return_value=False), \
-            mock.patch.object(branch_search, "checkout", return_value=Path(home)), \
             mock.patch("sys.stdin", io.StringIO(stdin)), redirect_stdout(out):
         code = fn(args)
     assert code == 0
@@ -460,19 +501,10 @@ class Commands(Base):
             with redirect_stdout(out), self.assertRaises(Refused):
                 run_command(fn, args, None)
             self.assertEqual(out.getvalue(), "")
-        f = bf(question_file(1))
-        self.assertIsNone(branch_search.read_branch("o/api", None, True))
-        self.assertIsNone(branch_search.read_branch("o/../x", Path("/x"), True))
-        args = branch_search.BranchSearchArgs("o/api")
-        with mock.patch.object(branch_search, "checkout", return_value=None), \
-                mock.patch.object(branches, "list_files", return_value=[f]), \
-                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
-            branch_search.run_branch_search(args)
-        with mock.patch.object(branch_search, "checkout", return_value=Path("/x")), \
-                mock.patch.object(branches, "fetch", return_value=False), \
-                mock.patch.object(branches, "list_files", return_value=[f]), \
-                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
-            branch_search.run_branch_search(args)
+        with mock.patch.object(branches, "list_files", return_value=[]) as listed:
+            self.assertIsNone(branch_search.read_branch("o/../x"))
+            self.assertEqual(branch_search.read_branch("o/api"), [])
+        listed.assert_called_once_with("o/api")
 
     def test_miss_check(self) -> None:
         # @scenario inquisitor: The miss check says only whether the reply is backed

@@ -32,7 +32,8 @@ the line reaches a `gh` command (*Input to a no-post line reaches only
 data commands*). It mentions one when its text holds `gh`, then `pr` or
 `issue`, then a post verb listed for that word; `gh`, then `api`, unless
 the line is a read (*A gh api call is a read only in a plain form*); or
-a word ending in `discord_bot.py`, then `post` or `edit`.
+a word that is `discord_bot` or ends in `discord_bot.py`, then `post`
+or `edit`.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -53,8 +54,10 @@ a word ending in `discord_bot.py`, then `post` or `edit`.
 
 - **WHEN** a hook asks about `gh release create v1.2 --notes 'Ready?'`,
   `gh project item-create 1 --owner o --body 'Should retries back off?'`,
-  `gh agent-task create 'Should retries back off?'`, and `gh c 5 -b
-  'Should retries back off?'`, where `c` is a gh alias for `pr comment`
+  `gh agent-task create 'Should retries back off?'`, `gh c 5 -b
+  'Should retries back off?'`, where `c` is a gh alias for `pr comment`,
+  and `$X pr comment 5 --body 'Should retries back off?'`, where `X`
+  holds `gh`
 - **THEN** the reader reports that each command sends no post, so both
   hooks let it through unread
 
@@ -129,7 +132,8 @@ A canonical `gh pr` or `gh issue` post SHALL be `comment <number>`,
 <number>`; its body given once, by `--body-file <file>` naming a file
 that exists or `--body <word>`, or for `close` and `reopen` by
 `--comment <word>`; and no other option but `--title` and those the
-scenario below lists, each written long, any value as the next word.
+scenario below lists, each written long, and the value of one that
+takes a value as the next word.
 
 #### Scenario: A canonical gh post is read
 
@@ -139,8 +143,14 @@ scenario below lists, each written long, any value as the next word.
 - **THEN** the reader returns `body.md`'s text, `Done.` and `done` as
   their bodies
 - **AND** the other options a canonical form may hold are `--repo`,
-  `--base`, `--head`, `--draft`, `--label`, `--assignee`, `--reviewer`
-  and `--milestone`
+  `--base`, `--head`, `--draft`, `--label`, `--assignee`, `--reviewer`,
+  `--milestone`, and, where gh has them, `gh pr edit`'s and `gh issue
+  edit`'s `--add-` and `--remove-` options for reviewers, labels,
+  assignees and projects, and `--remove-milestone`; only `--draft` takes
+  no value
+- **AND** `gh pr edit 5 --add-reviewer alice --remove-label wip --title t
+  --body-file body.md`, where `body.md` exists, is read, its body
+  `body.md`'s text
 
 #### Scenario: A gh post in any other form is unreadable
 
@@ -148,14 +158,15 @@ scenario below lists, each written long, any value as the next word.
   --body=hi`, `gh pr comment 5 -F c.md`, `gh pr comment 5 --body "$(cat
   c.md)"`, `cat c.md | gh pr comment 5 --body-file -`, `gh pr comment 5
   --body-file missing.md`, where `missing.md` does not exist, `gh pr
-  create --title t --template tmpl.md`, `gh pr create --fill`, and `gh
-  pr revert 5 --body x`
+  create --title t --template tmpl.md`, `gh pr create --fill`, `gh
+  pr revert 5 --body x`, and `gh pr new --body x` and `gh issue new
+  --body x`, since `new` is not a canonical verb
 - **THEN** the reader reports each command as unreadable
 
 ### Requirement: The reader reads a GitHub MCP tool's body and comment keys
 
-A **GitHub MCP tool** is one whose name starts `mcp__github__` or
-`mcp__plugin_<name>_github__`, the tools prose's posting hook matches.
+A **GitHub MCP tool** is one whose name starts `mcp__github__`,
+`mcp__plugin_<name>_github__` or `mcp__claude_ai_GitHub__`.
 For one, the reader SHALL return every string under a key
 named `body` or `comment`, at any depth, as a body.
 
@@ -165,15 +176,18 @@ named `body` or `comment`, at any depth, as a body.
   string `ok` under a key named `comment`, and about one whose input holds
   `comments[0].body`
 - **THEN** the reader returns `ok` and the nested string as bodies
+- **AND** it reads `mcp__claude_ai_GitHub__add_issue_comment` with `body`
+  `ok` as it reads `mcp__github__add_issue_comment`
 
 ### Requirement: The reader reads a Linear MCP comment or issue description
 
-For a tool named `save_comment` or `save_issue` under the prefix
-`mcp__linear__` or `mcp__plugin_<name>_linear__`, the reader SHALL return
-the string `save_comment` takes as `body`, or `save_issue` as
-`description`, as a Linear message. A `save_issue` call holding `patch`,
-or `template` with no `description`, SHALL be unreadable, since its text
-depends on what Linear already holds.
+For a tool named `save_comment` or `save_issue` under a **Linear MCP
+prefix**, `mcp__linear__`, `mcp__plugin_<name>_linear__` or
+`mcp__claude_ai_Linear__`, the reader SHALL return, as a Linear
+message, `save_comment`'s `body` or `save_issue`'s `description`. A
+`save_issue` call holding `patch`, or holding `template` but no
+`description`, SHALL be unreadable, since its text depends on what
+Linear already holds.
 
 #### Scenario: A Linear MCP comment and description are read
 
@@ -184,12 +198,30 @@ depends on what Linear already holds.
   off?` as Linear messages, and no title
 - **AND** it reports as unreadable a `save_issue` call holding `patch`, or
   `template` with no `description`
+- **AND** `mcp__claude_ai_Linear__save_comment` is read as
+  `mcp__linear__save_comment` is
 
 #### Scenario: A Linear MCP call with no text is no post
 
 - **WHEN** a hook asks about `mcp__linear__save_issue` with only `id` and
   `state`
 - **THEN** the reader reports that the call sends no post
+
+### Requirement: Every other Linear save, create, update or submit tool is unreadable
+
+Any tool under a Linear MCP prefix whose name starts `save_`,
+`create_`, `update_` or `submit_`, other than `save_comment` and
+`save_issue`, SHALL be unreadable, whatever its input holds. Any other
+Linear MCP tool SHALL send no post.
+
+#### Scenario: Another Linear tool that writes text is unreadable
+
+- **WHEN** a hook asks about `mcp__linear__save_document`,
+  `mcp__linear__save_status_update`, `mcp__linear__save_diff_comment`,
+  `mcp__linear__create_attachment`, `mcp__linear__update_diff` and
+  `mcp__linear__submit_diff_review`
+- **THEN** the reader reports each call as unreadable
+- **AND** it reports `mcp__linear__get_issue` as sending no post
 
 ### Requirement: The reader says whether a post goes through the github-app skill
 
@@ -257,8 +289,7 @@ its scenarios list as unreadable SHALL be unreadable.
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
 command in it names no `gh`; is a `gh pr` or `gh issue` command with no
-`--body`, `--body-file`, `-b`, `-F`, `--fill`, `--template` or
-`--comment`, run directly or through the github-app skill; is a `gh api`
+**text option**, run directly or through the github-app skill; is a `gh api`
 read; or is a **data command** (its scenarios list them) with no word
 that is `gh` or a path ending in `/gh`.
 
@@ -272,6 +303,18 @@ that is `gh` or a path ending in `/gh`.
 - **AND** it reports `cd x && gh api -X DELETE repos/o/r/issues/comments/9`
   as unreadable, since a `gh api` write is a gh post verb and no
   canonical form
+
+#### Scenario: The text options are a closed list
+
+- **WHEN** a hook asks about `cd x && gh pr edit 5 -db x`, chained so
+  that no canonical form can read it
+- **THEN** the reader reports the line as unreadable, since `-db` holds
+  the text option `-b`
+- **AND** the text options are `--body`, `--body-file`, `--fill`,
+  `--fill-first`, `--fill-verbose`, `--template`, `--recover`,
+  `--comment`, `--editor` and `--web`, and any option word starting
+  with a single `-`, not `--`, that holds one of the letters `b`, `F`,
+  `c`, `f`, `T`, `e` or `w`
 
 #### Scenario: A gh post quoted as data is no post
 
@@ -301,10 +344,11 @@ that is `gh` or a path ending in `/gh`.
 This rule covers a line whose simple commands are all ones *A line
 whose simple commands send no text is no post* allows, and a line that
 mentions no gh post verb but whose input reaches a `gh` command. Such a
-line SHALL send no post when input from a pipe or redirection reaches
-only data commands, or only one simple command that is a `gh pr` or `gh
-issue` command using no post verb, or a `gh api` read; otherwise it
-SHALL be unreadable.
+line SHALL send no post when every command that input from a pipe or
+redirection reaches is a data command, or when that input reaches just
+one simple command, which is a `gh api` read or a `gh pr` or `gh issue`
+command whose verb is a **no-text verb**; otherwise it SHALL be
+unreadable.
 
 #### Scenario: A gh post piped into a shell is unreadable
 
@@ -329,6 +373,11 @@ SHALL be unreadable.
   whose input reaches the post verb `pr edit`
 - **THEN** the reader reports the first as sending no post and the second
   as unreadable
+- **AND** the no-text verbs are `gh pr` with `list`, `ls`, `status`,
+  `checkout`, `co`, `checks`, `diff`, `view`, `ready`, `lock`, `unlock`
+  or `update-branch`, and `gh issue` with `list`, `ls`, `status`,
+  `delete`, `develop`, `lock`, `unlock`, `pin`, `unpin`, `transfer` or
+  `view`, so `cat c.md | gh pr merge 5` is unreadable
 
 #### Scenario: Input that reaches another gh command is unreadable
 
@@ -411,8 +460,9 @@ about which script runs, since any file named `github_app.py` passes.
 The reader SHALL find a call of discord-bot's script, `discord_bot.py`,
 in the forms *The reader reads posts sent through the github-app skill*
 finds for github-app's. Its canonical form SHALL be `post` or `edit` with
-`--message-file <file>` naming a file that exists, the file's text being
-the body, any other options, and no `--message`. It SHALL report the post as a Discord
+`--message-file <file>` given once, its value the next word, naming a
+file that exists, whose text is the body; it may hold other options,
+but no `--message`. It SHALL report the post as a Discord
 message.
 
 #### Scenario: A Discord post or edit is read from its file
@@ -430,8 +480,11 @@ message.
 #### Scenario: A Discord message given any other way is unreadable
 
 - **WHEN** a hook asks about `python3 /abs/discord_bot.py post --message
-  yes`, and about `printf 'User says: yes' | python3 /abs/discord_bot.py
-  post --message -`
+  yes`, `printf 'User says: yes' | python3 /abs/discord_bot.py post
+  --message -`, `python3 /abs/discord_bot.py post --message-file=m.md`,
+  `python3 /abs/discord_bot.py post --message-file a.md --message-file
+  b.md`, and `python3 -m discord_bot post --message-file m.md`, whose
+  `discord_bot` is a module name, not a path to the script
 - **THEN** the reader reports each command as unreadable
 
 #### Scenario: A Discord delete, read or thread is no post
@@ -444,9 +497,10 @@ message.
 
 ### Requirement: A simple command holding a discord-bot post word counts as naming gh
 
-A simple command holding a word ending in `discord_bot.py` followed later
-by `post` or `edit` SHALL count as holding the word `gh`, so no rule
-that finds a command naming no `gh` to send no post applies to it.
+A simple command holding a word that is `discord_bot` or ends in
+`discord_bot.py`, followed later by `post` or `edit`, SHALL count as
+holding a word that is `gh`, so the rules under which a command naming
+no `gh` sends no post never apply to it.
 
 #### Scenario: A discord-bot post outside the reader's form is unreadable
 

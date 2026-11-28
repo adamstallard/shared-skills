@@ -51,11 +51,14 @@ export type Option = { label: string; effect: string }
 export type Revision = { text: string; summary: string; options?: Option[] }
 
 /**
- * state: absent means 'open'; 'set-aside', set aside for later by the
- * person, comes after the open ones in the mod's list; 'pending' is
- * answered, the answer not yet posted in the question's thread. relay: the
- * bot account that posts the person's answers on the question's surface;
- * absent for a questions-branch question, since nothing is posted for one.
+ * state: 'open', or absent, for an open question. 'set-aside': the person
+ * set it aside for later, and the mod lists it after the open ones.
+ * 'pending': the person confirmed an answer that is not yet posted in the
+ * question's thread. relay: the bot account that posts the person's
+ * answers on the question's surface; absent for a questions-branch
+ * question, since nothing is posted for one. revision: the rephrasing
+ * carried by the answer the person confirmed for this question, whether
+ * posted or kept pending.
  */
 export type QuestionView = {
   id: string
@@ -161,8 +164,8 @@ export type DiscussionRequest = {
   role: 'person' | 'model'
   text: string
 }
-/** The core keeps the rephrasing the person accepted; when the question's next 'answer' preview builds its post, that post includes it. */
-export type ReviseRequest = { command: 'discussion.revise'; session_id: string; question: string; revision: Revision }
+/** The mod sends this request when the person sets a question aside for later. The core keeps the question set aside, and each later poll's QuestionView gives it the state 'set-aside', until a post request answering or declining it is sent, whether the post goes out or is kept pending. Nothing else, a reopen included, ends the set-aside. */
+export type SetAsideRequest = { command: 'set-aside'; session_id: string; question: string }
 export type ContextRequest = { command: 'context'; session_id: string; question: string }
 export type ScreenRequest = { command: 'screen.set'; session_id: string; question: string | null }
 export type PreviewRequest = {
@@ -178,6 +181,8 @@ export type PreviewRequest = {
   note?: string
   /** With reason 2 and filter 3: "the agent shouldn't have asked"; the core posts nothing and logs a filter 3 miss against the asking agent, and refuses it with any other reason or filter. */
   unasked?: boolean
+  /** The rephrasing the person accepted, with action 'answer' only; the core refuses it with any other action. The post carries its `Rephrased question: ` and `Discussion: ` lines. The core keeps the revision, with the answer, only once a post request names this preview, whether the post goes out then or is kept pending; the rephrasing reaches the core no other way. */
+  revision?: Revision
 }
 export type PostRequest = { command: 'post'; session_id: string; preview: string }
 export type ReopenRequest = { command: 'reopen'; session_id: string; question: string }
@@ -191,7 +196,7 @@ export type Request =
   | VerdictRequest
   | TurnEndRequest
   | DiscussionRequest
-  | ReviseRequest
+  | SetAsideRequest
   | ContextRequest
   | ScreenRequest
   | PreviewRequest
@@ -280,7 +285,7 @@ export type ResponseFor = {
   'judge.verdict': VerdictResponse
   'judge.turn-end': TurnEndResponse
   'discussion.append': DoneResponse
-  'discussion.revise': DoneResponse
+  'set-aside': DoneResponse
   context: ContextResponse
   'screen.set': DoneResponse
   preview: PreviewResponse

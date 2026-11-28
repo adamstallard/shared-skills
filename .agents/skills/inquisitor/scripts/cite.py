@@ -13,9 +13,9 @@ Owned by build part P5 of the implementation plan (task 2.4b). Standard library 
 
 import re
 from dataclasses import dataclass
-from typing import Literal, NotRequired, TypedDict
 
 from common import VERSION, Refused, igor_run, print_json
+from contracts import CiteResult
 from formats import CitationFile
 import log_command
 from log_command import check_repository, push
@@ -31,17 +31,6 @@ class CiteArgs:
     lore: str
     entry: str
     service: bool = False
-
-
-class CiteResult(TypedDict):
-    """What `cite` prints: a contracts.LogResult's fields. Its status is
-    "skipped" when cite runs during an Igor's run, where it pushes
-    nothing."""
-
-    version: int
-    status: Literal["pushed", "pending", "taken", "failed", "skipped"]
-    path: str | None
-    why: NotRequired[str]
 
 
 def run(args: CiteArgs) -> int:
