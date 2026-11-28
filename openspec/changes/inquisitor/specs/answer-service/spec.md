@@ -1559,6 +1559,22 @@ automatic post needs no preview.
 - **THEN** their confirmation posts nothing, and the answer service makes
   a new preview for the question now on screen
 
+### Requirement: The first confirmation after a question takes the screen posts nothing
+
+After a question takes the screen, the person's first confirmation SHALL
+post nothing: it shows that question, with any rephrasing, and the
+preview of the typed text as an answer to it. Only a later confirmation
+posts.
+
+#### Scenario: A confirmation as a question arrives posts nothing
+
+- **WHEN** a question takes the screen while the person is typing an
+  answer to the one before, and the person confirms
+- **THEN** the answer service posts nothing and shows the new question,
+  with any rephrasing, and the preview of the typed text as an answer to
+  the new question
+- **AND** the person's next confirmation posts that preview
+
 ### Requirement: A GitHub or Linear relay post names its question in a Re line
 
 A relay post on Linear or GitHub SHALL end with a `Re: ` line holding
@@ -2415,7 +2431,8 @@ Discussion: <the discussion in one sentence>
 with its `Re: ` line where *A GitHub or Linear relay post names its
 question in a Re line* requires one. The service SHALL post the
 `Rephrased question: ` and `Discussion: ` lines as one line each, with
-every line break made a space.
+every line break made a space. It SHALL keep a rephrasing anywhere only
+once the person confirms a post carrying it, even a post kept pending.
 
 #### Scenario: A Discussion line is posted as one line
 
@@ -2429,6 +2446,14 @@ every line break made a space.
 
 - **WHEN** the model has drafted a rephrasing the person has not confirmed
 - **THEN** the answer service posts nothing
+
+#### Scenario: A rephrasing is kept only with the post that carried it
+
+- **WHEN** the person previews an answer carrying a rephrasing, does not
+  confirm that preview, and later answers the question without the
+  rephrasing
+- **THEN** the later post holds no `Rephrased question: ` or
+  `Discussion: ` line, and no record of the question holds the rephrasing
 
 ### Requirement: An answer is recorded by a new log file
 

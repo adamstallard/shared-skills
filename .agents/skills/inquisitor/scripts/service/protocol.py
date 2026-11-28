@@ -101,19 +101,22 @@ class QuestionView(TypedDict):
     """A question as the mod shows it. id is the core's own key for it,
     stable across polls. asker: "person" (including a relayed question),
     "agent", "item" (an Igor handback's item question) or
-    "questions-branch". text is null only for a question with a category,
-    whose text is never written to disk. item: its number in the Igor
-    handback's open-questions section. concerns: the place it concerns.
-    related: an earlier decision it names. recorded: filter 1's recorded
-    answer. replies: its thread's messages after it. new: found by the poll
-    that returned it. state: "open"; "set-aside", set aside for later by
-    the person and queued after the open ones in the mod's list; or "pending", answered,
-    the answer not yet posted in its thread; absent means "open".
-    suggested: filters 2 to 4's Suggestion, never on a person's question.
+    "questions-branch". text is null only for a question with a category
+    (has_category), whose text the core never stores and so cannot show.
+    item: its number in the Igor handback's open-questions section.
+    concerns: the repository or organization it concerns. related: an
+    earlier decision it names. recorded: the earlier answer that filter 1,
+    the search for one, found. replies: its thread's messages after it.
+    new: found by the poll that returned it. state: "open", or absent, for
+    an open question. "set-aside": the person set it aside for later, and
+    the mod lists it after the open ones. "pending": the person confirmed
+    an answer that is not yet posted in its thread. suggested: the model's
+    Suggestion of a filter 2 to 4 verdict, never on a person's question.
     relay: the bot account that posts the person's answers on the
     question's surface, such as `answers[bot]`; absent for a
     questions-branch question, since nothing is posted for one. revision:
-    the rephrasing the person last accepted (discussion.revise)."""
+    the rephrasing carried by the answer the person confirmed for this
+    question, whether posted or kept pending."""
 
     id: str
     surface: Surface
@@ -265,22 +268,6 @@ class DiscussionRequest(TypedDict):
     text: str
 
 
-class ReviseRequest(TypedDict):
-    """The mod sends this request when the person accepts a rephrasing,
-    never when the model's draft of one reaches the mod. The core keeps the
-    revision until the question is answered: in its discussion record, or,
-    for a question with a category, which is never written to disk and so
-    has no discussion record, in memory only, lost if the core restarts.
-    Each "answer" preview of the question then builds a post carrying the
-    revision's `Rephrased question: ` and `Discussion: ` lines beside the
-    answer; other previews leave the revision kept."""
-
-    command: Literal["discussion.revise"]
-    session_id: str
-    question: str
-    revision: Revision
-
-
 class SetAsideRequest(TypedDict):
     """The mod sends this request when the person sets a question aside for
     later (aside true) or takes it back into the open ones (aside false).
@@ -309,20 +296,30 @@ class ScreenRequest(TypedDict):
 
 class PreviewRequest(TypedDict):
     """Build the exact post and the questions-branch record before anything
-    goes out. action: "answer" (a `User says: ` post), "ask" (a `User asks:
-    ` post), "decline" (reason 1, won't answer, or reason 2, the inquisitor
-    should have stopped the question, with the filter that should have
-    stopped it: answer-service spec, *The person can decline to answer*),
-    "agree" (a shown recorded answer), "edit" (a relay post's new text).
+    goes out. action is one of five:
+    - "answer": a `User says: ` post;
+    - "ask": a `User asks: ` post;
+    - "decline": the person declines to answer (answer-service spec, *The
+      person can decline to answer*). Reason 1 means they won't answer.
+      Reason 2 means the inquisitor's filters should have stopped the
+      question, and filter names the filter that should have;
+    - "agree": the person agrees with the recorded answer shown beside
+      the question;
+    - "edit": a relay post's new text.
     text: the answer, the question asked back or the edited post's text,
     for "answer", "ask" and "edit". place: the person's pick of a place
     other than the one the question concerns, for the question's record.
-    recorded_in: for a reason 2, filter 1 decline, the URL its post links
-    to. note: the person's note for the miss a reason 2 decline logs.
+    recorded_in: for a reason 2 decline by filter 1, the URL of the record
+    that the decline's post links to. note: the person's note for the miss a reason 2 decline logs.
     unasked: with reason 2 and filter 3 on an agent's question, filter 3's
     "the agent shouldn't have asked": the core posts nothing and logs a
     filter 3 miss against the asking agent; it refuses unasked with any
-    other reason or filter."""
+    other reason or filter. revision: the rephrasing the person accepted,
+    with action "answer" only; the core refuses it with any other action.
+    The post carries its `Rephrased question: ` and `Discussion: ` lines.
+    The core keeps the revision, with the answer, only once a post request
+    names this preview, whether the post goes out then or is kept pending.
+    The rephrasing reaches the core no other way."""
 
     command: Literal["preview"]
     session_id: str
@@ -335,6 +332,7 @@ class PreviewRequest(TypedDict):
     recorded_in: NotRequired[str]
     note: NotRequired[str]
     unasked: NotRequired[bool]
+    revision: NotRequired[Revision]
 
 
 class PostRequest(TypedDict):
@@ -354,7 +352,7 @@ class ReopenRequest(TypedDict):
 
 Request = (OpenRequest | SessionRequest | SetupSaveRequest | SetupGuessRequest
            | SetupCreateLoreRequest | VerdictRequest | TurnEndRequest | DiscussionRequest
-           | ReviseRequest | SetAsideRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
+           | SetAsideRequest | ContextRequest | ScreenRequest | PreviewRequest | PostRequest
            | ReopenRequest)
 
 
@@ -523,7 +521,7 @@ class PendingResponse(TypedDict):
 
 class DoneResponse(TypedDict):
     """The response to the commands close (a SessionRequest),
-    discussion.append, discussion.revise, set-aside, screen.set, reopen
+    discussion.append, set-aside, screen.set, reopen
     and setup.create-lore."""
 
     version: int
