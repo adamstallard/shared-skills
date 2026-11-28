@@ -1,6 +1,6 @@
 Section 0's measurements need no approval and can run first. The rest is
 the implementation, built on this branch once the spec is approved. Every test tags the scenario it checks with `@scenario <capability>:
-<Scenario name>`, where `<capability>` is `sequencer` or `inquisitor` (spec-trace).
+<Scenario name>`, where `<capability>` is `sequencer` (spec-trace).
 
 ## 0. Measure before building
 
@@ -67,9 +67,9 @@ remove the question from design.md.
       says plainly what it did not check* says
 - [ ] 2.8 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.9 Count an edge only when a writer opened every item whose text
-      sets it, counting each issue or pull request that an App's bot
-      opened as opened by a writer, as *An App's bot account counts as a
-      writer* says, and list the rest as not counted
+      sets it, counting each issue or pull request that a trusted App's
+      bot opened as opened by a writer, as *Only the Apps the workflow
+      trusts count as writers* says, and list the rest as not counted
 - [ ] 2.10 List links to outside items, as *A link to an outside item is
       listed as not counted* says
 - [ ] 2.11 Tie issues to pull requests: place each issue with its pull
@@ -112,7 +112,8 @@ remove the question from design.md.
       cycle overrides, and have the skill tell an agent in a session to
       record a person's choice by posting `#<n> first` there with the
       person's own `gh` login, or, in a project whose agents act as a
-      GitHub App through the github-app skill, as that App
+      GitHub App through the github-app skill, to ask the person to post
+      it, since an App's comments override nothing
 
 ## 5. The CI workflow
 
@@ -128,7 +129,8 @@ remove the question from design.md.
       *An API key's model step runs only on events that can change a pair* names; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
-      existing file without `--force`
+      existing file without `--force`, and filling the template's
+      `trusted-apps` setting from the github-app skill's identities
 - [ ] 5.4 Run the workflow in this repository
 
 ## 6. Docs
@@ -137,18 +139,6 @@ remove the question from design.md.
       model step, the commands, the identity a session's `publish` runs as
       (the App's, through the github-app skill, in a project wired to
       one), the `Part of` line for a pull request that does only part
-      of an issue's work
+      of an issue's work, and that the agent proposes the workflow
+      `setup-ci` wrote, with its `trusted-apps` setting, in a pull request
 - [ ] 6.2 The README's skills table
-
-## 7. The inquisitor's exception for sequencer blocks
-
-This change carries a delta on the inquisitor spec, since the sequencer
-makes the edits it covers; the code goes in the inquisitor's script.
-
-- [ ] 7.1 Keep a numbered `Inquisitor: ` reply in force across an edit
-      that only added sequencer blocks, changed them between their
-      markers, or changed blank lines, comparing the body now with the
-      body the reply saw: the `diff` of the newest `userContentEdits`
-      entry whose `editedAt` is before the reply was posted, as the
-      inquisitor spec's *A sequencer block's update keeps a numbered
-      reply* says

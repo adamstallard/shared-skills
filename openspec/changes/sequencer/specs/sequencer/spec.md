@@ -8,7 +8,7 @@ code calls another change's code is built after it, needs a model, and
 runs only where one is available. The script publishes the order in one
 issue's body and a block in each ordered item's body, and names each
 reviewer's next review. It orders a cycle by a fixed rule, which a
-writer can override. It recommends and never merges.
+person who is a writer can override. It recommends and never merges.
 
 These terms hold throughout this spec:
 
@@ -62,8 +62,9 @@ These terms hold throughout this spec:
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question, or a GitHub App's bot account
-  (*An App's bot account counts as a writer*).
+  holds the item or comment in question, or, within the limits of *Only
+  the Apps the workflow trusts count as writers*, a trusted App's bot
+  account.
 - **A statement of a read not made** is one of the sentences that *A token
   that cannot read permissions counts writers by association* and
   *Relations the token cannot read are named* write in the order's issue.
@@ -186,9 +187,10 @@ them, but edges between the issue and them SHALL be dropped.
   alone, and #48's line lists its tie to #43 as not counted, opened by
   `zed`, and #48's line does not say `tied to no issue`
 
-#### Scenario: An App's pull request counts as a writer's
+#### Scenario: A trusted App's pull request counts as a writer's
 
-- **WHEN** `octo-agent[bot]`, a GitHub App's bot account, opens #90, #90's body holds the line `Part of #43`, and no other pull
+- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` opens #90, #90's body holds the line `Part of #43`, and no other pull
   request is tied to #43
 - **THEN** #43 shares #90's place
 
@@ -520,20 +522,51 @@ association.`
 - **THEN** #82 counts as opened by a writer, and the order's issue says
   `Permissions were not read: writers are counted by author association.`
 
-### Requirement: An App's bot account counts as a writer
+### Requirement: Only the Apps the workflow trusts count as writers
 
-The script SHALL count as a writer, for each issue, pull request, review
-or comment it authored, any GitHub App's bot account: a `<slug>[bot]`
-login whose user type is `Bot`, since an App acts only on repositories
-where the repository's owner or an admin installed it.
+The script SHALL count as a writer the bot account `<slug>[bot]` of each
+App whose slug the workflow's `trusted-apps` setting lists, for the issues
+and pull requests that bot opens and the reviews it submits but never for
+its comments, and no other App's bot account.
 
-#### Scenario: An App's comment overrides a cycle
+#### Scenario: An App the workflow does not list is no writer
 
-- **WHEN** #82 and #90, opened in that order, form a cycle, and
-  `octo-agent[bot]`, a GitHub App's bot account, comments `#90 first` on
-  the order's issue in a later minute than the order's issue first listed
-  the cycle
-- **THEN** the order puts #90 before #82
+- **WHEN** the workflow's `trusted-apps` setting lists only `octo-agent`,
+  and `zed-app[bot]` opened #131
+- **THEN** #131 counts as opened by no writer
+
+### Requirement: The trusted Apps are read from the default branch's workflow
+
+The workflow's `trusted-apps` setting is a space-separated list of App
+slugs in the top-level `env:` entry `SEQUENCER_TRUSTED_APPS` of
+`.github/workflows/sequencer.yml`. Whoever runs the script, it SHALL read
+the setting from the default branch's file, never from a pull request's
+head, and with no such file SHALL trust no App.
+
+#### Scenario: A pull request cannot trust its own App
+
+- **WHEN** `zed-app[bot]` opens #132, whose branch adds `zed-app` to the
+  workflow's `trusted-apps` setting, which the default branch's workflow
+  does not list
+- **THEN** #132 counts as opened by no writer
+
+### Requirement: setup-ci trusts the Apps of the github-app skill's identities
+
+`setup-ci` SHALL fill the workflow's `trusted-apps` setting with the slug
+of each App, among those the github-app skill holds an identity for on the
+machine, whose installation token can read the repository `setup-ci`
+writes the workflow for. It SHALL take
+the slug from the `<slug>[bot]` name in the identity's `<identity>.bot.json`, and
+leave the setting empty when no App qualifies.
+
+#### Scenario: setup-ci lists the App of a github-app identity
+
+- **WHEN** github-app's state directory holds `agent.bot.json`, whose name
+  is `octo-agent[bot]`, and `relay.bot.json`, whose name is
+  `relay-app[bot]`; `agent`'s installation token can read the repository
+  and `relay`'s cannot; and `setup-ci` runs
+- **THEN** the workflow it writes lists `octo-agent`, and not `relay-app`,
+  in `trusted-apps`
 
 ### Requirement: Other callers follow the fallbacks the workflow wrote
 
@@ -627,9 +660,10 @@ opened the item setting it.
   neither body gets a block, and the order's issue lists `#120 after #9`
   as not counted, opened by `zed`
 
-#### Scenario: An App's issue sets an edge
+#### Scenario: A trusted App's issue sets an edge
 
-- **WHEN** `octo-agent[bot]`, a GitHub App's bot account, opens issue #130, and #130's body holds the line `Depends on #9`
+- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` opens issue #130, and #130's body holds the line `Depends on #9`
 - **THEN** #130 comes after #9, and the order holds both
 
 #### Scenario: A citation set by an outside author's title is not counted
@@ -729,11 +763,11 @@ SHALL say so in its reason.
 ### Requirement: A cycle override is read from the order's issue
 
 A run SHALL read a comment on the order's issue as an override when a
-writer posted it in a later UTC minute than the cycle's `since` time, and
-it starts with `#<n> first`, naming one of the cycle's members. Of several,
-the one posted latest is the override. The order SHALL put that member
-first and the rest earliest opened first, the member's reason SHALL end
-`chosen at <link to the comment>`, and the cycle's mark SHALL become
+writer posted it from their own account, not as an App, in a later UTC
+minute than the cycle's `since` time, starting with `#<n> first`, naming
+one of the cycle's members; the latest counts. The order SHALL put that
+member first and the rest earliest opened first, the member's reason SHALL
+end `chosen at <link to the comment>`, and the cycle's mark SHALL become
 `ordered by override since <time>`, with the same time as before.
 
 #### Scenario: A writer's comment overrides the rule
@@ -769,6 +803,13 @@ first and the rest earliest opened first, the member's reason SHALL end
 - **WHEN** a writer commented `#85 first` on the order's
   issue before the cycle of #85 and #90 was listed
 - **THEN** that comment leaves the cycle ordered by rule
+
+#### Scenario: A comment an App posts overrides nothing
+
+- **WHEN** the workflow's `trusted-apps` setting lists `relay-app`, and
+  `relay-app[bot]` posts `#85 first` on the order's issue, as when it relays
+  a person's reply
+- **THEN** the cycle stays ordered by rule
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -974,10 +1015,8 @@ read failed.
 ### Requirement: The whole order lives in one issue's body
 
 The script SHALL keep the whole order in the body of the open issue
-labelled `sequencer`, creating it when none is open, but only when the
-account it runs as is a writer, and publishing nothing when more than one
-is. It SHALL
-use that issue only when a writer opened it;
+labelled `sequencer`, creating it when none is open and publishing nothing when more than one is. It SHALL
+use that issue only when a writer opened it, or `github-actions[bot]`;
 otherwise it SHALL publish nothing and name the issue, its author and why
 its author is not a writer.
 Nothing of the order
@@ -1014,10 +1053,17 @@ SHALL go in a comment.
   code edge from its body, edits nothing, and names the issue, its author
   and that its author is not a writer
 
+### Requirement: Only a writer's account or the workflow creates the order's issue
+
+The script SHALL create the order's issue only as a writer or as
+`github-actions[bot]`, since a run uses the order's issue only when a
+writer or `github-actions[bot]` opened it.
+
 #### Scenario: No order issue is created that would be refused
 
-- **WHEN** no issue labelled `sequencer` is open, and the script runs in a
-  session of `zed`, without write access
+- **WHEN** no issue labelled `sequencer` is open, and the script runs as
+  `zed-app[bot]`, whose App the workflow's `trusted-apps` setting does not
+  list
 - **THEN** it opens no issue, publishes nothing, and says that a writer or
   the workflow must open it
 
@@ -1284,11 +1330,11 @@ its head, it SHALL await that reviewer or team again.
   writer who is not #96's author, submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`, and is not its next review
 
-#### Scenario: An App's review ends a team's wait
+#### Scenario: A trusted App's review ends a team's wait
 
-- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and
-  `octo-agent[bot]`, a GitHub App's bot account, submits a review of #96's
-  head commit
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, the
+  workflow's `trusted-apps` setting lists `octo-agent`, and
+  `octo-agent[bot]` submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
