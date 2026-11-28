@@ -216,10 +216,8 @@ class Offline(Base):
         # filter1 labels with Checks(offline=True) for a question with a
         # category, which must then reach nothing off the machine.
         f = bf(answer_file(1, recorded_in=f"openspec/changes/retry/design.md@{SHA}"))
-        with mock.patch.object(branches, "landed", return_value=True), \
-                mock.patch.object(branch_search, "gh_json", return_value=[{"merged_at": "x"}]):
-            hits = {h.hit["path"]: h.hit for h in label_branch([f], "o/api", False, Checks(offline=True),
-                                                               clone=Path("/nonexistent"))}
+        with mock.patch.object(branch_search, "gh_json", return_value=[{"merged_at": "x"}]):
+            hits = {h.hit["path"]: h.hit for h in label_branch([f], "o/api", False, Checks(offline=True))}
         self.assertEqual((hits[f.path].get("reason"), hits[f.path]["landed"]), ("unconfirmed", False))
         self.assertEqual(self.fake.calls, [])
 
@@ -374,16 +372,11 @@ class Landed(Base):
                 return {"path": "openspec/changes/retry/design.md"}
             return None
 
-        with mock.patch.object(branches, "landed", return_value=True), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            hits = self.labels([pinned, own], clone=Path("/nonexistent"))
+        with mock.patch.object(branch_search, "gh_json", side_effect=gh):
+            hits = self.labels([pinned, own])
         self.assertIs(hits[pinned.path]["landed"], True)
         self.assertIsNone(hits[own.path]["landed"])
-        with mock.patch.object(branch_search, "gh_json", side_effect=gh), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
-            self.assertIs(self.labels([pinned])[pinned.path]["landed"], True)
-        with mock.patch.object(branch_search, "gh_json", return_value=None), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
+        with mock.patch.object(branch_search, "gh_json", return_value=None):
             self.assertIs(self.labels([pinned])[pinned.path]["landed"], False)
         compare = {"repos/o/api": {"default_branch": "main"},
                    f"repos/o/api/compare/{SHA}...main": {"status": "identical"}}
@@ -391,24 +384,14 @@ class Landed(Base):
         def compared(args: list[str]) -> Any:
             return compare.get(args[1])
 
-        with mock.patch.object(branch_search, "gh_json", side_effect=compared), \
-                mock.patch.object(branch_search, "_origin", return_value=None):
+        with mock.patch.object(branch_search, "gh_json", side_effect=compared):
             self.assertIs(self.labels([pinned])[pinned.path]["landed"], True)
         for pulls, contents in (([{"merged_at": "x"}], None), ([{"merged_at": None}], {"path": "p"})):
             def partial(args: list[str], pulls: Any = pulls, contents: Any = contents) -> Any:
                 joined = " ".join(args)
                 return pulls if joined.endswith("/pulls") else contents if "/contents/" in joined else None
-            with mock.patch.object(branch_search, "gh_json", side_effect=partial), \
-                    mock.patch.object(branch_search, "_origin", return_value=None):
+            with mock.patch.object(branch_search, "gh_json", side_effect=partial):
                 self.assertIs(self.labels([pinned])[pinned.path]["landed"], False)
-        with mock.patch.object(branches, "landed", return_value=False), \
-                mock.patch.object(branch_search, "gh_json", return_value=None), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], False)
-        with mock.patch.object(branches, "landed", return_value=None), \
-                mock.patch.object(branch_search, "gh_json", side_effect=compared), \
-                mock.patch.object(branch_search, "_origin", return_value="o/api"):
-            self.assertIs(self.labels([pinned], clone=Path("/nonexistent"))[pinned.path]["landed"], True)
         for hit in hits.values():
             self.assertIn(hit.get("reason", "input"),
                           ("unconfirmed", "unanswered", "miss", "superseded", "unreadable", "input"))
@@ -418,12 +401,9 @@ def run_command(fn: Any, args: Any, files: list[BF] | None, stdin: str = "") -> 
     """Run a command with the branch's files, returning its parsed JSON."""
     home = tempfile.mkdtemp()
     out = io.StringIO()
-    fetched = files is not None
     with mock.patch.dict(os.environ, {"HOME": home, "XDG_STATE_HOME": home}), \
-            mock.patch.object(branches, "fetch", return_value=fetched), \
             mock.patch.object(branches, "list_files", return_value=files), \
             mock.patch.object(branch_search, "is_lore_repository", return_value=False), \
-            mock.patch.object(branch_search, "checkout", return_value=Path(home)), \
             mock.patch("sys.stdin", io.StringIO(stdin)), redirect_stdout(out):
         code = fn(args)
     assert code == 0
@@ -460,19 +440,10 @@ class Commands(Base):
             with redirect_stdout(out), self.assertRaises(Refused):
                 run_command(fn, args, None)
             self.assertEqual(out.getvalue(), "")
-        f = bf(question_file(1))
-        self.assertIsNone(branch_search.read_branch("o/api", None, True))
-        self.assertIsNone(branch_search.read_branch("o/../x", Path("/x"), True))
-        args = branch_search.BranchSearchArgs("o/api")
-        with mock.patch.object(branch_search, "checkout", return_value=None), \
-                mock.patch.object(branches, "list_files", return_value=[f]), \
-                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
-            branch_search.run_branch_search(args)
-        with mock.patch.object(branch_search, "checkout", return_value=Path("/x")), \
-                mock.patch.object(branches, "fetch", return_value=False), \
-                mock.patch.object(branches, "list_files", return_value=[f]), \
-                mock.patch("sys.stdin", io.StringIO("Q?")), self.assertRaises(Refused):
-            branch_search.run_branch_search(args)
+        with mock.patch.object(branches, "list_files", return_value=[]) as listed:
+            self.assertIsNone(branch_search.read_branch("o/../x"))
+            self.assertEqual(branch_search.read_branch("o/api"), [])
+        listed.assert_called_once_with("o/api")
 
     def test_miss_check(self) -> None:
         # @scenario inquisitor: The miss check says only whether the reply is backed

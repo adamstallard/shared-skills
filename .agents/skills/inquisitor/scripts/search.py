@@ -426,9 +426,10 @@ def subscribed_clone(repository: str) -> Path:
 
 def filter1(question: QuestionIn, service: bool) -> SearchResult:
     """Filter 1's results for one question. service: read only the answer
-    service's clones as last fetched, run no git fetch, and read issues only
-    of repositories those clones hold. Outside an Igor's run it reads the configured
-    lore clones; in one (common.igor_run()) it searches lore only through
+    service's clones as last fetched, run no git fetch, and read questions
+    branches (through GitHub's API) and issues only of the repositories
+    those clones hold. Outside an Igor's run (common.igor_run() is None) it
+    reads the configured lore clones; in one it searches lore only through
     `igor lore-search`. A question with a category is searched on the
     machine only: no fetch and no GitHub call."""
     cfg = config.load()
@@ -442,7 +443,6 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
     hits: list[SearchHit] = []
     not_searched: list[str] = []
     clones: list[CloneFreshness] = []
-    fetch = not service and not offline
     if run is not None:
         sys.stderr.write(f"inquisitor: {IGOR_NOTE}\n")
 
@@ -496,9 +496,8 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             # as a lore branch.
             configured = {lore.repository for lore in cfg.lore}
             served = {lore.repository for lore in serving(cfg.lore, concerns)}
-            if run is None and repo not in served:
-                hits += _branch(repo, repo in configured, clone if service else work,
-                                service, fetch, checks, wanted, work, not_searched)
+            if run is None and repo not in served and not (service and clone is None):
+                hits += _branch(repo, repo in configured, checks, wanted, work, not_searched)
             elif run is not None:
                 not_searched.append(f"questions branch of {repo}: {IGOR_NOTE}; searched through "
                                     "igor lore-search")
@@ -543,8 +542,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
             if lore.repository is None:
                 not_searched.append(f"questions branch of {name}: its origin is not a GitHub repository")
             else:
-                hits += _branch(lore.repository, True, clone, service, fetch, checks, wanted, work,
-                                not_searched)
+                hits += _branch(lore.repository, True, checks, wanted, work, not_searched)
                 not_searched.append(f"decision records of {lore.repository}: igor's scribe's record "
                                     "path (igor PR #202) is not set")
 
@@ -577,17 +575,20 @@ def _worker_docs(work: Path | None, repo: str, wanted: set[str]) -> list[SearchH
             + doc_hits(other, wanted, repo, "input", "on a work branch, which answers only its own work"))
 
 
-def _branch(repository: str, lore_branch: bool, clone: Path | None, service: bool, fetch: bool,
-            checks: Checks, wanted: set[str], work: Path | None, not_searched: list[str]) -> list[SearchHit]:
-    """One questions branch's hits, fetched first unless fetch is False."""
-    if clone is None and service:
+def _branch(repository: str, lore_branch: bool, checks: Checks, wanted: set[str],
+            work: Path | None, not_searched: list[str]) -> list[SearchHit]:
+    """One questions branch's hits, read through GitHub's API. A question
+    with a category (checks.offline) asks GitHub nothing, so its search
+    reads no questions branch."""
+    if checks.offline:
+        not_searched.append(f"questions branch of {repository}: the question has a category, "
+                            "so nothing off the machine is searched")
         return []
-    files = read_branch(repository, clone, fetch)
+    files = read_branch(repository)
     if files is None:
-        not_searched.append(f"questions branch of {repository}: it cannot be fetched or read"
-                            + ("" if clone else " without a local git repository"))
+        not_searched.append(f"questions branch of {repository}: it cannot be read")
         return []
-    labelled = label_branch(files, repository, lore_branch, checks, clone=clone)
+    labelled = label_branch(files, repository, lore_branch, checks)
     return branch_hits(labelled, wanted, repository, work)
 
 

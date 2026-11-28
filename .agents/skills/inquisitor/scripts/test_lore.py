@@ -107,7 +107,6 @@ class Command(unittest.TestCase):
         patches = [
             mock.patch.object(config, "load", self.load),
             mock.patch.object(github, "visibility", self.visibility),
-            mock.patch.object(branches, "fetch", self.fetch),
             mock.patch.object(branches, "list_files", self.list_files),
             mock.patch.object(lore, "run_gh", self.run_gh),
         ]
@@ -125,11 +124,8 @@ class Command(unittest.TestCase):
     def visibility(self, repository: str) -> github.Visibility | None:
         return self.vis.get(repository)
 
-    def fetch(self, clone: Path, repository: str) -> bool:
-        return True
-
-    def list_files(self, clone: Path, repository: str | None = None) -> list[branches.BranchFile]:
-        return self.branch.get(repository or "", [])
+    def list_files(self, repository: str) -> list[branches.BranchFile]:
+        return self.branch.get(repository, [])
 
     def run_gh(self, args: list[str]) -> tuple[int, str, str]:
         self.gh.append(args)

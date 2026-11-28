@@ -82,7 +82,7 @@ class Base(unittest.TestCase):
         self.issues: Any = []
         self.pr: Any = None
         self.branch_files: dict[str, list[BF] | None] = {}
-        self.fetched: list[str] = []
+        self.read: list[str] = []
         self.igor_input: list[str] = []
         patches = [
             mock.patch.object(github, "write_access", self.fake.write_access),
@@ -91,7 +91,6 @@ class Base(unittest.TestCase):
             mock.patch.object(github, "session_login", self.session_login),
             mock.patch.object(search, "gh_json", self.gh_json),
             mock.patch.object(search, "_gh_in", self.gh_in),
-            mock.patch.object(branches, "fetch", self.fetch),
             mock.patch.object(branches, "list_files", self.list_files),
         ]
         for p in patches:
@@ -112,12 +111,9 @@ class Base(unittest.TestCase):
     def gh_in(self, directory: Path, args: list[str]) -> Any:
         return self.pr
 
-    def fetch(self, clone: Path, repository: str) -> bool:
-        self.fetched.append(repository)
-        return self.branch_files.get(repository, []) is not None
-
-    def list_files(self, clone: Path, repository: str | None = None) -> list[BF] | None:
-        return self.branch_files.get(repository or "", [])
+    def list_files(self, repository: str) -> list[BF] | None:
+        self.read.append(repository)
+        return self.branch_files.get(repository, [])
 
     def configure(self, lore: list[dict[str, Any]], login: str | None = None) -> None:
         path = self.home / ".config" / "shared-skills" / "inquisitor.json"
@@ -227,7 +223,7 @@ class Lore(Base):
         hits = [h for h in search.filter1(q(repository="o/api"), False)["hits"]
                 if h["source"] == "questions-branch"]
         self.assertEqual([(h["where"], h["label"]) for h in hits], [("questions/" + f.name, "decision")])
-        self.assertIn("o/lore", self.fetched)
+        self.assertIn("o/lore", self.read)
 
     def test_question_about_a_lore_repository(self) -> None:
         # @scenario inquisitor: A lore repository's questions are searched
@@ -311,7 +307,7 @@ class Repository(Base):
         self.assertEqual(r["hits"][0]["label"], "decision")
         self.assertIn("questions/" + f.name, self.where(r))
         self.assertNotIn("NOTES.md", self.where(r))
-        self.assertIn("o/api", self.fetched)
+        self.assertIn("o/api", self.read)
 
     def test_work_branch(self) -> None:
         # @scenario inquisitor: The current change's own decision answers within that change
@@ -375,9 +371,12 @@ class Repository(Base):
         self.configure([], login="alice")
         self.pr = {"author": {"login": "alice"}, "isCrossRepository": False}
         question: QuestionIn = {**q(repository="o/api"), "category": "secret"}
-        hit = next(h for h in search.filter1(question, False)["hits"]
-                   if h["where"] == "openspec/changes/retry/specs/r/spec.md")
+        r = search.filter1(question, False)
+        hit = next(h for h in r["hits"] if h["where"] == "openspec/changes/retry/specs/r/spec.md")
         self.assertEqual(hit["label"], "input")
+        self.assertEqual(self.read, [])
+        self.assertIn("questions branch of o/api: the question has a category, so nothing off the "
+                      "machine is searched", r["not_searched"])
 
     def test_issue_limit_is_named(self) -> None:
         # @scenario inquisitor: An unsearched source is named
@@ -459,7 +458,7 @@ class Igor(Base):
         self.assertIn(search.IGOR_NOTE, err.getvalue())
         self.assertTrue(any(search.IGOR_NOTE in s for s in r["not_searched"]))
         self.assertEqual(r["clones"], [])
-        self.assertEqual(self.fetched, [])
+        self.assertEqual(self.read, [])
 
     def test_worker(self) -> None:
         # @scenario inquisitor: An Igor worker whose igor search fails searches no lore
@@ -475,7 +474,7 @@ class Igor(Base):
         self.assertEqual(self.where(r), ["openspec/specs/r/spec.md"])
         self.assertTrue(any("igor lore-search failed" in s for s in r["not_searched"]))
         self.assertTrue(any(s.startswith("issues of o/api") for s in r["not_searched"]))
-        self.assertEqual(self.fetched, [])
+        self.assertEqual(self.read, [])
 
 
 class WorkerOtherRepository(Igor):
@@ -560,7 +559,7 @@ class Command(Base):
         self.assertEqual(set(r), {"version", "hits", "not_searched", "clones", "left_out"})
         self.assertEqual(self.where(r), ["openspec/specs/r/spec.md"])
         self.assertEqual(r["clones"][0]["repository"], "o/web")
-        self.assertEqual(self.fetched, [])
+        self.assertEqual(self.read, ["o/web"])  # through GitHub's API, writing nothing
         self.assertEqual(set(self.home.rglob("*")), before)
         f = LogFile(name="2026-10-01-should-retries-back-off-000001.md", asked="2026-10-01",
                     question="Should retries back off?", repository="o/web", asked_from="o/web")
