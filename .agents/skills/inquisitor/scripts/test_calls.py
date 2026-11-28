@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from unittest import mock
@@ -17,7 +18,7 @@ import calls
 import config
 from common import Refused, verdicts_dir
 from contracts import QuestionIn, SearchResult
-from qtext import Question, question_hash, question_text
+from qtext import FoundQuestion, Question, find_questions, question_hash, question_text
 
 TOKEN = "ghp_" + "a" * 36
 
@@ -165,6 +166,26 @@ class FirstCall(Base):
         with self.assertRaises(Refused):
             calls.run(calls.VetArgs(post=post))
 
+    def test_related_or_tag_line_after_a_line_ending_no_question_refused(self) -> None:
+        # @scenario inquisitor: A Related or tag line after a line ending no question is scanned
+        # A line starting `Related:` or `@` that holds a credential is refused in three
+        # places: after a statement with a question later, after a statement at the post's
+        # end, and indented in a list. Such lines without a credential pass.
+        for line in (f"Related: https://x/?token={TOKEN}", f"@{TOKEN}"):
+            post = self.file(f"We chose backoff.\n{line}\n\nShould retries cap?\n")
+            with self.assertRaises(Refused) as cm:
+                calls.run(calls.VetArgs(post=post, repository="o/api"))
+            self.assertNotIn(TOKEN, str(cm.exception))
+        post = self.file(f"We chose backoff.\nRelated: https://x/?token={TOKEN}\n")
+        with self.assertRaises(Refused):
+            calls.run(calls.VetArgs(post=post, repository="o/api"))
+        post = self.file(f"- We chose backoff.\n  Related: https://x/?token={TOKEN}\n")
+        with self.assertRaises(Refused):
+            calls.run(calls.VetArgs(post=post, repository="o/api"))
+        post = self.file("We chose backoff.\nRelated: https://x/pull/1\n@alice\n\nShould retries cap?\n")
+        _, objs = self.run_vet(calls.VetArgs(post=post, repository="o/api"))
+        self.assertEqual(len(objs[-1]["questions"]), 1)
+
     def test_post_questions_and_concerns(self) -> None:
         # @scenario inquisitor: A question about another repository names it
         post = self.file("## Open questions\n\n- Should retries back off?\n  Concerns: o/web\n"
@@ -172,6 +193,7 @@ class FirstCall(Base):
         _, objs = self.run_vet(calls.VetArgs(post=post, repository="o/api"))
         out = objs[-1]
         self.assertEqual([q["item"] for q in out["questions"]], [1, 2, None])
+        self.assertEqual([q["deferred"] for q in out["questions"]], [False, False, False])
         self.assertEqual(out["questions"][0]["hash"], question_hash("Should retries back off?"))
         token = json.loads((self.state / "inquisitor" / "tokens" / f"{out['token']}.json").read_text())
         self.assertEqual(token["questions"][0]["concerns"], {"repository": "o/web", "asked_from": "o/api"})
@@ -373,6 +395,22 @@ class RecordLine(Base):
         result = self.second(out["token"], [{"question": 1, "verdict": "ask", "field": {
             "recommended": "Back off.", "changes": "No: hammering."}}])
         self.assertNotIn("record_line", result["lines"][0])
+        _, out = self.first([{"kind": "text", "question": "Retry?", "concerns": {"repository": "o/api"}}])
+        result = self.second(out["token"], [{"question": 1, "verdict": "ask", "field": {
+            "recommended": "Back off.", "changes": "No: hammering."}}])
+        self.assertNotIn("record_line", result["lines"][0])
+
+    def test_no_picker_ask_reads_no_configuration(self) -> None:
+        # @scenario inquisitor: The picker shows where the answer will be recorded
+        # Only a picker `ask` gets a record line, and only that line reads the configuration:
+        # a second call with no picker `ask` succeeds even when the configuration is broken.
+        _, out = self.first([{"kind": "text", "question": "Retry?", "concerns": {"repository": "o/api"}},
+                             picker("Cap?", ["Yes", "No"])])
+        with mock.patch("config.load", side_effect=Refused("broken configuration")):
+            result = self.second(out["token"], [
+                {"question": 1, "verdict": "ask", "field": {"recommended": "Back off.", "changes": "No: x."}},
+                {"question": 2, "verdict": "decided", "field": {"where": "this PR"}}])
+        self.assertEqual([line["question"] for line in result["lines"]], [1])
 
 
 class ReadRecords(Base):
@@ -503,6 +541,16 @@ class OneTextOneRecord(Base):
             self.second(objs[-1]["token"], [{"question": 1, **ask}, {"question": 2, **ask}])
         self.assertEqual(self.records(), [])
 
+    def test_same_text_with_other_files_refused(self) -> None:
+        # @scenario inquisitor: Two questions with one text and different verdicts are refused
+        # (its requirement refuses differing files the same way; no scenario names files)
+        _, out = self.first([picker("Retry?", ["Yes", "No"], files=["a.py"]),
+                             picker("Retry?", ["Yes", "No"], files=["b.py"])])
+        ask = {"verdict": "ask", "field": {"recommended": "Yes", "changes": "No: x."}}
+        with self.assertRaises(Refused):
+            self.second(out["token"], [{"question": 1, **ask}, {"question": 2, **ask}])
+        self.assertEqual(self.records(), [])
+
     def test_same_text_with_and_without_category_refused(self) -> None:
         # @scenario inquisitor: A question holding a secret is recorded by hash only
         # (the same text without its category would leave a full record)
@@ -512,6 +560,94 @@ class OneTextOneRecord(Base):
         with self.assertRaises(Refused):
             self.second(out["token"], [{"question": 1, **ask}, {"question": 2, **ask}], stdin=True)
         self.assertEqual(self.records(), [])
+
+
+@dataclass(frozen=True)
+class _Found(FoundQuestion):
+    """A FoundQuestion with the in_code field that the shared parser's
+    two-readings change, a separate commit, adds. qtext's FoundQuestion has
+    no such field yet, and calls.py reads it with getattr, so this double
+    can stand in for that parser's results."""
+
+    in_code: bool = False
+
+
+def two_readings(body: str, in_code: bool = False) -> list[FoundQuestion]:
+    """A stand-in for find_questions(body, in_code=True): the real parser's
+    questions, then, with in_code, the last line of the body's first fenced
+    block as a question with in_code set, whatever that line says."""
+    found: list[FoundQuestion] = list(find_questions(body))
+    if in_code and "```" in body:
+        code = body.split("```")[1].strip().splitlines()[-1]
+        found.append(_Found(Question("post", code), None, False, raw=code, in_code=True))
+    return found
+
+
+class NotAsked(Base):
+    post = "Should retries back off?\n\n```\nwhy = 'Is this code?'\n```\n"
+
+    def setUp(self) -> None:
+        super().setUp()
+        p = mock.patch("calls.find_questions", two_readings)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def vet_post(self) -> tuple[str, dict[str, Any]]:
+        text, objs = self.run_vet(calls.VetArgs(post=self.file(self.post)))
+        return text, objs[-1]
+
+    def test_question_in_code_is_not_asked(self) -> None:
+        # @scenario inquisitor: A question in a code block is not asked
+        # @scenario inquisitor: A question in code is found by the plain reading alone
+        # @scenario inquisitor: Each verdict carries its field
+        # (`not asked` carries none; its record holds the version, hash, verdict and time only)
+        text, out = self.vet_post()
+        self.assertEqual([q["plain_only"] for q in out["questions"]], [False, True])
+        self.assertIn("found only reading code and HTML as text: `not asked` is open to it", text)
+        self.assertEqual(text.count("`not asked` is open to it"), 1)
+        ask = {"verdict": "ask", "field": {"recommended": "Yes.", "changes": "No: hammering."}}
+        result = self.second(out["token"], [{"question": 1, **ask},
+                                            {"question": 2, "verdict": "not asked"}])
+        self.assertEqual([line["question"] for line in result["lines"]], [1])
+        record = json.loads((verdicts_dir() / f"{out['questions'][1]['hash']}.json").read_text())
+        self.assertEqual(set(record), {"version", "hash", "verdict", "time"})
+        self.assertEqual(record["verdict"], "not asked")
+
+    def test_same_text_in_prose_and_code_keeps_one_record(self) -> None:
+        # @scenario inquisitor: Two questions with one text and different verdicts are refused
+        # The same text in running text and in code is one question text. When both get
+        # `ask`, they make one record; `ask` for one and `not asked` for the other differ in
+        # verdict, and are refused.
+        self.post = "Should retries back off?\n\n```\nShould retries back off?\n```\n"
+        _, out = self.vet_post()
+        ask = {"verdict": "ask", "field": {"recommended": "Yes.", "changes": "No: hammering."}}
+        with self.assertRaises(Refused):
+            self.second(out["token"], [{"question": 1, **ask}, {"question": 2, "verdict": "not asked"}])
+        self.second(out["token"], [{"question": 1, **ask}, {"question": 2, **ask}])
+        self.assertEqual(len(self.records()), 1)
+
+    def test_question_the_hiding_reading_finds_cannot_be_not_asked(self) -> None:
+        # @scenario inquisitor: A question the hiding reading finds cannot be not asked
+        # Also refused: `not asked` with a field or related, for a question from a questions
+        # input (here a picker, which is never plain_only), and for one with a category. Each refusal records nothing and keeps the token.
+        _, out = self.vet_post()
+        token = out["token"]
+        ask = {"question": 1, "verdict": "ask",
+               "field": {"recommended": "Yes.", "changes": "No: hammering."}}
+        for verdicts in ([{"question": 1, "verdict": "not asked"}, {"question": 2, "verdict": "not asked"}],
+                         [ask, {"question": 2, "verdict": "not asked", "field": {"where": "x"}}],
+                         [ask, {"question": 2, "verdict": "not asked", "related": "https://x/1"}]):
+            with self.assertRaises(Refused):
+                self.second(token, verdicts)
+        self.assertEqual(self.records(), [])
+        _, out = self.first([picker("Retry?", ["Yes", "No"])])
+        with self.assertRaises(Refused):
+            self.second(out["token"], [{"question": 1, "verdict": "not asked"}])
+        _, out = self.first([{**picker("Rotate it?", ["Yes", "No"]), "category": "secret"}], stdin=True)
+        with self.assertRaises(Refused):
+            self.second(out["token"], [{"question": 1, "verdict": "not asked"}], stdin=True)
+        self.assertEqual(self.records(), [])
+        self.assertTrue((self.state / "inquisitor" / "tokens" / f"{token}.json").exists())
 
 
 if __name__ == "__main__":

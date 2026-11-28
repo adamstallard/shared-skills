@@ -57,6 +57,7 @@ class FakeGitHub:
     commits: dict[str, Commit] = field(default_factory=lambda: {})
     heads: dict[tuple[str, str], str] = field(default_factory=lambda: {})
     repos: set[str] = field(default_factory=lambda: {"o/api", "o/lore"})
+    empty: set[str] = field(default_factory=lambda: set())
     calls: list[list[str]] = field(default_factory=lambda: [])
     fail: dict[str, str] = field(default_factory=lambda: {})
     before_ref: Callable[[], object] | None = None
@@ -154,7 +155,7 @@ class FakeGitHub:
         if "ref(qualifiedName" in query:
             head = self.heads.get((repository, v["ref"].removeprefix("refs/heads/")))
             if head is None:
-                repo = {"ref": None}
+                repo = {"isEmpty": repository in self.empty, "ref": None}
             else:
                 h = self.history(head, None)
                 tree = self.tree(self.commits[head].tree)
@@ -194,6 +195,9 @@ class FakeGitHub:
         if method == "GET" and what.startswith("git/blobs/"):
             data = self.blobs[parts[5]]
             return 0, json.dumps({"content": base64.b64encode(data).decode(), "encoding": "base64"}), ""
+        if repository in self.empty and method == "POST":
+            return 1, '{"message":"Git Repository is empty.","status":"409"}', \
+                "gh: Git Repository is empty. (HTTP 409)\n"
         if method == "POST" and what == "git/trees":
             files = dict(self.trees[body["base_tree"]]) if "base_tree" in body else {}
             for e in body["tree"]:
@@ -322,6 +326,34 @@ class Push(Fake):
         self.gh.before_ref = lambda: self.gh.add("o/api", "questions/" + OTHER.name, render(OTHER))
         self.assertTrue(self.push(PATH, render(QUESTION)).pushed)
         self.assertEqual(sorted(self.gh.files_of("o/api")), ["questions/" + OTHER.name, PATH])
+
+    def test_deleted_branch_is_created_again_as_an_orphan(self) -> None:
+        # @scenario inquisitor: A rejected push to the questions branch is retried
+        self.push("questions/" + OTHER.name, render(OTHER))
+        self.gh.before_ref = lambda: self.gh.heads.pop(("o/api", "questions"))
+        self.assertEqual(self.push(PATH, render(QUESTION)), branches.PushResult(pushed=True))
+        self.assertEqual(sorted(self.gh.files_of("o/api")), [PATH])
+        self.assertEqual(self.gh.last("o/api").parents, [])
+
+    def test_repository_with_no_commits_keeps_the_file_pending(self) -> None:
+        # @scenario inquisitor: A repository with no commits keeps the file pending
+        # (an agent's push, without the service option; the next test is the service's)
+        self.gh.repos.add("o/new")
+        self.gh.empty.add("o/new")
+        why = "o/new has no commits: it needs a first commit before its questions can be logged"
+        self.assertEqual(self.push(PATH, render(QUESTION), repository="o/new"),
+                         branches.PushResult(pushed=False, pending=True, why=why))
+        self.assertTrue((branches.pending_dir("o/new") / PATH).exists())
+        self.assertEqual(branches.list_files("o/new"), [])
+
+    def test_service_push_to_a_repository_with_no_commits_keeps_nothing(self) -> None:
+        # @scenario inquisitor: A file the answer service cannot push leaves no pending copy
+        self.gh.repos.add("o/new")
+        self.gh.empty.add("o/new")
+        why = "o/new has no commits: it needs a first commit before its questions can be logged"
+        self.assertEqual(self.push(PATH, render(QUESTION), repository="o/new", service=True),
+                         branches.PushResult(pushed=False, why=why))
+        self.assertFalse(branches.pending_dir("o/new").exists())
 
     def test_same_path_pushed_meanwhile_is_taken(self) -> None:
         # @scenario inquisitor: A file whose name the branch holds is not added
