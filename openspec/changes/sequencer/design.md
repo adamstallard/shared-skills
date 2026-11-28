@@ -18,5 +18,5 @@
   leaves out silently a relation to another repository's issue the token
   cannot see, the order's issue says that relations to other repositories
   may be missing. Permission reads
-  need no such test: a refused one is a `403`, and an account with no
-  access gets `200` `none` (`openspec/specs/inquisitor/decisions.md`).
+  need no such first read: a refused one is a `403`
+  (`openspec/specs/inquisitor/decisions.md`).

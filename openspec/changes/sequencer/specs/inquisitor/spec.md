@@ -63,7 +63,8 @@ revision of the body the reply saw, SHALL make the reply input.
   the issue's description, as it does when it starts ordering the issue
 - **THEN** the agent acts on the reply for the second item
 - **AND** a block removed when the sequencer stops ordering the issue
-  makes the reply input
+  makes the reply input, as does a block added above the open-questions
+  section or one holding a sentence ending in `?`
 
 #### Scenario: A reply whose body is gone from the edit history is input
 

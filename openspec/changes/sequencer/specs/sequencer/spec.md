@@ -8,7 +8,7 @@ code calls another change's code is built after it, needs a model, and
 runs only where one is available. The script publishes the order in one
 issue's body and a block in each ordered item's body, and names each
 reviewer's next review. It orders a cycle by a fixed rule, which a
-person can override. It recommends and never merges.
+writer can override. It recommends and never merges.
 
 These terms hold throughout this spec:
 
@@ -62,10 +62,8 @@ These terms hold throughout this spec:
   back to itself. **A merge wait**, set by *Pull requests that change the
   same files merge one after another*, is not an edge.
 - **A writer** is an account with write access to the repository that
-  holds the item or comment in question. A GitHub App's bot account counts
-  as a writer only for the issues and pull requests it opens and the
-  reviews it submits, never for its comments, when the workflow trusts
-  that App (*Only the Apps the workflow trusts count as writers*).
+  holds the item or comment in question, or a GitHub App's bot account
+  (*An App's bot account counts as a writer*).
 - **A statement of a read not made** is one of the sentences that *A token
   that cannot read permissions counts writers by association* and
   *Relations the token cannot read are named* write in the order's issue.
@@ -188,10 +186,9 @@ them, but edges between the issue and them SHALL be dropped.
   alone, and #48's line lists its tie to #43 as not counted, opened by
   `zed`, and #48's line does not say `tied to no issue`
 
-#### Scenario: A trusted App's pull request counts as a writer's
+#### Scenario: An App's pull request counts as a writer's
 
-- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
-  `octo-agent[bot]` opens #90, #90's body holds the line `Part of #43`, and no other pull
+- **WHEN** `octo-agent[bot]`, a GitHub App's bot account, opens #90, #90's body holds the line `Part of #43`, and no other pull
   request is tied to #43
 - **THEN** #43 shares #90's place
 
@@ -523,46 +520,20 @@ association.`
 - **THEN** #82 counts as opened by a writer, and the order's issue says
   `Permissions were not read: writers are counted by author association.`
 
-### Requirement: Only the Apps the workflow trusts count as writers
+### Requirement: An App's bot account counts as a writer
 
-The script SHALL count as a writer the bot account `<slug>[bot]` of each App whose slug the workflow's
-`trusted-apps` setting lists, and no other App's bot account. That setting
-is a space-separated list of App slugs in the top-level `env:` entry
-`SEQUENCER_TRUSTED_APPS` of `.github/workflows/sequencer.yml`. Whoever runs
-the script, it SHALL read the setting from the default branch's file,
-never from a pull request's head, and with no such file SHALL trust no
-App.
+The script SHALL count as a writer, for each issue, pull request, review
+or comment it authored, any GitHub App's bot account: a `<slug>[bot]`
+login whose user type is `Bot`, since an App acts only on repositories
+where the repository's owner or an admin installed it.
 
-#### Scenario: An App the workflow does not list is no writer
+#### Scenario: An App's comment overrides a cycle
 
-- **WHEN** the workflow's `trusted-apps` setting lists only `octo-agent`,
-  and `zed-app[bot]` opened #131
-- **THEN** #131 counts as opened by no writer
-
-#### Scenario: A pull request cannot trust its own App
-
-- **WHEN** `zed-app[bot]` opens #132, whose branch adds `zed-app` to the
-  workflow's `trusted-apps` setting, which the default branch's workflow
-  does not list
-- **THEN** #132 counts as opened by no writer
-
-### Requirement: setup-ci trusts the Apps of the github-app skill's identities
-
-`setup-ci` SHALL fill the workflow's `trusted-apps` setting with the slug
-of each App, among those the github-app skill holds an identity for on the
-machine, whose installation reaches the repository, as that skill's
-`check` lists each installation's repositories. It SHALL take the slug
-from the `<slug>[bot]` name in the identity's `<identity>.bot.json`, and
-leave the setting empty when no App qualifies.
-
-#### Scenario: setup-ci lists the App of a github-app identity
-
-- **WHEN** github-app's state directory holds `agent.bot.json`, whose name
-  is `octo-agent[bot]`, and `relay.bot.json`, whose name is
-  `relay-app[bot]`; `check` lists the repository among `agent`'s
-  installation's repositories and not among `relay`'s; and `setup-ci` runs
-- **THEN** the workflow it writes lists `octo-agent`, and not `relay-app`,
-  in `trusted-apps`
+- **WHEN** #82 and #90, opened in that order, form a cycle, and
+  `octo-agent[bot]`, a GitHub App's bot account, comments `#90 first` on
+  the order's issue in a later minute than the order's issue first listed
+  the cycle
+- **THEN** the order puts #90 before #82
 
 ### Requirement: Other callers follow the fallbacks the workflow wrote
 
@@ -656,10 +627,9 @@ opened the item setting it.
   neither body gets a block, and the order's issue lists `#120 after #9`
   as not counted, opened by `zed`
 
-#### Scenario: A trusted App's issue sets an edge
+#### Scenario: An App's issue sets an edge
 
-- **WHEN** the workflow's `trusted-apps` setting lists `octo-agent`, and
-  `octo-agent[bot]` opens issue #130, and #130's body holds the line `Depends on #9`
+- **WHEN** `octo-agent[bot]`, a GitHub App's bot account, opens issue #130, and #130's body holds the line `Depends on #9`
 - **THEN** #130 comes after #9, and the order holds both
 
 #### Scenario: A citation set by an outside author's title is not counted
@@ -799,12 +769,6 @@ first and the rest earliest opened first, the member's reason SHALL end
 - **WHEN** a writer commented `#85 first` on the order's
   issue before the cycle of #85 and #90 was listed
 - **THEN** that comment leaves the cycle ordered by rule
-
-#### Scenario: A comment an App posts overrides nothing
-
-- **WHEN** a GitHub App with write access posts `#85 first` on the order's
-  issue
-- **THEN** the cycle stays ordered by rule
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -1010,8 +974,10 @@ read failed.
 ### Requirement: The whole order lives in one issue's body
 
 The script SHALL keep the whole order in the body of the open issue
-labelled `sequencer`, creating it when none is open and publishing nothing when more than one is. It SHALL
-use that issue only when a writer opened it, or `github-actions[bot]`;
+labelled `sequencer`, creating it when none is open, but only when the
+account it runs as is a writer, and publishing nothing when more than one
+is. It SHALL
+use that issue only when a writer opened it;
 otherwise it SHALL publish nothing and name the issue, its author and why
 its author is not a writer.
 Nothing of the order
@@ -1048,18 +1014,11 @@ SHALL go in a comment.
   code edge from its body, edits nothing, and names the issue, its author
   and that its author is not a writer
 
-### Requirement: Only a writer's account or the workflow creates the order's issue
-
-The script SHALL create the order's issue only as a writer or as
-`github-actions[bot]`, since a run uses the order's issue only when a
-writer or `github-actions[bot]` opened it.
-
 #### Scenario: No order issue is created that would be refused
 
-- **WHEN** no issue labelled `sequencer` is open, and the script runs as
-  the bot account of an App the workflow's `trusted-apps` setting does not
-  list, other than `github-actions[bot]`
-- **THEN** it opens no issue, publishes nothing, and says that a person or
+- **WHEN** no issue labelled `sequencer` is open, and the script runs in a
+  session of `zed`, without write access
+- **THEN** it opens no issue, publishes nothing, and says that a writer or
   the workflow must open it
 
 ### Requirement: Broken markers in the order's issue stop the run
@@ -1325,11 +1284,11 @@ its head, it SHALL await that reviewer or team again.
   writer who is not #96's author, submits a review of #96's head commit
 - **THEN** #96 no longer awaits `@octo/docs`, and is not its next review
 
-#### Scenario: A trusted App's review ends a team's wait
+#### Scenario: An App's review ends a team's wait
 
-- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, the
-  workflow's `trusted-apps` setting lists `octo-agent`, and
-  `octo-agent[bot]` submits a review of #96's head commit
+- **WHEN** CODEOWNERS gives the team `@octo/docs` #96's files, and
+  `octo-agent[bot]`, a GitHub App's bot account, submits a review of #96's
+  head commit
 - **THEN** #96 no longer awaits `@octo/docs`
 
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
