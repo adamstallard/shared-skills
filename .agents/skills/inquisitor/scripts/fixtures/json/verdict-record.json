@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hash": "<sha256 of the question's text>",
+  "verdict": "ask",
+  "time": 1792483200.0,
+  "kind": "picker",
+  "field": {
+    "changes": "No: a failing upstream gets hammered."
+  },
+  "related": "https://github.com/o/api/pull/3",
+  "concerns": {
+    "repository": "o/api"
+  },
+  "files": [
+    "src/retry.py"
+  ]
+}

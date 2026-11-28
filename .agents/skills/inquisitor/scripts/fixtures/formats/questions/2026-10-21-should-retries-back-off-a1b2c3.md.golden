@@ -1,0 +1,16 @@
+---
+repository: "o/api"
+asked_from: "o/api"
+asked: "2026-10-21"
+answered_by: "alice"
+authority: "decision"
+recorded_in: "https://github.com/o/api/pull/12#issuecomment-1002"
+answer_link: "https://github.com/o/api/pull/12#issuecomment-1002"
+answers: "2026-10-20-should-retries-back-off-3f9a1c.md"
+---
+## Question
+Should retries back off?
+## Answer
+> Yes.
+>
+> ## Answer: quoted from the question

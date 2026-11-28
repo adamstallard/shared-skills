@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "question": {
+    "kind": "text",
+    "question": "Should retries back off?",
+    "concerns": {
+      "repository": "o/web"
+    }
+  }
+}

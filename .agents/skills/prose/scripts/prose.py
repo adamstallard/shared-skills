@@ -93,41 +93,22 @@ import time
 from typing import Callable, NamedTuple, Optional
 
 HERE = pathlib.Path(__file__).resolve().parent
-# How the hooks read a shell command and gh's flags: the reader shared with
-# spec-check's hand-back hook, in .agents/lib/gh-shell/ of the clone.
-# Only the posting hooks need it: without it, prose's other commands still
-# run, a command that may run gh is blocked with a message saying how to
-# restore the reader (use a full clone), and GitHub MCP posts are checked as
-# usual.
+# The shared post reader and command reader live in .agents/lib/gh-shell/
+# of the clone; the inquisitor's post hook and spec-check's hand-back hook
+# use them too. Only the posting hook (hook-post) and the first-call gate
+# (hook-gate) need them. Without them, prose's other commands still run, and
+# both hooks block every call that may post (see _may_post) with a message
+# saying how to reinstall shared-skills.
 GH_SHELL = HERE.parent.parent.parent / "lib" / "gh-shell"
 sys.path.insert(0, str(GH_SHELL))
 try:
-    from gh_shell import (  # noqa: E402
-        GITHUB_MCP,
-        BODY_FLAGS,
-        GH_VERBS,
-        SHORT_VALUES,
-        LONG_FLAGS,
-        COMMON_LONG,
-        BODY_SOURCES,
-        NO_SOURCES,
-        SOURCE,
-        NO_TEXT_VERBS,
-        _words,
-        DATA_COMMANDS,
-        GH_TEXT,
-        RESERVED,
-        CLOSERS,
-        _commands,
-        _gh_args,
-    )
     import gh_shell as READER  # noqa: E402
-    GH_SHELL_MISSING = False
+    import post_reader  # noqa: E402
+    from gh_shell import GITHUB_MCP  # noqa: E402
 except ImportError:
-    READER = None
-    GH_SHELL_MISSING = True
-    # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT, so MCP posts are still
-    # checked and a command naming gh is still caught. Change them with
+    READER = post_reader = None
+    # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT for _may_post, the only
+    # user of GH_TEXT, which runs only here. Keep them in step with
     # gh_shell.py's.
     GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
     GH_TEXT = re.compile(r"\bgh(?![\w-])")
@@ -1681,287 +1662,51 @@ def verify_post(text):
 # The posting hook
 # ---------------------------------------------------------------------------
 
-BODY_KEYS = {"body", "comment"}
+# Appended to each reason the shared reader gives for a post it cannot
+# read: how to post text the hook can check.
+SIGN_INTO_FILE = (
+    " To post longer text, sign it into a file and pass that: prose.py sign --goals "
+    "'...' prints the rules and a pass token; then prose.py sign --pass <token> < "
+    "draft.md > signed.md, and gh ... --body-file signed.md.")
+READER_MISSING = (
+    f"the shared command reader is missing (expected at {GH_SHELL}), so what this call "
+    "posts cannot be read. Fix the install first: reinstall shared-skills with "
+    "python3 ~/.claude/skills/manage-skills/scripts/skills.py doctor")
 
 
-class Unreadable:
-    """A body the hook cannot read from the command, and why."""
-
-    def __init__(self, why):
-        self.why = why
-
-
-ACCEPTED = (
-    "The hook reads a gh post only when gh is the whole command, with the body as "
-    "--body '<text>' (single quotes, or double quotes with no $, backtick or "
-    "backslash) or --body-file <a file that exists>. To post longer text, sign it "
-    "into a file and pass that: prose.py sign --goals '...' prints the rules and a "
-    "pass token; then prose.py sign --pass <token> < draft.md > signed.md, and "
-    "gh ... --body-file signed.md.")
-NOT_ALLOWED = Unreadable(
-    "this command is not one of the forms the hook reads, so what it posts cannot be "
-    "checked. " + ACCEPTED)
-FROM_STDIN = Unreadable("the text comes from stdin, so it cannot be checked. " + ACCEPTED)
-
-
-def body_fields(value, path=""):
-    """[(where, text)] for every body-like string in an MCP tool's input."""
-    found = []
-    if isinstance(value, dict):
-        for key, item in value.items():
-            where = f"{path}.{key}" if path else str(key)
-            if str(key).lower() in BODY_KEYS and isinstance(item, str) and item.strip():
-                found.append((where, item))
-            else:
-                found.extend(body_fields(item, where))
-    elif isinstance(value, list):
-        for index, item in enumerate(value):
-            found.extend(body_fields(item, f"{path}[{index}]"))
-    return found
-
-
-def _body_flag(args, i, flags, values="", sources=""):
-    """(flag, (text, kind) or None, index of the next arg) for args[i].
-
-    flag is None when args[i] is not a body flag, and SOURCE when it holds a
-    letter from sources, one that makes gh take the text from elsewhere.
-    Reads `--body x`, `--body=x`, and pflag's short forms: `-b x`, `-bx`,
-    `-b=x`, and a group such as `-db x`. values holds the verb's other short
-    letters that take a value. In a group, the first letter that takes a
-    value swallows the rest of the group as that value: in `-tb x`, `b` is
-    the title's text, not the body flag."""
-    arg, kind = args[i]
-    for name in flags:
-        if name.startswith("--"):
-            if arg == name:
-                return name, (args[i + 1] if i + 1 < len(args) else None), i + 2
-            if arg.startswith(name + "="):
-                return name, (arg[len(name) + 1:], kind), i + 1
-    if arg.startswith("-") and not arg.startswith("--") and len(arg) > 1:
-        shorts = {name[1] for name in flags if not name.startswith("--")}
-        for position in range(1, len(arg)):
-            letter, rest = arg[position], arg[position + 1:]
-            if letter == "=":
-                # pflag ends a group at `=`: `-d=t` is `--draft=t`.
-                return None, None, i + 1
-            if letter in shorts:
-                if rest:
-                    return f"-{letter}", (rest[1:] if rest.startswith("=") else rest, kind), i + 1
-                return f"-{letter}", (args[i + 1] if i + 1 < len(args) else None), i + 2
-            if letter in sources:
-                return SOURCE, None, i + 1
-            if letter in values:
-                return None, None, (i + 1 if rest else i + 2)
-    return None, None, i + 1
-
-
-# A command that mentions a gh post verb is read as a post unless
-# _posts_nothing shows that the shell runs no gh post in it. A false match only
-# blocks the command; a missed post lets text out unchecked.
-POST_WORDS = GH_TEXT if GH_SHELL_MISSING else re.compile(
-    r"\bgh\b[\s\S]*\b(?:pr|issue)\b[\s\S]*\b(?:"
-    + "|".join(sorted({verb for verbs in GH_VERBS.values() for verb in verbs})) + r")\b")
-
-
-def runs_only_prose(command):
-    """True when the command runs prose.py and nothing else, so text in its
-    arguments (goals that mention `gh pr create`) is not a post.
-
-    Operators and redirections are read outside quotes only, so goals may hold
-    `;`. A command substitution anywhere, a newline, or any operator but a
-    redirection makes it False: those could run another command.
-    """
-    if "`" in command or "$(" in command or "\n" in command:
-        return False
-    try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-        words = list(lexer)
-    except ValueError:
-        return False
-    if any(word in ("<", ">", ">>") for word in words):
-        words = [w for i, w in enumerate(words) if w not in ("<", ">", ">>")
-                 and (i == 0 or words[i - 1] not in ("<", ">", ">>"))]
-    if not words or any(word and set(word) <= set("();<>|&") for word in words):
-        return False
-    program = words[1] if words[0] in ("python3", "python") and len(words) > 1 else words[0]
-    return program == "prose.py" or program.endswith("/prose.py")
-
-
-
-
-
-
-
-
-def _fed_blocker(name):
-    """Why a command fed by a pipe or an input redirection blocks."""
-    return Unreadable(
-        f"`{name}` reads a pipe or an input redirection (<, <<, <<<), so what it "
-        "runs or posts cannot be checked. Only a data command (echo, cat, grep, "
-        "head, python3 …) or a gh subcommand that takes no body, such as gh pr "
-        "view, may read one. " + ACCEPTED)
-
-
-GROUPED = Unreadable(
-    "a pipe or an input redirection feeds a group, loop or subshell, so what it "
-    "runs or posts cannot be checked unless every command in it is a data "
-    "command (echo, cat, grep, head, python3 …). " + ACCEPTED)
-
-
-def _blocker(command, cwd):
-    """None when the shell provably runs no gh post in this command, else
-    the Unreadable that says why not.
-
-    That holds when each simple command is one of:
-    - a gh command given as plain words, gh first, that sends no text the
-      hook checks: a label edit, `gh pr ready`, a close without a comment.
-      A gh post with a body must be the whole command;
-    - a command from DATA_COMMANDS, which may name gh in its arguments,
-      quotes or heredoc, as data;
-    - any other command that names no gh.
-    Leading reserved words (RESERVED) are skipped first, and a command made
-    only of closers (CLOSERS) is no command, both matched on the source, so
-    a quoted 'if' is still the command.
-    A command fed by a pipe or an input redirection must also be from
-    DATA_COMMANDS, or a gh subcommand that takes no body (NO_TEXT_VERBS),
-    since any other may run or post what it reads. When that input may reach a group, every command
-    must be from DATA_COMMANDS, gh included (see _commands). Anything
-    _commands cannot read blocks.
-    """
-    read = _commands(command)
-    if read is None:
-        return NOT_ALLOWED
-    commands, grouped = read
-    for words, fed in commands:
-        while words and words[0][1] in RESERVED:
-            words = words[1:]
-        if all(source in CLOSERS for _, source in words):
-            continue
-        names = [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
-        source = " ".join(source for _, source in words)
-        if grouped and names[0] not in DATA_COMMANDS:
-            return GROUPED
-        if fed and names[0] not in DATA_COMMANDS:
-            plain = _words(source)
-            args = _gh_args(plain) if plain and plain[0] == ("gh", False) else []
-            if len(args) < 2 or args[1][0] not in NO_TEXT_VERBS.get(args[0][0], ()):
-                return _fed_blocker(names[0])
-        if GH_TEXT.search(source) and "gh" not in names:
-            if names[0] not in DATA_COMMANDS:
-                return NOT_ALLOWED
-        elif "gh" in names:
-            plain = _words(source)
-            if not plain or plain[0] != ("gh", False):
-                return NOT_ALLOWED
-            if POST_WORDS.search(" ".join(text for text, _ in plain)) and _read_gh(plain, cwd):
-                return NOT_ALLOWED
-    return None
-
-
-def _posts_nothing(command, cwd):
-    """True when the shell provably runs no gh post in this command (see
-    _blocker)."""
-    return _blocker(command, cwd) is None
-
-
-def gh_bodies(command, cwd):
-    """[(where, text or Unreadable)] for the post a Bash command makes.
-
-    Nothing when the command mentions no gh post verb, or runs no gh post
-    (see _posts_nothing). Otherwise the command must be one of the accepted
-    forms (see ACCEPTED), or the post is reported unreadable.
-    """
-    if not POST_WORDS.search(command) or runs_only_prose(command):
-        return []
-    if GH_SHELL_MISSING:
-        return [("gh", Unreadable(
-            f"the shared command reader is missing (expected at {GH_SHELL}), so no gh "
-            "command can be read. prose must be installed as a symlink into a full "
-            "shared-skills clone; run: python3 ~/.agents/skills/manage-skills/scripts/"
-            "skills.py doctor"))]
-    words = _words(command.strip())
-    if words and words[0] == ("gh", False):
-        return _read_gh(words, cwd)
-    blocker = _blocker(command, cwd)
-    return [] if blocker is None else [("gh", blocker)]
-
-
-def _read_gh(words, cwd):
-    """[(where, text or Unreadable)] for a gh command given as plain words,
-    words[0] being gh: the bodies it posts, or NOT_ALLOWED when its shape is
-    not one the hook reads."""
-    args = _gh_args(words)
-    if len(args) >= 2 and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ()):
-        return []
-    if len(args) < 2 or args[1][0] not in GH_VERBS.get(args[0][0], {}):
-        return [("gh", NOT_ALLOWED)]
-    noun, verb = args[0][0], args[1][0]
-    flags, values = GH_VERBS[noun][verb], SHORT_VALUES[noun][verb]
-    long_values = LONG_FLAGS[noun][verb][0] | COMMON_LONG[0]
-    long_bools = LONG_FLAGS[noun][verb][1] | COMMON_LONG[1]
-    long_sources, short_sources = BODY_SOURCES[noun].get(verb, NO_SOURCES)
-    where = f"gh {noun} {verb}"
-    found = []
-    i = 2
-    while i < len(args):
-        arg = args[i][0]
-        name = arg[2:].split("=", 1)[0]
-        if arg.startswith("--") and "--" + name not in flags:
-            if name in long_sources:
-                return [(where, NOT_ALLOWED)]
-            if name in long_values:
-                i += 1 if "=" in arg else 2
-                continue
-            if name in long_bools:
-                i += 1
-                continue
-            return [(where, NOT_ALLOWED)]
-        flag, value, i = _body_flag(args, i, flags, values, short_sources)
-        if flag == SOURCE:
-            return [(where, NOT_ALLOWED)]
-        if flag is None or value is None:
-            continue
-        text, _ = value
-        if flag in ("--body-file", "-F"):
-            if text == "-":
-                found.append((f"{where} {flag} -", FROM_STDIN))
-                continue
-            # No expanduser: bash leaves a quoted `~` as it is, and gh opens
-            # the path literally.
-            target = pathlib.Path(text)
-            if not target.is_absolute():
-                target = pathlib.Path(cwd or ".") / target
-            try:
-                found.append((f"{where} {flag} {text}", target.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError, ValueError):  # ValueError: a NUL byte
-                found.append((f"{where} {flag} {text}", Unreadable(
-                    f"{text} could not be read. " + ACCEPTED)))
-        else:
-            found.append((f"{where} {flag}", text))
-    return found
+def _may_post(payload, host):
+    """Whether a call may post, judged without the shared reader: a shell
+    command whose text names gh or discord-bot's script, a GitHub MCP tool,
+    or, on Cursor, any tool of an MCP server whose name holds "github"."""
+    if host == "cursor" and "command" in payload and "tool_name" not in payload:
+        command = payload.get("command")
+    else:
+        tool = payload.get("tool_name") or ""
+        server = payload.get("mcp_server_name") or ""
+        if GITHUB_MCP.match(tool) or (host == "cursor" and "github" in str(server).lower()):
+            return True
+        tool_input = payload.get("tool_input")
+        command = tool_input.get("command") if tool == "Bash" and isinstance(tool_input, dict) \
+            else None
+    return isinstance(command, str) and bool(
+        GH_TEXT.search(command) or "discord_bot.py" in command)
 
 
 def posts_in(payload, host):
-    """[(where, text or Unreadable)] this tool call would post."""
-    if host == "cursor":
-        if "command" in payload and "tool_name" not in payload:
-            return gh_bodies(payload.get("command") or "", payload.get("cwd"))
-        server = payload.get("mcp_server_name") or ""
-        tool_input = payload.get("tool_input")
-        if isinstance(tool_input, str):
-            try:
-                tool_input = json.loads(tool_input)
-            except ValueError:
-                tool_input = {}
-        return body_fields(tool_input) if "github" in server.lower() else []
-    tool = payload.get("tool_name") or ""
-    tool_input = payload.get("tool_input") or {}
-    if GITHUB_MCP.match(tool):
-        return body_fields(tool_input)
-    if tool == "Bash" and isinstance(tool_input, dict):
-        return gh_bodies(tool_input.get("command") or "", payload.get("cwd"))
-    return []
+    """([(where, text)], why or None): the bodies this tool call would post,
+    read by the shared post reader, and why the call cannot be read when it
+    may post text the reader cannot see, with SIGN_INTO_FILE added. Titles
+    are left out, since prose signs bodies only. When the shared reader
+    cannot be imported, a call that may post (_may_post) gets READER_MISSING
+    as its why."""
+    if post_reader is not None:
+        found = post_reader.read_posts(payload, host)
+        if isinstance(found, post_reader.Unreadable):
+            return [], found.why + SIGN_INTO_FILE
+        if isinstance(found, post_reader.NoPost):
+            return [], None
+        return [(post.where, post.body) for post in found if not post.title], None
+    return [], READER_MISSING if _may_post(payload, host) else None
 
 
 # gh, for reading a pull request's body before a hand-back.
@@ -2074,13 +1819,12 @@ def created_bodies(payload, host):
         body = tool_input.get("body")
         return [body if isinstance(body, str) else ""]
     command = tool_input.get("command") if kind == "shell" else None
-    if READER is None or not isinstance(command, str):
+    if post_reader is None or not isinstance(command, str):
         return []
-    bodies = [text for where, text in gh_bodies(command, payload.get("cwd"))
-              if where.split()[1:3] in (["pr", "create"], ["pr", "new"])
-              and isinstance(text, str)]
-    if bodies:
-        args = [text for text, _ in _gh_args(_words(command.strip()))]
+    bodies = [text for where, text in posts_in(payload, host)[0]
+              if where.split()[1:3] in (["pr", "create"], ["pr", "new"])]
+    args = post_reader.gh_command(command) if bodies else None
+    if args:
         flags, _ = handbacks.gh_flags(READER, args[1], args[2:])
         if handbacks.switch(flags, "--dry-run"):
             return []
@@ -2270,12 +2014,10 @@ def hook_post(raw, host):
         return allow
     if not isinstance(payload, dict):
         return allow
-    problems, posts = [], posts_in(payload, host)
+    posts, why = posts_in(payload, host)
+    problems = [why] if why else []
     found = handbacks_of(payload, host)
     for where, text in posts:
-        if isinstance(text, Unreadable):
-            problems.append(f"{where}: {text.why}")
-            continue
         ok, reason = verify_post(text)
         if not ok:
             problems.append(f"{where}: {reason}")
@@ -3385,9 +3127,9 @@ def gated_call(payload):
         command = tool_input.get("command")
         if not isinstance(command, str):
             return None
-        return "this gh post" if gh_bodies(command, payload.get("cwd")) else None
+        return "this gh post" if any(posts_in(payload, "claude")) else None
     if GITHUB_MCP.match(tool):
-        return f"this post through {tool}" if body_fields(tool_input) else None
+        return f"this post through {tool}" if any(posts_in(payload, "claude")) else None
     if tool in FILE_TOOLS:
         path = tool_input.get(FILE_TOOLS[tool])
         return f"this {tool} of {path}" if isinstance(path, str) and path.strip() else f"this {tool}"
@@ -3414,7 +3156,9 @@ def hook_gate(raw):
             return 0, ""
     except Exception:
         return 0, ""
-    return 2, (
+    missing = f"{READER_MISSING}; until then a first call that names gh is blocked too.\n\n" \
+        if post_reader is None else ""
+    return 2, missing + (
         f"prose: blocked {what}, this session's first file write or post, because prose's "
         "first call has not run in this session. Run it now, with the reasons a reader opens "
         "the text you are writing, most probable first. It prints the rules to write by:\n\n"
