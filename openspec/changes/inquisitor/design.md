@@ -35,15 +35,16 @@ does if the fact does not hold.
   Igor's run searching no lore and saying so.
 ### Decisions for the repository's owner
 
-- **May the post hooks, prose's and the inquisitor's, block every Linear
-  MCP tool that could write text?** The shared post reader reports each
-  `save_`, `create_`, `update_` and `submit_` Linear tool other than
-  `save_comment` and `save_issue` as unreadable (gh-post spec: *Every
-  other Linear save, create, update or submit tool is unreadable*), and
-  both hooks block what it reports unreadable, even a call holding no
-  text, such as a project's state change. If not, the reader would read
-  each such tool's text keys, and the hooks would block only a call
-  holding text.
+- **Does a title or name block a Linear write?** As specified, a call
+  of a Linear write tool other than `save_comment` and `save_issue` is
+  unreadable, so blocked, when its input holds a string under `title`,
+  `name` or `summary` (gh-post spec: *Another Linear write tool sends no
+  post only when it holds no text*). On the other surfaces the reader
+  returns no title, so a question in `save_issue`'s title, in a title
+  given to the gh issue edit verb, or in a Discord thread's name passes
+  unvetted. For titles and names to count the same everywhere, either
+  `title`, `name` and `summary` join the no-text list, or the reader
+  returns every title and name as a post.
 
 ### Facts the answer service relies on
 
