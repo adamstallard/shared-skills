@@ -492,15 +492,18 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                     if found[1]:
                         not_searched.append(f"issues of {repo} older than the newest {ISSUE_LIMIT}")
             # The repository's questions branch is searched here only
-            # outside an Igor's run (run is None) and, for the answer
-            # service, only when it holds a clone of the repository. A lore
-            # repository serving this question is skipped too: the lore
-            # loop below searches its questions branch, and searching it
-            # here as well would show each hit twice. In an Igor's run
-            # (run "igor" or "worker"), igor lore-search covers the branch.
-            # The lore section below names it in not_searched when an
-            # "igor" run's command fails; the worker block above names it
-            # for a worker.
+            # outside an Igor's run (run is None). The answer service
+            # searches it only when the service holds a clone of the
+            # repository. A lore repository serving this question is
+            # skipped here as well: the lore loop below searches its
+            # questions branch, and searching it here too would show each
+            # hit twice. _branch reads a configured lore repository's files
+            # by a lore branch's rules. In an Igor's run (run "igor" or
+            # "worker"), igor lore-search covers the branch of the run's
+            # item's repository. The lore section below names the branch in
+            # not_searched for an "igor" run when igor lore-search fails or
+            # the repository may not be one it covers; the run == "worker"
+            # block above names it for a worker.
             configured = {lore.repository for lore in cfg.lore}
             served = {lore.repository for lore in serving(cfg.lore, concerns)}
             if run is None and repo not in served and not (service and clone is None):
@@ -524,10 +527,20 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
         found = igor_lore_search(text, wanted)
         if found is None:
             not_searched.append("lore: igor lore-search failed, so no lore was searched")
-            if repo is not None and run == "igor":
-                not_searched.append(f"questions branch of {repo}: igor lore-search failed")
         else:
             hits += found
+        if repo is not None and run == "igor":
+            # igor lore-search covers the questions branches of the run's
+            # item's repository and of the Igor's lore repository. The
+            # script cannot know the lore repository, and takes the
+            # checkout's origin as the item's repository, compared ignoring
+            # case because GitHub names ignore case.
+            if found is None:
+                not_searched.append(f"questions branch of {repo}: igor lore-search failed")
+            elif work_repo is None or repo.lower() != work_repo.lower():
+                not_searched.append(f"questions branch of {repo}: igor lore-search covers the "
+                                    "run's item's repository and the Igor's lore repository, "
+                                    f"and neither is known to be {repo}")
     else:
         scopes = {"global"}
         if repo is not None:

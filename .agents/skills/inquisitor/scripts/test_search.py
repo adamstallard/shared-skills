@@ -489,10 +489,28 @@ class Igor(Base):
         self.assertEqual(r["hits"][0]["source"], "igor-lore-search")
         self.assertIn(search.IGOR_NOTE, err.getvalue())
         self.assertTrue(any(search.IGOR_NOTE in s for s in r["not_searched"]))
-        # The faked igor lore-search succeeded, so not_searched leaves out o/api's questions branch.
-        self.assertFalse(any(s.startswith("questions branch of o/api") for s in r["not_searched"]))
+        # With no checkout there is no origin, so nothing shows that o/api is the run's item's
+        # repository, and not_searched names its questions branch.
+        self.assertTrue(any(s.startswith("questions branch of o/api: igor lore-search covers")
+                            for s in r["not_searched"]))
         self.assertEqual(r["clones"], [])
         self.assertEqual(self.read, [])
+
+    def test_questions_branch_named_unless_the_checkout_is_the_item(self) -> None:
+        # @scenario inquisitor: An unsearched source is named
+        # The script takes the checkout's origin as the run's item's repository, whose questions
+        # branch igor lore-search covers.
+        self.configure([])
+        out = json.dumps({"hits": []})
+        # GitHub names ignore case, so an origin of O/Api is o/api.
+        for i, (origin, named) in enumerate((("o/api", False), ("O/Api", False), ("o/web", True))):
+            clone = clone_of(self.tmp, f"work-{i}", origin, {"README.md": "x\n"})
+            os.chdir(clone)
+            with mock.patch.dict(os.environ, {"IGOR_RUN": "igor"}), self.igor(out), \
+                    mock.patch("sys.stderr", io.StringIO()):
+                r = search.filter1(q(repository="o/api"), False)
+            self.assertEqual(any(s.startswith("questions branch of o/api") for s in r["not_searched"]),
+                             named, origin)
 
     def test_failed_igor_search_names_the_questions_branch(self) -> None:
         # @scenario inquisitor: An unsearched source is named
