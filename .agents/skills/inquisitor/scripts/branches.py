@@ -109,7 +109,7 @@ def _graphql(repository: str, query: str, variables: dict[str, str]) -> Any:
 _HISTORY = "history(first: 100{after}) {{ pageInfo {{ hasNextPage endCursor }} nodes {{ oid }} }}"
 
 _HEAD_QUERY = ("query($owner: String!, $name: String!, $ref: String!) {"
-               " repository(owner: $owner, name: $name) { ref(qualifiedName: $ref) {"
+               " repository(owner: $owner, name: $name) { isEmpty ref(qualifiedName: $ref) {"
                " target { ... on Commit { oid tree { oid } "
                + _HISTORY.format(after="") + " } } } } }")
 
@@ -127,7 +127,7 @@ class _Head:
     commits: list[str]
 
 
-_State = Literal["ok", "missing", "failed"]
+_State = Literal["ok", "missing", "empty", "failed"]
 
 
 def _nodes(history: Any) -> list[str] | None:
@@ -139,15 +139,19 @@ def _nodes(history: Any) -> list[str] | None:
 
 
 def _head(repository: str, all_commits: bool) -> tuple[_State, _Head | None]:
-    """The branch's head: ("ok", head), ("missing", None) when the
-    repository has no questions branch, or ("failed", None). all_commits:
-    read every commit, not only the newest 100."""
+    """The questions branch's head, as a state and the head:
+    - ("ok", head) when the branch exists;
+    - ("missing", None) when the repository has no questions branch;
+    - ("empty", None) when the repository has no commit at all, so GitHub
+      lets no branch be created in it;
+    - ("failed", None) when GitHub's answer cannot be read or lacks a field.
+    all_commits: read every commit, not only the newest 100."""
     found = _graphql(repository, _HEAD_QUERY, {"ref": f"refs/heads/{BRANCH}"})
     if not isinstance(found, dict):
         return "failed", None
     ref = _get(found, "ref")
     if ref is None:
-        return "missing", None
+        return ("empty" if _get(found, "isEmpty") is True else "missing"), None
     target = _get(ref, "target")
     commit, tree = _get(target, "oid"), _get(target, "tree", "oid")
     history = _get(target, "history")
@@ -277,7 +281,7 @@ def list_files(repository: str) -> list[BranchFile] | None:
         return None
     state, head = _head(repository, all_commits=True)
     if state != "ok" or head is None:
-        return [] if state == "missing" else None
+        return [] if state in ("missing", "empty") else None
     files = _tree(repository, head.tree)
     return None if files is None else _read(repository, head, files)
 
@@ -355,26 +359,42 @@ _MOVED = ("not a fast forward", "Reference already exists", "Reference does not 
 
 def push_file(repository: str, path: str, content: str, as_inquisitor: bool,
               service: bool) -> PushResult:
-    """Commit one file onto the questions branch through GitHub's Git
-    database API, with the message `inquisitor: log <path>`: a tree on the
-    branch's head, a commit, then the branch moved forward without force,
-    or created as an orphan when missing. When GitHub refuses the move
-    because the branch moved, the commit is made again on the new head, up
-    to ATTEMPTS times in all. as_inquisitor commits the file as
-    `inquisitor <noreply>` dated midnight UTC of the day it pushes, so the
-    commit shows no time of day; callers set it for citations and hash-only
-    miss files. Other commits are by gh's login. A file that parse() reads
-    as unreadable is never pushed or kept.
+    """Commit one file onto the repository's questions branch through
+    GitHub's Git database API, with the message `inquisitor: log <path>`.
+    It makes a tree on the branch's head and a commit of it, then moves the
+    branch to that commit without force. When the branch is missing, it
+    creates the branch as an orphan instead.
 
-    When the file's path is already on the branch, nothing is pushed, not
-    even pending files. No commit ever adds a path the branch holds.
+    GitHub refuses that ref update when someone else changed the branch
+    first: committed to it, created it, or deleted it. Then push_file reads
+    the branch again and commits again on its new head, or as an orphan for
+    a deleted branch, up to ATTEMPTS times in all.
 
-    Without service, files kept pending for that branch are committed
-    first, one commit each, as `inquisitor <noreply>` when the path shows a
-    citation or hash-only miss file. A pending file already on the branch
-    is skipped. Each leaves pending once the push lands. When the push
-    fails, the new file is kept pending beside them. With service, pending
-    files are neither pushed nor added to."""
+    service is the answer service's option, under which nothing is ever
+    kept pending: the service retries its own failed pushes. Without it:
+    - the files already pending for this repository are committed first,
+      one commit each, oldest first, except one at this file's path, which
+      this file replaces, and any whose path the branch now holds;
+    - once the push lands, every pending file it covered leaves pending;
+    - when the push fails, this file is kept pending with the others.
+    A repository with no commits is such a failure: GitHub creates no
+    branch in it, and the PushResult's why says the repository needs a
+    first commit.
+
+    Nothing is pushed or kept pending in these cases:
+    - the file's path is already on the branch: taken is set. A path added
+      by someone else after the branch was read makes the ref update fail
+      as a moved branch, and the next attempt finds it, so no commit ever
+      adds a path the branch holds;
+    - the repository is malformed, or parse() reads the file as
+      unreadable.
+
+    as_inquisitor commits the file as `inquisitor <noreply>`, dated
+    midnight UTC of the day it pushes, so the commit shows no time of day.
+    Callers set it for citations and hash-only miss files (a miss file
+    holding only its hash; see formats.HashOnlyMiss), and a pending file
+    under `citations/`, or under `misses/` holding only empty frontmatter,
+    is committed the same way. Other commits are by gh's login."""
     if not is_repository(repository):
         return PushResult(pushed=False, why=f"{repository!r} is not in the form owner/repo")
     if isinstance(parse(path, content, True), Unreadable):
@@ -387,6 +407,10 @@ def push_file(repository: str, path: str, content: str, as_inquisitor: bool,
         state, head = _head(repository, all_commits=False)
         if state == "failed":
             why = f"cannot read the {BRANCH} branch of {repository}"
+            break
+        if state == "empty":
+            why = (f"{repository} has no commits: it needs a first commit before its questions "
+                   "can be logged")
             break
         held = _tree(repository, head.tree) if head else {}
         if held is None:
