@@ -33,18 +33,19 @@ does if the fact does not hold.
   instead, and *The question reaches igor's command on standard input*
   changes to that way. Either way, a call that fails leaves filter 1 in an
   Igor's run searching no lore and saying so.
+
 ### Decisions for the repository's owner
 
-- **Does a title or name block a Linear write?** As specified, a call
-  of a Linear write tool other than `save_comment` and `save_issue` is
-  unreadable, so blocked, when its input holds a string under `title`,
-  `name` or `summary` (gh-post spec: *Another Linear write tool sends no
-  post only when it holds no text*). On the other surfaces the reader
-  returns no title, so a question in `save_issue`'s title, in a title
-  given to the gh issue edit verb, or in a Discord thread's name passes
-  unvetted. For titles and names to count the same everywhere, either
-  `title`, `name` and `summary` join the no-text list, or the reader
-  returns every title and name as a post.
+- **Where is a question in a Linear project's or milestone's description
+  answered?** The shared post reader reads `summary` and `description`
+  of every Linear write call as a message, so the post hook passes a
+  vetted question there with an `ask` verdict. But the answer service
+  reads only issues and comments on Linear, and `log` has an `asked_in`
+  form only for a Linear comment or issue description, so such a
+  question is neither answered nor logged. Either the post hook blocks a
+  question in any Linear `summary` or `description` but an issue's, as
+  it does in a title, or the answer service and `log` learn to read and
+  record questions in every such `summary` and `description`.
 
 ### Facts the answer service relies on
 

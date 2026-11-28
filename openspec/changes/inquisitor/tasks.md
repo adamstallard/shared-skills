@@ -468,13 +468,23 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       (gh-post spec: *The reader reads discord-bot's post and edit only
       from a message file*), so prose's posting hook reads them too
 - [ ] 1.6 The library reads `save_comment`'s `body` and `save_issue`'s
-      `description` from the Linear MCP, and reports as unreadable a
-      `save_issue` holding `patch`, one holding `template` but no
-      `description`, and every other Linear save, create, update or
-      submit call holding a string under a key off the no-text list
-      (gh-post spec: *The reader reads a Linear MCP comment or issue
-      description*; *Another Linear write tool sends no post only when it
-      holds no text*)
+      `description` from the Linear MCP, and every other Linear save,
+      create, update or submit call's `summary` and `description`, as
+      messages; reports as unreadable a `save_issue` holding `patch`, one
+      holding `template` but no `description`, and every other such call
+      holding a string under a key off the no-text list (gh-post spec:
+      *The reader reads a Linear MCP comment or issue description*;
+      *Another Linear write tool sends no post only when it holds no
+      text*)
+- [ ] 1.6a The library returns each title a call sets, marked as a
+      title: `--title` in a canonical gh pr or gh issue form, `title` in
+      a canonical gh api post's JSON or a GitHub MCP tool's input,
+      `title` and `name` in a Linear write call, and discord-bot
+      `thread`'s `--name`; `--title`, and any single-dash option word
+      holding `t`, join the text options, and a discord-bot `thread` call
+      counts as mentioning a gh post verb. prose's posting hook skips
+      titles (gh-post spec: *The reader returns each title apart from
+      bodies*)
 - [ ] 1.7 The library reports whether each post goes through the
       github-app skill's script (gh-post spec: *The reader says whether a
       post goes through the github-app skill*)
@@ -505,8 +515,8 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
 - [ ] 2.2b The `not asked` verdict, accepted only for a question the
       plain reading found and the hiding reading did not, and the
       first call's output marking each such question so the agent knows
-      `not asked` is open to it (inquisitor spec: *Only a question found
-      in code or HTML may be not asked*; *Questions in a post are found
+      `not asked` is open to it (inquisitor spec: *Only a question the
+      hiding reading misses may be not asked*; *Questions in a post are found
       by two readings*)
 - [x] 2.3 Filter 1's search. Items marked igor's are applied by
       `igor lore-search`, which igor PR #216 builds.
@@ -752,7 +762,9 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       without a `deferred` verdict, even with `ask` (*An item listed as
       deferred needs a deferred verdict*); and blocks
       every other unvetted question (inquisitor spec: *Questions in posts
-      pass the same filters*)
+      pass the same filters*). It blocks a call any of whose titles holds
+      a question by the plain reading, telling the agent to ask it in the
+      body (*A title holding a question is refused*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -1045,6 +1057,10 @@ choice to the repository's owner. Numbers 0.14, 0.22, 0.24, 0.26, 0.27,
       tells an agent using the skill, when the person wants to answer the questions asked
       of them, to offer to install the answer mod and then to tell them
       to run `answer`
+- [ ] 6.6b The answer mod replacing the prompt Claude Code puts back
+      after the mod drops one, a collapsed paste included, with what its
+      action leaves (answer-service spec: *The answer mod sets the box
+      after acting on a prompt*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed
