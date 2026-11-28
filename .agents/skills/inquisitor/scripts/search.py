@@ -418,6 +418,13 @@ def _text(question: QuestionIn) -> str:
                                   options=tuple(question.get("options", []))))
 
 
+def same_repository(a: str | None, b: str | None) -> bool:
+    """Whether a and b name one GitHub repository: both given and equal
+    ignoring case, since GitHub ignores case in owner and repository
+    names."""
+    return a is not None and b is not None and a.lower() == b.lower()
+
+
 def subscribed_clone(repository: str) -> Path:
     """The answer service's clone of a subscribed repository."""
     owner, name = repository.split("/")
@@ -453,7 +460,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
     # where this mode can reach it.
     if repo is not None:
         if run == "worker":
-            if work is not None and work_repo == repo:
+            if work is not None and same_repository(work_repo, repo):
                 hits += _worker_docs(work, repo, wanted)
             else:
                 not_searched.append(f"decision documents of {repo}: the worker's working tree "
@@ -462,7 +469,7 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
                              f"questions branch of {repo}: an Igor worker's search covers only its "
                              "working tree beyond igor lore-search"]
         else:
-            clone = subscribed_clone(repo) if service else (work if work_repo == repo else None)
+            clone = subscribed_clone(repo) if service else (work if same_repository(work_repo, repo) else None)
             if clone is not None and not clone.exists():
                 clone = None
             if service and clone is None:
@@ -514,8 +521,8 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
         if ref is not None:
             changed = work_branch_docs(work, ref)
             if changed:
-                own = repo is not None and repo == work_repo and work_branch_author_ok(
-                    work, repo, checks, cfg.login)
+                own = (repo is not None and same_repository(repo, work_repo)
+                       and work_branch_author_ok(work, repo, checks, cfg.login))
                 hits += doc_hits(changed, wanted, work_repo, "decision" if own else "input",
                                  "this change's, not yet merged" if own
                                  else "on a work branch, which answers only its own work")
@@ -530,14 +537,15 @@ def filter1(question: QuestionIn, service: bool) -> SearchResult:
         else:
             hits += found
         if repo is not None and run == "igor":
-            # igor lore-search covers the questions branches of the run's
-            # item's repository and of the Igor's lore repository. The
-            # script cannot know the lore repository, and takes the
-            # checkout's origin as the item's repository, compared ignoring
-            # case because GitHub names ignore case.
+            # igor lore-search covers the questions branches of the
+            # repository of the issue or pull request the run works on, and
+            # of the Igor's lore repository. The script cannot know the lore
+            # repository and takes the checkout's origin as the item's, so
+            # it names the branch as not searched unless repo is that
+            # origin, even when repo is in fact the lore repository.
             if found is None:
                 not_searched.append(f"questions branch of {repo}: igor lore-search failed")
-            elif work_repo is None or repo.lower() != work_repo.lower():
+            elif not same_repository(repo, work_repo):
                 not_searched.append(f"questions branch of {repo}: igor lore-search covers the "
                                     "run's item's repository and the Igor's lore repository, "
                                     f"and neither is known to be {repo}")
