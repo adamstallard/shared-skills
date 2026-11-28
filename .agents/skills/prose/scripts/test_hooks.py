@@ -72,6 +72,18 @@ class PostingHook(unittest.TestCase):
             with self.subTest(command):
                 self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
+    # @scenario gh-post: A title alone is returned as a title
+    def test_a_title_alone_passes(self):
+        result = self.hook(self.bash("gh pr edit 5 --title 'Retry?'"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Linear summary text is a body, so it needs a footer.
+        unsigned = self.mcp("mcp__linear__save_project", {"id": "P-1", "summary": "Plain."})
+        self.assertEqual(self.hook(unsigned).returncode, 2)
+        signed = self.mcp("mcp__linear__save_project",
+                          {"id": "P-1", "name": "Retries", "summary": self.good})
+        result = self.hook(signed)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_a_gh_the_shell_joins_reaches_the_reader(self):
         # No word "gh" appears in the payload, yet the shell runs gh.
         for command in ("g''h pr comment 3 --body Unsigned.",

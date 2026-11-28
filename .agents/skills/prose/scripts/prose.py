@@ -1695,15 +1695,17 @@ def _may_post(payload, host):
 def posts_in(payload, host):
     """([(where, text)], why or None): the bodies this tool call would post,
     read by the shared post reader, and why the call cannot be read when it
-    may post text the reader cannot see. Without the reader, a call that may
-    post (_may_post) gets READER_MISSING as its why."""
+    may post text the reader cannot see, with SIGN_INTO_FILE added. Titles
+    are left out, since prose signs bodies only. When the shared reader
+    cannot be imported, a call that may post (_may_post) gets READER_MISSING
+    as its why."""
     if post_reader is not None:
         found = post_reader.read_posts(payload, host)
         if isinstance(found, post_reader.Unreadable):
             return [], found.why + SIGN_INTO_FILE
         if isinstance(found, post_reader.NoPost):
             return [], None
-        return [(post.where, post.body) for post in found], None
+        return [(post.where, post.body) for post in found if not post.title], None
     return [], READER_MISSING if _may_post(payload, host) else None
 
 

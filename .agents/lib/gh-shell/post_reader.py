@@ -44,16 +44,23 @@ Surface = Literal["github", "discord", "linear"]
 
 @dataclass(frozen=True)
 class Post:
-    """One body the call sends. The field `where` is the body's label in the
-    hooks' block messages, such as `gh pr comment --body-file c.md` or
-    `comments[0].body` of a review. The field `surface` names the service it
-    is posted to. The field `via_github_app` says whether github-app's script
-    sends it."""
+    """One body or title the call sends. The field `where` is its label in
+    the block messages of prose's posting hook and the inquisitor's post
+    hook, such as `gh pr comment --body-file c.md` or `comments[0].body` of a
+    review. The field `surface` names the service it is posted to. The field
+    `via_github_app` says whether github-app's script sends it. The field
+    `title` marks a title or name the call sets: `body` holds its text, and
+    prose's posting hook skips the Post. The field `summary_text` marks a
+    Linear write call's summary or description. prose reads it as a body,
+    and the inquisitor's post hook refuses a question in it, where on
+    another Linear body it would vet the question."""
 
     where: str
     body: str
     surface: Surface = "github"
     via_github_app: bool = False
+    title: bool = False
+    summary_text: bool = False
 
 
 @dataclass(frozen=True)
@@ -79,12 +86,14 @@ plain text the shell does not expand (or run through github-app's script, \
 `python3 <path>/github_app.py [--identity <name>] gh …`):
   gh pr comment <number> --body-file <file>      (or gh issue comment; or --body '<text>')
   gh pr create --title <title> --body-file <file>   (or gh issue create)
-  gh pr edit <number> --body-file <file>          (or gh issue edit)
+  gh pr edit <number> --body-file <file>          (or gh issue edit; or only --title <title>)
   gh pr review <number> --approve|--request-changes|--comment --body-file <file>
   gh pr close <number> --comment '<text>'         (or reopen; or gh issue close/reopen)
   gh api <endpoint> -X <POST|PATCH> --input <file.json>   (an issue, pull request, comment or \
 review endpoint, written repos/<owner>/<repo>/…; the JSON's body, and a review's comments[].body)
   python3 <path>/discord_bot.py [--identity <name>] post|edit … --message-file <file>
+  python3 <path>/discord_bot.py [--identity <name>] thread --message-id <id> --name <name>   \
+(or --channel <id>)
 Options beside the body: --title, --repo, --base, --head, --draft, --label, --assignee, \
 --reviewer, --milestone, and for edit gh's --add-… and --remove-… options for reviewers, \
 labels, assignees and projects and --remove-milestone, each written long with its value as \
@@ -160,7 +169,8 @@ DISCORD_MODULE = "discord_bot"
 # itself, as `python3 -m discord_bot` names it.
 DISCORD_WORD = re.compile(rf"{_spelled(DISCORD_SCRIPT)}(?![\w-])"
                           rf"|(?<![\w/.-]){_spelled(DISCORD_MODULE)}(?![\w./-])")
-POST_OR_EDIT = re.compile(_whole("post", "edit"))
+DISCORD_POSTS = ("post", "edit", "thread")
+POST_OR_EDIT = re.compile(_whole(*DISCORD_POSTS))
 
 
 def _in_order(text: str, *patterns: re.Pattern[str]) -> bool:
@@ -555,9 +565,9 @@ def _read_file(text: str, cwd: str | None) -> str | None:
 # from somewhere the reader cannot see (commits, a template, an editor, a
 # saved draft, the browser), and the short letters gh gives them. gh's flag
 # parser, pflag, does not abbreviate long options, so each is matched whole.
-TEXT_LONG = {"body", "body-file", "comment", "fill", "fill-first", "fill-verbose", "template",
+TEXT_LONG = {"title", "body", "body-file", "comment", "fill", "fill-first", "fill-verbose", "template",
              "editor", "web", "recover"}
-TEXT_SHORT = set("bFcfTew")
+TEXT_SHORT = set("bFtcfTew")
 
 
 def _sends_text(args: list[Word]) -> bool:
@@ -638,6 +648,7 @@ def _read_gh(words: list[Word], cwd: str | None, app: bool) -> Result:
         i = 4
     body_options = {"--comment"} if verb in ("close", "reopen") else {"--body", "--body-file"}
     bodies: list[tuple[str, str]] = []
+    titles: list[str] = []
     modes: list[str] = []
     while i < len(texts):
         option = texts[i]
@@ -653,18 +664,24 @@ def _read_gh(words: list[Word], cwd: str | None, app: bool) -> Result:
                 return _not_canonical(where)
             if option in body_options:
                 bodies.append((option, texts[i + 1]))
+            elif option == "--title":
+                titles.append(texts[i + 1])
             i += 2
         else:
             return _not_canonical(where)
+    named = [Post(f"{where} --title", title, via_github_app=app, title=True)
+             for title in titles]
+    if not bodies and named and verb == "edit":
+        return named
     if len(bodies) != 1 or (verb == "review" and len(modes) != 1):
         return _not_canonical(where)
     option, value = bodies[0]
     if option != "--body-file":
-        return [Post(f"{where} {option}", value, via_github_app=app)]
+        return [Post(f"{where} {option}", value, via_github_app=app)] + named
     body = _read_file(value, cwd)
     if body is None:
         return _blocked(f"{where} --body-file {value}: {value} could not be read as a file.")
-    return [Post(f"{where} --body-file {value}", body, via_github_app=app)]
+    return [Post(f"{where} --body-file {value}", body, via_github_app=app)] + named
 
 
 # -- gh api ----------------------------------------------------------------
@@ -777,6 +794,10 @@ def _read_api(words: list[Word], cwd: str | None, app: bool) -> Result:
             if not isinstance(data["body"], str):
                 raise _Bad("its body is not a string")
             posts.append(Post(f"{where} body", data["body"], via_github_app=app))
+        if "title" in data:
+            if not isinstance(data["title"], str):
+                raise _Bad("its title is not a string")
+            posts.append(Post(f"{where} title", data["title"], via_github_app=app, title=True))
         if REVIEWS.fullmatch(endpoint) and "comments" in data:
             comments = data["comments"]
             if not isinstance(comments, list):
@@ -788,7 +809,7 @@ def _read_api(words: list[Word], cwd: str | None, app: bool) -> Result:
                     raise _Bad(f"comments[{k}].body is not a string")
                 posts.append(Post(f"{where} comments[{k}].body", body, via_github_app=app))
         if not posts:
-            raise _Bad("it holds no body")
+            raise _Bad("it holds no body or title")
         return posts
     except ValueError:
         return _blocked(f"{where}: {file} is not JSON.")
@@ -798,8 +819,8 @@ def _read_api(words: list[Word], cwd: str | None, app: bool) -> Result:
 
 # -- discord-bot -------------------------------------------------------------
 
-DISCORD_QUIET = {"delete", "read", "thread", "check", "invite-url", "store-token",
-                 "forget-token"}
+DISCORD_QUIET = {"delete", "read", "check", "invite-url", "store-token", "forget-token"}
+THREAD_OPTIONS = {"--identity", "--channel", "--message-id"}
 
 
 def _read_discord(words: list[Word], cwd: str | None) -> Result:
@@ -811,6 +832,8 @@ def _read_discord(words: list[Word], cwd: str | None) -> Result:
     texts = [text for text, _ in words]
     if texts[0] in DISCORD_QUIET and literal(words[0][1]):
         return NoPost()
+    if texts[0] == "thread" and all(literal(source) for _, source in words):
+        return _read_thread(texts)
     if texts[0] not in ("post", "edit") or not all(literal(source) for _, source in words):
         return _not_canonical("discord-bot")
     where = f"discord-bot {texts[0]}"
@@ -826,6 +849,30 @@ def _read_discord(words: list[Word], cwd: str | None) -> Result:
     if body is None:
         return _blocked(f"{where} --message-file {file}: {file} could not be read as a file.")
     return [Post(f"{where} --message-file {file}", body, "discord")]
+
+
+def _read_thread(texts: list[str]) -> Result:
+    """A whole-line discord-bot thread call's name, read as a Discord title
+    when the call gives --name once, its value the next word, and no other
+    option but --identity, --channel and --message-id, each at most once
+    (gh-post spec: *A discord-bot thread's name is read as a title*). Any
+    other word is unreadable: discord-bot accepts an option's abbreviation,
+    such as `--na` for --name, so an unknown word may be one."""
+    names: list[str] = []
+    seen: set[str] = set()
+    i = 1
+    while i < len(texts):
+        option = texts[i]
+        if i + 1 >= len(texts) or texts[i + 1].startswith("-") or option in seen or not (
+                option == "--name" or option in THREAD_OPTIONS):
+            return _not_canonical("discord-bot thread")
+        seen.add(option)
+        if option == "--name":
+            names.append(texts[i + 1])
+        i += 2
+    if len(names) != 1:
+        return _not_canonical("discord-bot thread")
+    return [Post("discord-bot thread --name", names[0], "discord", title=True)]
 
 
 # -- a whole command line --------------------------------------------------
@@ -954,12 +1001,13 @@ def _read_whole(whole: _Command, cwd: str | None) -> Result:
 
 def _discord_post(words: list[Word]) -> bool:
     """Whether a word that is discord_bot or ends in discord_bot.py comes
-    before a word post or edit. Such a command counts as naming gh (gh-post
+    before a word post, edit or thread. Such a command counts as naming gh,
+    so the rules that let a command naming no gh pass never apply to it (gh-post
     spec: *A simple command holding a discord-bot post word counts as naming
     gh*)."""
     texts = [text for text, _ in words]
     return any((text == DISCORD_MODULE or text.endswith(DISCORD_SCRIPT))
-               and {"post", "edit"} & set(texts[k + 1:]) for k, text in enumerate(texts))
+               and set(DISCORD_POSTS) & set(texts[k + 1:]) for k, text in enumerate(texts))
 
 
 def _read_line(resolved: list[_Command], grouped: bool) -> Result:
@@ -982,7 +1030,7 @@ def _read_line(resolved: list[_Command], grouped: bool) -> Result:
         if command.fed and names[0] not in DATA_COMMANDS and not (
                 _is_gh(words) and _quiet_gh(words)):
             return _fed_blocker(names[0] or words[0][1])
-        if command.unassigned and ("gh" in names or {"post", "edit"} & set(names)):
+        if command.unassigned and ("gh" in names or set(DISCORD_POSTS) & set(names)):
             return _unassigned(command.unassigned)
         if names[0] in PYTHONS and DISCORD_SCRIPT in names or _discord_post(words):
             return _not_canonical(f"`{source}`")
@@ -1019,14 +1067,17 @@ NO_TEXT_KEYS = frozenset((
 
 
 def body_fields(value: object, path: str = "") -> list[Post]:
-    """A Post for every non-empty string under a key named body or comment,
-    at any depth, in a GitHub MCP tool's input."""
+    """A Post for every non-blank string under a key BODY_KEYS names, and a
+    title for every one under a key named title, at any depth, in a GitHub
+    MCP tool's input. Keys match in any case."""
     found: list[Post] = []
     if isinstance(value, dict):
         for key, item in cast(dict[object, object], value).items():
             where = f"{path}.{key}" if path else str(key)
             if str(key).lower() in BODY_KEYS and isinstance(item, str) and item.strip():
                 found.append(Post(where, item))
+            elif str(key).lower() == "title" and isinstance(item, str) and item.strip():
+                found.append(Post(where, item, title=True))
             else:
                 found.extend(body_fields(item, where))
     elif isinstance(value, list):
@@ -1039,19 +1090,48 @@ def _mcp(tool_input: object) -> Result:
     return body_fields(tool_input) or NoPost()
 
 
-def _text_keys(value: object, key: str = "") -> set[str]:
-    """The keys not on the no-text list that a string in value sits under: its
-    nearest object key, so a string in a list takes the list's key."""
+LINEAR_TITLES = {"title", "name"}
+LINEAR_SUMMARIES = {"summary", "description"}
+
+
+def _strings(value: object, key: str = "") -> list[tuple[str, str]]:
+    """Each string in value with the key it sits under: its nearest object
+    key, so a string in a list takes the list's key."""
     if isinstance(value, str):
-        return set() if key in NO_TEXT_KEYS else {key}
-    found: set[str] = set()
+        return [(key, value)]
+    found: list[tuple[str, str]] = []
     if isinstance(value, dict):
         for name, item in cast(dict[object, object], value).items():
-            found |= _text_keys(item, str(name))
+            found += _strings(item, str(name))
     elif isinstance(value, list):
         for item in cast(list[object], value):
-            found |= _text_keys(item, key)
+            found += _strings(item, key)
     return found
+
+
+def _text_keys(value: object) -> set[str]:
+    """The keys that a string in value sits under and that are on neither
+    the no-text list nor among the keys read as titles or summary text."""
+    return {key for key, _ in _strings(value)
+            if key not in NO_TEXT_KEYS | LINEAR_TITLES | LINEAR_SUMMARIES}
+
+
+def _linear_write(tool: str, given: dict[str, object]) -> Result:
+    """The titles and summary text of a Linear write tool other than
+    save_comment and save_issue (gh-post spec: *Another Linear write tool
+    sends no post only when it holds no text*; *A Linear write tool's titles
+    and descriptions are read*). A string under a key that is neither on the
+    no-text list nor read as a title or summary text makes the call
+    unreadable."""
+    keys = _text_keys(given)
+    if keys:
+        return _blocked(f"Linear {tool}: {', '.join(sorted(keys))} may hold text the hook "
+                        "cannot check.")
+    posts = [Post(key, text, "linear", title=key in LINEAR_TITLES,
+                  summary_text=key in LINEAR_SUMMARIES)
+             for key, text in _strings(given)
+             if key in LINEAR_TITLES | LINEAR_SUMMARIES and text.strip()]
+    return posts or NoPost()
 
 
 def _linear(tool: str, tool_input: object) -> Result:
@@ -1064,26 +1144,23 @@ def _linear(tool: str, tool_input: object) -> Result:
     given = cast(dict[str, object], tool_input)
     key = {"save_comment": "body", "save_issue": "description"}.get(tool)
     if key is None:
-        # Another write tool sends no post only when it holds no text (gh-post
-        # spec: *Another Linear write tool sends no post only when it holds no
-        # text*); a tool whose name starts with none of LINEAR_WRITES, such
-        # as get_issue, sends none.
-        keys: set[str] = _text_keys(given) if tool.startswith(LINEAR_WRITES) else set()
-        if keys:
-            return _blocked(f"Linear {tool}: {', '.join(sorted(keys))} may hold text the hook "
-                            "cannot check.")
-        return NoPost()
+        # A write tool is read by _linear_write; a tool whose name starts with
+        # none of LINEAR_WRITES, such as get_issue, sends no post.
+        return _linear_write(tool, given) if tool.startswith(LINEAR_WRITES) else NoPost()
     text = given.get(key)
     if tool == "save_issue" and ("patch" in given or (
             "template" in given and not (isinstance(text, str) and text))):
         return _blocked(f"Linear {tool}: a patch or a template builds the description from "
                         "what Linear holds, so what it posts cannot be checked. Send the whole "
                         "description instead.")
+    title = given.get("title") if tool == "save_issue" else None
+    named = [Post("title", title, "linear", title=True)] \
+        if isinstance(title, str) and title.strip() else []
     if text is None:
-        return NoPost()
+        return named or NoPost()
     if not isinstance(text, str):
         return _blocked(f"Linear {tool}: its {key} is not text.")
-    return [Post(key, text, "linear")]
+    return [Post(key, text, "linear")] + named
 
 
 def read_posts(payload: dict[str, Any], host: str) -> Result:

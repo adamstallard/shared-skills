@@ -32,11 +32,17 @@ class Reader(unittest.TestCase):
     def read(self, command):
         return post_reader.read_command(command, str(self.dir))
 
-    def bodies(self, command):
+    def posts(self, command):
         found = self.read(command)
         self.assertIsInstance(found, list, f"{command!r} gave {found!r}")
         assert isinstance(found, list)
-        return [post.body for post in found]
+        return found
+
+    def bodies(self, command):
+        return [post.body for post in self.posts(command) if not post.title]
+
+    def titles(self, command):
+        return [post.body for post in self.posts(command) if post.title]
 
     def assert_no_post(self, *commands):
         for command in commands:
@@ -92,7 +98,8 @@ class Linear(Reader):
         self.assertEqual(
             self.payload("mcp__linear__save_issue",
                          {"title": "Retries?", "description": "Should retries back off?"}),
-            [Post("description", "Should retries back off?", "linear")])
+            [Post("description", "Should retries back off?", "linear"),
+             Post("title", "Retries?", "linear", title=True)])
         for given in ({"id": "A-1", "patch": [{"op": "append", "text": "x"}]},
                       {"id": "A-1", "patch": [], "description": "x"},
                       {"team": "T", "template": "Bug"},
@@ -191,7 +198,8 @@ class Canonical(Reader):
     # @scenario gh-post: A canonical gh post is read
     def test_canonical_gh_posts(self):
         self.assertEqual(self.read("gh pr create --title t --body-file body.md --base main"),
-                         [Post("gh pr create --body-file body.md", "text of body.md\n")])
+                         [Post("gh pr create --body-file body.md", "text of body.md\n"),
+                          Post("gh pr create --title", "t", title=True)])
         self.assertEqual(self.bodies("gh issue comment 5 --body '$(not run)'"), ["$(not run)"])
         self.assertEqual(self.read("gh issue comment 5 --body 'Done.'"),
                          [Post("gh issue comment --body", "Done.")])
@@ -267,7 +275,8 @@ class NoPostLines(Reader):
     # @scenario gh-post: A command that sends no body is no post
     def test_commands_that_send_no_body(self):
         self.assert_no_post(
-            "gh pr edit 5 --add-label spec", "gh issue edit 5 --title 'Rename it?'",
+            "gh pr edit 5 --add-label spec",
+            "gh pr edit 5 --add-assignee x --add-reviewer y --milestone m",
             "gh pr edit 5 --add-assignee @me --add-reviewer bob --milestone v1",
             "gh pr ready", "gh issue close 5", "gh pr list", "gh pr review 5 --approve",
             "gh pr view 5 -c", "python3 /abs/github_app.py gh pr edit 5 --add-label spec")
@@ -346,6 +355,7 @@ class GithubApp(Reader):
                 "--body-file body.md"):
             with self.subTest(command=command):
                 self.assertEqual(self.bodies(command), ["text of body.md\n"])
+                self.assertEqual(self.titles(command), ["t"] if "--title" in command else [])
         # prose reads a create's flags, such as --dry-run, from the gh call
         # github-app's script runs.
         self.assertEqual(post_reader.gh_command(
@@ -438,12 +448,27 @@ class Discord(Reader):
             'D=/abs/discord_bot.py; unset D; python3 "$D" post --message-file m.md',
             "python3 /abs/discord_bot.py --ident relay post --message-file m.md")
 
-    # @scenario gh-post: A Discord delete, read or thread is no post
+    # @scenario gh-post: A Discord delete or read is no post
     def test_calls_that_post_no_text(self):
         self.assert_no_post("python3 /abs/discord_bot.py delete --message-id 9",
                             "python3 /abs/discord_bot.py read --limit 5",
-                            "python3 /abs/discord_bot.py thread --message-id 9 --name Retries",
                             "cd x && python3 /abs/discord_bot.py read --limit 5")
+
+    # @scenario gh-post: A thread's name is a title
+    def test_a_thread_s_name(self):
+        self.assertEqual(self.read("python3 /abs/discord_bot.py thread --message-id 9 --name Retries"),
+                         [Post("discord-bot thread --name", "Retries", "discord", title=True)])
+        self.assertEqual(self.titles("python3 /abs/discord_bot.py --identity relay thread "
+                                     "--channel 1 --name Retries --identity relay"), ["Retries"])
+        self.assert_unreadable(
+            "python3 /abs/discord_bot.py thread --message-id 9 --name=Retries",
+            "python3 /abs/discord_bot.py thread --message-id 9 --name a --name b",
+            "python3 /abs/discord_bot.py thread --message-id 9 --na x",
+            "python3 /abs/discord_bot.py thread --message-id 9 --name -x",
+            "python3 /abs/discord_bot.py thread --message-id 9 --message-id 8 --name a",
+            "python3 /abs/discord_bot.py thread --message-id 9",
+            "cd x && python3 /abs/discord_bot.py thread --message-id 9 --name Retries",
+            "python3 -m discord_bot thread --message-id 9 --name Retries")
 
     # @scenario gh-post: A discord-bot post outside the reader's form is unreadable
     def test_outside_the_form(self):
@@ -508,7 +533,8 @@ class GhApiPosts(Reader):
     # @scenario gh-post: A gh api write in any other form is unreadable
     def test_other_writes(self):
         files = {"list.json": "[1]", "num.json": json.dumps({"body": 5}),
-                 "none.json": json.dumps({"title": "x"}), "bad.json": "{",
+                 "none.json": json.dumps({"state": "closed"}),
+                 "badtitle.json": json.dumps({"body": "x", "title": 5}), "bad.json": "{",
                  "dup.json": '{"body": "ok", "body": "other"}',
                  "rc.json": json.dumps({"body": "ok", "comments": [{"path": "a"}]}),
                  "rcs.json": json.dumps({"body": "ok", "comments": "x"})}
@@ -532,7 +558,8 @@ class GhApiPosts(Reader):
             "gh api repos/o/r/issues/5/comments -X POST --input missing.json",
             "gh api repos/o/r/issues/5/comments -X POST -X POST --input c.json",
             *[f"gh api repos/o/r/pulls/5/reviews -X POST --input {name}" for name in files])
-        # An issue edit with no body is unreadable, whatever else it changes.
+        # The canonical gh api form needs a body or title, so an issue edit
+        # holding neither is unreadable, whatever else it changes.
         self.assert_unreadable("gh api repos/o/r/issues/5 -X PATCH --input none.json")
 
 
@@ -843,7 +870,8 @@ class Round5(Reader):
 
     # @scenario gh-post: A gh post in any other form is unreadable
     def test_new_is_no_canonical_verb(self):
-        self.assert_unreadable("gh pr new --body x", "gh issue new --body x")
+        self.assert_unreadable("gh pr new --body x", "gh issue new --body x",
+                               "gh issue edit 5 -t x", "gh issue edit 5 --title=x")
 
     # @scenario gh-post: An MCP comment field is read
     def test_the_claude_ai_github_prefix(self):
@@ -859,9 +887,9 @@ class Round5(Reader):
     def test_a_short_group_holding_a_text_letter(self):
         self.assert_unreadable("cd x && gh pr edit 5 -db x")
         self.assertEqual(post_reader.TEXT_LONG, {
-            "body", "body-file", "fill", "fill-first", "fill-verbose", "template", "recover",
-            "comment", "editor", "web"})
-        self.assertEqual(post_reader.TEXT_SHORT, set("bFcfTew"))
+            "body", "body-file", "title", "fill", "fill-first", "fill-verbose", "template",
+            "recover", "comment", "editor", "web"})
+        self.assertEqual(post_reader.TEXT_SHORT, set("bFtcfTew"))
 
     # @scenario gh-post: Input may reach one gh command that uses no post verb
     def test_input_into_a_verb_off_the_no_text_list(self):
@@ -910,9 +938,6 @@ class LinearWrites(Reader):
         for tool, given in (
                 ("mcp__linear__save_document", {"content": "Done?"}),
                 ("mcp__linear__save_status_update", {"body": "Done?"}),
-                ("mcp__linear__save_project", {"id": "P-1", "summary": "Done?"}),
-                ("mcp__linear__update_diff", {"urlOrId": "ENG-5", "title": "Done?"}),
-                ("mcp__linear__save_milestone", {"project": "P-1", "name": "Done?"}),
                 ("mcp__linear__save_release_note",
                  {"id": "R-1", "patch": [{"op": "append", "text": "Done?"}]}),
                 ("mcp__linear__create_attachment_from_upload",
@@ -930,6 +955,66 @@ class LinearWrites(Reader):
         self.assertEqual(len(post_reader.NO_TEXT_KEYS), 45)
         self.assertIn("removedIssueLinks", post_reader.NO_TEXT_KEYS)
         self.assertNotIn("assetUrl", post_reader.NO_TEXT_KEYS)
+
+
+class Titles(Reader):
+    # @scenario gh-post: A gh post's title is read
+    def test_a_gh_post_s_title(self):
+        self.assertEqual(self.titles("gh pr create --title t --body-file body.md"), ["t"])
+        self.assertEqual(self.read("gh issue edit 5 --title 'Rename it?'"),
+                         [Post("gh issue edit --title", "Rename it?", title=True)])
+        # A create still needs a body, and so does every verb but edit; a
+        # title-only edit after another command is no canonical form.
+        self.assert_unreadable("gh pr create --title t", "gh pr comment 5 --title t",
+                               "cd x && gh issue edit 5 --title t")
+
+    # @scenario gh-post: A title alone is returned as a title
+    def test_a_title_alone(self):
+        self.assertEqual(self.read("gh pr edit 5 --title 'Retry?'"),
+                         [Post("gh pr edit --title", "Retry?", title=True)])
+
+    # @scenario gh-post: A canonical gh api post is read
+    def test_a_gh_api_post_s_title(self):
+        (self.dir / "title.json").write_text(json.dumps({"title": "Retry?"}))
+        (self.dir / "badtitle.json").write_text(json.dumps({"body": "x", "title": 5}))
+        self.assertEqual(self.read("gh api repos/o/r/issues/5 -X PATCH --input title.json"),
+                         [Post("gh api repos/o/r/issues/5 --input title.json title", "Retry?",
+                               title=True)])
+        self.assert_unreadable("gh api repos/o/r/issues/5 -X PATCH --input badtitle.json")
+
+    # The scenario's last case reads a GitHub MCP tool's title.
+    # @scenario gh-post: An MCP comment field is read
+    def test_a_github_mcp_title(self):
+        self.assertEqual(self.payload("mcp__github__create_issue",
+                                      {"title": "Retries?", "body": "ok"}),
+                         [Post("title", "Retries?", title=True), Post("body", "ok")])
+        # A blank title holds no text, so it is left out.
+        self.assertEqual(self.payload("mcp__github__create_issue", {"title": "  ", "body": "b"}),
+                         [Post("body", "b")])
+
+    # @scenario gh-post: A Linear write call's titles, names, summary and description are read
+    def test_linear_titles_and_summary_text(self):
+        self.assertEqual(
+            self.payload("mcp__linear__save_project",
+                         {"id": "P-1", "name": "Retries?", "summary": "Should retries back off?"}),
+            [Post("name", "Retries?", "linear", title=True),
+             Post("summary", "Should retries back off?", "linear", summary_text=True)])
+        self.assertEqual(
+            self.payload("mcp__linear__save_milestone",
+                         {"project": "P-1", "name": "Beta", "description": "Ship it?"}),
+            [Post("name", "Beta", "linear", title=True),
+             Post("description", "Ship it?", "linear", summary_text=True)])
+        self.assertEqual(self.payload("mcp__linear__update_diff",
+                                      {"urlOrId": "ENG-5", "title": "Done?"}),
+                         [Post("title", "Done?", "linear", title=True)])
+        # A blank name or summary holds no text, so it is left out.
+        self.assertEqual(self.payload("mcp__linear__save_project", {"name": "  "}), NoPost())
+        # A save_issue whose only text is its title gives that title; its
+        # description is a message, never summary text.
+        self.assertEqual(self.payload("mcp__linear__save_issue", {"id": "X-1", "title": "New"}),
+                         [Post("title", "New", "linear", title=True)])
+        found = self.payload("mcp__linear__save_issue", {"description": "x"})
+        self.assertEqual(found, [Post("description", "x", "linear")])
 
 if __name__ == "__main__":
     unittest.main()
